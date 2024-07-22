@@ -1,0 +1,16 @@
+db.sqlite3
+*.sqlite3
+**/__pycache__
+**/migrations
+sat_logs
+zeekr_sat_ui
+sat_scripts/mitm/*/dnslog.txt
+sat_scripts/mitm/*/mitmlog.txt
+sat_scripts/mitm/*/tcpprocess.log
+sat_scripts/mitm/*/mitm_result.py
+sat_scripts/mitm/dnslog.txt
+sat_scripts/mitm/nohup.out
+sat_scripts/mitm/dnslog.txt
+sat_scripts/mitm/mitmlog.txt
+sat_scripts/mitm/dnslog.txt
+sat_scripts/mitm/dnslog.txt

@@ -1,0 +1,5 @@
+
+    [console_scripts]
+    nogotofail-mitm=nogotofail.mitm.__main__:run
+    nogotofail-client-linux=nogotofail.clients.linux.pyblame.__main__:main
+    

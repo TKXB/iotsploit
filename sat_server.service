@@ -1,0 +1,13 @@
+[Unit]
+Description=sat_server
+After=graphical.target
+
+[Service]
+ExecStart=/home/sat/zeekr_sat_main/start_sat_server.sh
+WorkingDirectory=/home/sat/zeekr_sat_main
+User=root
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=graphical.target

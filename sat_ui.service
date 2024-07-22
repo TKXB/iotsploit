@@ -1,0 +1,13 @@
+[Unit]
+Description=sat_ui
+After=graphical.target
+
+[Service]
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+ExecStart=/home/sat/zeekr_sat_rep_local/start_sat_ui.sh
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=graphical.target
