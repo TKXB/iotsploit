@@ -5,22 +5,43 @@ from django.conf import settings
 import time
 import logging
 import cmd2
+from cmd2 import ansi
+
+from sat_toolkit.core.plugin_manager import ExploitPluginManager
 
 logger = logging.getLogger(__name__)
 
 class SAT_Shell(cmd2.Cmd):
-    BLUE = "\033[1;34m"
-    RED = "\033[1;31m"
-    GREEN = "\033[1;32m"
-    YELLOW = "\033[1;33m"
-    RESET = "\033[0m"
+    intro = '\nWelcome to IoXsploit Shell. Type ' + ansi.style('help', fg=ansi.Fg.YELLOW) + ' or ' + ansi.style('?', fg=ansi.Fg.YELLOW) + ' to list commands.\n'
+    prompt = ansi.style('<SAT_SHELL> ', fg=ansi.Fg.BLUE)
 
-    intro = '\nWelcome to Zeekr SAT Shell. Type ' + YELLOW + 'help' + RESET + ' or ' + YELLOW + '?' + RESET + ' to list commands.\n'
-    prompt = BLUE + '<SAT_SHELL> ' + RESET
+    def __init__(self):
+        super().__init__()
 
     def emptyline(self):
         self.onecmd("help")
 
+    @cmd2.with_category('System Commands')
+    def do_init(self, arg):
+        'Initialize Zeekr SAT System'
+        manager = ExploitPluginManager()
+        manager.initialize()
+        
+        # Prompt user for target details
+        ip = input(ansi.style("Enter target IP: ", fg=ansi.Fg.GREEN))
+        user = input(ansi.style("Enter target username: ", fg=ansi.Fg.GREEN))
+        passwd = input(ansi.style("Enter target password: ", fg=ansi.Fg.GREEN))
+        cmd = input(ansi.style("Enter command to execute: ", fg=ansi.Fg.GREEN))
+        
+        target = {
+            'ip': ip,
+            'user': user,
+            'passwd': passwd,
+            'cmd': cmd
+        }
+        
+        manager.exploit(target)
+    
     @cmd2.with_category('Device Commands')
     def do_device_info(self, arg):
         'Show Zeekr SAT Device Info'

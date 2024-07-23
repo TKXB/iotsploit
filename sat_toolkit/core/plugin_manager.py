@@ -1,7 +1,7 @@
 import os
 import importlib.util
 import pluggy
-from exploit_spec import ExploitPluginSpec
+from sat_toolkit.core.exploit_spec import ExploitPluginSpec
 
 class ExploitPluginManager:
     def __init__(self):
