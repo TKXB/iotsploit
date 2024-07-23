@@ -14,3 +14,6 @@ sat_scripts/mitm/dnslog.txt
 sat_scripts/mitm/mitmlog.txt
 sat_scripts/mitm/dnslog.txt
 sat_scripts/mitm/dnslog.txt
+
+env3.8/
+test/

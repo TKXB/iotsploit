@@ -213,13 +213,28 @@ python static_file_location_converter.py
 cd ..
 
 
+## Preparing: Before run sat_shell.py
+To perform database migrations, run the following commands:
+
+```shell
 sudo python manage.py makemigrations
 sudo python manage.py makemigrations sat_toolkit
 sudo python manage.py migrate
-sudo python manage.py createsuperuser
-sudo python manage.py loaddata db_backup/20231210_1106.json
+```
 
-确认下sat_ui.service sat_server.service 内部路径的有效性
+To create a superuser, use the following command:
+
+```shell
+sudo python manage.py createsuperuser
+```
+
+To load data from a backup file, run the following command:
+
+```shell
+sudo python manage.py loaddata db_backup/20231210_1106.json
+```
+
+Please ensure that the paths specified in the `sat_ui.service` and `sat_server.service` files are valid.
 sudo cp -rf sat_server.service /etc/systemd/system/
 <!-- sudo cp -rf sat_ui.service /etc/systemd/system/ -->
 sudo systemctl daemon-reload
