@@ -217,7 +217,7 @@ class VehicleInfo(models.Model):
     #     logger.info("Vehicles List Finish\n")
 
     @staticmethod
-    def new_vehicle_fast(desc = "Zeekr Test Vehicle"):
+    def new_vehicle_fast(desc = "Test Vehicle"):
         vehicle_info = VehicleInfo(Description = desc)
         vehicle_info.save()
         logger.info("ADD New Vehicle:{}".format(vehicle_info))
