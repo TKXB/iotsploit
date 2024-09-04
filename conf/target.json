@@ -1,0 +1,53 @@
+{
+    "devices": [
+      {
+        "device_id": "device_001",
+        "name": "Temperature Sensor",
+        "type": "sensor",
+        "location": "Living Room",
+        "status": "active",
+        "ip_address": "192.168.50.64",
+        "components": [
+          {
+            "component_id": "comp_001",
+            "name": "Temperature Module",
+            "type": "module",
+            "status": "active",
+            "firmware_version": "1.0.0",
+            "protocol": "Zigbee"
+          },
+          {
+            "component_id": "comp_002",
+            "name": "CPU",
+            "type": "cpu",
+            "status": "active",
+            "architecture": "ARM Cortex-M4",
+            "clock_speed_mhz": 120
+          },
+          {
+            "component_id": "comp_003",
+            "name": "Flash Memory",
+            "type": "flash",
+            "status": "active",
+            "capacity_mb": 512
+          }
+        ],
+        "interfaces": [
+          {
+            "interface_id": "intf_001",
+            "name": "JTAG",
+            "type": "jtag",
+            "status": "active",
+            "pinout": "standard"
+          },
+          {
+            "interface_id": "intf_002",
+            "name": "UART",
+            "type": "uart",
+            "status": "active",
+            "baudrate": 115200
+          }
+        ]
+      }
+    ]
+  }

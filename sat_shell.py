@@ -6,8 +6,10 @@ import time
 import logging
 import cmd2
 from cmd2 import ansi
+import argparse  
 
 from sat_toolkit.core.plugin_manager import ExploitPluginManager
+from sat_toolkit.tools.env_mgr import Env_Mgr
 
 logger = logging.getLogger(__name__)
 
@@ -23,38 +25,28 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('System Commands')
     def do_init(self, arg):
-        'Initialize Zeekr SAT System'
+        'Initialize IotSploit System'
         manager = ExploitPluginManager()
         manager.initialize()
         
-        # Prompt user for target details
-        ip = input(ansi.style("Enter target IP: ", fg=ansi.Fg.GREEN))
-        user = input(ansi.style("Enter target username: ", fg=ansi.Fg.GREEN))
-        passwd = input(ansi.style("Enter target password: ", fg=ansi.Fg.GREEN))
-        cmd = input(ansi.style("Enter command to execute: ", fg=ansi.Fg.GREEN))
-        
-        target = {
-            'ip': ip,
-            'user': user,
-            'passwd': passwd,
-            'cmd': cmd
-        }
-        
-        manager.exploit(target)
+        # Load target details from JSON file using Env_Mgr
+        env_mgr = Env_Mgr.Instance()
+        env_mgr.parse_and_set_env_from_json('conf/target.json')     
+        manager.exploit()
     
     @cmd2.with_category('Device Commands')
     def do_device_info(self, arg):
         'Show Zeekr SAT Device Info'
-        logger.info("Zeekr SAT Device Info:")
+        logger.info(ansi.style("Zeekr SAT Device Info:", fg=ansi.Fg.CYAN))
         for key, value in Pi_Mgr.Instance().pi_info().items():
-            logger.info("  {}:\t{}".format(key, value))
+            logger.info(ansi.style(f"  {key}:\t{value}", fg=ansi.Fg.CYAN))
 
     @cmd2.with_category('OTA Commands')
     def do_ota_info(self, arg):
         'Show Zeekr SAT Version Info'
-        logger.info("Zeekr SAT Version Info:")
+        logger.info(ansi.style("Zeekr SAT Version Info:", fg=ansi.Fg.CYAN))
         for key, value in OTA_Mgr.Instance().curr_version().items():
-            logger.info("  {}:\t{}".format(key, value))
+            logger.info(ansi.style(f"  {key}:\t{value}", fg=ansi.Fg.CYAN))
 
     @cmd2.with_category('Vehicle Commands')
     def do_vehicle_select(self, arg):
@@ -63,7 +55,7 @@ class SAT_Shell(cmd2.Cmd):
             "Please Select Existing Vehicle Profile",
             Toolkit_Main.Instance().list_vehicle_profiles_to_select()
         )
-        logger.info("Vehicle Profile Select Success.")
+        logger.info(ansi.style("Vehicle Profile Select Success.", fg=ansi.Fg.GREEN))
         Toolkit_Main.Instance().select_vehicle_profile(select_vehicle_profile)
 
     @cmd2.with_category('Test Commands')
@@ -73,14 +65,14 @@ class SAT_Shell(cmd2.Cmd):
             "Please Select TestLevel",
             Toolkit_Main.Instance().list_test_levels_to_select()
         )
-        logger.info("Test Level Select Success.")
+        logger.info(ansi.style("Test Level Select Success.", fg=ansi.Fg.GREEN))
         Toolkit_Main.Instance().select_test_level(choice)
 
         choice = Input_Mgr.Instance().single_choice(
             "Please Select TestProject",
             Toolkit_Main.Instance().list_test_projects_to_select()
         )
-        logger.info("Test Project Select Success.")
+        logger.info(ansi.style("Test Project Select Success.", fg=ansi.Fg.GREEN))
         Toolkit_Main.Instance().select_test_project(choice)
         Report_Mgr.Instance().reset_audit_result()
 
@@ -100,14 +92,14 @@ class SAT_Shell(cmd2.Cmd):
             "Please Select TestLevel",
             Toolkit_Main.Instance().list_test_levels_to_select()
         )
-        logger.info("Test Level Select Success.")
+        logger.info(ansi.style("Test Level Select Success.", fg=ansi.Fg.GREEN))
         Toolkit_Main.Instance().select_test_level(choice)
 
         choice = Input_Mgr.Instance().single_choice(
             "Please Select TestProject",
             Toolkit_Main.Instance().list_test_projects_to_select()
         )
-        logger.info("Test Project Select Success.")
+        logger.info(ansi.style("Test Project Select Success.", fg=ansi.Fg.GREEN))
         Toolkit_Main.Instance().quick_test(choice)
 
     @cmd2.with_category('System Commands')
@@ -115,18 +107,24 @@ class SAT_Shell(cmd2.Cmd):
         'Exit Zeekr SAT Shell'
         Toolkit_Main.Instance().exit_quick_test()
         Toolkit_Main.Instance().stop_audit()
-        logger.info("Zeekr SAT Shell Quit. ByeBye~")
+        logger.info(ansi.style("Zeekr SAT Shell Quit. ByeBye~", fg=ansi.Fg.RED))
         return True
 
     @cmd2.with_category('Network Commands')
     def do_connect_lab_wifi(self, arg):
         'Connect Zeekr Lab WiFi'
-        logger.info("Connect Zeekr Lab WiFi")
+        logger.info(ansi.style("Connect Zeekr Lab WiFi", fg=ansi.Fg.CYAN))
         WiFi_Mgr.Instance().sta_connect_wifi("FHCPE-h6Db-5G", "UybN9Tea")
         time.sleep(2)
         WiFi_Mgr.Instance().status()
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Start the SAT Shell.')
+    parser.add_argument('--log-level', default='INFO', help='Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
+    args = parser.parse_args()
+
+    logging.basicConfig(level=getattr(logging, args.log_level.upper(), None))
+
     try:
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
         settings.INSTALLED_APPS

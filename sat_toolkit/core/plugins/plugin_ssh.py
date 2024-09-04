@@ -1,6 +1,7 @@
 import pluggy
 import logging
 from pwn import *
+from sat_toolkit.tools.env_mgr import Env_Mgr
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("exploit_mgr")
@@ -8,12 +9,22 @@ hookimpl = pluggy.HookimplMarker("exploit_mgr")
 class SSHPlugin:
     @hookimpl
     def initialize(self):
-        print("Initializing MyExploitPlugin")
+        print("Initializing SSHExploitPlugin")
         self.ssh_mgr = SSH_Mgr()
 
     @hookimpl
-    def execute(self, target):
-        print(f"Executing exploit on {target}")
+    def execute(self):
+        env_mgr = Env_Mgr.Instance()
+        
+        # Retrieve target information from environment variables
+        target = {
+            'ip': env_mgr.get('device_001_ip_address'),
+            'user': "root",
+            'passwd': "123456",
+            'cmd': "ls -l"
+        }
+        
+        print(f"Executing exploit on {target['ip']}")
         ssh_context = self.ssh_mgr.open_ssh(target['ip'], target['user'], target['passwd'])
         if ssh_context:
             result = self.ssh_mgr.ssh_cmd(ssh_context, target['cmd'])

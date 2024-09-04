@@ -1,8 +1,10 @@
 import logging
-logger = logging.getLogger(__name__)
-
+import json
 import os
 from sat_toolkit.tools.sat_utils import *
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class Env_Mgr:
     ENV_PreFix = "__SAT_ENV__"
@@ -129,5 +131,47 @@ class Env_Mgr:
     def load_from_file(self,file_path:str):
         pass
     
+    def parse_and_set_env_from_json(self, json_file_path):
+        logger.debug(f"Reading JSON file from: {json_file_path}")
+        if not os.path.exists(json_file_path):
+            logger.error(f"File not found: {json_file_path}")
+            return
+
+        with open(json_file_path, 'r') as file:
+            data = json.load(file)
+        
+        logger.debug(f"JSON data: {data}")
+
+        for device in data.get('devices', []):
+            device_id = device.get('device_id', 'unknown_device')
+            for key, value in device.items():
+                if isinstance(value, dict):
+                    for sub_key, sub_value in value.items():
+                        self.set(f"{device_id}_{sub_key}", sub_value)
+                elif isinstance(value, list):
+                    for index, item in enumerate(value):
+                        if isinstance(item, dict):
+                            for sub_key, sub_value in item.items():
+                                self.set(f"{device_id}_{key}_{index}_{sub_key}", sub_value)
+                        else:
+                            self.set(f"{device_id}_{key}_{index}", item)
+                else:
+                    self.set(f"{device_id}_{key}", value)
+
 _instance = Env_Mgr()
 
+if __name__ == "__main__":
+    # Example usage
+    print("Starting script...")
+    env_mgr = Env_Mgr.Instance()
+    env_mgr.parse_and_set_env_from_json('conf/target.json')
+    env_mgr.dump()
+    
+    # Retrieve ip_address of device_001
+    try:
+        ip_address = env_mgr.get("device_001_ip_address")
+        print(f"IP Address of device_001: {ip_address}")
+        baud_rate = env_mgr.get("device_001_interfaces_1_baudrate")
+        print(f"Baud Rate of intf_002: {baud_rate}")
+    except Exception as e:
+        print(f"Error: {e}")
