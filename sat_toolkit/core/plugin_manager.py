@@ -14,7 +14,7 @@ class ExploitPluginManager:
         self.load_plugins()
 
     def load_plugins(self):
-        plugin_dir = os.path.join(os.path.dirname(__file__), "plugins")
+        plugin_dir = os.path.join(os.path.dirname(__file__), "../plugins")
         logger.info(f"Loading plugins from {plugin_dir}")
         for filename in os.listdir(plugin_dir):
             if filename.endswith(".py") and filename != "__init__.py":

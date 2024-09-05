@@ -2,7 +2,7 @@ import logging
 import pluggy
 from sat_toolkit.core.device_manager import DeviceManager
 from sat_toolkit.models.Device_Model import Device, DeviceType
-from sat_toolkit.core.plugins.abilities.usb_a import USBAbility
+from sat_toolkit.plugins.abilities.usb_a import USBAbility
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("exploit_mgr")
