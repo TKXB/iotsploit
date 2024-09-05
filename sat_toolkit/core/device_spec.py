@@ -1,23 +1,21 @@
 import pluggy
+from sat_toolkit.models.Device_Model import Device
 
 hookspec = pluggy.HookspecMarker("device_mgr")
 
-class ExploitPluginSpec:
+class DevicePluginSpec:
     @hookspec
-    def initialize(self):
-        print("Initializing device")
-    
-    @hookspec
-    def execute(self, target):
-        print(f"Executing exploit on {target}")
-        # 实际的攻击代码将在这里实现
+    def initialize(self, device: Device):
+        """Initialize the plugin for a specific device."""
 
     @hookspec
-    def send_command(self, command):
-        print(f"Sending command: {command}")
-        # 实际的发送命令代码将在这里实现
+    def execute(self, device: Device, target: str):
+        """Execute an action on the target using the device."""
 
     @hookspec
-    def reset(self):
-        print("Resetting plugin")
-        # 实际的重置代码将在这里实现
+    def send_command(self, device: Device, command: str):
+        """Send a command to the device."""
+
+    @hookspec
+    def reset(self, device: Device):
+        """Reset the device to its initial state."""

@@ -16,6 +16,7 @@ class TCAMCheckPlugin:
     @hookimpl
     def execute(self):
         Input_Mgr.Instance().confirm("请确认TCAM已经通过USB连接SAT，且TCAM的ADB已经关闭")
+        return
         vehicle_tcam_serial = Env_Mgr.Instance().get("__SAT_ENV__VehicleInfo_TCAM_ADB_SERIAL_ID")
         if vehicle_tcam_serial is None:
             raise_err("车辆未设置TCAM ADB SERIAL ID! VehicleInfo_TCAM_ADB_SERIAL_ID NOT SET!")

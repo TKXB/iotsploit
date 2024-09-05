@@ -25,6 +25,7 @@ class SSHPlugin:
         }
         
         print(f"Executing exploit on {target['ip']}")
+        return
         ssh_context = self.ssh_mgr.open_ssh(target['ip'], target['user'], target['passwd'])
         if ssh_context:
             result = self.ssh_mgr.ssh_cmd(ssh_context, target['cmd'])

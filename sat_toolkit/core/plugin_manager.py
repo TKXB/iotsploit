@@ -4,7 +4,6 @@ import pluggy
 import logging
 
 from sat_toolkit.core.exploit_spec import ExploitPluginSpec
-
 logger = logging.getLogger(__name__)
 
 class ExploitPluginManager:
