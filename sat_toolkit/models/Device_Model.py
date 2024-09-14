@@ -7,11 +7,12 @@ class DeviceType(Enum):
     Serial = "Serial"
 
 class Device:
-    def __init__(self, device_id: str, device_name: str, device_type: DeviceType, attributes: dict):
+    def __init__(self, device_id: str, device_name: str, device_type: DeviceType, attributes: dict, firmware_version: str):
         self.device_id = device_id
         self.name = device_name
         self.device_type = device_type
         self.attributes = attributes
+        self.firmware_version = firmware_version
 
     def __repr__(self):
-        return f"Device(device_id={self.device_id}, device_type={self.device_type}, attributes={self.attributes})"
+        return f"Device(device_id={self.device_id}, device_type={self.device_type}, attributes={self.attributes}, firmware_version={self.firmware_version})"

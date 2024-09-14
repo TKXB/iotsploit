@@ -61,6 +61,15 @@ class Report_Mgr:
     def log_init(self):
         pass
 
+    def set_log_level(self, level):
+        logging.getLogger().setLevel(level)
+        if self.__root_log_file_handler:
+            self.__root_log_file_handler.setLevel(level)
+        if self.__root_log_console_handler:
+            self.__root_log_console_handler.setLevel(level)
+        if self.__teststep_log_file_handler:
+            self.__teststep_log_file_handler.setLevel(level)
+
     def reset_audit_result(self):
         self.__report_test_result = None
         self.__report_test_result_desc = None

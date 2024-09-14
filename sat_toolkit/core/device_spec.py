@@ -5,8 +5,16 @@ hookspec = pluggy.HookspecMarker("device_mgr")
 
 class DevicePluginSpec:
     @hookspec
+    def scan(self, device: Device):
+        """Scan the device"""
+
+    @hookspec
     def initialize(self, device: Device):
         """Initialize the plugin for a specific device."""
+    
+    @hookspec
+    def connect(self, device: Device):
+        """Connect to the device."""
 
     @hookspec
     def execute(self, device: Device, target: str):
@@ -19,3 +27,8 @@ class DevicePluginSpec:
     @hookspec
     def reset(self, device: Device):
         """Reset the device to its initial state."""
+
+    @hookspec
+    def close(self, device: Device):
+        """Close the device."""
+        

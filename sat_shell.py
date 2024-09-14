@@ -17,7 +17,7 @@ django.setup()
 
 # Now it's safe to import Django-related modules
 from django.core.management import execute_from_command_line
-from sat_toolkit.core.plugin_manager import ExploitPluginManager
+from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.toolkit_main import Toolkit_Main
@@ -41,7 +41,7 @@ class SAT_Shell(cmd2.Cmd):
         self.onecmd("help")
 
     @cmd2.with_category('System Commands')
-    def do_init(self, arg):
+    def do_exploit(self, arg):
         'Initialize IotSploit System'
         manager = ExploitPluginManager()
         manager.initialize()
@@ -126,7 +126,7 @@ class SAT_Shell(cmd2.Cmd):
             self.do_stop_server(arg)
         Toolkit_Main.Instance().exit_quick_test()
         Toolkit_Main.Instance().stop_audit()
-        logger.info(ansi.style("Zeekr SAT Shell Quit. ByeBye~", fg=ansi.Fg.RED))
+        logger.info(ansi.style("IotSploit SAT Shell Quit. ByeBye~", fg=ansi.Fg.RED))
         return True
 
     @cmd2.with_category('Network Commands')
@@ -183,13 +183,21 @@ class SAT_Shell(cmd2.Cmd):
         else:
             self.poutput("No Django server is currently running.")
 
+    @cmd2.with_category('System Commands')
+    def do_set_log_level(self, arg):
+        'Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)'
+        levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        if arg.upper() not in levels:
+            self.poutput(f"Invalid log level. Choose from: {', '.join(levels)}")
+            return
+
+        level = getattr(logging, arg.upper())
+        logging.getLogger().setLevel(level)
+        Report_Mgr.Instance().set_log_level(level)
+        self.poutput(f"Log level set to {arg.upper()}")
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Start the SAT Shell.')
-    parser.add_argument('--log-level', default='INFO', help='Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
-    args = parser.parse_args()
-
-    logging.basicConfig(level=getattr(logging, args.log_level.upper(), None))
-
+    logging.basicConfig(level=logging.INFO)  # Set default log level to INFO
     Report_Mgr.Instance().log_init()
     Env_Mgr.Instance().set("SAT_RUN_IN_SHELL", True)
 
