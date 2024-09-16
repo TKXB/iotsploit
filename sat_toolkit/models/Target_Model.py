@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Type
 from abc import ABC, abstractmethod
-from sqlalchemy import create_engine, Column, String, JSON, Integer, ForeignKey
+from sqlalchemy import create_engine, Column, String, JSON
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker
 import os
 import json
 import logging
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
-# 基础的 Target 类
+# Base Target class
 class Target(BaseModel, ABC):
     target_id: str
     name: str
@@ -24,7 +24,7 @@ class Target(BaseModel, ABC):
     def get_info(self) -> Dict[str, Any]:
         pass
 
-# Component 和 Interface 类保持不变
+# Component and Interface classes remain unchanged
 class Component(BaseModel):
     component_id: str
     name: str
@@ -45,7 +45,7 @@ class Interface(BaseModel):
     def get_info(self) -> Dict[str, Any]:
         return self.model_dump()
 
-# Vehicle 类继承自 Target
+# Vehicle class inherits from Target
 class Vehicle(Target):
     ip_address: Optional[str] = None
     location: Optional[str] = None
@@ -62,9 +62,7 @@ class Vehicle(Target):
         })
         return info
 
-# 您可以类似地定义 Plane、Camera、Router 类，继承自 Target
-
-# SQLAlchemy 数据库模型
+# SQLAlchemy database model using Single Table Inheritance
 class TargetDBModel(Base):
     __tablename__ = 'targets'
 
@@ -73,7 +71,12 @@ class TargetDBModel(Base):
     type = Column(String)
     status = Column(String)
     properties = Column(JSON)
-    # 多态属性
+    # Fields specific to Vehicle (nullable for other types)
+    ip_address = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    components = Column(JSON, nullable=True)
+    interfaces = Column(JSON, nullable=True)
+    # Polymorphic attributes
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'target'
@@ -86,27 +89,13 @@ class TargetDBModel(Base):
         self.status = target.status
         self.properties = target.properties
 
-class VehicleDBModel(TargetDBModel):
-    __tablename__ = 'vehicles'
-
-    target_id = Column(String, ForeignKey('targets.target_id'), primary_key=True)
-    ip_address = Column(String)
-    location = Column(String)
-    components = Column(JSON)
-    interfaces = Column(JSON)
-
-    __mapper_args__ = {
-        'polymorphic_identity': 'vehicle',
-    }
-
-    def __init__(self, vehicle: Vehicle):
-        super().__init__(vehicle)
-        self.ip_address = vehicle.ip_address
-        self.location = vehicle.location
-        self.components = [comp.model_dump() for comp in vehicle.components]
-        self.interfaces = [intf.model_dump() for intf in vehicle.interfaces]
-
-# 类似地，创建 PlaneDBModel、CameraDBModel、RouterDBModel，继承自 TargetDBModel
+        # Assign subclass-specific fields
+        if isinstance(target, Vehicle):
+            self.ip_address = target.ip_address
+            self.location = target.location
+            self.components = [comp.model_dump() for comp in target.components]
+            self.interfaces = [intf.model_dump() for intf in target.interfaces]
+        # Additional handling for other Target types (e.g., Plane, Camera, Router)
 
 class TargetManager:
     _instance = None
@@ -143,13 +132,8 @@ class TargetManager:
     def save_target(self, target: Target):
         session = self.Session()
         try:
-            if isinstance(target, Vehicle):
-                vehicle_model = VehicleDBModel(target)
-                session.add(vehicle_model)
-            # 在这里添加对其他 Target 类型的处理（例如 Plane、Camera、Router）
-            else:
-                target_model = TargetDBModel(target)
-                session.add(target_model)
+            target_model = TargetDBModel(target)
+            session.add(target_model)
             session.commit()
         except Exception as e:
             session.rollback()
@@ -163,28 +147,23 @@ class TargetManager:
             targets = session.query(TargetDBModel).all()
             result = []
             for t in targets:
-                if t.type == 'vehicle':
-                    target = session.query(VehicleDBModel).filter_by(target_id=t.target_id).one()
-                    result.append({
-                        "target_id": target.target_id,
-                        "name": target.name,
-                        "type": target.type,
-                        "status": target.status,
-                        "ip_address": target.ip_address,
-                        "location": target.location,
-                        "properties": target.properties,
-                        "components": target.components,
-                        "interfaces": target.interfaces
-                    })
-                else:
-                    # 对其他 Target 类型的处理
-                    result.append({
-                        "target_id": t.target_id,
-                        "name": t.name,
-                        "type": t.type,
-                        "status": t.status,
-                        "properties": t.properties
-                    })
+                target_info = {
+                    "target_id": t.target_id,
+                    "name": t.name,
+                    "type": t.type,
+                    "status": t.status,
+                    "properties": t.properties
+                }
+                # Include Vehicle-specific fields if present
+                if t.ip_address:
+                    target_info["ip_address"] = t.ip_address
+                if t.location:
+                    target_info["location"] = t.location
+                if t.components:
+                    target_info["components"] = t.components
+                if t.interfaces:
+                    target_info["interfaces"] = t.interfaces
+                result.append(target_info)
             return result
         finally:
             session.close()
@@ -200,27 +179,25 @@ class TargetManager:
 
         logger.debug(f"JSON data: {data}")
 
-        for target in data.get('targets', []):  # Changed from 'devices' to 'targets'
+        for target in data.get('targets', []):
             target_type = target.get('type', 'unknown')
-            target_data = {
-                "target_id": target.get('target_id', 'unknown_target'),  # Changed from 'device_id' to 'target_id'
-                "name": target.get('name', 'Unknown Target'),
-                "type": target_type,
-                "properties": {}
-            }
+            target_class = self.targets.get(target_type, Target)
+            if not target_class:
+                logger.error(f"No target type registered for: {target_type}")
+                continue
 
-            # 收集属性
+            # Get the fields of the target class
+            model_fields = target_class.model_fields.keys()
+
+            target_data = {}
             for key, value in target.items():
-                if key not in ['target_id', 'name', 'type']:  # Changed from 'device_id' to 'target_id'
-                    if isinstance(value, dict):
-                        target_data['properties'][key] = value
-                    elif isinstance(value, list):
-                        target_data[key] = value  # Components or interfaces
-                    else:
-                        target_data['properties'][key] = value
+                if key in model_fields:
+                    target_data[key] = value
+                else:
+                    target_data.setdefault('properties', {})[key] = value
 
             target_instance = self.create_target(target_type, **target_data)
-            self.current_target = target_instance  # 设置当前的 Target
+            self.current_target = target_instance  # Set the current Target
 
         logger.info("Parsed and created targets from JSON file")
 
@@ -231,53 +208,21 @@ class TargetManager:
         self.current_target = target
 
 if __name__ == "__main__":
-    # 示例用法
+    # Example usage
     target_manager = TargetManager()
     target_manager.register_target("vehicle", Vehicle)
 
-    # 当定义了其他 Target 类型时，可以注册它们
+    # Register other Target types when defined
     # target_manager.register_target("plane", Plane)
     # target_manager.register_target("camera", Camera)
     # target_manager.register_target("router", Router)
 
-    # 使用简化的系统创建一个 Target
-    vehicle_data = {
-        "target_id": "vehicle_001",
-        "name": "Tesla Model 3",
-        "type": "vehicle",
-        "ip_address": "192.168.1.10",
-        "location": "Garage",
-        "properties": {
-            "model_year": 2023,
-            "battery_capacity": "75 kWh"
-        },
-        "components": [
-            {
-                "component_id": "comp_001",
-                "name": "Electric Motor",
-                "type": "motor",
-                "properties": {
-                    "power": "283 kW",
-                    "torque": "450 Nm"
-                }
-            }
-        ],
-        "interfaces": [
-            {
-                "interface_id": "intf_001",
-                "name": "OBD-II",
-                "type": "diagnostic",
-                "properties": {
-                    "protocol": "CAN"
-                }
-            }
-        ]
-    }
+    # Load targets from JSON file
+    json_file_path = "path_to_your_json_file.json"  # Update with your actual JSON file path
+    target_manager.parse_and_set_target_from_json(json_file_path)
 
-    vehicle = target_manager.create_target("vehicle", **vehicle_data)
-    print(vehicle.get_info())
-
-    # 从数据库检索所有的 Target
+    # Retrieve and print all Targets from the database
     all_targets = target_manager.get_all_targets()
     for t in all_targets:
         print(f"Retrieved from DB: {t['name']}, ID: {t['target_id']}, Type: {t['type']}")
+        print(json.dumps(t, indent=2))
