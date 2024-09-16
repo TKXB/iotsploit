@@ -131,32 +131,6 @@ class Env_Mgr:
     def load_from_file(self,file_path:str):
         pass
     
-    def parse_and_set_env_from_json(self, json_file_path):
-        logger.debug(f"Reading JSON file from: {json_file_path}")
-        if not os.path.exists(json_file_path):
-            logger.error(f"File not found: {json_file_path}")
-            return
-
-        with open(json_file_path, 'r') as file:
-            data = json.load(file)
-        
-        logger.debug(f"JSON data: {data}")
-
-        for device in data.get('devices', []):
-            device_id = device.get('device_id', 'unknown_device')
-            for key, value in device.items():
-                if isinstance(value, dict):
-                    for sub_key, sub_value in value.items():
-                        self.set(f"{device_id}_{sub_key}", sub_value)
-                elif isinstance(value, list):
-                    for index, item in enumerate(value):
-                        if isinstance(item, dict):
-                            for sub_key, sub_value in item.items():
-                                self.set(f"{device_id}_{key}_{index}_{sub_key}", sub_value)
-                        else:
-                            self.set(f"{device_id}_{key}_{index}", item)
-                else:
-                    self.set(f"{device_id}_{key}", value)
 
 _instance = Env_Mgr()
 

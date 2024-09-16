@@ -5,6 +5,10 @@ from sqlalchemy import create_engine, Column, String, JSON, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -91,7 +95,7 @@ class InterfaceModel(Base):
         self.status = interface.status
         self.properties = interface.properties
 
-class VehicleModel(Base):
+class VehicleDBModel(Base):
     __tablename__ = 'vehicles'
 
     target_id = Column(String, primary_key=True)
@@ -114,22 +118,28 @@ class VehicleModel(Base):
         self.properties = vehicle.properties
         self.components = [comp.model_dump() for comp in vehicle.components]
         self.interfaces = [intf.model_dump() for intf in vehicle.interfaces]
-
-class TargetFactory:
-    @staticmethod
-    def create_target(target_type: str, **kwargs) -> Target:
-        if target_type == "vehicle":
-            return Vehicle(**kwargs)
-        # Add more target types here as needed
-        raise ValueError(f"Unknown target type: {target_type}")
+        
 
 class TargetManager:
-    def __init__(self):
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(TargetManager, cls).__new__(cls)
+            cls._instance.initialize()
+        return cls._instance
+
+    def initialize(self):
         self.targets: Dict[str, Type[Target]] = {}
         db_path = os.path.join(os.path.dirname(__file__), 'target_database.sqlite')
         self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
+        self.current_target = None
+
+    @classmethod
+    def get_instance(cls):
+        return cls()
 
     def register_target(self, target_type: str, target_class: Type[Target]):
         self.targets[target_type] = target_class
@@ -145,7 +155,7 @@ class TargetManager:
         session = self.Session()
         try:
             if isinstance(target, Vehicle):
-                vehicle_model = VehicleModel(target)
+                vehicle_model = VehicleDBModel(target)
                 session.add(vehicle_model)
                 for component in target.components:
                     component_model = ComponentModel(component)
@@ -163,7 +173,7 @@ class TargetManager:
     def get_all_vehicles(self) -> List[Dict[str, Any]]:
         session = self.Session()
         try:
-            vehicles = session.query(VehicleModel).all()
+            vehicles = session.query(VehicleDBModel).all()
             result = [
                 {
                     "target_id": v.target_id,
@@ -181,6 +191,54 @@ class TargetManager:
             return result
         finally:
             session.close()
+
+    def parse_and_set_target_from_json(self, json_file_path):
+        logger.debug(f"Reading JSON file from: {json_file_path}")
+        if not os.path.exists(json_file_path):
+            logger.error(f"File not found: {json_file_path}")
+            return
+
+        with open(json_file_path, 'r') as file:
+            data = json.load(file)
+        
+        logger.debug(f"JSON data: {data}")
+
+        for device in data.get('devices', []):
+            vehicle_data = {
+                "target_id": device.get('device_id', 'unknown_device'),
+                "name": device.get('name', 'Unknown Device'),
+                "type": device.get('type', 'unknown'),
+                "ip_address": device.get('ip_address'),
+                "location": device.get('location'),
+                "properties": {},
+                "components": [],
+                "interfaces": []
+            }
+
+            for key, value in device.items():
+                if key not in ['device_id', 'name', 'type', 'ip_address', 'location']:
+                    if isinstance(value, dict):
+                        vehicle_data['properties'][key] = value
+                    elif isinstance(value, list):
+                        if key == 'components':
+                            vehicle_data['components'] = [Component(**item) for item in value]
+                        elif key == 'interfaces':
+                            vehicle_data['interfaces'] = [Interface(**item) for item in value]
+                        else:
+                            vehicle_data['properties'][key] = value
+                    else:
+                        vehicle_data['properties'][key] = value
+
+            target = self.create_target("vehicle", **vehicle_data)
+            self.current_target = target  # Set the current target
+
+        logger.info("Parsed and created targets from JSON file")
+
+    def get_current_target(self) -> Optional[Target]:
+        return self.current_target
+
+    def set_current_target(self, target: Target):
+        self.current_target = target
 
 if __name__ == "__main__":
     # Example usage

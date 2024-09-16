@@ -1,53 +1,39 @@
 {
-    "devices": [
-      {
-        "device_id": "device_001",
-        "name": "Temperature Sensor",
-        "type": "sensor",
-        "location": "Living Room",
-        "status": "active",
-        "ip_address": "192.168.50.64",
-        "components": [
-          {
-            "component_id": "comp_001",
-            "name": "Temperature Module",
-            "type": "module",
-            "status": "active",
-            "firmware_version": "1.0.0",
-            "protocol": "Zigbee"
-          },
-          {
-            "component_id": "comp_002",
-            "name": "CPU",
-            "type": "cpu",
-            "status": "active",
-            "architecture": "ARM Cortex-M4",
-            "clock_speed_mhz": 120
-          },
-          {
-            "component_id": "comp_003",
-            "name": "Flash Memory",
-            "type": "flash",
-            "status": "active",
-            "capacity_mb": 512
+  "devices": [
+    {
+      "device_id": "benz_001",
+      "name": "Mercedes-Benz E-Class",
+      "type": "sedan",
+      "ip_address": "192.168.1.100",
+      "location": "Garage A",
+      "status": "active",
+      "properties": {
+        "model_year": 2023,
+        "engine": "3.0L Inline-6 Turbo"
+      },
+      "components": [
+        {
+          "component_id": "comp_001",
+          "name": "MBUX Infotainment System",
+          "type": "infotainment",
+          "status": "active",
+          "properties": {
+            "screen_size": "12.3 inches",
+            "software_version": "NTG 7.0"
           }
-        ],
-        "interfaces": [
-          {
-            "interface_id": "intf_001",
-            "name": "JTAG",
-            "type": "jtag",
-            "status": "active",
-            "pinout": "standard"
-          },
-          {
-            "interface_id": "intf_002",
-            "name": "UART",
-            "type": "uart",
-            "status": "active",
-            "baudrate": 115200
+        }
+      ],
+      "interfaces": [
+        {
+          "interface_id": "intf_001",
+          "name": "OBD-II",
+          "type": "diagnostic",
+          "status": "active",
+          "properties": {
+            "protocol": "CAN"
           }
-        ]
-      }
-    ]
-  }
+        }
+      ]
+    }
+  ]
+}

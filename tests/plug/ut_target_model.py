@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from sat_toolkit.models.Target_Model import (
     TargetManager, Vehicle, Component, Interface,
-    VehicleModel, ComponentModel, InterfaceModel, Base
+    Vehicle, ComponentModel, InterfaceModel, Base
 )
 
 class TestTargetModel(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestTargetModel(unittest.TestCase):
         
         # Clear the database before each test
         session = self.target_manager.Session()
-        session.query(VehicleModel).delete()
+        session.query(Vehicle).delete()
         session.query(ComponentModel).delete()
         session.query(InterfaceModel).delete()
         session.commit()
@@ -92,7 +92,7 @@ class TestTargetModel(unittest.TestCase):
 
         # Check if the vehicle is saved in the database
         session = self.target_manager.Session()
-        db_vehicle = session.query(VehicleModel).filter_by(target_id="benz_001").first()
+        db_vehicle = session.query(Vehicle).filter_by(target_id="benz_001").first()
         self.assertIsNotNone(db_vehicle)
         self.assertEqual(db_vehicle.name, "Mercedes-Benz E-Class")
         session.close()
@@ -150,7 +150,7 @@ class TestTargetModel(unittest.TestCase):
 
         # Check if the vehicle is saved in the database
         session = self.target_manager.Session()
-        db_vehicle = session.query(VehicleModel).filter_by(target_id="bmw_001").first()
+        db_vehicle = session.query(Vehicle).filter_by(target_id="bmw_001").first()
         self.assertIsNotNone(db_vehicle)
         self.assertEqual(db_vehicle.name, "BMW X5")
         session.close()

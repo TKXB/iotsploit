@@ -10,6 +10,7 @@ from cmd2 import ansi
 import argparse
 import threading
 import subprocess
+from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -29,7 +30,15 @@ from sat_toolkit.tools.input_mgr import Input_Mgr
 logger = logging.getLogger(__name__)
 
 class SAT_Shell(cmd2.Cmd):
-    intro = '\nWelcome to IoXsploit Shell. Type ' + ansi.style('help', fg=ansi.Fg.YELLOW) + ' or ' + ansi.style('?', fg=ansi.Fg.YELLOW) + ' to list commands.\n'
+    intro = ansi.style('''
+██╗ ██████╗ ████████╗███████╗██████╗ ██╗      ██████╗ ██╗████████╗
+██║██╔═══██╗╚══██╔══╝██╔════╝██╔══██╗██║     ██╔═══██╗██║╚══██╔══╝
+██║██║   ██║   ██║   ███████╗██████╔╝██║     ██║   ██║██║   ██║   
+██║██║   ██║   ██║   ╚════██║██╔═══╝ ██║     ██║   ██║██║   ██║   
+██║╚██████╔╝   ██║   ███████║██║     ███████╗╚██████╔╝██║   ██║   
+╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚═╝     ╚══════╝ ╚═════╝ ╚═╝   ╚═╝   
+''', fg=ansi.Fg.GREEN) + '\n' + ansi.style('Welcome to IoTSploit Shell. Type help or ? to list commands.\n', fg=ansi.Fg.YELLOW)
+
     prompt = ansi.style('<SAT_SHELL> ', fg=ansi.Fg.BLUE)
 
     def __init__(self):
@@ -46,11 +55,15 @@ class SAT_Shell(cmd2.Cmd):
         manager = ExploitPluginManager()
         manager.initialize()
         
-        # Load target details from JSON file using Env_Mgr
-        env_mgr = Env_Mgr.Instance()
-        env_mgr.parse_and_set_env_from_json('conf/target.json')     
+        # Load target details from JSON file using TargetManager
+        target_manager = TargetManager.get_instance()
+
+        # Register the 'vehicle' target type
+        target_manager.register_target("vehicle", Vehicle)
+
+        target_manager.parse_and_set_target_from_json('conf/target.json')
         manager.exploit()
-    
+
     @cmd2.with_category('Device Commands')
     def do_device_info(self, arg):
         'Show Zeekr SAT Device Info'

@@ -2,6 +2,7 @@ import pluggy
 import logging
 from pwn import *
 from sat_toolkit.tools.env_mgr import Env_Mgr
+from sat_toolkit.models.Target_Model import TargetManager
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("exploit_mgr")
@@ -14,11 +15,16 @@ class SSHPlugin:
 
     @hookimpl
     def execute(self):
-        env_mgr = Env_Mgr.Instance()
+        target_manager = TargetManager.get_instance()
+        current_target = target_manager.get_current_target()
         
-        # Retrieve target information from environment variables
+        if current_target is None:
+            print("No target selected. Please load a target first.")
+            return
+
+        # Retrieve target information from the current target object
         target = {
-            'ip': env_mgr.get('device_001_ip_address'),
+            'ip': current_target.ip_address,
             'user': "root",
             'passwd': "123456",
             'cmd': "ls -l"
