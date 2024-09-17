@@ -11,6 +11,7 @@ import argparse
 import threading
 import subprocess
 from sat_toolkit.models.Target_Model import TargetManager, Vehicle
+import colorlog
 
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -45,6 +46,28 @@ class SAT_Shell(cmd2.Cmd):
         super().__init__()
         self.django_server_process = None
         self.django_server_thread = None
+        self.setup_colored_logger()
+
+    def setup_colored_logger(self):
+        root_logger = logging.getLogger()
+        if root_logger.handlers:
+            for handler in root_logger.handlers:
+                root_logger.removeHandler(handler)
+        
+        handler = colorlog.StreamHandler()
+        handler.setFormatter(colorlog.ColoredFormatter(
+            '%(log_color)s%(asctime)s | %(levelname)s | %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S',
+            log_colors={
+                'DEBUG': 'cyan',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'red,bg_white',
+            }
+        ))
+        root_logger.addHandler(handler)
+        root_logger.setLevel(logging.INFO)
 
     def emptyline(self):
         self.onecmd("help")
@@ -139,7 +162,7 @@ class SAT_Shell(cmd2.Cmd):
             self.do_stop_server(arg)
         Toolkit_Main.Instance().exit_quick_test()
         Toolkit_Main.Instance().stop_audit()
-        logger.info(ansi.style("IotSploit SAT Shell Quit. ByeBye~", fg=ansi.Fg.RED))
+        logger.info("IotSploit SAT Shell Quit. ByeBye~")
         return True
 
     @cmd2.with_category('Network Commands')
@@ -210,8 +233,8 @@ class SAT_Shell(cmd2.Cmd):
         self.poutput(f"Log level set to {arg.upper()}")
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)  # Set default log level to INFO
+    shell = SAT_Shell()
     Report_Mgr.Instance().log_init()
     Env_Mgr.Instance().set("SAT_RUN_IN_SHELL", True)
 
-    SAT_Shell().cmdloop()
+    shell.cmdloop()
