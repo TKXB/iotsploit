@@ -71,12 +71,11 @@ class TargetDBModel(Base):
     type = Column(String)
     status = Column(String)
     properties = Column(JSON)
-    # Fields specific to Vehicle (nullable for other types)
     ip_address = Column(String, nullable=True)
     location = Column(String, nullable=True)
     components = Column(JSON, nullable=True)
     interfaces = Column(JSON, nullable=True)
-    # Polymorphic attributes
+
     __mapper_args__ = {
         'polymorphic_on': type,
         'polymorphic_identity': 'target'
@@ -88,14 +87,21 @@ class TargetDBModel(Base):
         self.type = target.type
         self.status = target.status
         self.properties = target.properties
+        # Do not initialize subclass-specific fields here
 
-        # Assign subclass-specific fields
-        if isinstance(target, Vehicle):
-            self.ip_address = target.ip_address
-            self.location = target.location
-            self.components = [comp.model_dump() for comp in target.components]
-            self.interfaces = [intf.model_dump() for intf in target.interfaces]
-        # Additional handling for other Target types (e.g., Plane, Camera, Router)
+
+class VehicleDBModel(TargetDBModel):
+    __mapper_args__ = {
+        'polymorphic_identity': 'vehicle',
+    }
+
+    def __init__(self, target: Vehicle):
+        super().__init__(target)
+        self.ip_address = target.ip_address
+        self.location = target.location
+        self.components = [comp.model_dump() for comp in target.components]
+        self.interfaces = [intf.model_dump() for intf in target.interfaces]
+
 
 class TargetManager:
     _instance = None
@@ -132,14 +138,29 @@ class TargetManager:
     def save_target(self, target: Target):
         session = self.Session()
         try:
-            target_model = TargetDBModel(target)
-            session.add(target_model)
-            session.commit()
+            existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()
+            if existing_target:
+                print(f"Target with target_id '{target.target_id}' already exists. Skipping insertion.")
+                logger.info(f"Target with target_id '{target.target_id}' already exists. Skipping insertion.")
+                return
+            else:
+                # Instantiate the appropriate ORM model
+                if isinstance(target, Vehicle):
+                    target_model = VehicleDBModel(target)
+                else:
+                    target_model = TargetDBModel(target)
+                session.add(target_model)
+                session.commit()
+                print(f"Target with target_id '{target.target_id}' has been added to the database.")
+                logger.info(f"Target with target_id '{target.target_id}' has been added to the database.")
         except Exception as e:
             session.rollback()
+            logger.error(f"An error occurred while saving target '{target.target_id}': {e}")
             raise e
         finally:
             session.close()
+
+
 
     def get_all_targets(self) -> List[Dict[str, Any]]:
         session = self.Session()
@@ -154,19 +175,17 @@ class TargetManager:
                     "status": t.status,
                     "properties": t.properties
                 }
-                # Include Vehicle-specific fields if present
-                if t.ip_address:
+                # Include Vehicle-specific fields if applicable
+                if isinstance(t, VehicleDBModel):
                     target_info["ip_address"] = t.ip_address
-                if t.location:
                     target_info["location"] = t.location
-                if t.components:
                     target_info["components"] = t.components
-                if t.interfaces:
                     target_info["interfaces"] = t.interfaces
                 result.append(target_info)
             return result
         finally:
             session.close()
+
 
     def parse_and_set_target_from_json(self, json_file_path):
         logger.debug(f"Reading JSON file from: {json_file_path}")
