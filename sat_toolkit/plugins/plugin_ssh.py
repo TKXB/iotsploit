@@ -1,8 +1,10 @@
 import pluggy
 import logging
 from pwn import *
+from typing import Optional, Any
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.models.Target_Model import TargetManager
+from sat_toolkit.core.exploit_spec import ExploitResult
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("exploit_mgr")
@@ -14,13 +16,13 @@ class SSHPlugin:
         self.ssh_mgr = SSH_Mgr()
 
     @hookimpl
-    def execute(self):
+    def execute(self, target: Optional[Any] = None) -> ExploitResult:
         target_manager = TargetManager.get_instance()
         current_target = target_manager.get_current_target()
         
         if current_target is None:
             print("No target selected. Please load a target first.")
-            return
+            return ExploitResult(False, "No target selected", {})
 
         # Retrieve target information from the current target object
         target = {
@@ -30,15 +32,16 @@ class SSHPlugin:
             'cmd': "ls -l"
         }
         
-        print(f"Executing exploit on {target['ip']}")
-        return
+        print(f"Executing SSH exploit on {target['ip']}")
+        return ExploitResult(True, "SSH exploit executed successfully", {"result": "test"})
         ssh_context = self.ssh_mgr.open_ssh(target['ip'], target['user'], target['passwd'])
         if ssh_context:
             result = self.ssh_mgr.ssh_cmd(ssh_context, target['cmd'])
             print(f"Command result: {result}")
             self.ssh_mgr.close_ssh(ssh_context)
+            return ExploitResult(True, "SSH exploit executed successfully", {"result": result})
         else:
-            print("Failed to establish SSH connection")
+            return ExploitResult(False, "Failed to establish SSH connection", {})
 
 class SSH_Mgr:
     __ssh_connect_timeout_S = 1

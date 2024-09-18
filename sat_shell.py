@@ -12,6 +12,8 @@ import threading
 import subprocess
 from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 import colorlog
+from sat_toolkit.core.exploit_manager import ExploitPluginManager
+from sat_toolkit.core.exploit_spec import ExploitResult
 
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -19,7 +21,6 @@ django.setup()
 
 # Now it's safe to import Django-related modules
 from django.core.management import execute_from_command_line
-from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.toolkit_main import Toolkit_Main
@@ -47,6 +48,15 @@ class SAT_Shell(cmd2.Cmd):
         self.django_server_process = None
         self.django_server_thread = None
         self.setup_colored_logger()
+        
+        # Initialize plugin manager
+        self.plugin_manager = ExploitPluginManager()
+        self.plugin_manager.initialize()
+        
+        # Initialize target manager
+        self.target_manager = TargetManager.get_instance()
+        self.target_manager.register_target("vehicle", Vehicle)
+        self.target_manager.parse_and_set_target_from_json('conf/target.json')
 
     def setup_colored_logger(self):
         root_logger = logging.getLogger()
@@ -74,18 +84,28 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('System Commands')
     def do_exploit(self, arg):
-        'Initialize IotSploit System'
-        manager = ExploitPluginManager()
-        manager.initialize()
+        'Execute all plugins in the IotSploit System'
+        logger.info(ansi.style("Executing all plugins in the IotSploit System", fg=ansi.Fg.CYAN))
         
-        # Load target details from JSON file using TargetManager
-        target_manager = TargetManager.get_instance()
-
-        # Register the 'vehicle' target type
-        target_manager.register_target("vehicle", Vehicle)
-
-        target_manager.parse_and_set_target_from_json('conf/target.json')
-        manager.exploit()
+        results = self.plugin_manager.exploit()
+        
+        if not results:
+            logger.warning(ansi.style("No results returned from any plugins", fg=ansi.Fg.YELLOW))
+        else:
+            # Log the results
+            for plugin_name, result in results.items():
+                if result is None:
+                    logger.warning(ansi.style(f"Plugin {plugin_name} returned no result", fg=ansi.Fg.YELLOW))
+                elif isinstance(result, ExploitResult):
+                    logger.info(ansi.style(f"Plugin {plugin_name} execution result:", fg=ansi.Fg.GREEN))
+                    logger.info(f"Success: {result.success}")
+                    logger.info(f"Message: {result.message}")
+                    logger.info(f"Data: {result.data}")
+                else:
+                    logger.info(ansi.style(f"Plugin {plugin_name} execution result:", fg=ansi.Fg.GREEN))
+                    logger.info(str(result))
+        
+        logger.info(ansi.style("Exploit execution completed", fg=ansi.Fg.CYAN))
 
     @cmd2.with_category('Device Commands')
     def do_device_info(self, arg):
@@ -231,6 +251,53 @@ class SAT_Shell(cmd2.Cmd):
         logging.getLogger().setLevel(level)
         Report_Mgr.Instance().set_log_level(level)
         self.poutput(f"Log level set to {arg.upper()}")
+
+    @cmd2.with_category('Plugin Commands')
+    def do_list_plugins(self, arg):
+        'List all available plugins'
+        plugins = self.plugin_manager.list_plugins()
+        
+        if plugins:
+            logger.info(ansi.style("Available plugins:", fg=ansi.Fg.CYAN))
+            for plugin in plugins:
+                logger.info(ansi.style(f"  - {plugin}", fg=ansi.Fg.CYAN))
+        else:
+            logger.info(ansi.style("No plugins available.", fg=ansi.Fg.YELLOW))
+
+    @cmd2.with_category('Plugin Commands')
+    def do_execute_plugin(self, arg):
+        'Execute a specific plugin'
+        plugins = self.plugin_manager.list_plugins()
+        
+        if not plugins:
+            logger.info(ansi.style("No plugins available to execute.", fg=ansi.Fg.YELLOW))
+            return
+
+        if not arg:
+            choice = Input_Mgr.Instance().single_choice(
+                "Please select a plugin to execute",
+                plugins
+            )
+        else:
+            choice = arg
+
+        if choice not in plugins:
+            logger.error(ansi.style(f"Plugin '{choice}' not found.", fg=ansi.Fg.RED))
+            return
+
+        logger.info(ansi.style(f"Executing plugin: {choice}", fg=ansi.Fg.CYAN))
+        try:
+            result = self.plugin_manager.execute_plugin(choice)
+            if isinstance(result, ExploitResult):
+                logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
+                logger.info(f"Success: {result.success}")
+                logger.info(f"Message: {result.message}")
+                logger.info(f"Data: {result.data}")
+            else:
+                logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
+                logger.info(str(result))
+        except Exception as e:
+            logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
 
 if __name__ == '__main__':
     shell = SAT_Shell()
