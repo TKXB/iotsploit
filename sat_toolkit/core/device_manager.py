@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 class DeviceManager:
     def __init__(self):
-        print("Initializing DeviceManager")
+        logger.info("Initializing DeviceManager")
         self.pm = pluggy.PluginManager("device_mgr")
         self.pm.add_hookspecs(DevicePluginSpec)
         self.plugins = {}
         self.load_plugins()
-        print("DeviceManager initialized")
+        logger.info("DeviceManager initialized")
 
     def load_plugins(self):
         plugin_dir = os.path.join(os.path.dirname(__file__), "../plugins/devices")

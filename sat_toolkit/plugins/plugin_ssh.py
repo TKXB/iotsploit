@@ -12,7 +12,7 @@ hookimpl = pluggy.HookimplMarker("exploit_mgr")
 class SSHPlugin:
     @hookimpl
     def initialize(self):
-        print("Initializing SSHExploitPlugin")
+        logger.info("Initializing SSHExploitPlugin")
         self.ssh_mgr = SSH_Mgr()
 
     @hookimpl
@@ -32,7 +32,7 @@ class SSHPlugin:
             'cmd': "ls -l"
         }
         
-        print(f"Executing SSH exploit on {target['ip']}")
+        logger.info(f"Executing SSH exploit on {target['ip']}")
         return ExploitResult(True, "SSH exploit executed successfully", {"result": "test"})
         ssh_context = self.ssh_mgr.open_ssh(target['ip'], target['user'], target['passwd'])
         if ssh_context:

@@ -14,7 +14,7 @@ hookimpl = pluggy.HookimplMarker("exploit_mgr")
 class TCAMCheckPlugin:
     @hookimpl
     def initialize(self):
-        print("Initializing ADBExploitPlugin")
+        logger.info("Initializing ADBExploitPlugin")
 
     @hookimpl
     def execute(self, target: Optional[Any] = None) -> ExploitResult:

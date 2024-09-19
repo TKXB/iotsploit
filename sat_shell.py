@@ -42,7 +42,7 @@ class SAT_Shell(cmd2.Cmd):
 ╚═╝ ╚═════╝    ╚═╝   ╚══════╝╚═╝     ╚══════╝ ╚═════╝ ╚═╝   ╚═╝   
 ''', fg=ansi.Fg.GREEN) + '\n' + ansi.style('Welcome to IoTSploit Shell. Type help or ? to list commands.\n', fg=ansi.Fg.YELLOW)
 
-    prompt = ansi.style('<SAT_SHELL> ', fg=ansi.Fg.BLUE)
+    prompt = ansi.style('<IoX_SHELL> ', fg=ansi.Fg.BLUE)
 
     def __init__(self):
         super().__init__()
@@ -313,6 +313,30 @@ class SAT_Shell(cmd2.Cmd):
                 logger.info(ansi.style(f"  - {device}", fg=ansi.Fg.CYAN))
         else:
             logger.info(ansi.style("No device plugins available.", fg=ansi.Fg.YELLOW))
+
+    do_lsdev = do_list_devices
+
+    @cmd2.with_category('Linux Commands')
+    def do_ls(self, arg):
+        'List directory contents'
+        try:
+            result = subprocess.run(['ls'] + arg.split(), capture_output=True, text=True)
+            self.poutput(result.stdout)
+            if result.stderr:
+                self.poutput(result.stderr)
+        except Exception as e:
+            logger.error(f"Error executing ls: {str(e)}")
+
+    @cmd2.with_category('Linux Commands')
+    def do_lsusb(self, arg):
+        'List USB devices'
+        try:
+            result = subprocess.run(['lsusb'] + arg.split(), capture_output=True, text=True)
+            self.poutput(result.stdout)
+            if result.stderr:
+                self.poutput(result.stderr)
+        except Exception as e:
+            logger.error(f"Error executing lsusb: {str(e)}")
 
 if __name__ == '__main__':
     shell = SAT_Shell()

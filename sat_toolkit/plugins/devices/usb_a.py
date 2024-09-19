@@ -1,8 +1,11 @@
 import pluggy
+import logging
 import serial
 import serial.tools.list_ports
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType
+
+logger = logging.getLogger(__name__)
 
 hookimpl = pluggy.HookimplMarker("device_mgr")
 
@@ -19,16 +22,16 @@ class USBAbility:
         for port in ports:
             if port.vid == 0x10c4 and port.pid == 0xea60:
                 device.attributes['port'] = port.device
-                print(f"Found USB/Serial device on port: {port.device}")
+                logger.info(f"Found USB/Serial device on port: {port.device}")
                 return True
         
-        print("No matching USB/Serial device found")
+        logger.info("No matching USB/Serial device found")
         return False
 
     @hookimpl
     def initialize(self, device: Device):
         if device.device_type not in [DeviceType.USB, DeviceType.Serial]:
-            print(f"Current device type: {device.device_type}") 
+            logger.error(f"Current device type: {device.device_type}")
             raise ValueError("This plugin only supports USB and Serial devices")
         
         if 'port' not in device.attributes:
@@ -36,7 +39,7 @@ class USBAbility:
             if not self.scan(device):
                 raise ValueError("No compatible USB/Serial device found. Unable to initialize.")
         
-        print(f"Initializing USB/Serial device: {device.name} on port {device.attributes['port']}")
+        logger.info(f"Initializing USB/Serial device: {device.name} on port {device.attributes['port']}")
         # Add any additional initialization logic here
 
     @hookimpl
@@ -45,27 +48,27 @@ class USBAbility:
             self._connect_serial(device)
             self._print_uart_log()
         else:
-            print(f"Executing USB exploit on {target} using device {device.name}")
+            logger.info(f"Executing USB exploit on {target} using device {device.name}")
 
     @hookimpl
     def send_command(self, device: Device, command: str):
         if self.serial_connection and self.serial_connection.is_open:
             self.serial_connection.write(command.encode())
-            print(f"Sent command '{command}' to device {device.name}")
+            logger.info(f"Sent command '{command}' to device {device.name}")
         else:
-            print(f"Cannot send command: device {device.name} is not connected")
+            logger.error(f"Cannot send command: device {device.name} is not connected")
 
     def reset(self, device: Device):
         if self.serial_connection:
             self.serial_connection.close()
         self._connect_serial(device)
-        print(f"Reset USB/Serial device: {device.name}")
+        logger.info(f"Reset USB/Serial device: {device.name}")
 
     @hookimpl
     def close(self, device: Device):
         if self.serial_connection:
             self.serial_connection.close()
-        print(f"Closed USB/Serial device: {device.name}")
+        logger.info(f"Closed USB/Serial device: {device.name}")
     
     def _connect_serial(self, device: Device):
         if 'port' not in device.attributes:
@@ -76,17 +79,17 @@ class USBAbility:
             baudrate=115200,
             timeout=1
         )
-        print(f"Connected to {device.attributes['port']} at 115200 baud")
+        logger.info(f"Connected to {device.attributes['port']} at 115200 baud")
 
     def _print_uart_log(self):
-        print("UART Log:")
+        logger.info("UART Log:")
         try:
             while True:
                 if self.serial_connection.in_waiting:
                     line = self.serial_connection.readline().decode('utf-8').strip()
-                    print(line)
+                    logger.info(line)
         except KeyboardInterrupt:
-            print("Stopped reading UART log")
+            logger.info("Stopped reading UART log")
 
 def register_plugin(pm):
     usb_ability = USBAbility()

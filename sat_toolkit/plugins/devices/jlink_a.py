@@ -1,7 +1,10 @@
 import pluggy
 import pylink
+import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType
+
+logger = logging.getLogger(__name__)
 
 hookimpl = pluggy.HookimplMarker("device_mgr")
 
@@ -49,7 +52,7 @@ class JLinkAbility:
         target_device = self.current_device.attributes.get('target_device', 'STM32F407VG')
         self.jlink.connect(target_device)
         
-        print(f"Initializing JTAG device: {self.current_device.name} connected to {target_device}")
+        logger.info(f"Initializing JTAG device: {self.current_device.name} connected to {target_device}")
 
 
     @hookimpl
