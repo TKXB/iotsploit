@@ -7,23 +7,37 @@ from sat_toolkit.models.Device_Model import Device, DeviceType
 hookimpl = pluggy.HookimplMarker("device_mgr")
 
 class USBAbility:
+    def __init__(self):
+        self.serial_connection = None
+
+    @hookimpl
+    def scan(self, device: Device):
+        if device.device_type not in [DeviceType.USB, DeviceType.Serial]:
+            return False
+
+        ports = list(serial.tools.list_ports.comports())
+        for port in ports:
+            if port.vid == 0x10c4 and port.pid == 0xea60:
+                device.attributes['port'] = port.device
+                print(f"Found USB/Serial device on port: {port.device}")
+                return True
+        
+        print("No matching USB/Serial device found")
+        return False
+
     @hookimpl
     def initialize(self, device: Device):
         if device.device_type not in [DeviceType.USB, DeviceType.Serial]:
             print(f"Current device type: {device.device_type}") 
             raise ValueError("This plugin only supports USB and Serial devices")
         
-        # Find the device using VID:PID
-        ports = list(serial.tools.list_ports.comports())
-        for port in ports:
-            if port.vid == 0x10c4 and port.pid == 0xea60:
-                device.attributes['port'] = port.device
-                break
-        else:
-            raise ValueError("Device with VID:PID 10c4:ea60 not found")
-
+        if 'port' not in device.attributes:
+            # Perform scanning if port is not set
+            if not self.scan(device):
+                raise ValueError("No compatible USB/Serial device found. Unable to initialize.")
+        
         print(f"Initializing USB/Serial device: {device.name} on port {device.attributes['port']}")
-
+        # Add any additional initialization logic here
 
     @hookimpl
     def execute(self, device: Device, target: str):
@@ -73,3 +87,7 @@ class USBAbility:
                     print(line)
         except KeyboardInterrupt:
             print("Stopped reading UART log")
+
+def register_plugin(pm):
+    usb_ability = USBAbility()
+    pm.register(usb_ability)

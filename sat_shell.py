@@ -14,6 +14,7 @@ from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 import colorlog
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
+from sat_toolkit.core.device_manager import DeviceManager  # Add this import
 
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -57,6 +58,9 @@ class SAT_Shell(cmd2.Cmd):
         self.target_manager = TargetManager.get_instance()
         self.target_manager.register_target("vehicle", Vehicle)
         self.target_manager.parse_and_set_target_from_json('conf/target.json')
+
+        # Initialize device manager
+        self.device_manager = DeviceManager()
 
     def setup_colored_logger(self):
         root_logger = logging.getLogger()
@@ -298,6 +302,17 @@ class SAT_Shell(cmd2.Cmd):
                 logger.info(str(result))
         except Exception as e:
             logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Device Commands')
+    def do_list_devices(self, arg):
+        'List all available device plugins'
+        available_devices = self.device_manager.list_devices()
+        if available_devices:
+            logger.info(ansi.style("Available device plugins:", fg=ansi.Fg.CYAN))
+            for device in available_devices:
+                logger.info(ansi.style(f"  - {device}", fg=ansi.Fg.CYAN))
+        else:
+            logger.info(ansi.style("No device plugins available.", fg=ansi.Fg.YELLOW))
 
 if __name__ == '__main__':
     shell = SAT_Shell()

@@ -8,20 +8,49 @@ hookimpl = pluggy.HookimplMarker("device_mgr")
 class JLinkAbility:
     def __init__(self):
         self.jlink = None
+        self.connected_emulators = []
 
     @hookimpl
-    def initialize(self, device: Device):
-        if device.device_type != DeviceType.JTAG:
-            raise ValueError("This plugin only supports JTAG devices")
+    def scan(self, device: Device = None):
+        try:
+            jlink = pylink.JLink()
+            self.connected_emulators = jlink.connected_emulators()
+            if self.connected_emulators:
+                print(f"Found JLink emulator(s): {self.connected_emulators}")
+                if device and device.device_type == DeviceType.JTAG:
+                    device.attributes['emulator_sn'] = self.connected_emulators[0].SerialNumber
+                return True
+            else:
+                print("No JLink emulators found")
+                return False
+        except Exception as e:
+            print(f"Error scanning for JLink devices: {str(e)}")
+            return False
+
+    @hookimpl
+    def initialize(self, device: Device = None):
+        if not self.connected_emulators:
+            if not self.scan(device):
+                raise ValueError("No JLink emulators found. Please run scan first.")
         
+        if device:
+            if device.device_type != DeviceType.JTAG:
+                raise ValueError("This plugin only supports JTAG devices")
+            self.current_device = device
+        else:
+            # If no device is provided, create a default one
+            self.current_device = Device("Default JTAG Device", DeviceType.JTAG)
+        
+        emulator_sn = self.current_device.attributes.get('emulator_sn') or self.connected_emulators[0].SerialNumber
         self.jlink = pylink.JLink()
-        self.jlink.open()
+        self.jlink.open(serial_no=emulator_sn)
         
         # Connect to the target device
-        target_device = device.attributes.get('target_device', 'STM32F407VG')
+        target_device = self.current_device.attributes.get('target_device', 'STM32F407VG')
         self.jlink.connect(target_device)
         
-        print(f"Initializing JTAG device: {device.name} connected to {target_device}")
+        print(f"Initializing JTAG device: {self.current_device.name} connected to {target_device}")
+
 
     @hookimpl
     def execute(self, device: Device, target: str):
@@ -61,3 +90,7 @@ class JLinkAbility:
             self.jlink.close()
             self.jlink = None
         print(f"Closed JTAG device: {device.name}")
+
+def register_plugin(pm):
+    jlink_ability = JLinkAbility()
+    pm.register(jlink_ability)
