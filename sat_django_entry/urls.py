@@ -23,12 +23,10 @@ from django.views.generic import TemplateView
 # from sat_toolkit.admin import doip_diag_admin
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    # path('doip/', doip_diag_admin.urls),    
-    path("sat_ui_api/", include("sat_toolkit.urls")),
-    path('sat_ui/index.html', TemplateView.as_view(template_name='zeekr_sat_ui/django_index.html')),
-    path('sat_ui/testIn.html', TemplateView.as_view(template_name='zeekr_sat_ui/django_testIn.html')),    
-    path('sat_ui/Audit_Report.html', TemplateView.as_view(template_name='sat_logs/Audit_Report.html')),    
-
-
+    path('admin/', admin.site.urls), 
+    path("api/", include("sat_toolkit.urls")),
+    # path('sat_ui/index.html', TemplateView.as_view(template_name='zeekr_sat_ui/django_index.html')),
+    # path('sat_ui/testIn.html', TemplateView.as_view(template_name='zeekr_sat_ui/django_testIn.html')),    
+    # path('sat_ui/Audit_Report.html', TemplateView.as_view(template_name='sat_logs/Audit_Report.html')),    
+    # path('doip/', doip_diag_admin.urls),
 ]

@@ -15,6 +15,7 @@ import colorlog
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.device_manager import DeviceManager  # Add this import
+import requests
 
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class SAT_Shell(cmd2.Cmd):
     intro = ansi.style('''
-██╗ ██████╗ ████████╗███████╗██████╗ ██╗      ██████╗ ██╗████████╗
+██╗ █████╗ ████████╗███████╗██████╗ ██╗      ██████╗ ██╗████████╗
 ██║██╔═══██╗╚══██╔══╝██╔════╝██╔══██╗██║     ██╔═══██╗██║╚══██╔══╝
 ██║██║   ██║   ██║   ███████╗██████╔╝██║     ██║   ██║██║   ██║   
 ██║██║   ██║   ██║   ╚════██║██╔═══╝ ██║     ██║   ██║██║   ██║   
@@ -211,6 +212,8 @@ class SAT_Shell(cmd2.Cmd):
             cmd = [sys.executable, 'manage.py', 'runserver', '--noreload']
             if arg:
                 cmd.extend(arg.split())
+            else:
+                cmd.append('0.0.0.0:8888')  # Default to port 8080 if no argument is provided
             
             logger.info(f"Running Django command: {' '.join(cmd)}")
             
@@ -267,6 +270,7 @@ class SAT_Shell(cmd2.Cmd):
                 logger.info(ansi.style(f"  - {plugin}", fg=ansi.Fg.CYAN))
         else:
             logger.info(ansi.style("No plugins available.", fg=ansi.Fg.YELLOW))
+    do_lsp = do_list_plugins
 
     @cmd2.with_category('Plugin Commands')
     def do_execute_plugin(self, arg):
@@ -304,7 +308,7 @@ class SAT_Shell(cmd2.Cmd):
             logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
 
     @cmd2.with_category('Device Commands')
-    def do_list_devices(self, arg):
+    def do_list_device_plugins(self, arg):
         'List all available device plugins'
         available_devices = self.device_manager.list_devices()
         if available_devices:
@@ -314,7 +318,7 @@ class SAT_Shell(cmd2.Cmd):
         else:
             logger.info(ansi.style("No device plugins available.", fg=ansi.Fg.YELLOW))
 
-    do_lsdev = do_list_devices
+    do_lsdp = do_list_device_plugins
 
     @cmd2.with_category('Linux Commands')
     def do_ls(self, arg):
@@ -337,6 +341,52 @@ class SAT_Shell(cmd2.Cmd):
                 self.poutput(result.stderr)
         except Exception as e:
             logger.error(f"Error executing lsusb: {str(e)}")
+
+    @cmd2.with_category('Device Commands')
+    def do_list_devices_api(self, arg):
+        'List all available device plugins using the Django API'
+        try:
+            response = requests.get('http://localhost:8888/api/list_devices/')
+            if response.status_code == 200:
+                data = response.json()
+                if data['status'] == 'success':
+                    if data['devices']:
+                        logger.info(ansi.style("Available device plugins:", fg=ansi.Fg.CYAN))
+                        for device in data['devices']:
+                            logger.info(ansi.style(f"  - {device}", fg=ansi.Fg.CYAN))
+                    else:
+                        logger.info(ansi.style(data['message'], fg=ansi.Fg.YELLOW))
+                else:
+                    logger.error(ansi.style("Error fetching device list", fg=ansi.Fg.RED))
+            else:
+                logger.error(ansi.style(f"HTTP Error: {response.status_code}", fg=ansi.Fg.RED))
+        except Exception as e:
+            logger.error(ansi.style(f"Error accessing API: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('System Commands')
+    def do_exploit_api(self, arg):
+        'Execute all plugins in the IotSploit System using the Django API'
+        try:
+            response = requests.post('http://localhost:8888/api/exploit/')
+            if response.status_code == 200:
+                data = response.json()
+                if data['status'] == 'success':
+                    logger.info(ansi.style(data['message'], fg=ansi.Fg.GREEN))
+                    for plugin_name, result in data['results'].items():
+                        logger.info(ansi.style(f"Plugin {plugin_name} execution result:", fg=ansi.Fg.CYAN))
+                        logger.info(f"Status: {result['status']}")
+                        if 'message' in result:
+                            logger.info(f"Message: {result['message']}")
+                        if 'data' in result:
+                            logger.info(f"Data: {result['data']}")
+                        if 'result' in result:
+                            logger.info(f"Result: {result['result']}")
+                else:
+                    logger.warning(ansi.style(data['message'], fg=ansi.Fg.YELLOW))
+            else:
+                logger.error(ansi.style(f"HTTP Error: {response.status_code}", fg=ansi.Fg.RED))
+        except Exception as e:
+            logger.error(ansi.style(f"Error accessing API: {str(e)}", fg=ansi.Fg.RED))
 
 if __name__ == '__main__':
     shell = SAT_Shell()

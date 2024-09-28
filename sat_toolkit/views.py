@@ -14,11 +14,17 @@ from sat_toolkit.tools.sat_utils import *
 
 from django.views.decorators.csrf import csrf_exempt
 
+from django.http import JsonResponse
+from sat_toolkit.core.exploit_manager import ExploitPluginManager
+from sat_toolkit.core.exploit_spec import ExploitResult
+
 import logging
 logger = logging.getLogger(__name__)
 
 import json
 import datetime
+
+from sat_toolkit.core.device_manager import DeviceManager  # Add this import
 
 def device_info(request:HttpRequest):
     """
@@ -494,5 +500,75 @@ def record_user_input(request):
 
     result = {"status": "success", "recv":user_select}
     return HttpResponse(json.dumps(result))
+
+
+def list_plugins(request):
+    plugin_manager = ExploitPluginManager()
+    plugins = plugin_manager.list_plugins()
+    return JsonResponse({'plugins': plugins})
+
+def list_devices(request):
+    """
+    GET
+    Returns a list of available device plugins
+    """
+    device_manager = DeviceManager()
+    available_devices = device_manager.list_devices()
+    
+    if available_devices:
+        result = {
+            "status": "success",
+            "devices": available_devices
+        }
+    else:
+        result = {
+            "status": "success",
+            "devices": [],
+            "message": "No device plugins available."
+        }
+    
+    return JsonResponse(result)
+
+@csrf_exempt
+def exploit(request):
+    """
+    POST
+    Execute all plugins in the IotSploit System
+    """
+    plugin_manager = ExploitPluginManager()
+    plugin_manager.initialize()
+    
+    results = plugin_manager.exploit()
+    
+    if not results:
+        return JsonResponse({
+            "status": "warning",
+            "message": "No results returned from any plugins"
+        })
+    else:
+        formatted_results = {}
+        for plugin_name, result in results.items():
+            if result is None:
+                formatted_results[plugin_name] = {
+                    "status": "warning",
+                    "message": f"Plugin {plugin_name} returned no result"
+                }
+            elif isinstance(result, ExploitResult):
+                formatted_results[plugin_name] = {
+                    "status": "success" if result.success else "failure",
+                    "message": result.message,
+                    "data": result.data
+                }
+            else:
+                formatted_results[plugin_name] = {
+                    "status": "success",
+                    "result": str(result)
+                }
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Exploit execution completed",
+            "results": formatted_results
+        })
 
 

@@ -24,4 +24,11 @@ urlpatterns = [
     # 测试控制
     path("start_test", views.start_test),
     path("stop_test", views.stop_test),
+
+    # Plugin list
+    path("list_plugins", views.list_plugins),
+
+    path('list_devices/', views.list_devices, name='list_devices'),
+
+    path('exploit/', views.exploit, name='exploit'),
 ]
