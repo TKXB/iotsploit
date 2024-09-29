@@ -10,7 +10,9 @@ from cmd2 import ansi
 import argparse
 import threading
 import subprocess
-from sat_toolkit.models.Target_Model import TargetManager, Vehicle
+from sat_toolkit.models.Target_Model import TargetManager, Vehicle, TargetDBModel
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 import colorlog
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
@@ -387,6 +389,36 @@ class SAT_Shell(cmd2.Cmd):
                 logger.error(ansi.style(f"HTTP Error: {response.status_code}", fg=ansi.Fg.RED))
         except Exception as e:
             logger.error(ansi.style(f"Error accessing API: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Target Commands')
+    def do_list_targets(self, arg):
+        'List all targets stored in the database'
+        try:
+            targets = self.target_manager.get_all_targets()
+            
+            if not targets:
+                logger.info(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
+                return
+
+            logger.info(ansi.style("Targets in the database:", fg=ansi.Fg.CYAN))
+            for target in targets:
+                logger.info(ansi.style(f"  - ID: {target['target_id']}", fg=ansi.Fg.GREEN))
+                logger.info(f"    Name: {target['name']}")
+                logger.info(f"    Type: {target['type']}")
+                logger.info(f"    Status: {target['status']}")
+                
+                if target['type'] == 'vehicle':
+                    logger.info(f"    IP Address: {target.get('ip_address', 'N/A')}")
+                    logger.info(f"    Location: {target.get('location', 'N/A')}")
+                
+                logger.info(f"    Properties: {target['properties']}")
+                logger.info("    ---")
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error listing targets: {str(e)}", fg=ansi.Fg.RED))
+
+    # Alias for list_targets
+    do_lst = do_list_targets
 
 if __name__ == '__main__':
     shell = SAT_Shell()
