@@ -6,10 +6,9 @@ from sqlalchemy.orm import sessionmaker
 import os
 import json
 import logging
+from .database import Base, engine, SessionLocal
 
 logger = logging.getLogger(__name__)
-
-Base = declarative_base()
 
 class DeviceType(Enum):
     USB = "USB"
@@ -64,7 +63,7 @@ class USBDevice(Device):
         return self.product_id
 
 class DeviceDBModel(Base):
-    __tablename__ = 'devices'
+    __tablename__ = 'devices'  # Ensure this is different from the targets table
 
     device_id = Column(String, primary_key=True)
     name = Column(String)
@@ -113,10 +112,8 @@ class DeviceManager:
 
     def initialize(self):
         self.devices: Dict[str, Type[Device]] = {}
-        db_path = os.path.join(os.path.dirname(__file__), 'device_database.sqlite')
-        self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+        Base.metadata.create_all(engine)
+        self.Session = SessionLocal
         self.current_device = None
 
     @classmethod

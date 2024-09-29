@@ -351,52 +351,6 @@ class SAT_Shell(cmd2.Cmd):
         except Exception as e:
             logger.error(f"Error executing lsusb: {str(e)}")
 
-    @cmd2.with_category('Device Commands')
-    def do_list_devices_api(self, arg):
-        'List all available device plugins using the Django API'
-        try:
-            response = requests.get('http://localhost:8888/api/list_devices/')
-            if response.status_code == 200:
-                data = response.json()
-                if data['status'] == 'success':
-                    if data['devices']:
-                        logger.info(ansi.style("Available device plugins:", fg=ansi.Fg.CYAN))
-                        for device in data['devices']:
-                            logger.info(ansi.style(f"  - {device}", fg=ansi.Fg.CYAN))
-                    else:
-                        logger.info(ansi.style(data['message'], fg=ansi.Fg.YELLOW))
-                else:
-                    logger.error(ansi.style("Error fetching device list", fg=ansi.Fg.RED))
-            else:
-                logger.error(ansi.style(f"HTTP Error: {response.status_code}", fg=ansi.Fg.RED))
-        except Exception as e:
-            logger.error(ansi.style(f"Error accessing API: {str(e)}", fg=ansi.Fg.RED))
-
-    @cmd2.with_category('System Commands')
-    def do_exploit_api(self, arg):
-        'Execute all plugins in the IotSploit System using the Django API'
-        try:
-            response = requests.post('http://localhost:8888/api/exploit/')
-            if response.status_code == 200:
-                data = response.json()
-                if data['status'] == 'success':
-                    logger.info(ansi.style(data['message'], fg=ansi.Fg.GREEN))
-                    for plugin_name, result in data['results'].items():
-                        logger.info(ansi.style(f"Plugin {plugin_name} execution result:", fg=ansi.Fg.CYAN))
-                        logger.info(f"Status: {result['status']}")
-                        if 'message' in result:
-                            logger.info(f"Message: {result['message']}")
-                        if 'data' in result:
-                            logger.info(f"Data: {result['data']}")
-                        if 'result' in result:
-                            logger.info(f"Result: {result['result']}")
-                else:
-                    logger.warning(ansi.style(data['message'], fg=ansi.Fg.YELLOW))
-            else:
-                logger.error(ansi.style(f"HTTP Error: {response.status_code}", fg=ansi.Fg.RED))
-        except Exception as e:
-            logger.error(ansi.style(f"Error accessing API: {str(e)}", fg=ansi.Fg.RED))
-
     @cmd2.with_category('Target Commands')
     def do_list_targets(self, arg):
         'List all targets stored in the database'
@@ -426,6 +380,38 @@ class SAT_Shell(cmd2.Cmd):
 
     # Alias for list_targets
     do_lst = do_list_targets
+
+    @cmd2.with_category('Device Commands')
+    def do_list_devices(self, arg):
+        'List all devices stored in the database'
+        try:
+            devices = self.device_manager.get_all_devices()
+            
+            if not devices:
+                logger.info(ansi.style("No devices found in the database.", fg=ansi.Fg.YELLOW))
+                return
+
+            logger.info(ansi.style("Devices in the database:", fg=ansi.Fg.CYAN))
+            for device in devices:
+                logger.info(ansi.style(f"  - ID: {device['device_id']}", fg=ansi.Fg.GREEN))
+                logger.info(f"    Name: {device['name']}")
+                logger.info(f"    Type: {device['device_type']}")
+                
+                if device['device_type'] == 'Serial':
+                    logger.info(f"    Port: {device['attributes'].get('port', 'N/A')}")
+                    logger.info(f"    Baud Rate: {device['attributes'].get('baud_rate', 'N/A')}")
+                elif device['device_type'] == 'USB':
+                    logger.info(f"    Vendor ID: {device['attributes'].get('vendor_id', 'N/A')}")
+                    logger.info(f"    Product ID: {device['attributes'].get('product_id', 'N/A')}")
+                
+                logger.info(f"    Attributes: {device['attributes']}")
+                logger.info("    ---")
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error listing devices: {str(e)}", fg=ansi.Fg.RED))
+
+    # Alias for list_devices
+    do_lsdev = do_list_devices
 
 if __name__ == '__main__':
     shell = SAT_Shell()

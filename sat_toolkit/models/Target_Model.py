@@ -7,10 +7,9 @@ from sqlalchemy.orm import sessionmaker
 import os
 import json
 import logging
+from .database import Base, engine, SessionLocal
 
 logger = logging.getLogger(__name__)
-
-Base = declarative_base()
 
 # Base Target class
 class Target(BaseModel, ABC):
@@ -64,7 +63,7 @@ class Vehicle(Target):
 
 # SQLAlchemy database model using Single Table Inheritance
 class TargetDBModel(Base):
-    __tablename__ = 'targets'
+    __tablename__ = 'targets'  # Ensure this is different from the devices table
 
     target_id = Column(String, primary_key=True)
     name = Column(String)
@@ -114,10 +113,8 @@ class TargetManager:
 
     def initialize(self):
         self.targets: Dict[str, Type[Target]] = {}
-        db_path = os.path.join(os.path.dirname(__file__), 'target_database.sqlite')
-        self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+        Base.metadata.create_all(engine)
+        self.Session = SessionLocal
         self.current_target = None
 
     @classmethod
