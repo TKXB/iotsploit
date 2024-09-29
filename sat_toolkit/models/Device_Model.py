@@ -1,5 +1,15 @@
 from enum import Enum
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional, Type
+from sqlalchemy import create_engine, Column, String, JSON, Enum as SQLAlchemyEnum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import os
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+Base = declarative_base()
 
 class DeviceType(Enum):
     USB = "USB"
@@ -52,3 +62,170 @@ class USBDevice(Device):
 
     def get_product_id(self) -> str:
         return self.product_id
+
+class DeviceDBModel(Base):
+    __tablename__ = 'devices'
+
+    device_id = Column(String, primary_key=True)
+    name = Column(String)
+    device_type = Column(SQLAlchemyEnum(DeviceType))
+    attributes = Column(JSON)
+
+    __mapper_args__ = {
+        'polymorphic_on': device_type,
+        'polymorphic_identity': 'device'
+    }
+
+    def __init__(self, device: Device):
+        self.device_id = device.device_id
+        self.name = device.name
+        self.device_type = device.device_type
+        self.attributes = device.attributes
+
+class SerialDeviceDBModel(DeviceDBModel):
+    __mapper_args__ = {
+        'polymorphic_identity': DeviceType.Serial,
+    }
+
+    def __init__(self, device: SerialDevice):
+        super().__init__(device)
+        self.attributes['port'] = device.port
+        self.attributes['baud_rate'] = device.baud_rate
+
+class USBDeviceDBModel(DeviceDBModel):
+    __mapper_args__ = {
+        'polymorphic_identity': DeviceType.USB,
+    }
+
+    def __init__(self, device: USBDevice):
+        super().__init__(device)
+        self.attributes['vendor_id'] = device.vendor_id
+        self.attributes['product_id'] = device.product_id
+
+class DeviceManager:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DeviceManager, cls).__new__(cls)
+            cls._instance.initialize()
+        return cls._instance
+
+    def initialize(self):
+        self.devices: Dict[str, Type[Device]] = {}
+        db_path = os.path.join(os.path.dirname(__file__), 'device_database.sqlite')
+        self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine)
+        self.current_device = None
+
+    @classmethod
+    def get_instance(cls):
+        return cls()
+
+    def register_device(self, device_type: DeviceType, device_class: Type[Device]):
+        self.devices[device_type] = device_class
+
+    def create_device(self, device_type: DeviceType, **kwargs) -> Device:
+        if device_type in self.devices:
+            device_class = self.devices[device_type]
+            device = device_class(**kwargs)
+            self.save_device(device)
+            return device
+        raise ValueError(f"No device type registered for: {device_type}")
+
+    def save_device(self, device: Device):
+        session = self.Session()
+        try:
+            existing_device = session.query(DeviceDBModel).filter_by(device_id=device.device_id).first()
+            if existing_device:
+                logger.info(f"Device with device_id '{device.device_id}' already exists. Skipping insertion.")
+                return
+            else:
+                if isinstance(device, SerialDevice):
+                    device_model = SerialDeviceDBModel(device)
+                elif isinstance(device, USBDevice):
+                    device_model = USBDeviceDBModel(device)
+                else:
+                    device_model = DeviceDBModel(device)
+                session.add(device_model)
+                session.commit()
+                logger.info(f"Device with device_id '{device.device_id}' has been added to the database.")
+        except Exception as e:
+            session.rollback()
+            logger.error(f"An error occurred while saving device '{device.device_id}': {e}")
+            raise e
+        finally:
+            session.close()
+
+    def get_all_devices(self) -> List[Dict[str, Any]]:
+        session = self.Session()
+        try:
+            devices = session.query(DeviceDBModel).all()
+            result = []
+            for d in devices:
+                device_info = {
+                    "device_id": d.device_id,
+                    "name": d.name,
+                    "device_type": d.device_type.value,
+                    "attributes": d.attributes
+                }
+                result.append(device_info)
+            return result
+        finally:
+            session.close()
+
+    def parse_and_set_device_from_json(self, json_file_path):
+        if not os.path.exists(json_file_path):
+            logger.error(f"File not found: {json_file_path}")
+            return
+
+        with open(json_file_path, 'r') as file:
+            data = json.load(file)
+
+        for device in data.get('devices', []):
+            device_type = DeviceType(device.get('device_type', 'USB'))
+            device_class = self.devices.get(device_type, Device)
+            if not device_class:
+                logger.error(f"No device type registered for: {device_type}")
+                continue
+
+            device_data = {
+                'device_id': device.get('device_id'),
+                'name': device.get('name'),
+                'attributes': device.get('attributes', {})
+            }
+
+            if device_type == DeviceType.Serial:
+                device_data['port'] = device.get('port')
+                device_data['baud_rate'] = device.get('baud_rate')
+            elif device_type == DeviceType.USB:
+                device_data['vendor_id'] = device.get('vendor_id')
+                device_data['product_id'] = device.get('product_id')
+
+            device_instance = self.create_device(device_type, **device_data)
+            self.current_device = device_instance
+
+        logger.info("Parsed and created devices from JSON file")
+
+    def get_current_device(self) -> Optional[Device]:
+        return self.current_device
+
+    def set_current_device(self, device: Device):
+        self.current_device = device
+
+if __name__ == "__main__":
+    # Example usage
+    device_manager = DeviceManager.get_instance()
+    device_manager.register_device(DeviceType.Serial, SerialDevice)
+    device_manager.register_device(DeviceType.USB, USBDevice)
+
+    # Load devices from JSON file
+    json_file_path = "path_to_your_json_file.json"  # Update with your actual JSON file path
+    device_manager.parse_and_set_device_from_json(json_file_path)
+
+    # Retrieve and print all Devices from the database
+    all_devices = device_manager.get_all_devices()
+    for d in all_devices:
+        print(f"Retrieved from DB: {d['name']}, ID: {d['device_id']}, Type: {d['device_type']}")
+        print(json.dumps(d, indent=2))

@@ -7,7 +7,7 @@ from sat_toolkit.models.Device_Model import Device
 
 logger = logging.getLogger(__name__)
 
-class DeviceManager:
+class DevicePluginManager:
     def __init__(self):
         logger.info("Initializing DeviceManager")
         self.pm = pluggy.PluginManager("device_mgr")

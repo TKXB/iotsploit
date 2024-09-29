@@ -1,0 +1,28 @@
+{
+    "devices": [
+      {
+        "device_id": "usb_001",
+        "name": "USB Debug Dongle",
+        "device_type": "USB",
+        "vendor_id": "0x1234",
+        "product_id": "0x5678",
+        "attributes": {
+          "max_speed": "480 Mbps",
+          "connector_type": "USB-A"
+        }
+      },
+      {
+        "device_id": "serial_001",
+        "name": "RS-232 Serial Port",
+        "device_type": "Serial",
+        "port": "/dev/ttyS0",
+        "baud_rate": 115200,
+        "attributes": {
+          "data_bits": 8,
+          "stop_bits": 1,
+          "parity": "None",
+          "flow_control": "None"
+        }
+      }
+    ]
+  }

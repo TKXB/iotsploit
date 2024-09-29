@@ -16,8 +16,9 @@ from sqlalchemy import create_engine
 import colorlog
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
-from sat_toolkit.core.device_manager import DeviceManager  # Add this import
+from sat_toolkit.core.device_manager import DevicePluginManager  
 import requests
+from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice
 
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -63,7 +64,13 @@ class SAT_Shell(cmd2.Cmd):
         self.target_manager.parse_and_set_target_from_json('conf/target.json')
 
         # Initialize device manager
-        self.device_manager = DeviceManager()
+        self.device_manager = DeviceManager.get_instance()
+        self.device_manager.register_device(DeviceType.Serial, SerialDevice)
+        self.device_manager.register_device(DeviceType.USB, USBDevice)
+        self.device_manager.parse_and_set_device_from_json('conf/devices.json')
+
+        # Initialize device plugin manager (if still needed)
+        self.device_plugin_manager = DevicePluginManager()
 
     def setup_colored_logger(self):
         root_logger = logging.getLogger()
@@ -312,7 +319,7 @@ class SAT_Shell(cmd2.Cmd):
     @cmd2.with_category('Device Commands')
     def do_list_device_plugins(self, arg):
         'List all available device plugins'
-        available_devices = self.device_manager.list_devices()
+        available_devices = self.device_plugin_manager.list_devices()
         if available_devices:
             logger.info(ansi.style("Available device plugins:", fg=ansi.Fg.CYAN))
             for device in available_devices:

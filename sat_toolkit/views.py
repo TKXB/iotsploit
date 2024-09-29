@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 import json
 import datetime
 
-from sat_toolkit.core.device_manager import DeviceManager  # Add this import
+from sat_toolkit.core.device_manager import DevicePluginManager  # Add this import
 
 def device_info(request:HttpRequest):
     """
@@ -512,7 +512,7 @@ def list_devices(request):
     GET
     Returns a list of available device plugins
     """
-    device_manager = DeviceManager()
+    device_manager = DevicePluginManager()
     available_devices = device_manager.list_devices()
     
     if available_devices:
