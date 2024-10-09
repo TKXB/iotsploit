@@ -4,6 +4,7 @@ import importlib.util
 import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.config import DEVICE_PLUGINS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class DevicePluginManager:
         logger.info("DeviceManager initialized")
 
     def load_plugins(self):
-        plugin_dir = os.path.join(os.path.dirname(__file__), "../plugins/devices")
+        plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
         logger.info(f"Loading device plugins from {plugin_dir}")
         for filename in os.listdir(plugin_dir):
             if filename.endswith(".py") and filename != "__init__.py":

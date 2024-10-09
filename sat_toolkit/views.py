@@ -25,6 +25,7 @@ import json
 import datetime
 
 from sat_toolkit.core.device_manager import DevicePluginManager  # Add this import
+from sat_toolkit.models.Target_Model import TargetManager
 
 def device_info(request:HttpRequest):
     """
@@ -571,4 +572,24 @@ def exploit(request):
             "results": formatted_results
         })
 
-
+def list_targets(request):
+    """
+    GET
+    Returns a list of all targets
+    """
+    target_manager = TargetManager.get_instance()
+    all_targets = target_manager.get_all_targets()
+    
+    if all_targets:
+        result = {
+            "status": "success",
+            "targets": all_targets
+        }
+    else:
+        result = {
+            "status": "success",
+            "targets": [],
+            "message": "No targets available."
+        }
+    
+    return JsonResponse(result)

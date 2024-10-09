@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from sat_toolkit.tools.env_mgr import Env_Mgr
 
 urlpatterns = [
     # Device and vehicle information
@@ -28,6 +29,7 @@ urlpatterns = [
     # Plugin and device management
     path('list_plugins/', views.list_plugins, name='list_plugins'),
     path('list_devices/', views.list_devices, name='list_devices'),
+    path('list_targets/', views.list_targets, name='list_targets'),  # Add this line
 
     # Exploit
     path('exploit/', views.exploit, name='exploit'),
