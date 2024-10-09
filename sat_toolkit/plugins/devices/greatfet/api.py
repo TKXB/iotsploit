@@ -5,7 +5,7 @@ import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 import uuid
-from .protocol import get_version_number  # Import the get_version_number function
+from sat_toolkit.plugins.devices.greatfet.protocol import get_version_number  # Change to absolute import
 
 logger = logging.getLogger(__name__)
 

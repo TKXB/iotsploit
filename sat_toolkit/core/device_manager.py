@@ -20,9 +20,10 @@ class DevicePluginManager:
     def load_plugins(self):
         plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
         logger.info(f"Loading device plugins from {plugin_dir}")
-        for filename in os.listdir(plugin_dir):
-            if filename.endswith(".py") and filename != "__init__.py":
-                self.load_plugin(os.path.join(plugin_dir, filename))
+        for root, _, files in os.walk(plugin_dir):
+            for filename in files:
+                if filename.endswith(".py") and filename != "__init__.py":
+                    self.load_plugin(os.path.join(root, filename))
 
     def load_plugin(self, filepath):
         module_name = os.path.splitext(os.path.basename(filepath))[0]
