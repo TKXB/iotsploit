@@ -593,3 +593,13 @@ def list_targets(request):
         }
     
     return JsonResponse(result)
+
+def scan_all_devices(request):
+    """
+    GET
+    Scans for all devices using the DevicePluginManager
+    """
+    device_manager = DevicePluginManager()
+    scan_results = device_manager.scan_all_devices()
+    
+    return JsonResponse(scan_results)

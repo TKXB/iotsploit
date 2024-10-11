@@ -14,14 +14,15 @@ class USBAbility:
         self.serial_connection = None
 
     @hookimpl
-    def scan(self, device: Device):
-        if device.device_type not in [DeviceType.USB, DeviceType.Serial]:
+    def scan(self, device: Device = None):
+        if device and device.device_type not in [DeviceType.USB, DeviceType.Serial]:
             return False
 
         ports = list(serial.tools.list_ports.comports())
         for port in ports:
             if port.vid == 0x10c4 and port.pid == 0xea60:
-                device.attributes['port'] = port.device
+                if device:
+                    device.attributes['port'] = port.device
                 logger.info(f"Found USB/Serial device on port: {port.device}")
                 return True
         

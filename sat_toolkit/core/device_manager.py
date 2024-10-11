@@ -45,6 +45,57 @@ class DevicePluginManager:
         print(f"Scanning device: {device.name}")
         self.pm.hook.scan(device=device)
 
+    def scan_all_devices(self):
+        logger.info("Scanning for all devices")
+        scan_results = {}
+        devices_found = False
+
+        for plugin_name, plugin in self.plugins.items():
+            logger.info(f"Scanning with plugin: {plugin_name}")
+            result = self.pm.hook.scan(device=None)
+            
+            if result:
+                devices_found = True
+                if isinstance(result, list):
+                    scan_results[plugin_name] = {
+                        "status": "success",
+                        "devices": [self.device_to_dict(device) for device in result if isinstance(device, Device)]
+                    }
+                elif isinstance(result, bool):
+                    scan_results[plugin_name] = {
+                        "status": "success",
+                        "devices": ["Device detected"]
+                    }
+                else:
+                    scan_results[plugin_name] = {
+                        "status": "success",
+                        "devices": [self.device_to_dict(result)] if isinstance(result, Device) else ["Unknown device detected"]
+                    }
+                logger.info(f"Devices found with plugin: {plugin_name}")
+            else:
+                scan_results[plugin_name] = {
+                    "status": "failure",
+                    "message": "No devices found"
+                }
+                logger.info(f"No devices found with plugin: {plugin_name}")
+
+        return {
+            "status": "success" if devices_found else "failure",
+            "devices_found": devices_found,
+            "message": "Device scan completed successfully." if devices_found else "No devices found.",
+            "scan_results": scan_results
+        }
+
+    def device_to_dict(self, device):
+        if not isinstance(device, Device):
+            return str(device)
+        return {
+            "device_id": device.device_id,
+            "name": device.name,
+            "device_type": device.device_type.value,
+            "attributes": device.attributes
+        }
+
     def initialize_device(self, device: Device):
         print(f"Initializing device: {device.name}")
         for plugin in self.pm.get_plugins():
