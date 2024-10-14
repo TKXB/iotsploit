@@ -5,7 +5,7 @@ from django.shortcuts import redirect
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.toolkit_main import Toolkit_Main
 
-from sat_toolkit.tools.pi_mgr import Pi_Mgr
+from sat_toolkit.tools.monitor_mgr import Pi_Mgr
 from sat_toolkit.tools.ota_mgr import OTA_Mgr
 from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
 

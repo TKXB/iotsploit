@@ -2,22 +2,17 @@
 import os
 import sys
 import django
-from django.conf import settings
 import time
 import logging
 import cmd2
 from cmd2 import ansi
-import argparse
 import threading
 import subprocess
-from sat_toolkit.models.Target_Model import TargetManager, Vehicle, TargetDBModel
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 import colorlog
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.device_manager import DevicePluginManager  
-import requests
 from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice
 
 # Set up Django
@@ -29,7 +24,7 @@ from django.core.management import execute_from_command_line
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.toolkit_main import Toolkit_Main
-from sat_toolkit.tools.pi_mgr import Pi_Mgr
+from sat_toolkit.tools.monitor_mgr import SystemMonitor
 from sat_toolkit.tools.ota_mgr import OTA_Mgr
 from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
 from sat_toolkit.tools.input_mgr import Input_Mgr
@@ -125,8 +120,17 @@ class SAT_Shell(cmd2.Cmd):
     def do_device_info(self, arg):
         'Show Zeekr SAT Device Info'
         logger.info(ansi.style("Zeekr SAT Device Info:", fg=ansi.Fg.CYAN))
-        for key, value in Pi_Mgr.Instance().pi_info().items():
-            logger.info(ansi.style(f"  {key}:\t{value}", fg=ansi.Fg.CYAN))
+        
+        pi_monitor = SystemMonitor.create_monitor("raspberry_pi")
+        device_info = SystemMonitor.monitor_device(pi_monitor)
+        
+        for key, value in device_info.items():
+            if isinstance(value, dict):
+                logger.info(ansi.style(f"  {key}:", fg=ansi.Fg.CYAN))
+                for sub_key, sub_value in value.items():
+                    logger.info(ansi.style(f"    {sub_key}: {sub_value}", fg=ansi.Fg.CYAN))
+            else:
+                logger.info(ansi.style(f"  {key}: {value}", fg=ansi.Fg.CYAN))
 
     @cmd2.with_category('OTA Commands')
     def do_ota_info(self, arg):
@@ -317,7 +321,7 @@ class SAT_Shell(cmd2.Cmd):
             logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
 
     @cmd2.with_category('Device Commands')
-    def do_list_device_plugins(self, arg):
+    def do_list_device_drivers(self, arg):
         'List all available device plugins'
         available_devices = self.device_plugin_manager.list_devices()
         if available_devices:
@@ -327,7 +331,7 @@ class SAT_Shell(cmd2.Cmd):
         else:
             logger.info(ansi.style("No device plugins available.", fg=ansi.Fg.YELLOW))
 
-    do_lsdp = do_list_device_plugins
+    do_lsdrv = do_list_device_drivers
 
     @cmd2.with_category('Linux Commands')
     def do_ls(self, arg):

@@ -2,7 +2,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from sat_toolkit.tools.pi_mgr import Pi_Mgr
+from sat_toolkit.tools.monitor_mgr import Pi_Mgr
 
 
 def main():
