@@ -47,6 +47,8 @@ class SAT_Shell(cmd2.Cmd):
         super().__init__()
         self.django_server_process = None
         self.django_server_thread = None
+        self.daphne_server_process = None
+        self.daphne_server_thread = None
         self.setup_colored_logger()
         
         # Initialize plugin manager
@@ -213,51 +215,64 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('Django Commands')
     def do_runserver(self, arg):
-        'Start the Django development server in the background'
-        if self.django_server_process:
-            self.poutput("Django server is already running.")
+        'Start the Django development server and Daphne WebSocket server in the background'
+        if self.django_server_process or self.daphne_server_process:
+            self.poutput("Servers are already running.")
             return
 
         try:
-            logger.info("Attempting to start Django development server in background...")
+            logger.info("Attempting to start Django and Daphne servers in background...")
             
-            # Prepare the command
-            cmd = [sys.executable, 'manage.py', 'runserver', '--noreload']
-            if arg:
-                cmd.extend(arg.split())
-            else:
-                cmd.append('0.0.0.0:8888')  # Default to port 8080 if no argument is provided
+            # Prepare the Django command
+            django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
             
-            logger.info(f"Running Django command: {' '.join(cmd)}")
+            # Prepare the Daphne command
+            daphne_cmd = ['daphne', '-p', '9999', 'sat_django_entry.asgi:application']
+            
+            logger.info(f"Running Django command: {' '.join(django_cmd)}")
+            logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
             
             # Start the Django server as a subprocess
-            self.django_server_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            self.django_server_process = subprocess.Popen(django_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
             
-            # Start a thread to read the output
-            self.django_server_thread = threading.Thread(target=self._read_django_output, daemon=True)
+            # Start the Daphne server as a subprocess
+            self.daphne_server_process = subprocess.Popen(daphne_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            
+            # Start threads to read the output
+            self.django_server_thread = threading.Thread(target=self._read_server_output, args=(self.django_server_process, "Django"), daemon=True)
             self.django_server_thread.start()
             
-            logger.info("Django development server started successfully in the background.")
-            self.poutput("Django server is now running in the background. Use 'stop_server' to stop it.")
+            self.daphne_server_thread = threading.Thread(target=self._read_server_output, args=(self.daphne_server_process, "Daphne"), daemon=True)
+            self.daphne_server_thread.start()
+            
+            logger.info("Django and Daphne servers started successfully in the background.")
+            self.poutput("Servers are now running in the background. Use 'stop_server' to stop them.")
         except Exception as e:
-            logger.error(f"Failed to start Django server: {str(e)}")
+            logger.error(f"Failed to start servers: {str(e)}")
             logger.exception("Detailed traceback:")
 
-    def _read_django_output(self):
-        for line in self.django_server_process.stdout:
-            logger.info(f"Django: {line.strip()}")
+    def _read_server_output(self, process, server_name):
+        for line in process.stdout:
+            logger.info(f"{server_name}: {line.strip()}")
 
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
-        'Stop the Django development server'
+        'Stop the Django development server and Daphne WebSocket server'
         if self.django_server_process:
             self.django_server_process.terminate()
             self.django_server_process = None
             self.django_server_thread = None
-            logger.info("Django server stopped.")
-            self.poutput("Django server has been stopped.")
+        
+        if self.daphne_server_process:
+            self.daphne_server_process.terminate()
+            self.daphne_server_process = None
+            self.daphne_server_thread = None
+        
+        if not self.django_server_process and not self.daphne_server_process:
+            logger.info("All servers stopped.")
+            self.poutput("All servers have been stopped.")
         else:
-            self.poutput("No Django server is currently running.")
+            self.poutput("No servers were running.")
 
     @cmd2.with_category('System Commands')
     def do_set_log_level(self, arg):

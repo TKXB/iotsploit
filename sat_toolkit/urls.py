@@ -1,6 +1,7 @@
-from django.urls import path
+from django.urls import path, re_path
 from . import views
 from sat_toolkit.tools.env_mgr import Env_Mgr
+from sat_toolkit.consumers import CPUUsageConsumer
 
 urlpatterns = [
     # Device and vehicle information
@@ -34,4 +35,7 @@ urlpatterns = [
 
     # Exploit
     path('exploit/', views.exploit, name='exploit'),
+
+    # Add this new URL for websocket
+    re_path(r'ws/cpu_usage/$', CPUUsageConsumer.as_asgi()),
 ]

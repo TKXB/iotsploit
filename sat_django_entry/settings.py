@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from django.conf import settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -62,13 +63,14 @@ INSTALLED_APPS = [
     'sat_toolkit.apps.SatToolkitConfig',
     'django_extensions',
     'corsheaders',
-
+    'csp',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -80,6 +82,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.security.SecurityMiddleware',  # Make sure this is included
+    'csp.middleware.CSPMiddleware',
 ]
 
 ROOT_URLCONF = 'sat_django_entry.urls'
@@ -186,3 +190,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #         },
 #     },
 # }
+
+# Update these CSP settings
+CSP_DEFAULT_SRC = ("'self'",)  # Changed from 'none' to 'self'
+CSP_CONNECT_SRC = ("'self'", "ws:", "wss:", "ws://10.8.0.3:8888", "http://10.8.0.3:8888")
+CSP_SCRIPT_SRC = ("'self'",)
+CSP_STYLE_SRC = ("'self'",)
+CSP_IMG_SRC = ("'self'",)
+

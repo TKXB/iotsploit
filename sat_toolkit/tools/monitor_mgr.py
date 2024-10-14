@@ -4,6 +4,8 @@ import socket
 import psutil
 import netifaces
 from abc import ABC, abstractmethod
+import time
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,11 @@ class DeviceMonitor(ABC):
         pass
 
 class LinuxMonitor(DeviceMonitor):
+    def __init__(self):
+        self.cpu_usage = 0
+        self.stop_monitoring = False
+        self.monitor_thread = None
+
     def get_system_info(self):
         return {
             "uname": platform.uname(),
@@ -63,6 +70,24 @@ class LinuxMonitor(DeviceMonitor):
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    def start_cpu_monitoring(self):
+        if self.monitor_thread is None or not self.monitor_thread.is_alive():
+            self.stop_monitoring = False
+            self.monitor_thread = threading.Thread(target=self._monitor_cpu_usage)
+            self.monitor_thread.start()
+
+    def stop_cpu_monitoring(self):
+        self.stop_monitoring = True
+        if self.monitor_thread:
+            self.monitor_thread.join()
+
+    def _monitor_cpu_usage(self):
+        while not self.stop_monitoring:
+            self.cpu_usage = psutil.cpu_percent(interval=1)
+
+    def get_cpu_usage(self):
+        return self.cpu_usage
 
 class Pi_Mgr(LinuxMonitor):
     def get_cpu_temperature(self):
