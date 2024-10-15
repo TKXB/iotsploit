@@ -25,6 +25,7 @@ class DeviceMonitor(ABC):
 class LinuxMonitor(DeviceMonitor):
     def __init__(self):
         self.cpu_usage = 0
+        self.memory_usage = {"total": 0, "used": 0, "percent": 0}
         self.stop_monitoring = False
         self.monitor_thread = None
 
@@ -71,23 +72,32 @@ class LinuxMonitor(DeviceMonitor):
         hours, minutes = divmod(minutes, 60)
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-    def start_cpu_monitoring(self):
+    def start_monitoring(self):
         if self.monitor_thread is None or not self.monitor_thread.is_alive():
             self.stop_monitoring = False
-            self.monitor_thread = threading.Thread(target=self._monitor_cpu_usage)
+            self.monitor_thread = threading.Thread(target=self._monitor_system)
             self.monitor_thread.start()
 
-    def stop_cpu_monitoring(self):
+    def stop_monitoring(self):
         self.stop_monitoring = True
         if self.monitor_thread:
             self.monitor_thread.join()
 
-    def _monitor_cpu_usage(self):
+    def _monitor_system(self):
         while not self.stop_monitoring:
             self.cpu_usage = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            self.memory_usage = {
+                "total": f"{memory.total / (1024 ** 3):.2f}G",
+                "used": f"{memory.used / (1024 ** 3):.2f}G",
+                "percent": memory.percent
+            }
 
     def get_cpu_usage(self):
         return self.cpu_usage
+
+    def get_memory_usage(self):
+        return self.memory_usage
 
 class Pi_Mgr(LinuxMonitor):
     def get_cpu_temperature(self):
