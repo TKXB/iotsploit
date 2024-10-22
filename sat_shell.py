@@ -31,6 +31,11 @@ from sat_toolkit.tools.input_mgr import Input_Mgr
 
 logger = logging.getLogger(__name__)
 
+def global_exception_handler(exctype, value, traceback):
+    logger.error("Unhandled exception", exc_info=(exctype, value, traceback))
+
+sys.excepthook = global_exception_handler
+
 class SAT_Shell(cmd2.Cmd):
     intro = ansi.style('''
 ██╗ █████╗ ████████╗███████╗██████╗ ██╗      ██████╗ ██╗████████╗
