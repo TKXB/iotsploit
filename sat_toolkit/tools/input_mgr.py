@@ -143,5 +143,53 @@ class Input_Mgr:
                 logger.info("User Select:{}\n".format(ui_result))
                 return ui_result
 
-_instance = Input_Mgr()
+    def int_input(self, title:str, min_val:int=None, max_val:int=None):
+        def verify_int(input_str):
+            try:
+                val = int(input_str)
+                if min_val is not None and val < min_val:
+                    logger.error(f"Input must be greater than or equal to {min_val}")
+                    return False
+                if max_val is not None and val > max_val:
+                    logger.error(f"Input must be less than or equal to {max_val}")
+                    return False
+                return True
+            except ValueError:
+                logger.error("Input must be an integer")
+                return False
 
+        run_in_shell = Env_Mgr.Instance().get("SAT_RUN_IN_SHELL")
+        if run_in_shell:
+            while True:
+                logger.info("-------------- Please Input Integer --------------")
+                logger.info(title)
+                range_str = ""
+                if min_val is not None and max_val is not None:
+                    range_str = f" ({min_val}-{max_val})"
+                user_input = self.__shell_color_input(f"Please Input Integer{range_str}:")
+                if verify_int(user_input):
+                    logger.info("User Input:{}\n".format(user_input))
+                    return int(user_input)
+        else:
+            logger.info("-------------- Please Input Integer --------------")
+            Env_Mgr.Instance().set("SAT_NEED_UI", 
+                {
+                    "type":"int_input", 
+                    "title":title,
+                    "min": min_val,
+                    "max": max_val,
+                    'buttonlist': [{'name': '确认', 'color': 'active', 'action': 'POST record_user_input'}]                
+                })
+
+            while True:
+                time.sleep(0.5)
+                ui_result = Env_Mgr.Instance().query("SAT_UI_RESULT", None)
+                if ui_result == None:
+                    continue
+                Env_Mgr.Instance().unset("SAT_UI_RESULT")
+                
+                if verify_int(ui_result):
+                    logger.info("User Input:{}\n".format(ui_result))
+                    return int(ui_result)
+
+_instance = Input_Mgr()
