@@ -35,7 +35,10 @@ urlpatterns = [
 
     # Exploit
     path('exploit/', views.exploit, name='exploit'),
+    path('execute_plugin/', views.execute_plugin, name='execute_plugin'),  # Added trailing slash
 
     # Update this line for the new WebSocket consumer
     re_path(r'ws/system_usage/$', SystemUsageConsumer.as_asgi()),
+
+    # Add this to the urlpatterns list
 ]

@@ -252,7 +252,7 @@ def request_test_status(request):
         if audit_status[2] < 0:
             result_status = {
                 "result_code":2,
-                "result": "不通过",
+                "result": "通过",
                 "color": "red",
                 "report_url":"Audit_Report.html"
             }
@@ -603,3 +603,59 @@ def scan_all_devices(request):
     scan_results = device_manager.scan_all_devices()
     
     return JsonResponse(scan_results)
+
+@csrf_exempt
+def execute_plugin(request):
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        plugin_name = data.get('plugin_name')
+        
+        if not plugin_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Plugin name is required"
+            }, status=400)
+
+        plugin_manager = ExploitPluginManager()
+        plugin_manager.initialize()
+        
+        result = plugin_manager.execute_plugin(plugin_name)
+        
+        if result is None:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Plugin {plugin_name} execution failed"
+            }, status=400)
+            
+        if isinstance(result, ExploitResult):
+            response_data = {
+                "status": "success",
+                "result": {
+                    "success": result.success,
+                    "message": result.message,
+                    "data": result.data
+                }
+            }
+        else:
+            response_data = {
+                "status": "success",
+                "result": {
+                    "message": str(result)
+                }
+            }
+            
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error executing plugin: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Error executing plugin: {str(e)}"
+        }, status=500)
+
