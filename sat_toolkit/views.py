@@ -17,6 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
+from sat_toolkit.core.base_plugin import BasePlugin
 
 import logging
 logger = logging.getLogger(__name__)
@@ -658,4 +659,26 @@ def execute_plugin(request):
             "status": "error",
             "message": f"Error executing plugin: {str(e)}"
         }, status=500)
+
+def list_plugin_info(request):
+    """
+    GET
+    Returns information about all available plugins.
+    """
+    plugin_manager = ExploitPluginManager()
+    
+    # Use the manager's list_plugin_info method directly
+    plugin_info_dict = plugin_manager.list_plugin_info()
+    
+    logger.debug(f"Retrieved plugin info: {plugin_info_dict}")
+    
+    # Format the response
+    formatted_plugins = []
+    for plugin_name, info in plugin_info_dict.items():
+        formatted_plugins.append({
+            "name": plugin_name,
+            "info": info
+        })
+
+    return JsonResponse({'plugins': formatted_plugins})
 

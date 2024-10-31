@@ -41,4 +41,5 @@ urlpatterns = [
     re_path(r'ws/system_usage/$', SystemUsageConsumer.as_asgi()),
 
     # Add this to the urlpatterns list
+    path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
 ]

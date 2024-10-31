@@ -1,33 +1,39 @@
-from mgr import NetworkPluginManager
+import unittest
 import logging
+from sat_toolkit.core.exploit_manager import ExploitPluginManager
+from sat_toolkit.core.base_plugin import BasePlugin
 
-def main():
-    # 配置日志
-    logging.basicConfig(level=logging.INFO)
+class TestExploitPluginManager(unittest.TestCase):
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        self.plugin_manager = ExploitPluginManager()
 
-    # 实例化插件管理器（插件会自动加载）
-    plugin_manager = NetworkPluginManager()
+    def test_syn_flood_plugin(self):
+        # Test get_plugin
+        plugin = self.plugin_manager.get_plugin("syn_flood_attack")
+        self.assertIsNotNone(plugin)
+        self.assertTrue(isinstance(plugin, BasePlugin))
         
-    # SSH 示例
-    ssh_context = plugin_manager.connect("ssh", "192.168.8.146", "sat", "123456")
-    if ssh_context:
-        res = plugin_manager.execute_command("ssh", ssh_context, "ls -l")
-        print(res)
-        plugin_manager.disconnect("ssh", ssh_context)
+        # Verify plugin attributes
+        plugin_info = plugin.get_info()
+        print("plugin_info", plugin_info)
+        self.assertEqual(plugin_info['Name'], 'SYN Flood Attack')
+        self.assertEqual(plugin_info['Platform'], ['linux', 'windows'])
 
-    # FTP 示例
-    ftp_context = plugin_manager.connect("ftp", "192.168.8.148", "user", "password")
-    if ftp_context:
-        res = plugin_manager.execute_command("ftp", ftp_context, "NOOP")
-        print(res)
-        plugin_manager.disconnect("ftp", ftp_context)
-    
-    # Telnet 示例
-    telnet_context = plugin_manager.connect("telnet", "192.168.8.147", "user", "password")
-    if telnet_context:
-        res = plugin_manager.execute_command("telnet", telnet_context, "ls -l")
-        print(res)
-        plugin_manager.disconnect("telnet", telnet_context)
+    def test_list_plugin_info(self):
+        # Test list_plugin_info
+        plugin_info_dict = self.plugin_manager.list_plugin_info()
+        print("plugin_info_dict", plugin_info_dict)
+        
+        # Verify SYN flood plugin info is present
+        self.assertIn('syn_flood_attack', plugin_info_dict)
+        
+        # Verify specific plugin information
+        syn_flood_info = plugin_info_dict['syn_flood_attack']
+        self.assertEqual(syn_flood_info['Name'], 'SYN Flood Attack')
+        self.assertEqual(syn_flood_info['Description'], 'Performs a SYN flood attack on a specified target.')
+        self.assertEqual(syn_flood_info['License'], 'GPL')
+        self.assertEqual(syn_flood_info['Platform'], ['linux', 'windows'])
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    unittest.main()
