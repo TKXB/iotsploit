@@ -615,7 +615,10 @@ def execute_plugin(request):
         
     try:
         data = json.loads(request.body)
+        logger.info(f"Received POST data for execute_plugin: {data}")
+        
         plugin_name = data.get('plugin_name')
+        parameters = data.get('parameters', {})  # 获取参数
         
         if not plugin_name:
             return JsonResponse({
@@ -623,10 +626,37 @@ def execute_plugin(request):
                 "message": "Plugin name is required"
             }, status=400)
 
+        # Get the current target
+        target_manager = TargetManager.get_instance()
+        current_target = target_manager.get_current_target()
+        
+        # If no current target, select the first available vehicle target
+        if not current_target:
+            all_targets = target_manager.get_all_targets()
+            vehicle_targets = [t for t in all_targets if t['type'] == 'vehicle']
+            
+            if vehicle_targets:
+                # Select the first vehicle target
+                selected_target = vehicle_targets[0]
+                target_manager.set_current_target(selected_target)
+                current_target = selected_target
+                logger.info(f"Automatically selected vehicle target: {selected_target['name']}")
+            else:
+                logger.error("No vehicle targets available to select.")
+                return JsonResponse({
+                    "status": "error",
+                "message": "No vehicle targets available to select."
+            }, status=400)
+
         plugin_manager = ExploitPluginManager()
         plugin_manager.initialize()
-        
-        result = plugin_manager.execute_plugin(plugin_name)
+        logger.info(f"Executing plugin: {plugin_name} with parameters: {parameters}")
+        # 修改这里，传入参数
+        result = plugin_manager.execute_plugin(
+            plugin_name, 
+            target=current_target,
+            parameters=parameters  # 添加参数传递
+        )
         
         if result is None:
             return JsonResponse({
@@ -663,22 +693,45 @@ def execute_plugin(request):
 def list_plugin_info(request):
     """
     GET
-    Returns information about all available plugins.
+    Returns information about all available plugins with status indicators.
     """
     plugin_manager = ExploitPluginManager()
     
-    # Use the manager's list_plugin_info method directly
-    plugin_info_dict = plugin_manager.list_plugin_info()
-    
-    logger.debug(f"Retrieved plugin info: {plugin_info_dict}")
-    
-    # Format the response
-    formatted_plugins = []
-    for plugin_name, info in plugin_info_dict.items():
-        formatted_plugins.append({
-            "name": plugin_name,
-            "info": info
-        })
-
-    return JsonResponse({'plugins': formatted_plugins})
+    try:
+        # Get plugin info
+        plugin_info_dict = plugin_manager.list_plugin_info()
+        
+        # Format the response with success/failure indicators
+        formatted_plugins = []
+        has_valid_plugins = False
+        
+        for plugin_name, info in plugin_info_dict.items():
+            plugin_entry = {
+                "name": plugin_name,
+                "info": info,
+                "status": "success" if "error" not in info else "failure"
+            }
+            formatted_plugins.append(plugin_entry)
+            if "error" not in info:
+                has_valid_plugins = True
+        
+        response = {
+            "status": "success" if has_valid_plugins else "partial",
+            "message": "Successfully retrieved plugin information" if has_valid_plugins 
+                      else "Some plugins failed to load properly",
+            "plugins": formatted_plugins,
+            "total_plugins": len(formatted_plugins),
+            "valid_plugins": sum(1 for p in formatted_plugins if p["status"] == "success")
+        }
+        
+        logger.debug(f"Retrieved plugin info: {response}")
+        return JsonResponse(response)
+        
+    except Exception as e:
+        logger.error(f"Error retrieving plugin information: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to retrieve plugin information: {str(e)}",
+            "plugins": []
+        }, status=500)
 
