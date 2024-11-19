@@ -5,7 +5,7 @@ import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 import uuid
-from sat_toolkit.plugins.devices.ft2232.protocol import (
+from plugins.devices.ft2232.protocol import (
     create_ft2232_interface, close_ft2232_interface,
     uart_read, uart_write, spi_exchange, jtag_write_tms, jtag_write_tdi
 )
