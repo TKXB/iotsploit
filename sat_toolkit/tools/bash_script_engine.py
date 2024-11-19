@@ -12,7 +12,7 @@ from sat_toolkit.tools.env_mgr import Env_Mgr
 
 
 class Bash_Script_Mgr:
-    __script_dir = "sat_scripts/bash"
+    __script_dir = "scripts/bash"
     __temp_script_file_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/tmp_bash_script.sh"
 
     @staticmethod

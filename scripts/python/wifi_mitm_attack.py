@@ -19,7 +19,7 @@ def StopMITM():
 
 def doMITM_DHU():
     StopMITM()
-    basedir = "/home/sat/zeekr_sat_main/sat_scripts/mitm/"
+    basedir = "/home/sat/zeekr_sat_main/scripts/mitm/"
     #
     ADB_Mgr.Instance().push_file(ADB_Mgr.DHU_ADB_SERIAL,basedir+"tcpprocess","/data/local/tmp/tcpprocess")
     ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"chmod +x /data/local/tmp/tcpprocess")

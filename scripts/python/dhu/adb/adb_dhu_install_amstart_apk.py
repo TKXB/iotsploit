@@ -7,7 +7,7 @@ from sat_toolkit.tools.adb_mgr import ADB_Mgr
 
 def main():
     ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"settings put global verifier_verify_adb_installs 0")
-    isInstallOK = ADB_Mgr.Instance().install_apk(ADB_Mgr.DHU_ADB_SERIAL, "sat_scripts/sattest.apk")
+    isInstallOK = ADB_Mgr.Instance().install_apk(ADB_Mgr.DHU_ADB_SERIAL, "scripts/sattest.apk")
     # ADB_Mgr.Instance().push_file(ADB_Mgr.DHU_ADB_SERIAL,"sat_scripts/wait_start_sattest.sh","/data/local/tmp/")
     ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"settings put global verifier_verify_adb_installs 1")
     # ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"cd /data/local/tmp/;nohup sh /data/local/tmp/wait_start_sattest.sh &")

@@ -9,7 +9,7 @@ def main():
     adb_pull_file_path = Env_Mgr.Instance().get("__SAT_ENV__VehicleModel_TCAM_ADB_PULL_FILE")    
     adb_push_file_path = Env_Mgr.Instance().get("__SAT_ENV__VehicleModel_TCAM_ADB_PUSH_FILE")
     sat_pull_file_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/adb_pull_check.txt"
-    sat_push_file_path = "/home/sat/zeekr_sat_rep_local/sat_scripts/python/tcam/adb/adb_push_check.txt"
+    sat_push_file_path = "/home/sat/zeekr_sat_rep_local/scripts/python/tcam/adb/adb_push_check.txt"
     logger.info("adb_pull_file_path:{}".format(adb_pull_file_path))
     logger.info("adb_push_file_path:{}".format(adb_push_file_path))
     logger.info("sat_pull_file_path:{}".format(sat_pull_file_path))

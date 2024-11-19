@@ -10,7 +10,7 @@ from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.sat_utils import *
 
 class Python_SubModule_Mgr:
-    __script_dir = "sat_scripts/python"
+    __script_dir = "scripts/python"
     __temp_submodule_file_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/tmp_python_submodule.py"
 
     @staticmethod

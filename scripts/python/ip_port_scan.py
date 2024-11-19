@@ -440,7 +440,7 @@ def tcam_privateapn_ip_tsp_scan(isPortCall):
     
 
 def dhu_ss_port_scan():
-    baseDir = "/home/sat/zeekr_sat_main/sat_scripts/"
+    baseDir = "/home/sat/zeekr_sat_main/scripts/"
     ADB_Mgr.Instance().push_file(ADB_Mgr.DHU_ADB_SERIAL,baseDir+"ss_static","/data/local/tmp/")
     ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"chmod +x /data/local/tmp/ss_static")
     result = ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"/data/local/tmp/ss_static -npltu")
@@ -449,7 +449,7 @@ def dhu_ss_port_scan():
 
 def tcam_ss_port_scan():
     tcamip = query_tcam_ip()
-    Bash_Script_Mgr.Instance().exec_cmd('sshpass -p "{}" scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no /home/sat/zeekr_sat_main/sat_scripts/ss_static root@{}:/tmp/'.format(Env_Mgr.Instance().get("__SAT_ENV__VehicleModel_TCAM_SSH_PASSWD"),tcamip))
+    Bash_Script_Mgr.Instance().exec_cmd('sshpass -p "{}" scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no /home/sat/zeekr_sat_main/scripts/ss_static root@{}:/tmp/'.format(Env_Mgr.Instance().get("__SAT_ENV__VehicleModel_TCAM_SSH_PASSWD"),tcamip))
     sshctx = open_tcam_ssh()
     sshctx.sendline("/tmp/ss_static -npltu;exit;")
     data = sshctx.recvall().decode()
@@ -499,7 +499,7 @@ def nmap_port_detect(nmapdatafile):
     return results
 
 def dhu_internal_ip_scan():
-    baseDir = "/home/sat/zeekr_sat_main/sat_scripts/"
+    baseDir = "/home/sat/zeekr_sat_main/scripts/"
     ADB_Mgr.Instance().push_file(ADB_Mgr.DHU_ADB_SERIAL,baseDir+"nmap_dhu.tar","/data/local/tmp/")
     ADB_Mgr.Instance().shell_cmd(ADB_Mgr.DHU_ADB_SERIAL,"tar -xvf /data/local/tmp/nmap_dhu.tar")
     scaniplist = list(set(scan_iplist) ^ set(dhu_ips))
@@ -523,7 +523,7 @@ def dhu_internal_port_scan():
 
 def tcam_internal_ip_scan():
     tcamip = query_tcam_ip()
-    Bash_Script_Mgr.Instance().exec_cmd('sshpass -p "{}" scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no /home/sat/zeekr_sat_main/sat_scripts/nmap_tcam.tar root@{}:/tmp/'.format(Env_Mgr.Instance().get("__SAT_ENV__VehicleModel_TCAM_SSH_PASSWD"),tcamip))
+    Bash_Script_Mgr.Instance().exec_cmd('sshpass -p "{}" scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no /home/sat/zeekr_sat_main/scripts/nmap_tcam.tar root@{}:/tmp/'.format(Env_Mgr.Instance().get("__SAT_ENV__VehicleModel_TCAM_SSH_PASSWD"),tcamip))
     # context.log_level='debug'
     io = open_tcam_ssh()
     scaniplist = list(set(scan_iplist) ^ set(tcam_ips))
