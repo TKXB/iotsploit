@@ -49,7 +49,13 @@ class SAT_Shell(cmd2.Cmd):
     prompt = ansi.style('<IoX_SHELL> ', fg=ansi.Fg.BLUE)
 
     def __init__(self):
+        # Initialize the command categories dictionary before calling super().__init__()
+        self._cmd_to_category = {}
+        
+        # Now call the parent class initialization
         super().__init__()
+        
+        # Rest of your initialization code...
         self.django_server_process = None
         self.django_server_thread = None
         self.daphne_server_process = None
@@ -73,6 +79,48 @@ class SAT_Shell(cmd2.Cmd):
 
         # Initialize device plugin manager (if still needed)
         self.device_plugin_manager = DevicePluginManager()
+
+        # Customize help display
+        self.help_category_header = ansi.style("\n{:-^80}\n", fg=ansi.Fg.BLUE)
+        self.help_category_footer = "\n"
+        
+        # Group all commands under Shell Commands
+        self._cmd_to_category.update({
+            'alias': 'Shell Commands',
+            'connect_lab_wifi': 'Shell Commands',
+            'device_info': 'Shell Commands',
+            'edit': 'Shell Commands',
+            'execute_plugin': 'Shell Commands',
+            'exit': 'Shell Commands',
+            'exploit': 'Shell Commands',
+            'help': 'Shell Commands',
+            'history': 'Shell Commands',
+            'list_device_drivers': 'Shell Commands',
+            'list_devices': 'Shell Commands',
+            'list_plugins': 'Shell Commands',
+            'list_targets': 'Shell Commands',
+            'ls': 'Shell Commands',
+            'lsdev': 'Shell Commands',
+            'lsdrv': 'Shell Commands',
+            'lsp': 'Shell Commands',
+            'lst': 'Shell Commands',
+            'lsusb': 'Shell Commands',
+            'macro': 'Shell Commands',
+            'ota_info': 'Shell Commands',
+            'quick_test': 'Shell Commands',
+            'quit': 'Shell Commands',
+            'run_pyscript': 'Shell Commands',
+            'run_script': 'Shell Commands',
+            'run_test': 'Shell Commands',
+            'runserver': 'Shell Commands',
+            'set': 'Shell Commands',
+            'set_log_level': 'Shell Commands',
+            'shell': 'Shell Commands',
+            'shortcuts': 'Shell Commands',
+            'stop_server': 'Shell Commands',
+            'test_select': 'Shell Commands',
+            'vehicle_select': 'Shell Commands'
+        })
 
     def setup_colored_logger(self):
         root_logger = logging.getLogger()
@@ -207,7 +255,7 @@ class SAT_Shell(cmd2.Cmd):
             self.do_stop_server(arg)
         Toolkit_Main.Instance().exit_quick_test()
         Toolkit_Main.Instance().stop_audit()
-        logger.info("IotSploit SAT Shell Quit. ByeBye~")
+        logger.info("IotSploit Shell Quit. ByeBye~")
         return True
 
     @cmd2.with_category('Network Commands')
@@ -436,6 +484,80 @@ class SAT_Shell(cmd2.Cmd):
 
     # Alias for list_devices
     do_lsdev = do_list_devices
+
+    def do_help(self, arg):
+        'List available commands with "help" or detailed help with "help cmd".'
+        if arg:
+            # Show help for specific command
+            super().do_help(arg)
+            return
+
+        # Custom help display for command listing
+        self.poutput(ansi.style("\nAvailable Commands:", fg=ansi.Fg.GREEN, bold=True))
+        self.poutput(ansi.style("Use 'help <command>' for detailed information about a command.\n", fg=ansi.Fg.YELLOW))
+
+        # Get commands by category
+        cmds_by_category = self.get_all_commands_by_category()
+        
+        # Sort categories for consistent display, but put Shell Commands last
+        categories = sorted([cat for cat in cmds_by_category.keys() if cat != 'Shell Commands'])
+        if 'Shell Commands' in cmds_by_category:
+            categories.append('Shell Commands')
+        
+        # Print commands by category
+        for category in categories:
+            if category == 'Uncategorized':
+                continue  # Skip uncategorized commands
+            
+            self.poutput(self.help_category_header.format(f" {category} "))
+            cmd_list = sorted(cmds_by_category[category])
+            
+            # Calculate the maximum command length for proper alignment
+            max_cmd_length = max(len(cmd) for cmd in cmd_list) + 2
+            
+            for cmd in cmd_list:
+                doc = self.get_command_doc(cmd)
+                # Pad the command name to align all descriptions
+                padded_cmd = f"  {cmd:<{max_cmd_length}}"
+                self.poutput(ansi.style(padded_cmd, fg=ansi.Fg.CYAN) + 
+                            ansi.style(f"- {doc}", fg=ansi.Fg.WHITE))
+            self.poutput(self.help_category_footer)
+
+        # Show command count
+        total_commands = sum(len(cmds) for cat, cmds in cmds_by_category.items() if cat != 'Uncategorized')
+        self.poutput(ansi.style(f"\nTotal commands: {total_commands}", fg=ansi.Fg.GREEN))
+
+    def get_command_doc(self, cmd_name):
+        """Get the first line of the command's docstring."""
+        cmd_func = getattr(self, 'do_' + cmd_name, None)
+        if cmd_func and cmd_func.__doc__:
+            return cmd_func.__doc__.split('\n')[0]
+        return ''
+
+    def get_all_commands_by_category(self):
+        """Return a dict mapping category names to lists of command names."""
+        categories = {}
+        
+        # Get all command names (methods starting with 'do_')
+        command_names = [attr[3:] for attr in dir(self) if attr.startswith('do_')]
+        
+        for cmd_name in command_names:
+            # Get the command function
+            cmd_func = getattr(self, 'do_' + cmd_name)
+            
+            # Get category from cmd2's category decorator or from our manual mapping
+            if hasattr(cmd_func, 'category'):
+                category = cmd_func.category
+            else:
+                # Check our manual mapping or default to 'Uncategorized'
+                category = self._cmd_to_category.get(cmd_name, 'Uncategorized')
+            
+            # Add command to appropriate category list
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(cmd_name)
+        
+        return categories
 
 if __name__ == '__main__':
     shell = SAT_Shell()
