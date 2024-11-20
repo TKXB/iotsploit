@@ -22,7 +22,7 @@ class DevicePluginManager:
         logger.info(f"Loading device plugins from {plugin_dir}")
         for root, _, files in os.walk(plugin_dir):
             for filename in files:
-                if filename.endswith(".py") and filename != "__init__.py":
+                if filename.startswith("drv_") and filename.endswith(".py") and filename != "__init__.py":
                     self.load_plugin(os.path.join(root, filename))
 
     def load_plugin(self, filepath):

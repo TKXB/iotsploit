@@ -1,0 +1,6 @@
+drv_esp32.py
+pyproject.toml
+drv_esp32.egg-info/PKG-INFO
+drv_esp32.egg-info/SOURCES.txt
+drv_esp32.egg-info/dependency_links.txt
+drv_esp32.egg-info/top_level.txt

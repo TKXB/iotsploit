@@ -34,7 +34,8 @@ flet-runtime = "0.23.2"
 # ... (other dependencies)
 
 [tool.poetry.dev-dependencies]
-flood_attack = {path = "sat_toolkit/plugins/exploits/flood_attack", develop = true}
+flood_attack = {path = "plugins/exploits/flood_attack", develop = true}
+esp32_driver = {path = "plugins/devices/esp32", develop = true}
 # ... other plugin dependencies ...
 
 [build-system]

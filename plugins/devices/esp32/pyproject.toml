@@ -1,0 +1,12 @@
+[tool.poetry]
+name = "esp32_driver"
+version = "0.1.0"
+description = "ESP32 Driver Plugin for SAT Toolkit"
+authors = ["Your Name <your.email@example.com>"]
+
+[tool.poetry.dependencies]
+erpc = "1.12.0"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
