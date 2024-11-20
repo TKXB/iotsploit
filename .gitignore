@@ -17,3 +17,15 @@ sat_scripts/mitm/dnslog.txt
 
 env3.8/
 test/
+
+# Added untracked files
+libiotsploit/
+poetry.lock
+sat_toolkit/models/device_database.sqlite
+sat_toolkit/models/iotsploit_database.sqlite
+sat_toolkit/models/target_database.sqlite
+tests/parse_shell.py
+tests/plug/devices.json
+tests/plug/ut_device_model.py
+tests/ut_shell.py
+ui/
