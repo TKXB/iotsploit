@@ -59,3 +59,25 @@ admin.site.register(DataIdentifier, DataIdentifier_Admin)
 admin.site.register(Subfunction, Subfunction_Admin)
 admin.site.register(RoutineIdentifier, RoutineIdentifier_Admin)
 admin.site.register(ResponseItem, ResponseItem_Admin)
+
+from sat_toolkit.models.Plugin_Model import Plugin
+from sat_toolkit.models.PluginGroup_Model import PluginGroup
+from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
+
+class PluginAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "description", "enabled"]
+    search_fields = ["name", "description"]
+
+class PluginGroupTreeInline(admin.TabularInline):
+    model = PluginGroupTree
+    fk_name = 'parent'
+    extra = 0
+
+class PluginGroupAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "description", "plugins_count", "enabled"]
+    search_fields = ["name", "description"]
+    inlines = [PluginGroupTreeInline]
+    filter_horizontal = ["plugins", "plugin_groups"]
+
+admin.site.register(Plugin, PluginAdmin)
+admin.site.register(PluginGroup, PluginGroupAdmin)

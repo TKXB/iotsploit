@@ -1,25 +1,25 @@
 #!/usr/bin/env python
 import os
 import sys
-import django
-import time
 import logging
+import colorlog
+
+# Set up Django settings first, before any Django-related imports
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
+
+import django
+django.setup()
+
+# Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
 import threading
 import subprocess
 from sat_toolkit.models.Target_Model import TargetManager, Vehicle
-import colorlog
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.device_manager import DevicePluginManager  
 from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice
-
-# Set up Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
-django.setup()
-
-# Now it's safe to import Django-related modules
 from django.core.management import execute_from_command_line
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
@@ -589,6 +589,50 @@ class SAT_Shell(cmd2.Cmd):
 
         except Exception as e:
             logger.error(ansi.style(f"Error selecting target: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Plugin Commands')
+    def do_flash_plugins(self, arg):
+        'Refresh and reload all plugins from the plugins directory'
+        try:
+            logger.info(ansi.style("Starting plugin refresh...", fg=ansi.Fg.CYAN))
+            
+            # Get current plugin count
+            initial_plugins = len(self.plugin_manager.list_plugins())
+            
+            # Run auto-discovery
+            self.plugin_manager.auto_discover_plugins()
+            
+            # Get new plugin count
+            final_plugins = len(self.plugin_manager.list_plugins())
+            
+            # Calculate changes
+            if final_plugins > initial_plugins:
+                logger.info(ansi.style(
+                    f"Plugin refresh complete! Added {final_plugins - initial_plugins} new plugins.", 
+                    fg=ansi.Fg.GREEN
+                ))
+            elif final_plugins < initial_plugins:
+                logger.info(ansi.style(
+                    f"Plugin refresh complete! Removed {initial_plugins - final_plugins} plugins.", 
+                    fg=ansi.Fg.YELLOW
+                ))
+            else:
+                logger.info(ansi.style(
+                    "Plugin refresh complete! No changes detected.", 
+                    fg=ansi.Fg.CYAN
+                ))
+            
+            # Display current plugins
+            logger.info(ansi.style("\nCurrent plugins:", fg=ansi.Fg.CYAN))
+            for plugin in self.plugin_manager.list_plugins():
+                logger.info(ansi.style(f"  - {plugin}", fg=ansi.Fg.CYAN))
+                
+        except Exception as e:
+            logger.error(ansi.style(f"Error refreshing plugins: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for the flash_plugins command
+    do_fp = do_flash_plugins
 
 if __name__ == '__main__':
     shell = SAT_Shell()

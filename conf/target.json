@@ -4,7 +4,7 @@
       "target_id": "benz_001",
       "name": "Mercedes-Benz E-Class",
       "type": "vehicle",
-      "ip_address": "192.168.1.100",
+     "ip_address": "192.168.1.100",
       "location": "Garage A",
       "status": "active",
       "properties": {
@@ -55,7 +55,8 @@
           "status": "active",
           "properties": {
             "screen_size": "15.6 inches",
-            "software_version": "4.0"
+            "software_version": "4.0",
+            "ap_ssid": "BYD_WiFi_Network"
           }
         }
       ],
