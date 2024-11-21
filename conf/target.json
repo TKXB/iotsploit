@@ -34,6 +34,42 @@
           }
         }
       ]
+    },
+    {
+      "target_id": "byd_001",
+      "name": "BYD Seal",
+      "type": "vehicle",
+      "ip_address": "192.168.1.101",
+      "location": "Garage B",
+      "status": "active",
+      "properties": {
+        "model_year": 2024,
+        "battery_capacity": "82.5 kWh",
+        "motor_type": "Permanent Magnet Synchronous"
+      },
+      "components": [
+        {
+          "component_id": "comp_002",
+          "name": "DiLink Infotainment System",
+          "type": "infotainment",
+          "status": "active",
+          "properties": {
+            "screen_size": "15.6 inches",
+            "software_version": "4.0"
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "interface_id": "intf_002",
+          "name": "OBD-II",
+          "type": "diagnostic",
+          "status": "active",
+          "properties": {
+            "protocol": "CAN"
+          }
+        }
+      ]
     }
   ]
 }

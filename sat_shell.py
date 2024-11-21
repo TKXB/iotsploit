@@ -559,6 +559,37 @@ class SAT_Shell(cmd2.Cmd):
         
         return categories
 
+    @cmd2.with_category('Target Commands')
+    def do_target_select(self, arg):
+        'Select a target from available targets'
+        try:
+            targets = self.target_manager.get_all_targets()
+            
+            if not targets:
+                logger.info(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
+                return
+
+            # Create list of target choices for display
+            target_choices = [f"{t['name']} ({t['ip_address']})" for t in targets if t.get('ip_address')]
+            
+            # Use Input_Mgr for target selection
+            selected_choice = Input_Mgr.Instance().single_choice(
+                "Select target for operation:",
+                target_choices
+            )
+            
+            # Find the index of the selected choice
+            selected_index = target_choices.index(selected_choice)
+            
+            # Set the selected target as current
+            selected_target = targets[selected_index]
+            self.target_manager.set_current_target(selected_target)
+            
+            logger.info(ansi.style(f"Selected target: {selected_target['name']}", fg=ansi.Fg.GREEN))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error selecting target: {str(e)}", fg=ansi.Fg.RED))
+
 if __name__ == '__main__':
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()
