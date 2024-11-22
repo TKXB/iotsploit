@@ -137,7 +137,6 @@ class TargetManager:
         try:
             existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()
             if existing_target:
-                print(f"Target with target_id '{target.target_id}' already exists. Skipping insertion.")
                 logger.info(f"Target with target_id '{target.target_id}' already exists. Skipping insertion.")
                 return
             else:
@@ -148,7 +147,6 @@ class TargetManager:
                     target_model = TargetDBModel(target)
                 session.add(target_model)
                 session.commit()
-                print(f"Target with target_id '{target.target_id}' has been added to the database.")
                 logger.info(f"Target with target_id '{target.target_id}' has been added to the database.")
         except Exception as e:
             session.rollback()
