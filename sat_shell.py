@@ -28,6 +28,11 @@ from sat_toolkit.tools.monitor_mgr import SystemMonitor
 from sat_toolkit.tools.ota_mgr import OTA_Mgr
 from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
 from sat_toolkit.tools.input_mgr import Input_Mgr
+from django.contrib.auth.models import User
+from django.db.models import Q
+from sat_toolkit.models.Plugin_Model import Plugin
+from sat_toolkit.models.PluginGroup_Model import PluginGroup
+from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 
 logger = logging.getLogger(__name__)
 
@@ -633,6 +638,93 @@ class SAT_Shell(cmd2.Cmd):
 
     # Add an alias for the flash_plugins command
     do_fp = do_flash_plugins
+
+    @cmd2.with_category('Plugin Commands')
+    def do_create_group(self, arg):
+        'Create a plugin group and add selected plugins to it'
+        try:
+            # Get group name and description from user
+            group_name = Input_Mgr.Instance().string_input(
+                "Enter group name",
+                None
+            )
+            
+            group_description = Input_Mgr.Instance().string_input(
+                "Enter group description (optional)",
+                None
+            )
+                        
+            # Create the plugin group
+            group, created = PluginGroup.objects.get_or_create(
+                name=group_name,
+                defaults={
+                    'description': group_description,
+                    'enabled': True
+                }
+            )
+            
+            if not created:
+                logger.warning(ansi.style(f"Group '{group_name}' already exists.", fg=ansi.Fg.YELLOW))
+                overwrite = Input_Mgr.Instance().yes_no_input("Do you want to update it?", False)
+                if not overwrite:
+                    return
+                group.description = group_description
+                group.save()
+            
+            # Get available plugins
+            available_plugins = self.plugin_manager.list_plugins()
+            if not available_plugins:
+                logger.warning(ansi.style("No plugins available to add to the group.", fg=ansi.Fg.YELLOW))
+                return
+            
+            # Let user select multiple plugins
+            selected_plugins = Input_Mgr.Instance().multiple_choice(
+                "Select plugins to add to the group (space-separated numbers)",
+                available_plugins
+            )
+            
+            # Add selected plugins to the group
+            for plugin_name in selected_plugins:
+                plugin, created = Plugin.objects.get_or_create(
+                    name=plugin_name,
+                    defaults={
+                        'description': f'Plugin {plugin_name}',
+                        'enabled': True,
+                        'module_path': f'plugins.exploits.{plugin_name}'
+                    }
+                )
+                group.plugins.add(plugin)
+            
+            # Optionally nest this group under another group
+            nest_group = Input_Mgr.Instance().yes_no_input("Do you want to nest this group under another group?", False)
+            if nest_group:
+                # Get available groups excluding the current one
+                available_groups = [g.name for g in PluginGroup.objects.exclude(id=group.id)]
+                if available_groups:
+                    parent_group_name = Input_Mgr.Instance().single_choice(
+                        "Select parent group",
+                        available_groups
+                    )
+                    parent_group = PluginGroup.objects.get(name=parent_group_name)
+                    force_exec = Input_Mgr.Instance().yes_no_input("Force execution of this group?", True)
+                    
+                    PluginGroupTree.objects.get_or_create(
+                        parent=parent_group,
+                        child=group,
+                        defaults={'force_exec': force_exec}
+                    )
+            
+            logger.info(ansi.style(f"Successfully created group '{group_name}' with {len(selected_plugins)} plugins", fg=ansi.Fg.GREEN))
+            
+            # Show group details
+            group.detail()
+            
+        except Exception as e:
+            logger.error(ansi.style(f"Error creating plugin group: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for create_group
+    do_cg = do_create_group
 
 if __name__ == '__main__':
     shell = SAT_Shell()

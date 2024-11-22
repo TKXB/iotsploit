@@ -2,6 +2,9 @@
 
 from django.db import models
 from .Plugin_Model import Plugin
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PluginGroup(models.Model):
     name = models.CharField(max_length=255)
@@ -14,10 +17,10 @@ class PluginGroup(models.Model):
     plugins = models.ManyToManyField(Plugin)
 
     def plugins_count(self):
-        return f"{self.plugins.count()}"
+        return self.plugins.count()
 
     def plugin_groups_count(self):
-        return f"{self.plugin_groups.count()}"
+        return self.plugin_groups.count()
 
     def child_plugin_groups(self):
         return self.plugin_groups.through.objects.filter(parent=self)
@@ -30,29 +33,29 @@ class PluginGroup(models.Model):
         return list(PluginGroup.objects.filter(enabled=True))
 
     def detail(self):
-        print(f"-- PluginGroup '{self}' Detail Info --")
-        print(f"ID:\t{self.pk}")
-        print(f"NAME:\t{self.name}")
-        print(f"DESC:\t{self.description}")
-        print(f"Enabled:\t{self.enabled}")
-        print(f"PluginGroups List: Count:{self.plugin_groups_count()}")
+        logger.info(f"-- PluginGroup '{self}' Detail Info --")
+        logger.info(f"ID:\t{self.pk}")
+        logger.info(f"NAME:\t{self.name}")
+        logger.info(f"DESC:\t{self.description}")
+        logger.info(f"Enabled:\t{self.enabled}")
+        logger.info(f"PluginGroups List: Count:{self.plugin_groups_count()}")
         for group_tree in self.child_plugin_groups():
-            print(f"PluginGroup:{group_tree.child} Force Exec:{group_tree.force_exec}")
-        print(f"Plugins List: Count:{self.plugins_count()}")
+            logger.info(f"PluginGroup:{group_tree.child} Force Exec:{group_tree.force_exec}")
+        logger.info(f"Plugins List: Count:{self.plugins_count()}")
         for plugin in self.plugins.all():
-            print(f"Plugin:{plugin}")
-        print(f"++ PluginGroup '{self}' Detail Info Finish ++")
+            logger.info(f"Plugin:{plugin}")
+        logger.info(f"++ PluginGroup '{self}' Detail Info Finish ++")
 
     def execute(self, target=None, parameters=None, force_exec=True):
         if self.enabled:
             # Execute child plugin groups
             for group_tree in self.child_plugin_groups():
-                print(f"Executing child PluginGroup: {group_tree.child}")
+                logger.info(f"Executing child PluginGroup: {group_tree.child}")
                 group_tree.child.execute(target, parameters, group_tree.force_exec)
 
             # Execute plugins in this group
             for plugin in self.plugins.all():
-                print(f"Executing Plugin: {plugin}")
+                logger.info(f"Executing Plugin: {plugin}")
                 plugin.execute(target, parameters)
         else:
-            print(f"PluginGroup {self.name} is disabled.")
+            logger.info(f"PluginGroup {self.name} is disabled.")

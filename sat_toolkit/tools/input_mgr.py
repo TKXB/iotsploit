@@ -192,4 +192,109 @@ class Input_Mgr:
                     logger.info("User Input:{}\n".format(ui_result))
                     return int(ui_result)
 
+    def multiple_choice(self, title:str, choice_list:list):
+        run_in_shell = Env_Mgr.Instance().get("SAT_RUN_IN_SHELL")
+        if run_in_shell:
+            while True:
+                logger.info("----------------------------")
+                logger.info(title)
+                logger.info("  ID  \t{}".format("Description"))
+
+                index = 0
+                for choice in choice_list:
+                    index += 1
+                    logger.info("  {}: \t{}".format(index, choice))
+
+                user_input = self.__shell_color_input("Please Input Numbers (1-{}) Separated By Spaces:".format(index))
+                
+                try:
+                    # Split input string and convert to integers
+                    selected_indices = [int(x) for x in user_input.split()]
+                    
+                    # Validate all inputs are within range
+                    if all(1 <= x <= index for x in selected_indices):
+                        selected_items = [choice_list[i-1] for i in selected_indices]
+                        logger.debug("User Selected: {}\n".format(", ".join(selected_items)))
+                        return selected_items
+                    else:
+                        logger.error("Some inputs are not in range 1-{}!".format(index))
+                except ValueError:
+                    logger.error("Invalid input! Please enter numbers separated by spaces.")
+                    continue
+        else:
+            logger.info("----------------------------")
+            logger.info(title)
+
+            Env_Mgr.Instance().set("SAT_NEED_UI",
+                {
+                    "type":"multiple_choice", 
+                    "title":title,
+                    "multiple_choice":choice_list,
+                    'buttonlist': [{'name': '确认', 'color': 'active', 'action': 'POST record_user_input'}]             
+                })
+
+            while True:
+                time.sleep(0.5)
+                ui_result = Env_Mgr.Instance().query("SAT_UI_RESULT", None)
+                if ui_result == None:
+                    continue
+                Env_Mgr.Instance().unset("SAT_UI_RESULT")
+
+                logger.info("User Selected:{}\n".format(ui_result))
+                return ui_result
+
+    def yes_no_input(self, title:str, default:bool=True):
+        """
+        Get a yes/no input from the user.
+        Args:
+            title: The prompt to show to the user
+            default: The default value if user just hits enter (True=Yes, False=No)
+        Returns:
+            bool: True for yes, False for no
+        """
+        run_in_shell = Env_Mgr.Instance().get("SAT_RUN_IN_SHELL")
+        if run_in_shell:
+            default_text = "[Y/n]" if default else "[y/N]"
+            while True:
+                logger.info("-------------- Yes/No Question --------------")
+                logger.info(title)
+                user_input = self.__shell_color_input(f"Please Input {default_text}:").lower()
+                
+                if user_input == "":
+                    logger.info(f"User chose default: {'Yes' if default else 'No'}\n")
+                    return default
+                elif user_input in ['y', 'yes']:
+                    logger.info("User chose: Yes\n")
+                    return True
+                elif user_input in ['n', 'no']:
+                    logger.info("User chose: No\n")
+                    return False
+                else:
+                    logger.error("Invalid input! Please enter Y/N")
+        else:
+            logger.info("-------------- Yes/No Question --------------")
+            logger.info(title)
+            
+            Env_Mgr.Instance().set("SAT_NEED_UI",
+                {
+                    "type": "yes_no_input",
+                    "title": title,
+                    "default": default,
+                    'buttonlist': [
+                        {'name': '是', 'color': 'active', 'action': 'POST record_user_input'},
+                        {'name': '否', 'color': 'negative', 'action': 'POST record_user_input'}
+                    ]
+                })
+
+            while True:
+                time.sleep(0.5)
+                ui_result = Env_Mgr.Instance().query("SAT_UI_RESULT", None)
+                if ui_result == None:
+                    continue
+                Env_Mgr.Instance().unset("SAT_UI_RESULT")
+                
+                result = ui_result == "是"
+                logger.info(f"User chose: {'Yes' if result else 'No'}\n")
+                return result
+
 _instance = Input_Mgr()
