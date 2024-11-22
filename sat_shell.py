@@ -726,6 +726,108 @@ class SAT_Shell(cmd2.Cmd):
     # Add an alias for create_group
     do_cg = do_create_group
 
+    @cmd2.with_category('Plugin Commands')
+    def do_execute_group(self, arg):
+        'Execute plugins in a selected group'
+        try:
+            # Get all plugin groups
+            groups = PluginGroup.objects.filter(enabled=True)
+            
+            if not groups.exists():
+                logger.warning(ansi.style("No plugin groups available.", fg=ansi.Fg.YELLOW))
+                return
+
+            # Create list of group choices
+            group_choices = [f"{group.name} - {group.description}" for group in groups]
+            
+            # Let user select a group
+            selected = Input_Mgr.Instance().single_choice(
+                "Select plugin group to execute",
+                group_choices
+            )
+            
+            # Extract group name from selection (remove description)
+            group_name = selected.split(" - ")[0]
+            
+            # Confirm execution
+            if Input_Mgr.Instance().yes_no_input(
+                f"Are you sure you want to execute group '{group_name}'?",
+                default=True
+            ):
+                logger.info(ansi.style(f"Executing plugin group: {group_name}", fg=ansi.Fg.CYAN))
+                
+                # Execute the group
+                result = self.plugin_manager.execute_plugin_group(group_name)
+                
+                if result:
+                    logger.info(ansi.style("Plugin group execution completed successfully", fg=ansi.Fg.GREEN))
+                else:
+                    logger.warning(ansi.style("Plugin group execution completed with some failures", fg=ansi.Fg.YELLOW))
+            else:
+                logger.info(ansi.style("Group execution cancelled", fg=ansi.Fg.YELLOW))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error executing plugin group: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for execute_group
+    do_eg = do_execute_group
+
+    @cmd2.with_category('Plugin Commands')
+    def do_list_groups(self, arg):
+        'List all available plugin groups'
+        try:
+            groups = PluginGroup.objects.all()
+            
+            if not groups.exists():
+                logger.info(ansi.style("No plugin groups available.", fg=ansi.Fg.YELLOW))
+                return
+
+            logger.info(ansi.style("\nAvailable plugin groups:", fg=ansi.Fg.CYAN))
+            for group in groups:
+                enabled_status = ansi.style("Enabled", fg=ansi.Fg.GREEN) if group.enabled else ansi.style("Disabled", fg=ansi.Fg.RED)
+                logger.info(ansi.style(f"\nGroup: {group.name} [{enabled_status}]", fg=ansi.Fg.CYAN))
+                if group.description:
+                    logger.info(f"Description: {group.description}")
+                
+                # List plugins in this group
+                plugins = group.plugins.all()
+                if plugins.exists():
+                    logger.info("Plugins:")
+                    for plugin in plugins:
+                        plugin_status = ansi.style("✓", fg=ansi.Fg.GREEN) if plugin.enabled else ansi.style("✗", fg=ansi.Fg.RED)
+                        logger.info(f"  - {plugin.name} [{plugin_status}]")
+                else:
+                    logger.info("  No plugins in this group")
+
+                # Show parent/child relationships if any
+                try:
+                    parent_relations = PluginGroupTree.objects.filter(child=group)
+                    child_relations = PluginGroupTree.objects.filter(parent=group)
+                    
+                    if parent_relations.exists():
+                        logger.info("Parent Groups:")
+                        for relation in parent_relations:
+                            force_exec = "(Force Execute)" if relation.force_exec else ""
+                            logger.info(f"  - {relation.parent.name} {force_exec}")
+                    
+                    if child_relations.exists():
+                        logger.info("Child Groups:")
+                        for relation in child_relations:
+                            force_exec = "(Force Execute)" if relation.force_exec else ""
+                            logger.info(f"  - {relation.child.name} {force_exec}")
+                except Exception as e:
+                    logger.debug(f"Error getting group relationships: {str(e)}")
+
+            logger.info("\n")  # Add blank line at end
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error listing plugin groups: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for list_groups
+    do_lg = do_list_groups
+
 if __name__ == '__main__':
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()
