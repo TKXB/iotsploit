@@ -828,6 +828,107 @@ class SAT_Shell(cmd2.Cmd):
     # Add an alias for list_groups
     do_lg = do_list_groups
 
+    @cmd2.with_category('Target Commands')
+    def do_edit_target(self, arg):
+        'Edit an existing target in the database'
+        try:
+            # Get all targets
+            targets = self.target_manager.get_all_targets()
+            if not targets:
+                logger.warning(ansi.style("No targets available to edit.", fg=ansi.Fg.YELLOW))
+                return
+
+            # Create list of target choices
+            target_choices = [f"{t['name']} ({t['target_id']})" for t in targets]
+            
+            # Let user select a target
+            selected = Input_Mgr.Instance().single_choice(
+                "Select target to edit",
+                target_choices
+            )
+            
+            # Get target ID from selection
+            target_id = selected.split('(')[1].split(')')[0]
+            target = next(t for t in targets if t['target_id'] == target_id)
+            
+            # Fields that can be edited
+            editable_fields = {
+                'name': str,
+                'status': str,
+                'ip_address': str,
+                'location': str
+            }
+            
+            # Let user select which field to edit
+            field_choices = list(editable_fields.keys()) + ['properties']
+            field = Input_Mgr.Instance().single_choice(
+                "Select field to edit",
+                field_choices
+            )
+            
+            if field == 'properties':
+                # Handle properties editing
+                print("\nCurrent properties:")
+                for key, value in target['properties'].items():
+                    print(f"{key}: {value}")
+                
+                # Let user choose to add/edit/delete property
+                action = Input_Mgr.Instance().single_choice(
+                    "Select action",
+                    ['Add property', 'Edit property', 'Delete property']
+                )
+                
+                if action == 'Add property':
+                    key = Input_Mgr.Instance().string_input("Enter property name")
+                    value = Input_Mgr.Instance().string_input("Enter property value")
+                    target['properties'][key] = value
+                
+                elif action == 'Edit property':
+                    if not target['properties']:
+                        logger.warning(ansi.style("No properties to edit.", fg=ansi.Fg.YELLOW))
+                        return
+                    prop_key = Input_Mgr.Instance().single_choice(
+                        "Select property to edit",
+                        list(target['properties'].keys())
+                    )
+                    new_value = Input_Mgr.Instance().string_input(
+                        f"Enter new value for {prop_key}"
+                    )
+                    target['properties'][prop_key] = new_value
+                
+                elif action == 'Delete property':
+                    if not target['properties']:
+                        logger.warning(ansi.style("No properties to delete.", fg=ansi.Fg.YELLOW))
+                        return
+                    prop_key = Input_Mgr.Instance().single_choice(
+                        "Select property to delete",
+                        list(target['properties'].keys())
+                    )
+                    del target['properties'][prop_key]
+            
+            else:
+                # Handle regular field editing
+                current_value = target.get(field, '')
+                new_value = Input_Mgr.Instance().string_input(
+                    f"Enter new value for {field}"
+                )
+                target[field] = new_value
+            
+            # Update the target in the database
+            success = self.target_manager.update_target(target)
+            
+            if success:
+                logger.info(ansi.style(f"Successfully updated target {target_id}", fg=ansi.Fg.GREEN))
+            else:
+                logger.error(ansi.style(f"Failed to update target {target_id}", fg=ansi.Fg.RED))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error editing target: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for edit_target
+    do_et = do_edit_target
+
 if __name__ == '__main__':
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()

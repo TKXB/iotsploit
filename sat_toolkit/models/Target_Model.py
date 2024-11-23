@@ -221,6 +221,46 @@ class TargetManager:
     def set_current_target(self, target: Target):
         self.current_target = target
 
+    def update_target(self, target_data: Dict[str, Any]) -> bool:
+        """
+        Update an existing target in the database.
+        
+        Args:
+            target_data: Dictionary containing target information to update
+        
+        Returns:
+            bool: True if update was successful, False otherwise
+        """
+        session = self.Session()
+        try:
+            # Find the existing target
+            target_id = target_data.get('target_id')
+            if not target_id:
+                logger.error("No target_id provided in update data")
+                return False
+            
+            existing_target = session.query(TargetDBModel).filter_by(target_id=target_id).first()
+            if not existing_target:
+                logger.error(f"No target found with target_id: {target_id}")
+                return False
+            
+            # Update the fields
+            for key, value in target_data.items():
+                if hasattr(existing_target, key):
+                    setattr(existing_target, key, value)
+            
+            session.commit()
+            logger.info(f"Successfully updated target {target_id}")
+            return True
+        
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error updating target: {str(e)}")
+            return False
+        
+        finally:
+            session.close()
+
 if __name__ == "__main__":
     # Example usage
     target_manager = TargetManager()
