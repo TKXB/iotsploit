@@ -20,7 +20,6 @@ from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.device_manager import DevicePluginManager  
 from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice
-from django.core.management import execute_from_command_line
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.toolkit_main import Toolkit_Main
@@ -28,8 +27,6 @@ from sat_toolkit.tools.monitor_mgr import SystemMonitor
 from sat_toolkit.tools.ota_mgr import OTA_Mgr
 from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
 from sat_toolkit.tools.input_mgr import Input_Mgr
-from django.contrib.auth.models import User
-from django.db.models import Q
 from sat_toolkit.models.Plugin_Model import Plugin
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree

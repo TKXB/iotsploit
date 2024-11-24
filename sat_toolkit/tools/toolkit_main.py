@@ -83,7 +83,7 @@ class Toolkit_Main:
         self.__in_quick_test = False
         self.__audit_thread = None
         Report_Mgr.Instance().log_init()
-        ADB_Mgr.Instance().init_adb_service()
+        #ADB_Mgr.Instance().init_adb_service()
 
 ######
     def curr_vehicle_profile(self):

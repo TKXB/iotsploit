@@ -1,26 +1,31 @@
 # IotSploit
- Creative Commons Attribution-NonCommercial (CC BY-NC)
 
+## Initial Setup
 
-pi@raspberrypi ~/sat (main)> git fetch
-pi@raspberrypi ~/sat (main)> git checkout -b dev origin/dev
+1. Clone and switch to dev branch:
+```bash
+git fetch
+git checkout -b dev origin/dev
+```
 
+2. Install and configure Poetry:
+```bash
 pip install poetry
-
-poetry lock
-
-wait about 10~20 minutes
-
-poetry install
-
-wait about 10~20 minutes
-
+poetry lock        # This may take 10-20 minutes
+poetry install     # This may take 10-20 minutes
 poetry shell
+```
 
+3. Initialize Django database:
+```bash
 python manage.py makemigrations
 python manage.py migrate
+```
 
+4. Start the application:
+```bash
 python console.py
+```
 
 ## PI Install 
 ```shell
