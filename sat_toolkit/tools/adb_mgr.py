@@ -9,6 +9,7 @@ from sat_toolkit.tools.bash_script_engine import Bash_Script_Mgr
 from pwnlib import term
 term.term_mode = True
 from pwn import *
+from pwnlib.exception import PwnlibException
 
 
 class ADB_Mgr:
@@ -149,6 +150,12 @@ class ADB_Mgr:
             device_list = adb.devices()
             logger.info("Curr ADB Devices Count:{}\n{}".format(len(device_list), device_list))
 
+        except pwnlib.exception.PwnlibException as e:
+            if "'./adb' does not exist" in str(e):
+                logger.error("ADB not found. Please install ADB and add it to your PATH")
+            else:
+                logger.error(f"ADB connection error: {str(e)}")
+            device_list = []
         except Exception as err:
             logger.exception("ADB List Devices Fail!")
             device_list = []     

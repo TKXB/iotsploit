@@ -1,4 +1,26 @@
 # IotSploit
+ Creative Commons Attribution-NonCommercial (CC BY-NC)
+
+
+pi@raspberrypi ~/sat (main)> git fetch
+pi@raspberrypi ~/sat (main)> git checkout -b dev origin/dev
+
+pip install poetry
+
+poetry lock
+
+wait about 10~20 minutes
+
+poetry install
+
+wait about 10~20 minutes
+
+poetry shell
+
+python manage.py makemigrations
+python manage.py migrate
+
+python console.py
 
 ## PI Install 
 ```shell
