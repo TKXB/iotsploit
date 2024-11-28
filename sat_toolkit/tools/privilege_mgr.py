@@ -2,6 +2,8 @@ import os
 import logging
 import elevate
 from functools import wraps
+import pwd
+import grp
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,10 @@ class PrivilegeManager:
 
     def check_root_access(self):
         """Check if we currently have root privileges"""
-        return os.geteuid() == 0
+        logger.info("Checking root access")
+        is_root = os.geteuid() == 0
+        logger.info(f"Checking root access. Current euid: {os.geteuid()}, is_root: {is_root}")
+        return is_root
 
     def acquire_root_access(self):
         """Attempt to acquire root privileges using elevate"""
@@ -38,6 +43,8 @@ class PrivilegeManager:
             return True
 
         try:
+            logger.info("Attempting to elevate privileges. The application will restart...")
+            logger.info("Please rerun your command after the restart completes.")
             # Use elevate to get root privileges
             elevate.elevate(graphical=False)
             
@@ -66,3 +73,38 @@ class PrivilegeManager:
         except Exception as e:
             logger.error(f"Error running privileged command: {str(e)}")
             raise
+
+    def drop_privileges(self):
+        """Drop root privileges and return to normal user"""
+        try:
+            # Get SUDO_USER from environment, fall back to LOGNAME or USER if not running with sudo
+            username = os.environ.get('SUDO_USER') or os.environ.get('LOGNAME') or os.environ.get('USER')
+            logger.info(f"Username: {username}")
+            if not username:
+                raise RuntimeError("Could not determine the original user")
+
+            # Get the uid/gid from the name
+            pw_record = pwd.getpwnam(username)
+            uid = pw_record.pw_uid
+            gid = pw_record.pw_gid
+
+            # Init group access list
+            os.initgroups(username, gid)
+
+            # Drop privileges
+            os.setgid(gid)
+            os.setuid(uid)
+
+            # Ensure a very conservative umask
+            os.umask(0o077)
+
+            # Verify privileges were dropped
+            if os.getuid() != uid or os.geteuid() != uid:
+                raise RuntimeError("Failed to drop privileges")
+
+            logger.info(f"Successfully dropped root privileges to user: {username}")
+
+        except Exception as e:
+            logger.error(f"Error dropping privileges: {str(e)}")
+            raise RuntimeError("Failed to drop privileges") from e
+
