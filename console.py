@@ -282,7 +282,7 @@ class SAT_Shell(cmd2.Cmd):
             django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
             
             # Prepare the Daphne command - using sys.executable
-            daphne_module = 'daphne.cli'
+            daphne_module = 'daphne'
             daphne_cmd = [
                 sys.executable, 
                 '-m', 
