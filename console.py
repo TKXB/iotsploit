@@ -281,8 +281,18 @@ class SAT_Shell(cmd2.Cmd):
             # Prepare the Django command
             django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
             
-            # Prepare the Daphne command - modified to listen on 0.0.0.0
-            daphne_cmd = ['daphne', '-b', '0.0.0.0', '-p', '9999', 'sat_django_entry.asgi:application']
+            # Prepare the Daphne command - using sys.executable
+            daphne_module = 'daphne.cli'
+            daphne_cmd = [
+                sys.executable, 
+                '-m', 
+                daphne_module, 
+                '-b', 
+                '0.0.0.0', 
+                '-p', 
+                '9999', 
+                'sat_django_entry.asgi:application'
+            ]
             
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
