@@ -618,7 +618,7 @@ def execute_plugin(request):
         logger.info(f"Received POST data for execute_plugin: {data}")
         
         plugin_name = data.get('plugin_name')
-        parameters = data.get('parameters', {})  # 获取参数
+        parameters = data.get('parameters', {})
         
         if not plugin_name:
             return JsonResponse({
@@ -632,30 +632,47 @@ def execute_plugin(request):
         
         # If no current target, select the first available vehicle target
         if not current_target:
+            logger.debug("No current target, selecting first available vehicle target")
             all_targets = target_manager.get_all_targets()
-            vehicle_targets = [t for t in all_targets if t['type'] == 'vehicle']
+            vehicle_targets = [t for t in all_targets if t.get('type') == 'vehicle']
             
             if vehicle_targets:
-                # Select the first vehicle target
-                selected_target = vehicle_targets[0]
-                target_manager.set_current_target(selected_target)
-                current_target = selected_target
-                logger.info(f"Automatically selected vehicle target: {selected_target['name']}")
+                try:
+                    # Convert dict to Vehicle object
+                    selected_target = target_manager.create_target_instance(vehicle_targets[0])
+                    target_manager.set_current_target(selected_target)
+                    current_target = selected_target
+                    logger.info(f"Automatically selected vehicle target: {selected_target.name}")
+                except Exception as e:
+                    logger.error(f"Error creating vehicle target: {str(e)}")
+                    return JsonResponse({
+                        "status": "error",
+                        "message": f"Error creating vehicle target: {str(e)}"
+                    }, status=400)
             else:
                 logger.error("No vehicle targets available to select.")
                 return JsonResponse({
                     "status": "error",
-                "message": "No vehicle targets available to select."
-            }, status=400)
+                    "message": "No vehicle targets available to select."
+                }, status=400)
+        elif isinstance(current_target, dict):
+            try:
+                # Convert dict to Vehicle object if needed
+                current_target = target_manager.create_target_instance(current_target)
+            except Exception as e:
+                logger.error(f"Error converting current target to Vehicle object: {str(e)}")
+                return JsonResponse({
+                    "status": "error",
+                    "message": f"Error converting current target to Vehicle object: {str(e)}"
+                }, status=400)
 
         plugin_manager = ExploitPluginManager()
         plugin_manager.initialize()
         logger.info(f"Executing plugin: {plugin_name} with parameters: {parameters}")
-        # 修改这里，传入参数
         result = plugin_manager.execute_plugin(
             plugin_name, 
             target=current_target,
-            parameters=parameters  # 添加参数传递
+            parameters=parameters
         )
         
         if result is None:

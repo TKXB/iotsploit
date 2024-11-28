@@ -261,6 +261,55 @@ class TargetManager:
         finally:
             session.close()
 
+    def create_target_instance(self, target_dict):
+        """
+        Creates a Vehicle instance from a target dictionary
+        """
+        if isinstance(target_dict, Vehicle):
+            return target_dict
+        
+        if target_dict.get('type') != 'vehicle':
+            raise ValueError(f"Unsupported target type: {target_dict.get('type')}")
+        
+        # Create a properly formatted dictionary with all required fields
+        vehicle_data = {
+            'target_id': target_dict['target_id'],
+            'name': target_dict['name'],
+            'type': target_dict['type'],
+            'status': target_dict.get('status', 'active'),
+            'properties': target_dict.get('properties', {}),
+            'ip_address': target_dict.get('ip_address'),
+            'location': target_dict.get('location'),
+        }
+
+        # Handle components if present
+        if 'components' in target_dict:
+            vehicle_data['components'] = [
+                Component(**comp) if isinstance(comp, dict) else comp 
+                for comp in target_dict['components']
+            ]
+        else:
+            vehicle_data['components'] = []
+
+        # Handle interfaces if present
+        if 'interfaces' in target_dict:
+            vehicle_data['interfaces'] = [
+                Interface(**intf) if isinstance(intf, dict) else intf 
+                for intf in target_dict['interfaces']
+            ]
+        else:
+            vehicle_data['interfaces'] = []
+
+        try:
+            # Create Vehicle instance using the properly formatted data
+            vehicle = Vehicle(**vehicle_data)
+            logger.debug(f"Created Vehicle instance: {vehicle}")
+            return vehicle
+        except Exception as e:
+            logger.error(f"Error creating Vehicle instance: {str(e)}")
+            logger.debug(f"Vehicle data: {vehicle_data}")
+            raise
+
 if __name__ == "__main__":
     # Example usage
     target_manager = TargetManager()
