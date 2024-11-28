@@ -42,4 +42,7 @@ urlpatterns = [
 
     # Add this to the urlpatterns list
     path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
+
+    # Add this new URL pattern
+    path('list_groups', views.list_groups, name='list_groups'),
 ]

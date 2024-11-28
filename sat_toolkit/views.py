@@ -27,6 +27,8 @@ import datetime
 
 from sat_toolkit.core.device_manager import DevicePluginManager  # Add this import
 from sat_toolkit.models.Target_Model import TargetManager
+from sat_toolkit.models.PluginGroup_Model import PluginGroup
+from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 
 def device_info(request:HttpRequest):
     """
@@ -750,5 +752,71 @@ def list_plugin_info(request):
             "status": "error",
             "message": f"Failed to retrieve plugin information: {str(e)}",
             "plugins": []
+        }, status=500)
+
+def list_groups(request):
+    """
+    GET
+    Returns information about all available plugin groups and their relationships
+    """
+    try:
+        groups = PluginGroup.objects.all()
+        
+        if not groups.exists():
+            return JsonResponse({
+                "status": "success",
+                "message": "No plugin groups available.",
+                "groups": []
+            })
+
+        formatted_groups = []
+        for group in groups:
+            # Get parent/child relationships
+            parent_relations = PluginGroupTree.objects.filter(child=group)
+            child_relations = PluginGroupTree.objects.filter(parent=group)
+            
+            # Format plugins in this group
+            plugins = [{
+                "name": plugin.name,
+                "enabled": plugin.enabled,
+                "description": plugin.description
+            } for plugin in group.plugins.all()]
+            
+            # Format parent groups
+            parent_groups = [{
+                "name": relation.parent.name,
+                "force_exec": relation.force_exec
+            } for relation in parent_relations]
+            
+            # Format child groups
+            child_groups = [{
+                "name": relation.child.name,
+                "force_exec": relation.force_exec
+            } for relation in child_relations]
+            
+            # Create group entry
+            group_entry = {
+                "name": group.name,
+                "description": group.description,
+                "enabled": group.enabled,
+                "plugins": plugins,
+                "parent_groups": parent_groups,
+                "child_groups": child_groups
+            }
+            
+            formatted_groups.append(group_entry)
+
+        return JsonResponse({
+            "status": "success",
+            "message": f"Found {len(formatted_groups)} plugin groups",
+            "groups": formatted_groups
+        })
+
+    except Exception as e:
+        logger.error(f"Error listing plugin groups: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to list plugin groups: {str(e)}",
+            "groups": []
         }, status=500)
 
