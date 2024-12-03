@@ -591,11 +591,14 @@ class SAT_Shell(cmd2.Cmd):
             # Find the index of the selected choice
             selected_index = target_choices.index(selected_choice)
             
+            # Convert the selected target dictionary to a Vehicle instance using create_target_instance
+            selected_target_dict = targets[selected_index]
+            selected_target = self.target_manager.create_target_instance(selected_target_dict)
+            
             # Set the selected target as current
-            selected_target = targets[selected_index]
             self.target_manager.set_current_target(selected_target)
             
-            logger.info(ansi.style(f"Selected target: {selected_target['name']}", fg=ansi.Fg.GREEN))
+            logger.info(ansi.style(f"Selected target: {selected_target.name}", fg=ansi.Fg.GREEN))
 
         except Exception as e:
             logger.error(ansi.style(f"Error selecting target: {str(e)}", fg=ansi.Fg.RED))
