@@ -670,12 +670,12 @@ def execute_plugin(request):
 
         plugin_manager = ExploitPluginManager()
         plugin_manager.initialize()
-        logger.info(f"Executing plugin: {plugin_name} with parameters: {parameters}")
         result = plugin_manager.execute_plugin(
             plugin_name, 
             target=current_target,
             parameters=parameters
         )
+        logger.debug(f"Plugin execution result over http: {result}")
         
         if result is None:
             return JsonResponse({
@@ -699,7 +699,7 @@ def execute_plugin(request):
                     "message": str(result)
                 }
             }
-            
+        logger.debug(f"Plugin execution result over http: {response_data}")
         return JsonResponse(response_data)
         
     except Exception as e:
