@@ -311,7 +311,6 @@ class SAT_Shell(cmd2.Cmd):
             self.daphne_server_thread.start()
             
             logger.info("Django and Daphne servers started successfully in the background.")
-            self.poutput("Servers are now running in the background. Use 'stop_server' to stop them.")
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
             logger.exception("Detailed traceback:")
@@ -335,9 +334,8 @@ class SAT_Shell(cmd2.Cmd):
         
         if not self.django_server_process and not self.daphne_server_process:
             logger.info("All servers stopped.")
-            self.poutput("All servers have been stopped.")
         else:
-            self.poutput("No servers were running.")
+            logger.error("No servers were running.")
 
     @cmd2.with_category('System Commands')
     def do_set_log_level(self, arg):
