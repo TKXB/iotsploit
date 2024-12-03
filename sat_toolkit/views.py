@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 import json
 import datetime
 
-from sat_toolkit.core.device_manager import DevicePluginManager  # Add this import
+from sat_toolkit.core.device_manager import DevicePluginManager  
 from sat_toolkit.models.Target_Model import TargetManager
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
@@ -819,4 +819,37 @@ def list_groups(request):
             "message": f"Failed to list plugin groups: {str(e)}",
             "groups": []
         }, status=500)
+
+@csrf_exempt
+def select_target(request):
+    """
+    Select a target for testing
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        target_id = data.get('target_id')
+        if not target_id:
+            return JsonResponse({'error': 'target_id is required'}, status=400)
+
+        target_manager = TargetManager.get_instance()
+        targets = target_manager.get_all_targets()
+        
+        # Find the target with the matching ID
+        selected_target = next((t for t in targets if t['target_id'] == target_id), None)
+        if not selected_target:
+            return JsonResponse({'error': 'Target not found'}, status=404)
+        
+        # Create a target instance and set it as current
+        target_instance = target_manager.create_target_instance(selected_target)
+        target_manager.set_current_target(target_instance)
+        
+        return JsonResponse({
+            'message': 'Target selected successfully',
+            'target': selected_target
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 

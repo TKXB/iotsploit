@@ -30,8 +30,9 @@ urlpatterns = [
     # Plugin and device management
     path('list_plugins/', views.list_plugins, name='list_plugins'),
     path('list_devices/', views.list_devices, name='list_devices'),
-    path('list_targets/', views.list_targets, name='list_targets'),  # Add this line
-    path('scan_all_devices/', views.scan_all_devices, name='scan_all_devices'),  # Add this line
+    path('list_targets/', views.list_targets, name='list_targets'),
+    path('select_target', views.select_target, name='select_target'),
+    path('scan_all_devices/', views.scan_all_devices, name='scan_all_devices'),
 
     # Exploit
     path('exploit/', views.exploit, name='exploit'),
