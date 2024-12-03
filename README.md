@@ -19,6 +19,7 @@ poetry shell
 3. Initialize Django database:
 ```bash
 python manage.py makemigrations
+python manage.py makemigrations sat_toolkit
 python manage.py migrate
 ```
 
