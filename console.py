@@ -62,6 +62,8 @@ class SAT_Shell(cmd2.Cmd):
         self.django_server_thread = None
         self.daphne_server_process = None
         self.daphne_server_thread = None
+        self.celery_worker_process = None
+        self.celery_worker_thread = None
         self.setup_colored_logger()
         
         # Initialize plugin manager
@@ -270,23 +272,22 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('Django Commands')
     def do_runserver(self, arg):
-        'Start the Django development server and Daphne WebSocket server in the background'
+        'Start Django development server, Daphne WebSocket server, and Celery worker in the background'
         if self.django_server_process or self.daphne_server_process:
             self.poutput("Servers are already running.")
             return
 
         try:
-            logger.info("Attempting to start Django and Daphne servers in background...")
+            logger.info("Attempting to start Django, Daphne, and Celery servers in background...")
             
             # Prepare the Django command
             django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
             
-            # Prepare the Daphne command - using sys.executable
-            daphne_module = 'daphne'
+            # Prepare the Daphne command
             daphne_cmd = [
                 sys.executable, 
                 '-m', 
-                daphne_module, 
+                'daphne', 
                 '-b', 
                 '0.0.0.0', 
                 '-p', 
@@ -294,23 +295,68 @@ class SAT_Shell(cmd2.Cmd):
                 'sat_django_entry.asgi:application'
             ]
             
+            # Prepare the Celery command
+            celery_cmd = [
+                sys.executable,
+                '-m',
+                'celery',
+                '-A',
+                'sat_toolkit',
+                'worker',
+                '--loglevel=info'
+            ]
+            
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
+            logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
             
             # Start the Django server as a subprocess
-            self.django_server_process = subprocess.Popen(django_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            self.django_server_process = subprocess.Popen(
+                django_cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.STDOUT, 
+                universal_newlines=True
+            )
             
             # Start the Daphne server as a subprocess
-            self.daphne_server_process = subprocess.Popen(daphne_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            self.daphne_server_process = subprocess.Popen(
+                daphne_cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.STDOUT, 
+                universal_newlines=True
+            )
+            
+            # Start the Celery worker as a subprocess
+            self.celery_worker_process = subprocess.Popen(
+                celery_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True
+            )
             
             # Start threads to read the output
-            self.django_server_thread = threading.Thread(target=self._read_server_output, args=(self.django_server_process, "Django"), daemon=True)
+            self.django_server_thread = threading.Thread(
+                target=self._read_server_output, 
+                args=(self.django_server_process, "Django"), 
+                daemon=True
+            )
             self.django_server_thread.start()
             
-            self.daphne_server_thread = threading.Thread(target=self._read_server_output, args=(self.daphne_server_process, "Daphne"), daemon=True)
+            self.daphne_server_thread = threading.Thread(
+                target=self._read_server_output, 
+                args=(self.daphne_server_process, "Daphne"), 
+                daemon=True
+            )
             self.daphne_server_thread.start()
             
-            logger.info("Django and Daphne servers started successfully in the background.")
+            self.celery_worker_thread = threading.Thread(
+                target=self._read_server_output,
+                args=(self.celery_worker_process, "Celery"),
+                daemon=True
+            )
+            self.celery_worker_thread.start()
+            
+            logger.info("All servers started successfully in the background.")
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
             logger.exception("Detailed traceback:")
@@ -321,7 +367,7 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
-        'Stop the Django development server and Daphne WebSocket server'
+        'Stop Django development server, Daphne WebSocket server, and Celery worker'
         if self.django_server_process:
             self.django_server_process.terminate()
             self.django_server_process = None
@@ -332,7 +378,13 @@ class SAT_Shell(cmd2.Cmd):
             self.daphne_server_process = None
             self.daphne_server_thread = None
         
-        if not self.django_server_process and not self.daphne_server_process:
+        if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
+            self.celery_worker_process.terminate()
+            self.celery_worker_process = None
+            self.celery_worker_thread = None
+        
+        if not any([self.django_server_process, self.daphne_server_process, 
+                    getattr(self, 'celery_worker_process', None)]):
             logger.info("All servers stopped.")
         else:
             logger.error("No servers were running.")

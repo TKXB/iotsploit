@@ -30,6 +30,16 @@ from sat_toolkit.models.Target_Model import TargetManager
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 
+import uuid
+
+from asgiref.sync import async_to_sync
+
+import asyncio
+
+from celery.result import AsyncResult
+from .tasks import execute_plugin_task
+
+
 def device_info(request:HttpRequest):
     """
     GET		
@@ -852,4 +862,90 @@ def select_target(request):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+def execute_plugin_async(request):
+    """
+    POST
+    Execute a plugin asynchronously and return a task ID for tracking progress
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        plugin_name = data.get('plugin_name')
+        parameters = data.get('parameters', {})
+        
+        if not plugin_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Plugin name is required"
+            }, status=400)
+
+        # Get the current target
+        target_manager = TargetManager.get_instance()
+        current_target = target_manager.get_current_target()
+        
+        # Start Celery task
+        logger.info(f"Starting Celery task for plugin: {plugin_name}")
+        task = execute_plugin_task.delay(
+            plugin_name,
+            target=current_target,
+            parameters=parameters
+        )
+        
+        return JsonResponse({
+            "status": "success",
+            "task_id": task.id,
+            "message": "Async execution started",
+            "websocket_url": f"/ws/exploit/{task.id}/"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error executing async plugin: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Error executing async plugin: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+def stop_plugin_async(request):
+    """
+    POST
+    Stop an async plugin execution by task ID
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        task_id = data.get('task_id')
+        
+        if not task_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Task ID is required"
+            }, status=400)
+
+        # Revoke Celery task
+        AsyncResult(task_id).revoke(terminate=True)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Task {task_id} stopped successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error stopping async plugin: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Error stopping async plugin: {str(e)}"
+        }, status=500)
 
