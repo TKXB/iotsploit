@@ -5,6 +5,9 @@ from sat_toolkit.tools.monitor_mgr import SystemMonitor
 import asyncio
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
+from celery.result import AsyncResult
+import redis
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,31 +38,52 @@ class SystemUsageConsumer(AsyncWebsocketConsumer):
                 logger.error(f"Error in send_system_usage: {str(e)}")
                 break
 
-class ExploitWebsocketConsumer(WebsocketConsumer):
+class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
     instances = {}  # Class variable to track all active consumers
 
-    def connect(self):
+    async def connect(self):
         self.task_id = self.scope['url_route']['kwargs']['task_id']
-        self.accept()
-        
-        # Add this instance to the tracking dict
-        if self.task_id not in self.instances:
-            self.instances[self.task_id] = set()
-        self.instances[self.task_id].add(self)
-        
         logger.info(f"WebSocket connected for task: {self.task_id}")
-
-    def disconnect(self, close_code):
-        # Remove this instance from tracking
-        if self.task_id in self.instances:
-            self.instances[self.task_id].discard(self)
-            if not self.instances[self.task_id]:
-                del self.instances[self.task_id]
+        await self.accept()
         
+        # Fetch initial task status
+        await self.send_task_status()
+
+    async def disconnect(self, close_code):
         logger.info(f"WebSocket disconnected for task: {self.task_id}")
 
-    def receive(self, text_data):
-        pass
+    async def receive(self, text_data):
+        """Handle incoming messages - could be used for requesting status updates"""
+        try:
+            data = json.loads(text_data)
+            if data.get('action') == 'get_status':
+                await self.send_task_status()
+        except json.JSONDecodeError:
+            logger.error("Invalid JSON received")
 
-    def send_update(self, data):
-        self.send(text_data=json.dumps(data))
+    async def send_task_status(self):
+        """Fetch and send task status from Celery/Redis"""
+        try:
+            # Get task result from Celery
+            result = AsyncResult(self.task_id)
+            
+            if result.ready():
+                # Task is complete
+                task_result = result.get()
+                await self.send(text_data=json.dumps({
+                    'status': 'complete',
+                    'result': task_result
+                }))
+            else:
+                # Task is still pending
+                await self.send(text_data=json.dumps({
+                    'status': 'pending',
+                    'message': 'Task is still processing'
+                }))
+
+        except Exception as e:
+            logger.error(f"Error fetching task status: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'status': 'error',
+                'message': f'Error fetching task status: {str(e)}'
+            }))

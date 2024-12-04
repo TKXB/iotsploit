@@ -11,15 +11,8 @@ logger = get_task_logger(__name__)
 @shared_task(bind=True, max_retries=3)
 def execute_plugin_task(self, plugin_name, target=None, parameters=None):
     try:
-        # Get the WebSocket consumer for this task
         plugin_manager = ExploitPluginManager()
         
-        # Send initial status
-        send_task_status(self.request.id, {
-            'status': 'started',
-            'message': f'Starting execution of plugin {plugin_name}'
-        })
-
         # Run the async function in an event loop
         raw_result = asyncio.run(plugin_manager.execute_plugin_async(plugin_name, target, parameters))
         
@@ -28,9 +21,6 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
             'message': str(raw_result.message) if hasattr(raw_result, 'message') else 'Completed',
             'data': raw_result.data if hasattr(raw_result, 'data') else None
         }
-
-        # Send final status
-        send_task_status(self.request.id, result)
         return result
 
     except Exception as e:
@@ -39,8 +29,6 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
             'message': str(e),
             'data': None
         }
-        # Send error status
-        send_task_status(self.request.id, error_result)
         logger.error(f"Task failed: {str(e)}", exc_info=True)
         return error_result
 
