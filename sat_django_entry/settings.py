@@ -60,6 +60,7 @@ CORS_ALLOW_HEADERS = [
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
     'sat_toolkit.apps.SatToolkitConfig',
     'django_extensions',
     'corsheaders',
@@ -212,4 +213,21 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
     'socket_connect_timeout': 30,
 }
 CELERY_HOSTNAME = "localhost"
+
+# TODO: FIX REDIS CONFLICT WITH CELERY
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels.layers.InMemoryChannelLayer"
+#     }
+# }
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
+# Set the ASGI application
+ASGI_APPLICATION = "sat_django_entry.asgi.application"
 
