@@ -8,6 +8,12 @@ git fetch
 git checkout -b dev origin/dev
 ```
 
+1. Set up Redis:
+```bash
+docker pull redis
+docker run --name sat-redis -p 6379:6379 -d redis:latest
+```
+
 2. Install and configure Poetry:
 ```bash
 pip install poetry
