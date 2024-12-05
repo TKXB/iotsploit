@@ -100,16 +100,16 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
         )
         
         await self.accept()
-        logger.info(f"Stream connection established for device: {self.device_id}, channel: {self.channel_name}")
+        logger.debug(f"Stream connection established for device: {self.device_id}, channel: {self.channel_name}")
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
         )
-        logger.info(f"Stream connection closed for device: {self.device_id}, channel: {self.channel_name}")
+        logger.debug(f"Stream connection closed for device: {self.device_id}, channel: {self.channel_name}")
 
     async def stream_data(self, event):
         """Handle incoming stream data and forward it to the WebSocket"""
-        logger.info(f"Received stream data for device {self.device_id}, channel: {self.channel_name}: {event['data']}")
+        logger.debug(f"Received stream data for device {self.device_id}, channel: {self.channel_name}: {event['data']}")
         await self.send(text_data=json.dumps(event['data']))
