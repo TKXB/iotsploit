@@ -213,7 +213,7 @@ class TargetManager:
             target_instance = self.create_target(target_type, **target_data)
             self.current_target = target_instance  # Set the current Target
 
-        logger.info("Parsed and created targets from JSON file")
+        logger.debug("Parsed and created targets from JSON file")
 
     def get_current_target(self) -> Optional[Target]:
         return self.current_target

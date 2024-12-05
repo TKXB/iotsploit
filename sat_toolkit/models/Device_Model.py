@@ -203,7 +203,7 @@ class DeviceManager:
             device_instance = self.create_device(device_type, **device_data)
             self.current_device = device_instance
 
-        logger.info("Parsed and created devices from JSON file")
+        logger.debug("Parsed and created devices from JSON file")
 
     def get_current_device(self) -> Optional[Device]:
         return self.current_device

@@ -26,7 +26,7 @@ class Env_Mgr:
         if key.startswith(Env_Mgr.ENV_PreFix) != True:
             key = Env_Mgr.ENV_PreFix + key
         self.__sat_env[key] = value
-        logger.info("SAT Env Update. Key:{} Value:{}".format(key, value))
+        logger.debug("SAT Env Update. Key:{} Value:{}".format(key, value))
 
     def dump(self):
         logger.info("SAT Env: {}".format(self.__sat_env))

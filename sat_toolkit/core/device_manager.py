@@ -10,16 +10,16 @@ logger = logging.getLogger(__name__)
 
 class DevicePluginManager:
     def __init__(self):
-        logger.info("Initializing DeviceManager")
+        logger.debug("Initializing DeviceManager")
         self.pm = pluggy.PluginManager("device_mgr")
         self.pm.add_hookspecs(DevicePluginSpec)
         self.plugins = {}
         self.load_plugins()
-        logger.info("DeviceManager initialized")
+        logger.debug("DeviceManager initialized")
 
     def load_plugins(self):
         plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
-        logger.info(f"Loading device plugins from {plugin_dir}")
+        logger.debug(f"Loading device plugins from {plugin_dir}")
         for root, _, files in os.walk(plugin_dir):
             for filename in files:
                 if filename.startswith("drv_") and filename.endswith(".py") and filename != "__init__.py":

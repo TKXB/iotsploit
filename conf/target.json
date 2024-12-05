@@ -39,7 +39,7 @@
       "target_id": "byd_001",
       "name": "BYD Seal",
       "type": "vehicle",
-      "ip_address": "192.168.1.101",
+      "ip_address": "192.168.50.1",
       "location": "Garage B",
       "status": "active",
       "properties": {
