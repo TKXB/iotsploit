@@ -95,6 +95,7 @@ class SAT_Shell(cmd2.Cmd):
             'device_info': 'Shell Commands',
             'edit': 'Shell Commands',
             'execute_plugin': 'Shell Commands',
+            'exec': 'Shell Commands',
             'exit': 'Shell Commands',
             'exploit': 'Shell Commands',
             'help': 'Shell Commands',
@@ -449,6 +450,7 @@ class SAT_Shell(cmd2.Cmd):
                 logger.info(str(result))
         except Exception as e:
             logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
+    do_exec = do_execute_plugin
 
     @cmd2.with_category('Device Commands')
     def do_list_device_drivers(self, arg):
