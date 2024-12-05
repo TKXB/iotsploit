@@ -8,6 +8,7 @@ from channels.generic.websocket import WebsocketConsumer
 from celery.result import AsyncResult
 import redis
 from django.conf import settings
+from sat_toolkit.core.stream_manager import StreamManager
 
 logger = logging.getLogger(__name__)
 
@@ -87,3 +88,28 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
                 'status': 'error',
                 'message': f'Error fetching task status: {str(e)}'
             }))
+
+class DeviceStreamConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.device_id = self.scope['url_route']['kwargs']['device_id']
+        self.group_name = f"device_{self.device_id}"
+        
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+        
+        await self.accept()
+        logger.info(f"Stream connection established for device: {self.device_id}, channel: {self.channel_name}")
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+        logger.info(f"Stream connection closed for device: {self.device_id}, channel: {self.channel_name}")
+
+    async def stream_data(self, event):
+        """Handle incoming stream data and forward it to the WebSocket"""
+        logger.info(f"Received stream data for device {self.device_id}, channel: {self.channel_name}: {event['data']}")
+        await self.send(text_data=json.dumps(event['data']))
