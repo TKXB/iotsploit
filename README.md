@@ -2,19 +2,28 @@
 
 ## Initial Setup
 
-1. Clone and switch to dev branch:
+Follow these steps to set up the IotSploit project on your local machine.
+
+### 1. Clone the Repository and Switch to the Development Branch
+
 ```bash
 git fetch
 git checkout -b dev origin/dev
 ```
 
-1. Set up Redis:
+### 2. Set Up Redis
+
+Ensure you have Docker installed, then run the following commands:
+
 ```bash
 docker pull redis
 docker run --name sat-redis -p 6379:6379 -d redis:latest
 ```
 
-2. Install and configure Poetry:
+### 3. Install and Configure Poetry
+
+Poetry is used for dependency management. Install and configure it with:
+
 ```bash
 pip install poetry
 poetry lock        # This may take 10-20 minutes
@@ -22,266 +31,77 @@ poetry install     # This may take 10-20 minutes
 poetry shell
 ```
 
-3. Initialize Django database:
+### 4. Initialize the Django Database
+
+Run the following commands to set up the database:
+
 ```bash
 python manage.py makemigrations
 python manage.py makemigrations sat_toolkit
 python manage.py migrate
 ```
 
-4. Start the application:
+### 5. Start the Application
+
+Launch the application with:
+
 ```bash
 python console.py
 ```
 
-## PI Install 
-```shell
+## Using the IoTSploit Shell
 
-sat@raspberrypi:/etc/udev/rules.d $ cat 51-android.rules
-SUBSYSTEM=="usb",ENV{DEVTYPE}=="usb_device", MODE="0666", GROUP="plugdev"
+Once the application is running, you can interact with it using the IoTSploit Shell. Below are some of the key commands available:
 
-sudo udevadm control --reload-rules
-sudo service udev restart
-sudo udevadm trigger
-adb kill-server
-adb start-server
+### System Commands
 
+- **exploit**: Execute all plugins in the IotSploit System.
+- **exit**: Exit the IoTSploit Shell.
 
-sat@ZeekrSAT:~ $ cat /etc/apt/sources.list.d/raspi.list
+### Device Commands
 
-deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib non-free non-free-firmware
-deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-updates main contrib non-free non-free-firmware
-deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-backports main contrib non-free non-free-firmware
-deb https://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security main contrib non-free non-free-firmware
+- **device_info**: Show Zeekr SAT Device Info.
+- **list_devices**: List all devices stored in the database.
+- **list_device_drivers**: List all available device plugins.
 
-deb http://archive.raspberrypi.com/debian/ bookworm main
+### Network Commands
 
-# Uncomment line below then 'apt-get update' to enable 'apt-get source'
-#deb-src http://archive.raspberrypi.com/debian/ bookworm main
+- **connect_lab_wifi**: Connect to Zeekr Lab WiFi.
 
+### Django Commands
 
-sudo apt install -y libglib2.0-dev
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple bluepy
+- **runserver**: Start Django development server, Daphne WebSocket server, and Celery worker in the background.
+- **stop_server**: Stop Django development server, Daphne WebSocket server, and Celery worker.
 
-sudo apt update
-sudo apt install -y raspi-config
-sudo apt install -y adb
-sudo apt install -y dsniff
-sudo apt install -y hping3
-sudo apt install -y xrdp
-sudo apt install -y nmap
-# sudo apt install -y iptables
-sudo apt install -y hostapd
-sudo apt upgrade -y
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages django
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages django_extensions
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages pyusb
-# sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages bluepy
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages pywifi
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages pwntools
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages netifaces
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages python3-nmap
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages django-cors-headers
+### Plugin Commands
 
+- **list_plugins**: List all available plugins.
+- **execute_plugin**: Execute a specific plugin.
+- **flash_plugins**: Refresh and reload all plugins from the plugins directory.
+- **create_group**: Create a plugin group and add selected plugins to it.
+- **execute_group**: Execute plugins in a selected group.
+- **list_groups**: List all available plugin groups.
 
-python manage.py makemigrations
-python manage.py makemigrations sat_toolkit
-python manage.py migrate
-python manage.py createsuperuser
+### Target Commands
 
+- **list_targets**: List all targets stored in the database.
+- **target_select**: Select a target from available targets.
+- **edit_target**: Edit an existing target in the database.
 
-python manage.py dumpdata sat_toolkit > data_export.json
-python manage.py loaddata data_export.json
+### Test Commands
 
+- **test_select**: Select Test Project.
+- **run_test**: Start Test Project.
+- **quick_test**: Run Test Project quickly.
 
-sudo usermod -a -G bluetooth $(whoami)
-```
+### Help
 
-## django cmd
+- **help**: List available commands or get detailed help for a specific command.
 
-```shell
-#启动django
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe manage.py runserver 0.0.0.0:8000
-python manage.py runserver 0.0.0.0:8000
+### Additional Information
 
-#shell
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe manage.py shell
-python manage.py shell
+- **set_log_level**: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+- **ls**: List directory contents.
+- **lsusb**: List USB devices.
 
-
-```
-
-
-```shell
-#新建APP
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe manage.py startapp sat_toolkit
-
-#数据模型更新
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe manage.py makemigrations
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe manage.py migrate
-
-#超级管理员
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe  manage.py createsuperuser
-
-
-
-#pip安装
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\Scripts\pip.exe install -i https://pypi.tuna.tsinghua.edu.cn/simple pywifi
-
-
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe  manage.py graph_models sat_toolkit -o sat_toolkit_models.png
-
-
-```
-
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe  -m pip install --upgrade pip
-
-
-
-在 Django 中可以使用命令行工具 dumpdata 和 loaddata 导出和导入数据。下面是具体的步骤：
-
-导出原 Django 应用的数据。
-执行以下命令，将原 Django 应用的数据导出到指定的文件中：
-
-C:\Users\Cheng.Chang3\AppData\Local\Programs\Python\Python310\python.exe manage.py dumpdata sat_toolkit > data_export.json
-python manage.py dumpdata sat_toolkit > data.json
-这条命令会将整个 Django 应用的数据导出为 JSON 格式的数据到名为 data.json 的文件中。
-
-将数据导入到新的 Django 应用中。
-将导出的 data.json 文件复制到新的 Django 应用的根目录，并执行以下命令将数据导入到新的数据库中：
-
-python manage.py loaddata data.json
-
-这条命令会将导出的数据从 JSON 文件中加载到新的数据库中。
-
-
-
-from sat_toolkit.tools.report_mgr import Report_Mgr
-from sat_toolkit.tools.teststands_mgr import TestStands_Mgr
-from sat_toolkit.tools.testgroup_mgr import TestGroup_Mgr
-from sat_toolkit.tools.testcase_mgr import TestCase_Mgr
-from sat_toolkit.tools.teststep_mgr import TestStep_Mgr
-Report_Mgr.Instance().start_audit("TOC_TEST")
-TestStep_Mgr.Instance().list_all()
-TestCase_Mgr.Instance().list_all()
-TestGroup_Mgr.Instance().list_all()
-TestStands_Mgr.Instance().list_all()
-TestStands_Mgr.Instance().exec(3)
-Report_Mgr.Instance().stop_audit()
-
-----------------------------------
-----------------------------------
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y openssh-server
-sudo service ssh status
-
-privacy -- screen -- 永不休眠 自动登录
-accessiblity  -- always show menu  keyboard-》screenkeyboard on  clickassist on
-
-
-/etc/apt/sources.list
-# 默认注释了源码镜像以提高 apt update 速度，如有需要可自行取消注释
-deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy main restricted universe multiverse
-deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy main restricted universe multiverse
-deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-updates main restricted universe multiverse
-deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-updates main restricted universe multiverse
-deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-backports main restricted universe multiverse
-deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-backports main restricted universe multiverse
-
-deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-security main restricted universe multiverse
-deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-security main restricted universe multiverse
-
-# 预发布软件源，不建议启用
-# deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-proposed main restricted universe multiverse
-# deb-src https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ jammy-proposed main restricted universe multiverse
-
-
-
-sudo apt update
-sudo apt install -y raspi-config
-sudo raspi-config
-打开SSH，I2C, SPI, UART 接口
-设置locale
-扩展sd卡空间
-
-
-sudo apt install -y chromium-browser
-sudo apt install -y net-tools
-sudo apt install -y adb
-sudo apt install -y dsniff
-sudo apt install -y hping3
-sudo apt install -y xrdp
-sudo apt install -y nmap
-sudo apt install -y hostapd
-sudo apt install -y python3-pip
-sudo apt install -y git
-sudo apt install -y python-is-python3
-sudo apt install -y python3-psutil
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple django
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple django_extensions
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pyusb
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pywifi
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pwntools
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple netifaces
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple python3-nmap
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple django-cors-headers
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple smbus
-sudo pip install -i https://pypi.tuna.tsinghua.edu.cn/simple mistune
-
-git config --global user.name "changcheng@sat"
-git config --global user.email "changcheng@sat.lab"
-sudo apt upgrade -y
-
-语言支持 --安装
-chromium，放到favorite，其他favorite的全部去掉
-
-
-mkdir zeekr_sat_repo
-cd zeekr_sat_repo/
-git clone http://192.168.8.150:3000/changcheng/zeekr_sat_rep_local.git
-cd zeekr_sat_rep_local/
-git clone http://192.168.8.150:3000/changcheng/zeekr_sat_ui.git
-cd zeekr_sat_ui/
-python static_file_location_converter.py
-cd ..
-
-
-## Preparing: Before run sat_shell.py
-To perform database migrations, run the following commands:
-
-```shell
-sudo python manage.py makemigrations
-sudo python manage.py makemigrations sat_toolkit
-sudo python manage.py migrate
-```
-
-To create a superuser, use the following command:
-
-```shell
-sudo python manage.py createsuperuser
-```
-
-To load data from a backup file, run the following command:
-
-```shell
-sudo python manage.py loaddata db_backup/20231210_1106.json
-```
-
-Please ensure that the paths specified in the `sat_ui.service` and `sat_server.service` files are valid.
-sudo cp -rf sat_server.service /etc/systemd/system/
-<!-- sudo cp -rf sat_ui.service /etc/systemd/system/ -->
-sudo systemctl daemon-reload
-
-sudo service sat_server restart
-sudo systemctl enable sat_server
-<!-- sudo systemctl enable sat_ui -->
-
-sudo systemctl status sat_server
-<!-- sudo systemctl status sat_ui -->
-
-搜狗拼音输入法支持
-
-
-sudo git config --global --add safe.directory /home/sat/zeekr_sat_main
-sudo git config --global --add safe.directory /home/sat/zeekr_sat_main/zeekr_sat_ui
+For more detailed information on each command, you can type `help <command>` within the IoTSploit Shell.
