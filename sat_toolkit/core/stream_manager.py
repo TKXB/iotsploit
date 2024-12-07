@@ -19,7 +19,7 @@ class StreamType(Enum):
 @dataclass
 class StreamData:
     stream_type: StreamType
-    device_id: str
+    channel: str
     timestamp: float
     data: Any
     metadata: Optional[Dict] = None
@@ -27,7 +27,7 @@ class StreamData:
     def to_dict(self):
         return {
             "stream_type": self.stream_type.value,
-            "device_id": self.device_id,
+            "channel": self.channel,
             "timestamp": self.timestamp,
             "data": self.data,
             "metadata": self.metadata
@@ -46,27 +46,27 @@ class StreamManager:
             self.channel_layer = get_channel_layer()
             self.initialized = True
 
-    async def register_stream(self, device_id: str, channel_name: str):
-        """Register a WebSocket channel for a device's data stream"""
-        if device_id not in self.active_streams:
-            self.active_streams[device_id] = set()
-        self.active_streams[device_id].add(channel_name)
-        logger.info(f"Registered stream for device {device_id} on channel {channel_name}")
+    async def register_stream(self, channel: str, channel_name: str):
+        """Register a WebSocket channel for a data stream"""
+        if channel not in self.active_streams:
+            self.active_streams[channel] = set()
+        self.active_streams[channel].add(channel_name)
+        logger.info(f"Registered stream for channel {channel} on channel {channel_name}")
 
-    async def unregister_stream(self, device_id: str, channel_name: str):
-        """Unregister a WebSocket channel from a device's data stream"""
-        if device_id in self.active_streams:
-            self.active_streams[device_id].discard(channel_name)
-            if not self.active_streams[device_id]:
-                del self.active_streams[device_id]
-        logger.info(f"Unregistered stream for device {device_id} from channel {channel_name}")
+    async def unregister_stream(self, channel: str, channel_name: str):
+        """Unregister a WebSocket channel from a data stream"""
+        if channel in self.active_streams:
+            self.active_streams[channel].discard(channel_name)
+            if not self.active_streams[channel]:
+                del self.active_streams[channel]
+        logger.info(f"Unregistered stream for channel {channel} from channel {channel_name}")
 
     async def broadcast_data(self, stream_data: StreamData):
-        """Broadcast data to all registered channels for a device"""
+        """Broadcast data to all registered channels for a stream"""
         logger.debug(f"Broadcasting data: {stream_data}")
 
-        device_id = stream_data.device_id
-        group_name = f"device_{device_id}"
+        channel = stream_data.channel
+        group_name = f"stream_{channel}"
         
         message = {
             "type": "stream_data",
