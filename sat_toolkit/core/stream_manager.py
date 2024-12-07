@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime
 from channels.layers import get_channel_layer
+import redis
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ class StreamData:
 
 class StreamManager:
     _instance = None
+    _redis = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -44,18 +47,22 @@ class StreamManager:
     def __init__(self):
         if not hasattr(self, 'initialized'):
             self.channel_layer = get_channel_layer()
-            self.active_channels = set()  # Channels with connected clients
-            self.broadcast_channels = set()  # Channels where data is being broadcast
+            # Initialize Redis connection
+            self._redis = redis.Redis(
+                host=getattr(settings, 'REDIS_HOST', 'localhost'),
+                port=getattr(settings, 'REDIS_PORT', 6379),
+                db=getattr(settings, 'REDIS_DB', 0)
+            )
             self.initialized = True
 
     async def register_stream(self, channel: str):
         """Register a channel when a client connects"""
-        self.active_channels.add(channel)
+        self._redis.sadd('active_channels', channel)
         logger.info(f"Registered stream for channel {channel}")
 
     async def unregister_stream(self, channel: str):
         """Unregister a channel when a client disconnects"""
-        self.active_channels.discard(channel)
+        self._redis.srem('active_channels', channel)
         logger.info(f"Unregistered stream for channel {channel}")
 
     async def broadcast_data(self, stream_data: StreamData):
@@ -63,7 +70,7 @@ class StreamManager:
         logger.debug(f"Broadcasting data: {stream_data}")
 
         channel = stream_data.channel
-        self.broadcast_channels.add(channel)  # Track broadcasting channels
+        self._redis.sadd('broadcast_channels', channel)
         group_name = f"stream_{channel}"
         
         message = {
@@ -80,13 +87,13 @@ class StreamManager:
 
     async def stop_broadcast(self, channel: str):
         """Stop broadcasting on a channel"""
-        self.broadcast_channels.discard(channel)
+        self._redis.srem('broadcast_channels', channel)
         logger.info(f"Stopped broadcasting on channel {channel}")
 
     def get_active_channels(self):
         """Get channels with connected clients"""
-        return list(self.active_channels)
+        return [channel.decode() for channel in self._redis.smembers('active_channels')]
 
     def get_broadcast_channels(self):
         """Get channels where data is being broadcast"""
-        return list(self.broadcast_channels)
+        return [channel.decode() for channel in self._redis.smembers('broadcast_channels')]

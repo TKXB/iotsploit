@@ -200,3 +200,8 @@ CHANNEL_LAYERS = {
 # Set the ASGI application
 ASGI_APPLICATION = "sat_django_entry.asgi.application"
 
+# Redis settings for StreamManager
+REDIS_HOST = '127.0.0.1'  # Using the same host as your channel layers
+REDIS_PORT = 6379
+REDIS_DB = 0  # Using the same DB as Celery for simplicity
+
