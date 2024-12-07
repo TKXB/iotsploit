@@ -4,10 +4,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from sat_toolkit.tools.monitor_mgr import SystemMonitor
 import asyncio
 from asgiref.sync import async_to_sync
-from channels.generic.websocket import WebsocketConsumer
 from celery.result import AsyncResult
-import redis
-from django.conf import settings
 from sat_toolkit.core.stream_manager import StreamManager
 
 logger = logging.getLogger(__name__)
@@ -18,15 +15,16 @@ class SystemUsageConsumer(AsyncWebsocketConsumer):
         await self.accept()
         logger.info("WebSocket connection accepted")
         self.monitor = SystemMonitor.create_monitor("linux")
+        self.is_monitoring = True
         self.monitor.start_monitoring()
         asyncio.create_task(self.send_system_usage())
 
     async def disconnect(self, close_code):
         logger.info(f"WebSocket disconnected with code: {close_code}")
-        self.monitor.stop_monitoring()
+        self.is_monitoring = False
 
     async def send_system_usage(self):
-        while True:
+        while self.is_monitoring:
             try:
                 cpu_usage = self.monitor.get_cpu_usage()
                 memory_usage = self.monitor.get_memory_usage()

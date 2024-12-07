@@ -1,6 +1,5 @@
 from django.urls import path, re_path
 from . import views
-from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.consumers import SystemUsageConsumer
 
 urlpatterns = [
@@ -38,13 +37,8 @@ urlpatterns = [
     path('exploit/', views.exploit, name='exploit'),
     path('execute_plugin/', views.execute_plugin, name='execute_plugin'),  # Added trailing slash
 
-    # Update this line for the new WebSocket consumer
-    re_path(r'ws/system_usage/$', SystemUsageConsumer.as_asgi()),
-
     # Add this to the urlpatterns list
     path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
-
-    # Add this new URL pattern
     path('list_groups', views.list_groups, name='list_groups'),
 
     path('execute_plugin_async/', views.execute_plugin_async, name='execute_plugin_async'),
