@@ -17,9 +17,6 @@ from django.conf import settings
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-dp=lo%esq^=$!56dt&peo=)o#hf()slskrazc$l81hptur@)z8'
 
@@ -32,8 +29,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ORIGIN_ALLOW_ALL = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://10.35.5.163:8000",
-    "http://10.114.39.201:8000",    
     'http://*',
 ]
 
@@ -54,7 +49,6 @@ CORS_ALLOW_HEADERS = [
     'Content-Type',
     "*"
 ]
-
 
 
 # Application definition
@@ -82,7 +76,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.security.SecurityMiddleware',  # Make sure this is included
+    'django.middleware.security.SecurityMiddleware',  
     'csp.middleware.CSPMiddleware',
 ]
 
@@ -166,30 +160,11 @@ STATICFILES_DIRS = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
-# LOGGING = {
-#     "version": 1,
-#     "disable_existing_loggers": False,
-#     "formatters": {
-#         "simple": {
-#             "format": "{asctime} | {levelname} | {module} | {message}",
-#             "style": "{",
-#         },
-#     },
-#     "handlers": {
-#         "console": {
-#             "class": "logging.StreamHandler",
-#             "formatter": "simple",
-#         },
-#     },
-
-#     "loggers": {
-#         "": {
-#         "handlers": ["console"],
-#         "level": "DEBUG",
-#         },
-#     },
-# }
+# django logging settings
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+}
 
 # Update these CSP settings
 CSP_DEFAULT_SRC = ("'self'",)  # Changed from 'none' to 'self'
@@ -214,12 +189,6 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 }
 CELERY_HOSTNAME = "localhost"
 
-# TODO: FIX REDIS CONFLICT WITH CELERY
-# CHANNEL_LAYERS = {
-#     "default": {
-#         "BACKEND": "channels.layers.InMemoryChannelLayer"
-#     }
-# }
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
