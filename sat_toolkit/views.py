@@ -30,14 +30,14 @@ from sat_toolkit.models.Target_Model import TargetManager
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 
-import uuid
-
 from asgiref.sync import async_to_sync
 
 import asyncio
 
 from celery.result import AsyncResult
 from .tasks import execute_plugin_task
+
+from sat_toolkit.core.stream_manager import StreamManager
 
 
 def device_info(request:HttpRequest):
@@ -947,5 +947,28 @@ def stop_plugin_async(request):
         return JsonResponse({
             "status": "error",
             "message": f"Error stopping async plugin: {str(e)}"
+        }, status=500)
+
+def active_channels(request):
+    """
+    GET
+    Returns a list of all active data stream channels
+    """
+    try:
+        stream_manager = StreamManager()
+        active_channels = stream_manager.get_active_channels()
+        broadcast_channels = stream_manager.get_broadcast_channels()
+        
+        return JsonResponse({
+            "status": "success",
+            "active_channels": active_channels,
+            "broadcast_channels": broadcast_channels
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving active channels: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to retrieve active channels: {str(e)}"
         }, status=500)
 

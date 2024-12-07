@@ -101,14 +101,21 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         logger.debug(f"Stream connection established for channel: {self.channel}, channel_name: {self.channel_name}")
-
+        
+        # Register the channel with StreamManager
+        self.stream_manager = StreamManager()
+        await self.stream_manager.register_stream(self.channel)
+    
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
         )
         logger.debug(f"Stream connection closed for channel: {self.channel}, channel_name: {self.channel_name}")
-
+        
+        # Unregister the channel from StreamManager
+        await self.stream_manager.unregister_stream(self.channel)
+    
     async def stream_data(self, event):
         """Handle incoming stream data and forward it to the WebSocket"""
         logger.debug(f"Received stream data for channel {self.channel}, channel_name: {self.channel_name}: {event['data']}")

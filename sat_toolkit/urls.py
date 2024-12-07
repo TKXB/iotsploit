@@ -49,4 +49,7 @@ urlpatterns = [
 
     path('execute_plugin_async/', views.execute_plugin_async, name='execute_plugin_async'),
     path('stop_plugin_async/', views.stop_plugin_async, name='stop_plugin_async'),
+
+    # Add this new URL pattern
+    path('active_channels/', views.active_channels, name='active_channels'),
 ]
