@@ -3,12 +3,12 @@ import pylink
 import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType
-
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
 logger = logging.getLogger(__name__)
 
 hookimpl = pluggy.HookimplMarker("device_mgr")
 
-class JLinkAbility:
+class JLinkAbility(BaseDeviceDriver):
     def __init__(self):
         self.jlink = None
         self.connected_emulators = []
@@ -93,7 +93,3 @@ class JLinkAbility:
             self.jlink.close()
             self.jlink = None
         print(f"Closed JTAG device: {device.name}")
-
-def register_plugin(pm):
-    jlink_ability = JLinkAbility()
-    pm.register(jlink_ability)

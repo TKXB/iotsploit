@@ -6,6 +6,7 @@ from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 import uuid
 from plugins.devices.greatfet.protocol import get_version_number  # Change to absolute import
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ hookimpl = pluggy.HookimplMarker("device_mgr")
 GREATFET_VENDOR_ID = 0x1d50
 GREATFET_PRODUCT_ID = 0x60e6
 
-class GreatFETDriver:
+class GreatFETDriver(BaseDeviceDriver):
     def __init__(self):
         self.usb_device = None
 
@@ -124,10 +125,6 @@ class GreatFETDriver:
         except usb.core.USBError as e:
             logger.error(f"Failed to close GreatFET device {device.name}: {e}")
             return False
-
-def register_plugin(pm):
-    greatfet_ability = GreatFETDriver()
-    pm.register(greatfet_ability)
 
 # Example usage
 if __name__ == "__main__":

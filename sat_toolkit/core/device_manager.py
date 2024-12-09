@@ -4,6 +4,7 @@ import importlib.util
 import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.config import DEVICE_PLUGINS_DIR
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,18 @@ class DevicePluginManager:
         spec = importlib.util.spec_from_file_location(module_name, filepath)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        if hasattr(module, "register_plugin"):
-            module.register_plugin(self.pm)
-            self.plugins[module_name] = module
-            logger.info(f"Loaded device plugin: {module_name}")
+        
+        # Auto-register any class that inherits from BaseDeviceDriver
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name)
+            if (isinstance(attr, type) and 
+                issubclass(attr, BaseDeviceDriver) and 
+                attr != BaseDeviceDriver):
+                plugin_instance = attr()
+                self.pm.register(plugin_instance)
+                self.plugins[module_name] = module
+                logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
+                break
 
     def register_plugin(self, plugin):
         self.pm.register(plugin)

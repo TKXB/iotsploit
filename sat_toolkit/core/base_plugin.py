@@ -9,3 +9,14 @@ class BasePlugin:
 
     def get_info(self) -> Dict[str, Any]:
         return self.info
+
+class BaseDeviceDriver:
+    def __init__(self, info: Dict[str, Any] = None):
+        self.info = info or {}
+        self.device_interface = None
+
+    def update_info(self, new_info: Dict[str, Any]):
+        self.info.update(new_info)
+
+    def get_info(self) -> Dict[str, Any]:
+        return self.info

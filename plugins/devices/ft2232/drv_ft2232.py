@@ -4,6 +4,7 @@ import pluggy
 import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
 import uuid
 from plugins.devices.ft2232.protocol import (
     create_ft2232_interface, close_ft2232_interface,
@@ -18,7 +19,7 @@ hookimpl = pluggy.HookimplMarker("device_mgr")
 FT2232_VENDOR_ID = 0x0403
 FT2232_PRODUCT_ID = 0x6010
 
-class FT2232Driver:
+class FT2232Driver(BaseDeviceDriver):
     def __init__(self):
         self.ft2232_interface = None
         self.mode = None
@@ -127,9 +128,6 @@ class FT2232Driver:
             logger.error(f"Failed to close FT2232 device {device.name}: {e}")
             return False
 
-def register_plugin(pm):
-    ft2232_ability = FT2232Driver()
-    pm.register(ft2232_ability)
 
 # Example usage
 if __name__ == "__main__":

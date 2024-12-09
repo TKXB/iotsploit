@@ -8,13 +8,15 @@ import logging
 import pluggy
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, SerialDevice
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
 import uuid
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("device_mgr")
 
-class ESP32Driver:
+class ESP32Driver(BaseDeviceDriver):
     def __init__(self):
+        super().__init__()
         self.transport = None
         self.client_manager = None
         self.server = None
@@ -152,10 +154,6 @@ class ESP32Driver:
         except Exception as e:
             logger.error(f"Failed to close ESP32 device: {e}")
             return False
-
-def register_plugin(pm):
-    esp32_ability = ESP32Driver()
-    pm.register(esp32_ability)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

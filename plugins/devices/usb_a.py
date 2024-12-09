@@ -4,12 +4,12 @@ import serial
 import serial.tools.list_ports
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType
-
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
 logger = logging.getLogger(__name__)
 
 hookimpl = pluggy.HookimplMarker("device_mgr")
 
-class USBAbility:
+class USBAbility(BaseDeviceDriver):
     def __init__(self):
         self.serial_connection = None
 
@@ -91,7 +91,3 @@ class USBAbility:
                     logger.info(line)
         except KeyboardInterrupt:
             logger.info("Stopped reading UART log")
-
-def register_plugin(pm):
-    usb_ability = USBAbility()
-    pm.register(usb_ability)
