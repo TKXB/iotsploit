@@ -90,7 +90,7 @@ class GreatFETDriver(BaseDeviceDriver):
         # Implement specific GreatFET execution logic here
 
     @hookimpl
-    def send_command(self, device: USBDevice, command: str):
+    def command(self, device: USBDevice, command: str):
         if self.usb_device:
             # Implement GreatFET-specific command sending logic here
             logger.info(f"Sent command '{command}' to GreatFET device {device.name}")
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         if ability.connect(test_device):
             print("Device connected successfully.")
             # Perform some operations here
-            ability.send_command(test_device, "test_command")
+            ability.command(test_device, "test_command")
             
             # Get and print the version number
             version = get_version_number(test_device)

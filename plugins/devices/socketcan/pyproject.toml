@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "socketcan_driver"
+version = "0.1.0"
+description = "SocketCAN Driver Plugin for SAT Toolkit"
+authors = ["Your Name <your.email@example.com>"]
+packages = [
+    { include = "drv_socketcan.py" },
+]
+
+[tool.poetry.dependencies]
+python-can = "4.5.0"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

@@ -88,7 +88,7 @@ class FT2232Driver(BaseDeviceDriver):
         # Implement specific FT2232 execution logic here based on the mode
 
     @hookimpl
-    def send_command(self, device: USBDevice, command: str):
+    def command(self, device: USBDevice, command: str):
         if self.ft2232_interface:
             try:
                 if self.mode == 'uart':
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         ability.initialize(test_device)
         if ability.connect(test_device):
             print("Device connected successfully.")
-            ability.send_command(test_device, "test_command")
+            ability.command(test_device, "test_command")
             ability.reset(test_device)
             if ability.close(test_device):
                 print("Device closed successfully.")

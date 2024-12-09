@@ -121,7 +121,7 @@ class DevicePluginManager:
 
     def send_command_to_device(self, device: Device, command: str):
         print(f"Sending command to device: {device.name}")
-        self.pm.hook.send_command(device=device, command=command)
+        self.pm.hook.command(device=device, command=command)
 
     def reset_device(self, device: Device):
         print(f"Resetting device: {device.name}")

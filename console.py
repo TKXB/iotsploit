@@ -30,6 +30,9 @@ from sat_toolkit.tools.input_mgr import Input_Mgr
 from sat_toolkit.models.Plugin_Model import Plugin
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
+from sat_toolkit.core.device_manager import DevicePluginManager
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
+from sat_toolkit.models.Device_Model import Device
 
 logger = logging.getLogger(__name__)
 
@@ -990,6 +993,66 @@ class SAT_Shell(cmd2.Cmd):
 
     # Add an alias for edit_target
     do_et = do_edit_target
+
+    @cmd2.with_category('Device Commands')
+    def do_send_command(self, arg):
+        'Send a command to a device. Usage: send_command <command_string>'
+        try:
+            if not arg:
+                logger.error(ansi.style("Usage: send_command <command_string>", fg=ansi.Fg.RED))
+                return
+
+            # Get available device plugins
+            available_plugins = self.device_plugin_manager.list_devices()
+            if not available_plugins:
+                logger.error(ansi.style("No device plugins available", fg=ansi.Fg.RED))
+                return
+
+            # Let user select a plugin
+            selected_plugin = Input_Mgr.Instance().single_choice(
+                "Select device plugin",
+                available_plugins
+            )
+
+            # Create a temporary plugin instance to scan for devices
+            plugin_instance = self.device_plugin_manager.plugins[selected_plugin]
+            for attr_name in dir(plugin_instance):
+                attr = getattr(plugin_instance, attr_name)
+                if (isinstance(attr, type) and 
+                    issubclass(attr, BaseDeviceDriver) and 
+                    attr != BaseDeviceDriver):
+                    driver = attr()
+                    scan_result = driver.scan()
+                    break
+
+            if not scan_result:
+                logger.error(ansi.style(f"No devices found for plugin: {selected_plugin}", fg=ansi.Fg.RED))
+                return
+
+            # Let user select a device
+            device_choices = [f"{dev.name} ({dev.device_type.value})" for dev in scan_result]
+            selected = Input_Mgr.Instance().single_choice(
+                "Select device",
+                device_choices
+            )
+
+            # Get the selected device
+            selected_idx = device_choices.index(selected)
+            device = scan_result[selected_idx]
+
+            # Initialize and connect to the device
+            if driver.initialize(device) and driver.connect(device):
+                # Send the command to the device
+                driver.command(device, arg)
+            else:
+                logger.error(ansi.style("Failed to initialize or connect to device", fg=ansi.Fg.RED))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error sending command: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for send_command
+    do_cmd = do_send_command
 
 if __name__ == '__main__':
     shell = SAT_Shell()

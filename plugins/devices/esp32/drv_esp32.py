@@ -116,7 +116,7 @@ class ESP32Driver(BaseDeviceDriver):
             pass
 
     @hookimpl
-    def send_command(self, device: SerialDevice, command: str):
+    def command(self, device: SerialDevice, command: str):
         if self.client:
             logger.info(f"Sending command '{command}' to ESP32 device")
             # Implement command sending logic here
@@ -169,7 +169,7 @@ if __name__ == "__main__":
             if ability.connect(test_device):
                 print("Device connected successfully")
                 # Perform some operations here
-                ability.send_command(test_device, "test_command")
+                ability.command(test_device, "test_command")
                 time.sleep(5)  # Let it run for a bit
                 
                 if ability.close(test_device):

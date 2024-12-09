@@ -51,6 +51,7 @@ channels_redis = "^4.1.0"
 [tool.poetry.dev-dependencies]
 flood_attack = {path = "plugins/exploits/flood_attack", develop = true}
 esp32_driver = {path = "plugins/devices/esp32", develop = true}
+socketcan_driver = {path = "plugins/devices/socketcan", develop = true}
 # ... other plugin dependencies ...
 
 [build-system]

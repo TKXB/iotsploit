@@ -52,7 +52,7 @@ class USBAbility(BaseDeviceDriver):
             logger.info(f"Executing USB exploit on {target} using device {device.name}")
 
     @hookimpl
-    def send_command(self, device: Device, command: str):
+    def command(self, device: Device, command: str):
         if self.serial_connection and self.serial_connection.is_open:
             self.serial_connection.write(command.encode())
             logger.info(f"Sent command '{command}' to device {device.name}")

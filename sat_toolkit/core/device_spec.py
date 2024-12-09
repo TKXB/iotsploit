@@ -21,7 +21,7 @@ class DevicePluginSpec:
         """Execute an action on the target using the device."""
 
     @hookspec
-    def send_command(self, device: Device, command: str):
+    def command(self, device: Device, command: str):
         """Send a command to the device."""
 
     @hookspec

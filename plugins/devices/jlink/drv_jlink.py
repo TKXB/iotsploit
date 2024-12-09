@@ -70,7 +70,7 @@ class JLinkAbility(BaseDeviceDriver):
             print(f"Unknown target: {target}")
 
     @hookimpl
-    def send_command(self, device: Device, command: str):
+    def command(self, device: Device, command: str):
         if not self.jlink:
             raise ValueError("JLink device not initialized")
         
