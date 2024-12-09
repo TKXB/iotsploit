@@ -995,11 +995,11 @@ class SAT_Shell(cmd2.Cmd):
     do_et = do_edit_target
 
     @cmd2.with_category('Device Commands')
-    def do_send_command(self, arg):
-        'Send a command to a device. Usage: send_command <command_string>'
+    def do_device_command(self, arg):
+        'Send a command to a device. Usage: device_command <command_string>'
         try:
             if not arg:
-                logger.error(ansi.style("Usage: send_command <command_string>", fg=ansi.Fg.RED))
+                logger.error(ansi.style("Usage: device_command <command_string>", fg=ansi.Fg.RED))
                 return
 
             # Get available device plugins
@@ -1052,7 +1052,60 @@ class SAT_Shell(cmd2.Cmd):
             logger.debug("Detailed error:", exc_info=True)
 
     # Add an alias for send_command
-    do_cmd = do_send_command
+    do_cmd = do_device_command
+
+    @cmd2.with_category('Device Commands')
+    def do_list_device_commands(self, arg):
+        'List available commands for a device driver'
+        try:
+            # Get available device plugins
+            available_plugins = self.device_plugin_manager.list_devices()
+            if not available_plugins:
+                logger.error(ansi.style("No device plugins available", fg=ansi.Fg.RED))
+                return
+
+            # Let user select a plugin
+            selected_plugin = Input_Mgr.Instance().single_choice(
+                "Select device plugin",
+                available_plugins
+            )
+
+            # Create a driver instance for the selected plugin
+            plugin_module = self.device_plugin_manager.plugins[selected_plugin]
+            driver_instance = None
+            
+            # Find and instantiate the driver class
+            for attr_name in dir(plugin_module):
+                attr = getattr(plugin_module, attr_name)
+                if (isinstance(attr, type) and 
+                    issubclass(attr, BaseDeviceDriver) and 
+                    attr != BaseDeviceDriver):
+                    driver_instance = attr()
+                    break
+            
+            if not driver_instance:
+                logger.error(ansi.style(f"Could not find driver class in {selected_plugin}", fg=ansi.Fg.RED))
+                return
+
+            # Get the commands from the driver instance
+            commands = getattr(driver_instance, 'supported_commands', {})
+            
+            if not commands:
+                logger.warning(ansi.style(f"No commands available for plugin: {selected_plugin}", fg=ansi.Fg.YELLOW))
+                return
+
+            # Display commands and their descriptions
+            logger.info(ansi.style(f"\nAvailable commands for {selected_plugin}:", fg=ansi.Fg.CYAN))
+            for cmd, description in commands.items():
+                logger.info(ansi.style(f"  {cmd:<10}", fg=ansi.Fg.GREEN) + 
+                          ansi.style(f"- {description}", fg=ansi.Fg.WHITE))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error listing commands: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for list_device_commands
+    do_lscmd = do_list_device_commands
 
 if __name__ == '__main__':
     shell = SAT_Shell()

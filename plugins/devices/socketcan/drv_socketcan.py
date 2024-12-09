@@ -25,6 +25,13 @@ class SocketCANDriver(BaseDeviceDriver):
         self.receiver_thread = None
         self.running = False
         self.current_interface = None
+        # Define commands with descriptions
+        self.supported_commands = {
+            "start": "Start monitoring/receiving CAN messages",
+            "stop": "Stop monitoring/receiving CAN messages",
+            "dump": "Display current CAN interface status and state",
+            "send": "Send a test CAN message with ID 0x123 and data DEADBEEF"
+        }
 
     def receiver_thread_fn(self):
         while self.running:

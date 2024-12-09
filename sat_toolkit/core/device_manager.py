@@ -6,6 +6,7 @@ from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.config import DEVICE_PLUGINS_DIR
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,13 @@ class DevicePluginManager:
 
     def send_command_to_device(self, device: Device, command: str):
         print(f"Sending command to device: {device.name}")
-        self.pm.hook.command(device=device, command=command)
+        # Add command validation
+        for plugin in self.pm.get_plugins():
+            if isinstance(plugin, BaseDeviceDriver):
+                if command not in plugin.get_supported_commands().keys():
+                    logger.warning(f"Command '{command}' not supported by device {device.name}")
+                    return
+                self.pm.hook.command(device=device, command=command)
 
     def reset_device(self, device: Device):
         print(f"Resetting device: {device.name}")
@@ -130,3 +137,10 @@ class DevicePluginManager:
     def close_device(self, device: Device):
         print(f"Closing device: {device.name}")
         self.pm.hook.close(device=device)
+
+    def get_device_commands(self, device: Device) -> Dict[str, str]:
+        """Get supported commands and their descriptions for a specific device/driver"""
+        for plugin in self.pm.get_plugins():
+            if isinstance(plugin, BaseDeviceDriver):
+                return plugin.get_supported_commands()
+        return {}
