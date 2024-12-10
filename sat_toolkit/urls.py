@@ -49,4 +49,7 @@ urlpatterns = [
 
     # Add this new URL pattern
     path('list_device_commands/<str:device_name>/', views.list_device_commands, name='list_device_commands'),
+
+    # Add this new URL pattern
+    path('execute_device_command/<str:device_name>/', views.execute_device_command, name='execute_device_command'),
 ]

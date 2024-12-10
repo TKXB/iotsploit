@@ -17,7 +17,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
-from sat_toolkit.core.base_plugin import BasePlugin
+from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
+from sat_toolkit.core.device_manager import DevicePluginManager
 
 import logging
 logger = logging.getLogger(__name__)
@@ -1015,5 +1016,111 @@ def list_device_commands(request, device_name):
         return JsonResponse({
             "status": "error",
             "message": f"Failed to list device commands: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+def execute_device_command(request, device_name):
+    """
+    POST
+    Execute a command on a specific device
+    
+    Parameters:
+        device_name (str): Name of the device driver
+    
+    Request Body:
+        {
+            "command": "command_name",
+            "args": "command_arguments"  # Optional
+        }
+    
+    Returns:
+        JSON response containing the command execution result
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        # Parse request body
+        data = json.loads(request.body)
+        command = data.get('command')
+        args = data.get('args', '')
+        
+        if not command:
+            return JsonResponse({
+                "status": "error",
+                "message": "Command name is required"
+            }, status=400)
+
+        # Get device plugin manager
+        device_manager = DevicePluginManager()
+        
+        # Verify device exists
+        available_plugins = device_manager.list_devices()
+        if device_name not in available_plugins:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Device '{device_name}' not found. Available devices: {available_plugins}"
+            }, status=404)
+
+        # Create temporary plugin instance to scan for devices
+        plugin_instance = device_manager.plugins[device_name]
+        driver = None
+        
+        # Find and instantiate the device driver
+        for attr_name in dir(plugin_instance):
+            attr = getattr(plugin_instance, attr_name)
+            if (isinstance(attr, type) and 
+                issubclass(attr, BaseDeviceDriver) and 
+                attr != BaseDeviceDriver):
+                driver = attr()
+                scan_result = driver.scan()
+                break
+        
+        if not driver:
+            return JsonResponse({
+                "status": "error",
+                "message": f"No driver found for device: {device_name}"
+            }, status=404)
+            
+        if not scan_result:
+            return JsonResponse({
+                "status": "error",
+                "message": f"No devices found for plugin: {device_name}"
+            }, status=404)
+
+        # For now, use the first device found
+        device = scan_result[0]
+        
+        # Initialize and connect to the device
+        if not driver.initialize(device):
+            return JsonResponse({
+                "status": "error",
+                "message": "Failed to initialize device"
+            }, status=500)
+            
+        if not driver.connect(device):
+            return JsonResponse({
+                "status": "error",
+                "message": "Failed to connect to device"
+            }, status=500)
+
+        # Execute the command
+        result = driver.command(device, f"{command} {args}".strip())
+        return JsonResponse({
+            "status": "success",
+            "device": device_name,
+            "command": command,
+            "args": args,
+            "result": result
+        })
+
+    except Exception as e:
+        logger.error(f"Error executing device command: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to execute device command: {str(e)}"
         }, status=500)
 
