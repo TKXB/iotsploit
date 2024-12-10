@@ -144,3 +144,17 @@ class DevicePluginManager:
             if isinstance(plugin, BaseDeviceDriver):
                 return plugin.get_supported_commands()
         return {}
+
+    def get_plugin_commands(self, plugin_name: str) -> Dict[str, str]:
+        """Get supported commands for a specific plugin"""
+        if plugin_name not in self.plugins:
+            return {}
+        
+        plugin_module = self.plugins[plugin_name]
+        for attr_name in dir(plugin_module):
+            attr = getattr(plugin_module, attr_name)
+            if (isinstance(attr, type) and 
+                issubclass(attr, BaseDeviceDriver) and 
+                attr != BaseDeviceDriver):
+                return attr().get_supported_commands()
+        return {}

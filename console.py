@@ -1070,25 +1070,8 @@ class SAT_Shell(cmd2.Cmd):
                 available_plugins
             )
 
-            # Create a driver instance for the selected plugin
-            plugin_module = self.device_plugin_manager.plugins[selected_plugin]
-            driver_instance = None
-            
-            # Find and instantiate the driver class
-            for attr_name in dir(plugin_module):
-                attr = getattr(plugin_module, attr_name)
-                if (isinstance(attr, type) and 
-                    issubclass(attr, BaseDeviceDriver) and 
-                    attr != BaseDeviceDriver):
-                    driver_instance = attr()
-                    break
-            
-            if not driver_instance:
-                logger.error(ansi.style(f"Could not find driver class in {selected_plugin}", fg=ansi.Fg.RED))
-                return
-
-            # Get the commands from the driver instance
-            commands = getattr(driver_instance, 'supported_commands', {})
+            # Get commands for the selected plugin
+            commands = self.device_plugin_manager.get_plugin_commands(selected_plugin)
             
             if not commands:
                 logger.warning(ansi.style(f"No commands available for plugin: {selected_plugin}", fg=ansi.Fg.YELLOW))
