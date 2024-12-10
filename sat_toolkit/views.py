@@ -972,3 +972,48 @@ def active_channels(request):
             "message": f"Failed to retrieve active channels: {str(e)}"
         }, status=500)
 
+def list_device_commands(request, device_name):
+    """
+    GET
+    Returns a list of available commands for a specific device driver
+    
+    Parameters:
+        device_name (str): Name of the device driver (e.g., 'drv_socketcan')
+    
+    Returns:
+        JSON response containing the available commands and their descriptions
+    """
+    try:
+        device_manager = DevicePluginManager()
+        
+        # Verify the device exists
+        available_devices = device_manager.list_devices()
+        if device_name not in available_devices:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Device '{device_name}' not found. Available devices: {available_devices}"
+            }, status=404)
+        
+        # Get commands for the selected device
+        commands = device_manager.get_plugin_commands(device_name)
+        
+        if not commands:
+            return JsonResponse({
+                "status": "success",
+                "message": f"No commands available for device: {device_name}",
+                "commands": {}
+            })
+            
+        return JsonResponse({
+            "status": "success",
+            "device": device_name,
+            "commands": commands
+        })
+        
+    except Exception as e:
+        logger.error(f"Error listing device commands: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to list device commands: {str(e)}"
+        }, status=500)
+

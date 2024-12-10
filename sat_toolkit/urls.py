@@ -46,4 +46,7 @@ urlpatterns = [
 
     # Add this new URL pattern
     path('active_channels/', views.active_channels, name='active_channels'),
+
+    # Add this new URL pattern
+    path('list_device_commands/<str:device_name>/', views.list_device_commands, name='list_device_commands'),
 ]
