@@ -94,7 +94,7 @@ class SAT_Shell(cmd2.Cmd):
         # Group all commands under Shell Commands
         self._cmd_to_category.update({
             'alias': 'Shell Commands',
-            'connect_lab_wifi': 'Shell Commands',
+            'connect_wifi': 'Shell Commands',
             'device_info': 'Shell Commands',
             'edit': 'Shell Commands',
             'execute_plugin': 'Shell Commands',
@@ -114,7 +114,6 @@ class SAT_Shell(cmd2.Cmd):
             'lst': 'Shell Commands',
             'lsusb': 'Shell Commands',
             'macro': 'Shell Commands',
-            'ota_info': 'Shell Commands',
             'quick_test': 'Shell Commands',
             'quit': 'Shell Commands',
             'run_pyscript': 'Shell Commands',
@@ -181,8 +180,8 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('Device Commands')
     def do_device_info(self, arg):
-        'Show Zeekr SAT Device Info'
-        logger.info(ansi.style("Zeekr SAT Device Info:", fg=ansi.Fg.CYAN))
+        'Show IoTSploit Host Info'
+        logger.info(ansi.style("Host Device Info:", fg=ansi.Fg.CYAN))
         
         pi_monitor = SystemMonitor.create_monitor("raspberry_pi")
         device_info = SystemMonitor.monitor_device(pi_monitor)
@@ -194,13 +193,6 @@ class SAT_Shell(cmd2.Cmd):
                     logger.info(ansi.style(f"    {sub_key}: {sub_value}", fg=ansi.Fg.CYAN))
             else:
                 logger.info(ansi.style(f"  {key}: {value}", fg=ansi.Fg.CYAN))
-
-    @cmd2.with_category('OTA Commands')
-    def do_ota_info(self, arg):
-        'Show Zeekr SAT Version Info'
-        logger.info(ansi.style("Zeekr SAT Version Info:", fg=ansi.Fg.CYAN))
-        for key, value in OTA_Mgr.Instance().curr_version().items():
-            logger.info(ansi.style(f"  {key}:\t{value}", fg=ansi.Fg.CYAN))
 
     @cmd2.with_category('Vehicle Commands')
     def do_vehicle_select(self, arg):
@@ -258,7 +250,7 @@ class SAT_Shell(cmd2.Cmd):
 
     @cmd2.with_category('System Commands')
     def do_exit(self, arg):
-        'Exit Zeekr SAT Shell'
+        'Exit Console'
         if self.django_server_process:
             self.do_stop_server(arg)
         Toolkit_Main.Instance().exit_quick_test()
@@ -267,11 +259,24 @@ class SAT_Shell(cmd2.Cmd):
         return True
 
     @cmd2.with_category('Network Commands')
-    def do_connect_lab_wifi(self, arg):
-        'Connect Zeekr Lab WiFi'
-        logger.info(ansi.style("Connect Zeekr Lab WiFi", fg=ansi.Fg.CYAN))
-        WiFi_Mgr.Instance().sta_connect_wifi("FHCPE-h6Db-5G", "UybN9Tea")
+    def do_connect_wifi(self, arg):
+        'Connect to WiFi network by providing SSID and password'
+        logger.info(ansi.style("WiFi Connection Setup", fg=ansi.Fg.CYAN))
+        
+        # Get SSID from user
+        ssid = Input_Mgr.Instance().string_input("Enter WiFi SSID")
+        
+        # Get password from user
+        password = Input_Mgr.Instance().string_input("Enter WiFi password")
+        
+        # Attempt to connect
+        logger.info(ansi.style(f"Attempting to connect to {ssid}...", fg=ansi.Fg.CYAN))
+        WiFi_Mgr.Instance().sta_connect_wifi(ssid, password)
+        
+        # Wait for connection to establish
         time.sleep(2)
+        
+        # Show connection status
         WiFi_Mgr.Instance().status()
 
     @cmd2.with_category('Django Commands')
