@@ -9,6 +9,8 @@ import can
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
+import asyncio
+from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("device_mgr")
@@ -25,6 +27,7 @@ class SocketCANDriver(BaseDeviceDriver):
         self.receiver_thread = None
         self.running = False
         self.current_interface = None
+        self.stream_manager = StreamManager()
         # Define commands with descriptions
         self.supported_commands = {
             "start": "Start monitoring/receiving CAN messages",
@@ -38,7 +41,26 @@ class SocketCANDriver(BaseDeviceDriver):
             try:
                 message = self.bus.recv(timeout=1.0)
                 if message:
-                    logger.info(f"Received CAN message - ID: {hex(message.arbitration_id)}, "
+                    # Create StreamData object
+                    stream_data = StreamData(
+                        stream_type=StreamType.CAN,
+                        channel=f"can_{self.current_interface}",
+                        timestamp=time.time(),
+                        data={
+                            'id': hex(message.arbitration_id),
+                            'data': message.data.hex(),
+                            'dlc': message.dlc
+                        },
+                        metadata={
+                            'interface': self.current_interface,
+                            'is_extended_id': message.is_extended_id
+                        }
+                    )
+                    
+                    # Use asyncio to run the coroutine in the thread
+                    asyncio.run(self.stream_manager.broadcast_data(stream_data))
+                    
+                    logger.info(f"Received and broadcast CAN message - ID: {hex(message.arbitration_id)}, "
                               f"Data: {message.data.hex()}, DLC: {message.dlc}")
             except Exception as e:
                 logger.error(f"Error receiving CAN message: {str(e)}")
@@ -114,7 +136,7 @@ class SocketCANDriver(BaseDeviceDriver):
         try:
             self.bus = can.interface.Bus(channel=self.current_interface, 
                                        bustype='socketcan')
-            self.running = True
+            self.running = False
             self.receiver_thread = threading.Thread(
                 target=self.receiver_thread_fn,
                 name='SOCKETCAN_RECEIVER'
@@ -130,6 +152,7 @@ class SocketCANDriver(BaseDeviceDriver):
 
     @hookimpl
     def command(self, device: SocketCANDevice, command: str):
+        logger.debug(f"Received command: '{command}'")
         if not self.bus:
             logger.error("Cannot execute command: SocketCAN device not connected")
             return
@@ -137,9 +160,15 @@ class SocketCANDriver(BaseDeviceDriver):
         try:
             command = command.lower()
             if command == "start":
+                logger.info("Starting CAN message monitoring 1 ")
                 # Start monitoring/receiving CAN messages
                 if not self.running:
+                    logger.info("Starting CAN message monitoring 2 ")
                     self.running = True
+                    # Register the stream before starting
+                    channel = f"can_{self.current_interface}"
+                    asyncio.run(self.stream_manager.register_stream(channel))
+                    
                     self.receiver_thread = threading.Thread(
                         target=self.receiver_thread_fn,
                         name='SOCKETCAN_RECEIVER'
@@ -152,6 +181,11 @@ class SocketCANDriver(BaseDeviceDriver):
                 # Stop monitoring/receiving CAN messages
                 self.running = False
                 if self.receiver_thread and self.receiver_thread.is_alive():
+                    # Unregister the stream before stopping
+                    channel = f"can_{self.current_interface}"
+                    asyncio.run(self.stream_manager.unregister_stream(channel))
+                    asyncio.run(self.stream_manager.stop_broadcast(channel))
+                    
                     self.receiver_thread.join(timeout=1.0)
                 logger.info("Stopped CAN message monitoring")
             
