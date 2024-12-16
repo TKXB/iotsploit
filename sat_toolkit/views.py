@@ -30,7 +30,7 @@ from sat_toolkit.core.device_manager import DevicePluginManager
 from sat_toolkit.models.Target_Model import TargetManager
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
-
+from sat_toolkit.models.Device_Model import DeviceManager
 from asgiref.sync import async_to_sync
 
 import asyncio
@@ -522,7 +522,7 @@ def list_plugins(request):
     plugins = plugin_manager.list_plugins()
     return JsonResponse({'plugins': plugins})
 
-def list_devices(request):
+def list_device_plugins(request):
     """
     GET
     Returns a list of available device plugins
@@ -586,6 +586,27 @@ def exploit(request):
             "results": formatted_results
         })
 
+def get_all_devices(request):
+    """
+    GET
+    Returns a list of all registered devices
+    """
+    try:
+        device_manager = DeviceManager.get_instance()
+        devices = device_manager.get_all_devices()
+        
+        return JsonResponse({
+            "status": "success",
+            "devices": devices
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving devices: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to retrieve devices: {str(e)}"
+        }, status=500)
+    
 def list_targets(request):
     """
     GET
