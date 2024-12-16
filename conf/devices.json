@@ -1,28 +1,64 @@
 {
-    "devices": [
-      {
-        "device_id": "usb_001",
-        "name": "USB Debug Dongle",
-        "device_type": "USB",
-        "vendor_id": "0x1234",
-        "product_id": "0x5678",
-        "attributes": {
-          "max_speed": "480 Mbps",
-          "connector_type": "USB-A"
-        }
-      },
-      {
-        "device_id": "serial_001",
-        "name": "RS-232 Serial Port",
-        "device_type": "Serial",
-        "port": "/dev/ttyS0",
-        "baud_rate": 115200,
-        "attributes": {
-          "data_bits": 8,
-          "stop_bits": 1,
-          "parity": "None",
-          "flow_control": "None"
-        }
+  "devices": [
+    {
+      "device_id": "usb_001",
+      "name": "USB Debug Dongle",
+      "device_type": "USB",
+      "vendor_id": "0x1234",
+      "product_id": "0x5678",
+      "attributes": {
+        "max_speed": "480 Mbps",
+        "connector_type": "USB-A"
       }
-    ]
-  }
+    },
+    {
+      "device_id": "serial_001",
+      "name": "RS-232 Serial Port",
+      "device_type": "Serial",
+      "port": "/dev/ttyS0",
+      "baud_rate": 115200,
+      "attributes": {
+        "data_bits": 8,
+        "stop_bits": 1,
+        "parity": "None",
+        "flow_control": "None"
+      }
+    },
+    {
+      "device_id": "can_001",
+      "name": "SocketCAN_can0",
+      "device_type": "CAN",
+      "interface": "can0",
+      "attributes": {
+        "description": "SocketCAN Interface",
+        "type": "CAN",
+        "bitrate": 500000,
+        "mtu": 16,
+        "txqueuelen": 10,
+        "rx_packets": 12385,
+        "rx_bytes": 70859,
+        "tx_packets": 12,
+        "tx_bytes": 48,
+        "interrupt": 185
+      }
+    },
+    {
+      "device_id": "can_002",
+      "name": "SocketCAN_can1",
+      "device_type": "CAN",
+      "interface": "can1",
+      "attributes": {
+        "description": "SocketCAN Interface",
+        "type": "CAN",
+        "bitrate": 500000,
+        "mtu": 16,
+        "txqueuelen": 10,
+        "rx_packets": 12385,
+        "rx_bytes": 70859,
+        "tx_packets": 12373,
+        "tx_bytes": 70811,
+        "interrupt": 186
+      }
+    }
+  ]
+}
