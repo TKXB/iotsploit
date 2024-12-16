@@ -25,6 +25,7 @@ class DevicePluginManager:
             self.pm = pluggy.PluginManager("device_mgr")
             self.pm.add_hookspecs(DevicePluginSpec)
             self.plugins = {}
+            self.drivers = {}  # Store driver instances
             self.load_plugins()
             self._initialized = True
             logger.debug("DeviceManager initialized")
@@ -49,12 +50,16 @@ class DevicePluginManager:
             if (isinstance(attr, type) and 
                 issubclass(attr, BaseDeviceDriver) and 
                 attr != BaseDeviceDriver):
-                plugin_instance = attr()
-                self.pm.register(plugin_instance)
+                driver_instance = attr()
+                self.pm.register(driver_instance)
                 self.plugins[module_name] = module
+                self.drivers[module_name] = driver_instance  # Store the instance
                 logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
                 break
-
+    
+    def get_driver_instance(self, plugin_name):
+        return self.drivers.get(plugin_name)
+    
     def register_plugin(self, plugin):
         self.pm.register(plugin)
 

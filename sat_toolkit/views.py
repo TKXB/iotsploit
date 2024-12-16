@@ -1065,50 +1065,29 @@ def execute_device_command(request, device_name):
                 "message": f"Device '{device_name}' not found. Available devices: {available_plugins}"
             }, status=404)
 
-        # Create temporary plugin instance to scan for devices
-        plugin_instance = device_manager.plugins[device_name]
-        driver = None
-        
-        # Find and instantiate the device driver
-        for attr_name in dir(plugin_instance):
-            attr = getattr(plugin_instance, attr_name)
-            if (isinstance(attr, type) and 
-                issubclass(attr, BaseDeviceDriver) and 
-                attr != BaseDeviceDriver):
-                driver = attr()
-                scan_result = driver.scan()
-                break
-        
+        # Get driver instance
+        driver = device_manager.get_driver_instance(device_name)
+
         if not driver:
             return JsonResponse({
                 "status": "error",
                 "message": f"No driver found for device: {device_name}"
             }, status=404)
-            
-        if not scan_result:
-            return JsonResponse({
-                "status": "error",
-                "message": f"No devices found for plugin: {device_name}"
-            }, status=404)
-
-        # For now, use the first device found
-        device = scan_result[0]
         
-        # Initialize and connect to the device
-        if not driver.initialize(device):
-            return JsonResponse({
-                "status": "error",
-                "message": "Failed to initialize device"
-            }, status=500)
-            
-        if not driver.connect(device):
-            return JsonResponse({
-                "status": "error",
-                "message": "Failed to connect to device"
-            }, status=500)
+        if not driver.connected:
+            # Need to scan and select the device
+            scan_result = driver.scan()
+            if not scan_result:
+                return JsonResponse({
+                    "status": "error",
+                    "message": f"No devices found for plugin: {device_name}"
+                }, status=404)
+            device = scan_result[0]
+            driver.initialize(device)
+            driver.connect(device)
 
         # Execute the command
-        result = driver.command(device, f"{command} {args}".strip())
+        result = driver.command(driver.device, f"{command} {args}".strip())
         return JsonResponse({
             "status": "success",
             "device": device_name,

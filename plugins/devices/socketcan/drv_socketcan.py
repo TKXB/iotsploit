@@ -25,9 +25,11 @@ class SocketCANDriver(BaseDeviceDriver):
         super().__init__()
         self.bus = None
         self.receiver_thread = None
-        self.running = False
+        self.running = threading.Event()
         self.current_interface = None
         self.stream_manager = StreamManager()
+        self.device = None  # Store the connected device
+        self.connected = False  # Connection status flag
         # Define commands with descriptions
         self.supported_commands = {
             "start": "Start monitoring/receiving CAN messages",
@@ -36,10 +38,39 @@ class SocketCANDriver(BaseDeviceDriver):
             "send": "Send a test CAN message with ID 0x123 and data DEADBEEF"
         }
 
-    def receiver_thread_fn(self):
-        while self.running:
+    def start_receiver(self):
+        """Helper method to start the receiver thread if it's not already running"""
+        if not self.running.is_set() and not (self.receiver_thread and self.receiver_thread.is_alive()):
+            self.running.set()
+            self.receiver_thread = threading.Thread(
+                target=self.receiver_thread_fn,
+                name='SOCKETCAN_RECEIVER'
+            )
+            self.receiver_thread.daemon = True
+            self.receiver_thread.start()
+            logger.info("Started CAN message monitoring")
+
+    def stop_receiver(self):
+        """Helper method to stop the receiver thread"""
+        self.running.clear()
+        if self.bus:
             try:
-                message = self.bus.recv(timeout=1.0)
+                self.bus.shutdown()
+            except Exception as e:
+                logger.error(f"Error shutting down CAN bus: {e}")
+        
+        if self.receiver_thread and self.receiver_thread.is_alive():
+            self.receiver_thread.join(timeout=1.0)
+            self.receiver_thread = None
+        logger.info("Stopped CAN message monitoring")
+
+    def receiver_thread_fn(self):
+        while self.running.is_set():
+            try:
+                logger.debug(f"Receiver thread running state: {self.running.is_set()}")
+                message = self.bus.recv(timeout=0.1)
+                if not self.running.is_set():
+                    break
                 if message:
                     # Create StreamData object
                     stream_data = StreamData(
@@ -121,6 +152,8 @@ class SocketCANDriver(BaseDeviceDriver):
             subprocess.run(['sudo', 'ip', 'link', 'set', device.interface, 'up'])
             
             self.current_interface = device.interface
+            self.device = device
+            self.connected = True
             logger.info("SocketCAN device initialized successfully")
             return True
         except Exception as e:
@@ -136,14 +169,7 @@ class SocketCANDriver(BaseDeviceDriver):
         try:
             self.bus = can.interface.Bus(channel=self.current_interface, 
                                        bustype='socketcan')
-            self.running = False
-            self.receiver_thread = threading.Thread(
-                target=self.receiver_thread_fn,
-                name='SOCKETCAN_RECEIVER'
-            )
-            self.receiver_thread.daemon = True
-            self.receiver_thread.start()
-            
+            self.connected = True
             logger.info(f"SocketCAN device connected successfully on {device.interface}")
             return True
         except Exception as e:
@@ -153,46 +179,34 @@ class SocketCANDriver(BaseDeviceDriver):
     @hookimpl
     def command(self, device: SocketCANDevice, command: str):
         logger.debug(f"Received command: '{command}'")
-        if not self.bus:
+        if not self.bus and command.lower() != "start":
             logger.error("Cannot execute command: SocketCAN device not connected")
             return
 
         try:
             command = command.lower()
             if command == "start":
-                logger.info("Starting CAN message monitoring 1 ")
-                # Start monitoring/receiving CAN messages
-                if not self.running:
-                    logger.info("Starting CAN message monitoring 2 ")
-                    self.running = True
-                    # Register the stream before starting
-                    channel = f"can_{self.current_interface}"
-                    asyncio.run(self.stream_manager.register_stream(channel))
-                    
-                    self.receiver_thread = threading.Thread(
-                        target=self.receiver_thread_fn,
-                        name='SOCKETCAN_RECEIVER'
-                    )
-                    self.receiver_thread.daemon = True
-                    self.receiver_thread.start()
-                    logger.info("Started CAN message monitoring")
+                # Ensure clean state before starting
+                self.stop_receiver()
+                # Create new bus connection
+                self.bus = can.interface.Bus(channel=self.current_interface, 
+                                           bustype='socketcan')
+                logger.info("Starting CAN message monitoring")
+                channel = f"can_{self.current_interface}"
+                asyncio.run(self.stream_manager.register_stream(channel))
+                self.start_receiver()
             
             elif command == "stop":
-                # Stop monitoring/receiving CAN messages
-                self.running = False
-                if self.receiver_thread and self.receiver_thread.is_alive():
-                    # Unregister the stream before stopping
-                    channel = f"can_{self.current_interface}"
-                    asyncio.run(self.stream_manager.unregister_stream(channel))
-                    asyncio.run(self.stream_manager.stop_broadcast(channel))
-                    
-                    self.receiver_thread.join(timeout=1.0)
-                logger.info("Stopped CAN message monitoring")
+                channel = f"can_{self.current_interface}"
+                asyncio.run(self.stream_manager.unregister_stream(channel))
+                asyncio.run(self.stream_manager.stop_broadcast(channel))
+                self.stop_receiver()
+                self.bus = None  # Clear the bus reference
             
             elif command == "dump":
                 # This command would typically return the current state or message buffer
                 # For now, just log the current state
-                logger.info(f"CAN Interface Status - Running: {self.running}, "
+                logger.info(f"CAN Interface Status - Running: {self.running.is_set()}, "
                           f"Interface: {self.current_interface}")
             
             elif command == "send":
@@ -224,11 +238,9 @@ class SocketCANDriver(BaseDeviceDriver):
     @hookimpl
     def close(self, device: SocketCANDevice):
         try:
-            self.running = False
+            self.stop_receiver()  # Use the helper method
             if self.bus:
                 self.bus.shutdown()
-            if self.receiver_thread and self.receiver_thread.is_alive():
-                self.receiver_thread.join(timeout=1.0)
             
             if self.current_interface:
                 import subprocess
@@ -260,6 +272,9 @@ class SocketCANDriver(BaseDeviceDriver):
                        f"Data: {message.data.hex()}")
         except Exception as e:
             logger.error(f"Failed to send CAN message: {e}")
+
+    def is_connected(self):
+        return self.connected
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
