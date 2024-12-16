@@ -1099,30 +1099,41 @@ def execute_device_command(request, device_name):
         
         if not driver.connected:
             # Need to scan and select the device
+            logger.info(f"Scanning for devices with plugin: {device_name}")
             scan_result = driver.scan()
             if not scan_result:
+                logger.warning(f"No devices found during scan for plugin: {device_name}")
                 return JsonResponse({
-                    "status": "error",
+                    "status": "error", 
                     "message": f"No devices found for plugin: {device_name}"
                 }, status=404)
             
-            # If hardware_id is provided, find the matching device
+            logger.info(f"Found {len(scan_result)} devices: {[dev.device_id for dev in scan_result]}")
+            
             selected_device = None
             if hardware_id:
+                logger.info(f"Attempting to find device with hardware_id: {hardware_id}")
                 selected_device = next(
                     (dev for dev in scan_result if dev.device_id == hardware_id),
                     None
                 )
                 if not selected_device:
+                    logger.error(f"Hardware device with ID {hardware_id} not found in scan results")
                     return JsonResponse({
                         "status": "error",
                         "message": f"Hardware device with ID {hardware_id} not found"
                     }, status=404)
+                logger.info(f"Found matching device: {selected_device.device_id}")
             else:
-                selected_device = scan_result[0]  # Default to first device if no ID provided
+                selected_device = scan_result[0]
+                logger.info(f"No hardware_id specified, defaulting to first device: {selected_device.device_id}")
             
+            logger.info(f"Initializing driver for device: {selected_device.device_id}")
             driver.initialize(selected_device)
+            
+            logger.info(f"Connecting to device: {selected_device.device_id}")
             driver.connect(selected_device)
+            logger.info(f"Successfully connected to device: {selected_device.device_id}")
 
         # Execute the command
         result = driver.command(driver.device, f"{command} {args}".strip())

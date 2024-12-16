@@ -117,8 +117,16 @@ class SocketCANDriver(BaseDeviceDriver):
                             # Determine if this is a virtual interface
                             is_virtual = interface_type == 'vcan'
                             
+                            # Generate device_id to match devices.json format
+                            if is_virtual:
+                                device_id = "vcan_001"  # For virtual CAN
+                            else:
+                                # Extract number from can0, can1, etc and format as can_001, can_002
+                                interface_num = int(interface.replace('can', '')) + 1
+                                device_id = f"can_{str(interface_num).zfill(3)}"
+                            
                             device = SocketCANDevice(
-                                device_id=str(uuid.uuid4()),
+                                device_id=device_id,
                                 name=f"SocketCAN_{interface}",
                                 interface=interface,
                                 attributes={
