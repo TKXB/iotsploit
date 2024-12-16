@@ -11,13 +11,23 @@ from typing import Dict
 logger = logging.getLogger(__name__)
 
 class DevicePluginManager:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DevicePluginManager, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
-        logger.debug("Initializing DeviceManager")
-        self.pm = pluggy.PluginManager("device_mgr")
-        self.pm.add_hookspecs(DevicePluginSpec)
-        self.plugins = {}
-        self.load_plugins()
-        logger.debug("DeviceManager initialized")
+        if not self._initialized:
+            logger.debug("Initializing DeviceManager")
+            self.pm = pluggy.PluginManager("device_mgr")
+            self.pm.add_hookspecs(DevicePluginSpec)
+            self.plugins = {}
+            self.load_plugins()
+            self._initialized = True
+            logger.debug("DeviceManager initialized")
 
     def load_plugins(self):
         plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
