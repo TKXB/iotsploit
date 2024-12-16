@@ -1,7 +1,7 @@
 import pluggy
 import warnings
 from sat_toolkit.models.Device_Model import Device
-
+from typing import List
 hookspec = pluggy.HookspecMarker("device_mgr")
 
 """
@@ -10,8 +10,12 @@ Scan -> Init -> Connect -> Commands -> Close
 
 class DevicePluginSpec:
     @hookspec
-    def scan(self, device: Device):
-        """Scan the device"""
+    def scan(self) -> List[Device]:
+        """Scan for available devices.
+            
+        Returns:
+            list[Device]: A list of discovered devices matching the configuration.
+        """
 
     @hookspec
     def initialize(self, device: Device):
