@@ -28,7 +28,7 @@ urlpatterns = [
 
     # Plugin and device management
     path('list_plugins/', views.list_plugins, name='list_plugins'),
-    path('list_devices/', views.list_device_plugins, name='list_devices'),
+    path('list_device_plugins/', views.list_device_plugins, name='list_device_plugins'),
     path('get_all_devices/', views.get_all_devices, name='get_all_devices'),  # New URL pattern
     path('list_targets/', views.list_targets, name='list_targets'),
     path('select_target', views.select_target, name='select_target'),
