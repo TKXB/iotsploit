@@ -33,6 +33,7 @@ from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 from sat_toolkit.core.device_manager import DevicePluginManager
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.tools.firmware_mgr import FirmwareManager
 
 logger = logging.getLogger(__name__)
 
@@ -1094,6 +1095,130 @@ class SAT_Shell(cmd2.Cmd):
 
     # Add an alias for list_device_commands
     do_lscmd = do_list_device_commands
+
+    @cmd2.with_category('Firmware Commands')
+    def do_list_firmware(self, arg):
+        'List all available firmware'
+        try:
+            firmware_list = FirmwareManager.Instance().list_firmware()
+            
+            if not firmware_list:
+                logger.info(ansi.style("No firmware available.", fg=ansi.Fg.YELLOW))
+                return
+
+            logger.info(ansi.style("\nAvailable Firmware:", fg=ansi.Fg.CYAN))
+            for fw in firmware_list:
+                logger.info(ansi.style(f"\nName: {fw['name']}", fg=ansi.Fg.GREEN))
+                logger.info(f"Device Type: {fw['device_type']}")
+                logger.info(f"Version: {fw['version']}")
+                logger.info(f"Path: {fw['path']}")
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error listing firmware: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Firmware Commands')
+    def do_add_firmware(self, arg):
+        'Add new firmware to the system'
+        try:
+            # Get firmware details from user
+            name = Input_Mgr.Instance().string_input("Enter firmware name")
+            path = Input_Mgr.Instance().string_input("Enter firmware file path")
+            device_type = Input_Mgr.Instance().string_input("Enter device type")
+            version = Input_Mgr.Instance().string_input("Enter firmware version")
+
+            success = FirmwareManager.Instance().add_firmware(
+                name=name,
+                path=path,
+                device_type=device_type,
+                version=version
+            )
+
+            if success:
+                logger.info(ansi.style(f"Successfully added firmware: {name}", fg=ansi.Fg.GREEN))
+            else:
+                logger.error(ansi.style("Failed to add firmware", fg=ansi.Fg.RED))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error adding firmware: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Firmware Commands')
+    def do_flash_firmware(self, arg):
+        'Flash firmware to a device'
+        try:
+            # Get available firmware
+            firmware_list = FirmwareManager.Instance().list_firmware()
+            if not firmware_list:
+                logger.error(ansi.style("No firmware available to flash", fg=ansi.Fg.RED))
+                return
+
+            # Let user select firmware
+            firmware_choices = [fw['name'] for fw in firmware_list]
+            selected_firmware = Input_Mgr.Instance().single_choice(
+                "Select firmware to flash",
+                firmware_choices
+            )
+
+            # Optionally specify port
+            use_port = Input_Mgr.Instance().yes_no_input("Specify a port?", False)
+            port = None
+            if use_port:
+                port = Input_Mgr.Instance().string_input("Enter port")
+
+            # Confirm flashing
+            if Input_Mgr.Instance().yes_no_input(
+                f"Are you sure you want to flash {selected_firmware}?",
+                False
+            ):
+                success = FirmwareManager.Instance().flash_firmware(
+                    name=selected_firmware,
+                    port=port
+                )
+
+                if success:
+                    logger.info(ansi.style(f"Successfully flashed firmware: {selected_firmware}", fg=ansi.Fg.GREEN))
+                else:
+                    logger.error(ansi.style("Failed to flash firmware", fg=ansi.Fg.RED))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error flashing firmware: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Firmware Commands')
+    def do_remove_firmware(self, arg):
+        'Remove firmware from the system'
+        try:
+            # Get available firmware
+            firmware_list = FirmwareManager.Instance().list_firmware()
+            if not firmware_list:
+                logger.error(ansi.style("No firmware available to remove", fg=ansi.Fg.RED))
+                return
+
+            # Let user select firmware
+            firmware_choices = [fw['name'] for fw in firmware_list]
+            selected_firmware = Input_Mgr.Instance().single_choice(
+                "Select firmware to remove",
+                firmware_choices
+            )
+
+            # Confirm removal
+            if Input_Mgr.Instance().yes_no_input(
+                f"Are you sure you want to remove {selected_firmware}?",
+                False
+            ):
+                success = FirmwareManager.Instance().remove_firmware(selected_firmware)
+
+                if success:
+                    logger.info(ansi.style(f"Successfully removed firmware: {selected_firmware}", fg=ansi.Fg.GREEN))
+                else:
+                    logger.error(ansi.style("Failed to remove firmware", fg=ansi.Fg.RED))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error removing firmware: {str(e)}", fg=ansi.Fg.RED))
+
+    # Add aliases
+    do_lsfw = do_list_firmware
+    do_addfw = do_add_firmware
+    do_flashfw = do_flash_firmware
+    do_rmfw = do_remove_firmware
 
 if __name__ == '__main__':
     shell = SAT_Shell()
