@@ -59,6 +59,24 @@
         "tx_bytes": 70811,
         "interrupt": 186
       }
+    },
+    {
+      "device_id": "vcan_001",
+      "name": "SocketCAN_vcan0",
+      "device_type": "CAN",
+      "interface": "vcan0",
+      "attributes": {
+        "description": "Virtual SocketCAN Interface",
+        "type": "CAN",
+        "bitrate": 500000,
+        "mtu": 16,
+        "txqueuelen": 10,
+        "rx_packets": 0,
+        "rx_bytes": 0,
+        "tx_packets": 0,
+        "tx_bytes": 0,
+        "interrupt": 0
+      }
     }
   ]
 }

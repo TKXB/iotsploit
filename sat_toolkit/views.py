@@ -1051,7 +1051,8 @@ def execute_device_command(request, device_name):
     Request Body:
         {
             "command": "command_name",
-            "args": "command_arguments"  # Optional
+            "args": "command_arguments",  # Optional
+            "hardware_id": "device_id"    # Optional, for hardware device selection
         }
     
     Returns:
@@ -1068,6 +1069,7 @@ def execute_device_command(request, device_name):
         data = json.loads(request.body)
         command = data.get('command')
         args = data.get('args', '')
+        hardware_id = data.get('hardware_id', '')  # New parameter
         
         if not command:
             return JsonResponse({
@@ -1103,15 +1105,31 @@ def execute_device_command(request, device_name):
                     "status": "error",
                     "message": f"No devices found for plugin: {device_name}"
                 }, status=404)
-            device = scan_result[0]
-            driver.initialize(device)
-            driver.connect(device)
+            
+            # If hardware_id is provided, find the matching device
+            selected_device = None
+            if hardware_id:
+                selected_device = next(
+                    (dev for dev in scan_result if dev.device_id == hardware_id),
+                    None
+                )
+                if not selected_device:
+                    return JsonResponse({
+                        "status": "error",
+                        "message": f"Hardware device with ID {hardware_id} not found"
+                    }, status=404)
+            else:
+                selected_device = scan_result[0]  # Default to first device if no ID provided
+            
+            driver.initialize(selected_device)
+            driver.connect(selected_device)
 
         # Execute the command
         result = driver.command(driver.device, f"{command} {args}".strip())
         return JsonResponse({
             "status": "success",
             "device": device_name,
+            "hardware_device": hardware_id or driver.device.device_id,
             "command": command,
             "args": args,
             "result": result

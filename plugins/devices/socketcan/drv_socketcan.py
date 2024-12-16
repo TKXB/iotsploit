@@ -96,35 +96,42 @@ class SocketCANDriver(BaseDeviceDriver):
     def scan(self):
         try:
             logger.info("Starting scan for SocketCAN interfaces...")
-            # Check for available CAN interfaces
             import subprocess
-            logger.debug("Running 'ip link show type can' command")
-            result = subprocess.run(['ip', 'link', 'show', 'type', 'can'], 
-                                 capture_output=True, text=True)
-            
             devices = []
-            logger.debug(f"Command output: {result.stdout}")
             
-            for line in result.stdout.splitlines():
-                if 'can' in line and ':' in line:
-                    parts = line.split(':')
-                    if len(parts) > 1:
-                        interface = parts[1].strip()
-                        logger.info(f"Found CAN interface: {interface}")
-                        device = SocketCANDevice(
-                            device_id=str(uuid.uuid4()),
-                            name=f"SocketCAN_{interface}",
-                            interface=interface,
-                            attributes={
-                                'description': 'SocketCAN Interface',
-                                'type': 'CAN',
-                                'bitrate': 500000  # Default bitrate
-                            }
-                        )
-                        logger.debug(f"Created device object: {device.name} (ID: {device.device_id})")
-                        devices.append(device)
-                    else:
-                        logger.warning(f"Unexpected line format: {line}")
+            # Check for both CAN and VCAN interfaces
+            for interface_type in ['can', 'vcan']:
+                logger.debug(f"Running 'ip link show type {interface_type}' command")
+                result = subprocess.run(['ip', 'link', 'show', 'type', f'{interface_type}'], 
+                                     capture_output=True, text=True)
+                
+                logger.debug(f"Command output for {interface_type}: {result.stdout}")
+                
+                for line in result.stdout.splitlines():
+                    if ('can' in line or 'vcan' in line) and ':' in line:
+                        parts = line.split(':')
+                        if len(parts) > 1:
+                            interface = parts[1].strip()
+                            logger.info(f"Found {interface_type.upper()} interface: {interface}")
+                            
+                            # Determine if this is a virtual interface
+                            is_virtual = interface_type == 'vcan'
+                            
+                            device = SocketCANDevice(
+                                device_id=str(uuid.uuid4()),
+                                name=f"SocketCAN_{interface}",
+                                interface=interface,
+                                attributes={
+                                    'description': 'Virtual SocketCAN Interface' if is_virtual else 'SocketCAN Interface',
+                                    'type': 'CAN',
+                                    'bitrate': 500000,  # Default bitrate
+                                    'is_virtual': is_virtual
+                                }
+                            )
+                            logger.debug(f"Created device object: {device.name} (ID: {device.device_id})")
+                            devices.append(device)
+                        else:
+                            logger.warning(f"Unexpected line format: {line}")
             
             logger.info(f"Scan complete. Found {len(devices)} SocketCAN interfaces")
             return devices
@@ -140,16 +147,22 @@ class SocketCANDriver(BaseDeviceDriver):
         
         logger.info(f"Initializing SocketCAN device on interface {device.interface}")
         try:
-            # Configure the CAN interface
             import subprocess
-            subprocess.run(['sudo', 'ip', 'link', 'set', device.interface, 'type', 'can', 
-                          'bitrate', str(device.attributes.get('bitrate', 500000))])
+            # Check if it's a virtual interface
+            is_virtual = device.attributes.get('is_virtual', False)
+            
+            if not is_virtual:  # Only configure bitrate for real CAN interfaces
+                # Configure the CAN interface
+                subprocess.run(['sudo', 'ip', 'link', 'set', device.interface, 'type', 'can', 
+                              'bitrate', str(device.attributes.get('bitrate', 500000))])
+            
+            # Bring up the interface
             subprocess.run(['sudo', 'ip', 'link', 'set', device.interface, 'up'])
             
             self.current_interface = device.interface
             self.device = device
             self.connected = True
-            logger.info("SocketCAN device initialized successfully")
+            logger.info(f"{'Virtual ' if is_virtual else ''}SocketCAN device initialized successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize SocketCAN device: {e}")
