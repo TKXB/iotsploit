@@ -7,18 +7,13 @@ import pluggy
 import uuid
 import can
 from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device, DeviceType
+from sat_toolkit.models.Device_Model import Device, DeviceType, SocketCANDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 import asyncio
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType
 
 logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("device_mgr")
-
-class SocketCANDevice(Device):
-    def __init__(self, device_id: str, name: str, interface: str, attributes: dict):
-        super().__init__(device_id, name, DeviceType.Ethernet, attributes)
-        self.interface = interface
 
 class SocketCANDriver(BaseDeviceDriver):
     def __init__(self):

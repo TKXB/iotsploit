@@ -19,7 +19,7 @@ from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.device_manager import DevicePluginManager  
-from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice
+from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice, SocketCANDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.toolkit_main import Toolkit_Main
@@ -83,6 +83,7 @@ class SAT_Shell(cmd2.Cmd):
         self.device_manager = DeviceManager.get_instance()
         self.device_manager.register_device(DeviceType.Serial, SerialDevice)
         self.device_manager.register_device(DeviceType.USB, USBDevice)
+        self.device_manager.register_device(DeviceType.CAN, SocketCANDevice)
         self.device_manager.parse_and_set_device_from_json('conf/devices.json')
 
         # Initialize device plugin manager (if still needed)

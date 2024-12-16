@@ -15,6 +15,7 @@ class DeviceType(Enum):
     Wireless = "Wireless"
     Ethernet = "Ethernet"
     Serial = "Serial"
+    CAN = "CAN"
 
 class Device:
     def __init__(self, device_id: str, name: str, device_type: DeviceType, attributes: Dict[str, Any]):
@@ -101,6 +102,26 @@ class USBDeviceDBModel(DeviceDBModel):
         self.attributes['vendor_id'] = device.vendor_id
         self.attributes['product_id'] = device.product_id
 
+class SocketCANDevice(Device):
+    def __init__(self, device_id: str, name: str, interface: str, attributes: Dict[str, Any]):
+        super().__init__(device_id, name, DeviceType.CAN, attributes)
+        self.interface = interface
+
+    def __repr__(self):
+        return f"SocketCANDevice(id={self.device_id}, name={self.name}, interface={self.interface}, attributes={self.attributes})"
+
+    def get_interface(self) -> str:
+        return self.interface
+    
+class CANDeviceDBModel(DeviceDBModel):
+    __mapper_args__ = {
+        'polymorphic_identity': DeviceType.CAN,
+    }
+
+    def __init__(self, device: SocketCANDevice):
+        super().__init__(device)
+        self.attributes['interface'] = device.interface
+
 class DeviceManager:
     _instance = None
 
@@ -143,6 +164,8 @@ class DeviceManager:
                     device_model = SerialDeviceDBModel(device)
                 elif isinstance(device, USBDevice):
                     device_model = USBDeviceDBModel(device)
+                elif isinstance(device, SocketCANDevice):
+                    device_model = CANDeviceDBModel(device)
                 else:
                     device_model = DeviceDBModel(device)
                 session.add(device_model)
@@ -199,6 +222,8 @@ class DeviceManager:
             elif device_type == DeviceType.USB:
                 device_data['vendor_id'] = device.get('vendor_id')
                 device_data['product_id'] = device.get('product_id')
+            elif device_type == DeviceType.CAN:
+                device_data['interface'] = device.get('interface', 'can0')
 
             device_instance = self.create_device(device_type, **device_data)
             self.current_device = device_instance
