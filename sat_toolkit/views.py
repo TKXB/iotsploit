@@ -522,24 +522,24 @@ def list_plugins(request):
     plugins = plugin_manager.list_plugins()
     return JsonResponse({'plugins': plugins})
 
-def list_device_plugins(request):
+def list_device_drivers(request):
     """
     GET
-    Returns a list of available device plugins
+    Returns a list of available device drivers
     """
     device_manager = DeviceDriverManager()
-    available_devices = device_manager.list_devices()
+    available_drivers = device_manager.list_devices()
     
-    if available_devices:
+    if available_drivers:
         result = {
             "status": "success",
-            "devices": available_devices
+            "drivers": available_drivers
         }
     else:
         result = {
             "status": "success",
-            "devices": [],
-            "message": "No device plugins available."
+            "drivers": [],
+            "message": "No device drivers available."
         }
     
     return JsonResponse(result)
