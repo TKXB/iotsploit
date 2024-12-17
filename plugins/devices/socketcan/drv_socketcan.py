@@ -208,12 +208,12 @@ class SocketCANDriver(BaseDeviceDriver):
                 self.bus = can.interface.Bus(channel=self.current_interface, 
                                            bustype='socketcan')
                 logger.info("Starting CAN message monitoring")
-                channel = f"can_{self.current_interface}"
+                channel = device.device_id  # Using device_id instead of constructing from interface
                 asyncio.run(self.stream_manager.register_stream(channel))
                 self.start_receiver()
             
             elif command == "stop":
-                channel = f"can_{self.current_interface}"
+                channel = device.device_id  # Using device_id here as well
                 asyncio.run(self.stream_manager.unregister_stream(channel))
                 asyncio.run(self.stream_manager.stop_broadcast(channel))
                 self.stop_receiver()
