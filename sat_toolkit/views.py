@@ -18,7 +18,7 @@ from django.http import JsonResponse
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
-from sat_toolkit.core.device_manager import DevicePluginManager
+from sat_toolkit.core.device_manager import DeviceDriverManager
 
 import logging
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 import json
 import datetime
 
-from sat_toolkit.core.device_manager import DevicePluginManager  
+from sat_toolkit.core.device_manager import DeviceDriverManager  
 from sat_toolkit.models.Target_Model import TargetManager
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
@@ -527,7 +527,7 @@ def list_device_plugins(request):
     GET
     Returns a list of available device plugins
     """
-    device_manager = DevicePluginManager()
+    device_manager = DeviceDriverManager()
     available_devices = device_manager.list_devices()
     
     if available_devices:
@@ -632,9 +632,9 @@ def list_targets(request):
 def scan_all_devices(request):
     """
     GET
-    Scans for all devices using the DevicePluginManager
+    Scans for all devices using the DeviceDriverManager
     """
-    device_manager = DevicePluginManager()
+    device_manager = DeviceDriverManager()
     scan_results = device_manager.scan_all_devices()
     
     return JsonResponse(scan_results)
@@ -1006,7 +1006,7 @@ def list_device_commands(request, device_name):
         JSON response containing the available commands and their descriptions
     """
     try:
-        device_manager = DevicePluginManager()
+        device_manager = DeviceDriverManager()
         
         # Verify the device exists
         available_devices = device_manager.list_devices()
@@ -1078,7 +1078,7 @@ def execute_device_command(request, device_name):
             }, status=400)
 
         # Get device plugin manager
-        device_manager = DevicePluginManager()
+        device_manager = DeviceDriverManager()
         
         # Verify device exists
         available_plugins = device_manager.list_devices()

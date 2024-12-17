@@ -18,7 +18,7 @@ import subprocess
 from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
-from sat_toolkit.core.device_manager import DevicePluginManager  
+from sat_toolkit.core.device_manager import DeviceDriverManager  
 from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice, SocketCANDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
@@ -30,7 +30,7 @@ from sat_toolkit.tools.input_mgr import Input_Mgr
 from sat_toolkit.models.Plugin_Model import Plugin
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
-from sat_toolkit.core.device_manager import DevicePluginManager
+from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.tools.firmware_mgr import FirmwareManager
@@ -87,7 +87,7 @@ class SAT_Shell(cmd2.Cmd):
         self.device_manager.parse_and_set_device_from_json('conf/devices.json')
 
         # Initialize device plugin manager (if still needed)
-        self.device_plugin_manager = DevicePluginManager()
+        self.device_plugin_manager = DeviceDriverManager()
 
         # Customize help display
         self.help_category_header = ansi.style("\n{:-^80}\n", fg=ansi.Fg.BLUE)

@@ -10,12 +10,12 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-class DevicePluginManager:
+class DeviceDriverManager:
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(DevicePluginManager, cls).__new__(cls)
+            cls._instance = super(DeviceDriverManager, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
