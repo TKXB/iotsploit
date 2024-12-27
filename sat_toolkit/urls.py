@@ -56,4 +56,6 @@ urlpatterns = [
 
     # Add this new URL pattern
     path('create_group/', views.create_group, name='create_group'),
+
+    path('delete_group/', views.delete_group, name='delete_group'),
 ]

@@ -1272,3 +1272,52 @@ def create_group(request):
             "message": f"Failed to create plugin group: {str(e)}"
         }, status=500)
 
+@csrf_exempt
+def delete_group(request):
+    """
+    POST
+    Delete a plugin group
+    
+    Expected JSON body:
+    {
+        "group_name": "name_of_group_to_delete"
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        group_name = data.get('group_name')
+        
+        if not group_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Group name is required"
+            }, status=400)
+            
+        try:
+            group = PluginGroup.objects.get(name=group_name)
+            group.delete()
+            
+            return JsonResponse({
+                "status": "success",
+                "message": f"Successfully deleted group: {group_name}"
+            })
+            
+        except PluginGroup.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Group not found: {group_name}"
+            }, status=404)
+            
+    except Exception as e:
+        logger.error(f"Error deleting group: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to delete group: {str(e)}"
+        }, status=500)
+
