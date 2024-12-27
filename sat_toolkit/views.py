@@ -529,7 +529,7 @@ def list_device_drivers(request):
     Returns a list of available device drivers
     """
     device_manager = DeviceDriverManager()
-    available_drivers = device_manager.list_devices()
+    available_drivers = device_manager.list_drivers()
     
     if available_drivers:
         result = {
@@ -1010,7 +1010,7 @@ def list_device_commands(request, device_name):
         device_manager = DeviceDriverManager()
         
         # Verify the device exists
-        available_devices = device_manager.list_devices()
+        available_devices = device_manager.list_drivers()
         if device_name not in available_devices:
             return JsonResponse({
                 "status": "error",
@@ -1082,7 +1082,7 @@ def execute_device_command(request, device_name):
         device_manager = DeviceDriverManager()
         
         # Verify device exists
-        available_plugins = device_manager.list_devices()
+        available_plugins = device_manager.list_drivers()
         if device_name not in available_plugins:
             return JsonResponse({
                 "status": "error",

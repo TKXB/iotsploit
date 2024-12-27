@@ -63,7 +63,7 @@ class DeviceDriverManager:
     def register_plugin(self, plugin):
         self.pm.register(plugin)
 
-    def list_devices(self):
+    def list_drivers(self):
         return list(self.plugins.keys())
 
     def scan_device(self, device: Device):

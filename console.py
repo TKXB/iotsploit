@@ -465,7 +465,7 @@ class SAT_Shell(cmd2.Cmd):
     @cmd2.with_category('Device Commands')
     def do_list_device_drivers(self, arg):
         'List all available device plugins'
-        available_devices = self.device_plugin_manager.list_devices()
+        available_devices = self.device_plugin_manager.list_drivers()
         if available_devices:
             logger.info(ansi.style("Available device plugins:", fg=ansi.Fg.CYAN))
             for device in available_devices:
@@ -1006,7 +1006,7 @@ class SAT_Shell(cmd2.Cmd):
         'Send a command to a device. Usage: device_command [command_string]'
         try:
             # Get available device plugins
-            available_plugins = self.device_plugin_manager.list_devices()
+            available_plugins = self.device_plugin_manager.list_drivers()
             if not available_plugins:
                 logger.error(ansi.style("No device drivers available", fg=ansi.Fg.RED))
                 return
@@ -1073,7 +1073,7 @@ class SAT_Shell(cmd2.Cmd):
         'List available commands for a device driver'
         try:
             # Get available device plugins
-            available_plugins = self.device_plugin_manager.list_devices()
+            available_plugins = self.device_plugin_manager.list_drivers()
             if not available_plugins:
                 logger.error(ansi.style("No device plugins available", fg=ansi.Fg.RED))
                 return
