@@ -19,6 +19,7 @@ from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
 from sat_toolkit.core.device_manager import DeviceDriverManager
+from sat_toolkit.models.Plugin_Model import Plugin
 
 import logging
 logger = logging.getLogger(__name__)
@@ -1151,5 +1152,123 @@ def execute_device_command(request, device_name):
         return JsonResponse({
             "status": "error",
             "message": f"Failed to execute device command: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+def create_group(request):
+    """
+    POST
+    Create a new plugin group with selected plugins
+    
+    Expected JSON body:
+    {
+        "group_name": "name_of_group",
+        "group_description": "optional description",
+        "selected_plugins": ["plugin1", "plugin2", ...],
+        "nest_group": true/false,
+        "parent_group_name": "optional_parent_name",  # Required if nest_group is true
+        "force_exec": true/false  # Required if nest_group is true
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        group_name = data.get('group_name')
+        group_description = data.get('group_description', '')
+        selected_plugins = data.get('selected_plugins', [])
+        nest_group = data.get('nest_group', False)
+        
+        if not group_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Group name is required"
+            }, status=400)
+            
+        # Create or update the plugin group
+        group, created = PluginGroup.objects.get_or_create(
+            name=group_name,
+            defaults={
+                'description': group_description,
+                'enabled': True
+            }
+        )
+        
+        if not created:
+            # Update existing group
+            group.description = group_description
+            group.save()
+            # Clear existing plugins to avoid duplicates
+            group.plugins.clear()
+        
+        # Add selected plugins to the group
+        for plugin_name in selected_plugins:
+            plugin, _ = Plugin.objects.get_or_create(
+                name=plugin_name,
+                defaults={
+                    'description': f'Plugin {plugin_name}',
+                    'enabled': True,
+                    'module_path': f'plugins.exploits.{plugin_name}'
+                }
+            )
+            group.plugins.add(plugin)
+        
+        # Handle nesting under another group if requested
+        if nest_group:
+            parent_group_name = data.get('parent_group_name')
+            force_exec = data.get('force_exec', True)
+            
+            if not parent_group_name:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Parent group name is required when nesting"
+                }, status=400)
+            
+            try:
+                parent_group = PluginGroup.objects.get(name=parent_group_name)
+                PluginGroupTree.objects.get_or_create(
+                    parent=parent_group,
+                    child=group,
+                    defaults={'force_exec': force_exec}
+                )
+            except PluginGroup.DoesNotExist:
+                return JsonResponse({
+                    "status": "warning",
+                    "message": f"Parent group {parent_group_name} not found",
+                    "group": {
+                        "name": group.name,
+                        "description": group.description,
+                        "plugins": list(group.plugins.values_list('name', flat=True))
+                    }
+                })
+        
+        # Show group details in response
+        response_data = {
+            "status": "success",
+            "message": f"Successfully {'created' if created else 'updated'} group '{group_name}'",
+            "group": {
+                "name": group.name,
+                "description": group.description,
+                "enabled": group.enabled,
+                "plugins": list(group.plugins.values_list('name', flat=True)),
+                "plugins_count": group.plugins_count()
+            }
+        }
+        
+        if nest_group:
+            response_data["group"]["parent_group"] = parent_group_name
+            response_data["group"]["force_exec"] = force_exec
+            
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error creating plugin group: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to create plugin group: {str(e)}"
         }, status=500)
 

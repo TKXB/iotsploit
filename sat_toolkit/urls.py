@@ -40,7 +40,7 @@ urlpatterns = [
 
     # Add this to the urlpatterns list
     path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
-    path('list_groups', views.list_groups, name='list_groups'),
+    path('list_groups/', views.list_groups, name='list_groups'),
 
     path('execute_plugin_async/', views.execute_plugin_async, name='execute_plugin_async'),
     path('stop_plugin_async/', views.stop_plugin_async, name='stop_plugin_async'),
@@ -53,4 +53,7 @@ urlpatterns = [
 
     # Add this new URL pattern
     path('execute_device_command/<str:device_name>/', views.execute_device_command, name='execute_device_command'),
+
+    # Add this new URL pattern
+    path('create_group/', views.create_group, name='create_group'),
 ]
