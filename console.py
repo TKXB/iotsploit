@@ -1221,6 +1221,46 @@ class SAT_Shell(cmd2.Cmd):
     do_flashfw = do_flash_firmware
     do_rmfw = do_remove_firmware
 
+    @cmd2.with_category('Plugin Commands')
+    def do_delete_group(self, arg):
+        'Delete a plugin group. Usage: delete_group'
+        try:
+            # Get all groups
+            groups = PluginGroup.objects.all()
+            if not groups.exists():
+                logger.warning(ansi.style("No plugin groups available to delete.", fg=ansi.Fg.YELLOW))
+                return
+
+            # Create list of group choices
+            group_choices = [group.name for group in groups]
+            
+            # Let user select a group
+            selected = Input_Mgr.Instance().single_choice(
+                "Select group to delete",
+                group_choices
+            )
+            
+            # Confirm deletion
+            if Input_Mgr.Instance().yes_no_input(
+                f"Are you sure you want to delete group '{selected}'?",
+                False
+            ):
+                try:
+                    group = PluginGroup.objects.get(name=selected)
+                    group.delete()
+                    logger.info(ansi.style(f"Successfully deleted group: {selected}", fg=ansi.Fg.GREEN))
+                except PluginGroup.DoesNotExist:
+                    logger.error(ansi.style(f"Group not found: {selected}", fg=ansi.Fg.RED))
+            else:
+                logger.info("Deletion cancelled.")
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error deleting group: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for delete_group
+    do_dg = do_delete_group
+
 if __name__ == '__main__':
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()
