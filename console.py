@@ -1002,17 +1002,13 @@ class SAT_Shell(cmd2.Cmd):
     do_et = do_edit_target
 
     @cmd2.with_category('Device Commands')
-    def do_device_command(self, arg):
-        'Send a command to a device. Usage: device_command <command_string>'
+    def do_execute_device_command(self, arg):
+        'Send a command to a device. Usage: device_command [command_string]'
         try:
-            if not arg:
-                logger.error(ansi.style("Usage: device_command <command_string>", fg=ansi.Fg.RED))
-                return
-
             # Get available device plugins
             available_plugins = self.device_plugin_manager.list_devices()
             if not available_plugins:
-                logger.error(ansi.style("No device plugins available", fg=ansi.Fg.RED))
+                logger.error(ansi.style("No device drivers available", fg=ansi.Fg.RED))
                 return
 
             # Let user select a plugin
@@ -1033,7 +1029,7 @@ class SAT_Shell(cmd2.Cmd):
                     break
 
             if not scan_result:
-                logger.error(ansi.style(f"No devices found for plugin: {selected_plugin}", fg=ansi.Fg.RED))
+                logger.error(ansi.style(f"No devices found for driver: {selected_plugin}", fg=ansi.Fg.RED))
                 return
 
             # Let user select a device
@@ -1049,8 +1045,19 @@ class SAT_Shell(cmd2.Cmd):
 
             # Initialize and connect to the device
             if driver.initialize(device) and driver.connect(device):
-                # Send the command to the device
-                driver.command(device, arg)
+                if not arg:
+                    # If no command provided, list available commands
+                    commands = self.device_plugin_manager.get_plugin_commands(selected_plugin)
+                    if commands:
+                        logger.info(ansi.style(f"\nAvailable commands for {selected_plugin}:", fg=ansi.Fg.CYAN))
+                        for cmd, description in commands.items():
+                            logger.info(ansi.style(f"  {cmd:<10}", fg=ansi.Fg.GREEN) + 
+                                      ansi.style(f"- {description}", fg=ansi.Fg.WHITE))
+                    else:
+                        logger.warning(ansi.style(f"No commands available for driver: {selected_plugin}", fg=ansi.Fg.YELLOW))
+                else:
+                    # Send the command to the device
+                    driver.command(device, arg)
             else:
                 logger.error(ansi.style("Failed to initialize or connect to device", fg=ansi.Fg.RED))
 
@@ -1059,7 +1066,7 @@ class SAT_Shell(cmd2.Cmd):
             logger.debug("Detailed error:", exc_info=True)
 
     # Add an alias for send_command
-    do_cmd = do_device_command
+    do_ecmd = do_execute_device_command
 
     @cmd2.with_category('Device Commands')
     def do_list_device_commands(self, arg):
