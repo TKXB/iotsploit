@@ -1,13 +1,33 @@
 from django.urls import path, re_path
 from . import views
-from sat_toolkit.consumers import SystemUsageConsumer
+from .view_handlers.device_views import (
+    device_info,
+    get_all_devices,
+    scan_all_devices,
+    scan_specific_device,
+    list_devices
+)
+from .view_handlers.vehicle_views import (
+    ota_info,
+    vehicle_info,
+    select_vehicle_profile
+)
 
 urlpatterns = [
-    # Device and vehicle information
-    path('device_info/', views.device_info, name='device_info'),
-    path('ota_info/', views.ota_info, name='ota_info'),
-    path('vehicle_info/', views.vehicle_info, name='vehicle_info'),
-    path('select_vehicle_profile/', views.select_vehicle_profile, name='select_vehicle_profile'),
+    # Device-related endpoints (from device_views.py)
+    path('device_info/', device_info, name='device_info'),
+    path('get_all_devices/', get_all_devices, name='get_all_devices'),
+
+    # DEPRECATED: Use scan_devices/ endpoint instead
+    path('scan_all_devices/', scan_all_devices, name='scan_all_devices'),
+
+    path('scan_device/<str:device_name>/', scan_specific_device, name='scan_specific_device'),
+    path('list_devices/', list_devices, name='list_devices'),
+
+    # OTA and vehicle information (from vehicle_views.py)
+    path('ota_info/', ota_info, name='ota_info'),
+    path('vehicle_info/', vehicle_info, name='vehicle_info'),
+    path('select_vehicle_profile/', select_vehicle_profile, name='select_vehicle_profile'),
 
     # Test page requests
     path('request_enter_test_page/', views.request_enter_test_page, name='request_enter_test_page'),
@@ -29,35 +49,23 @@ urlpatterns = [
     # Plugin and device management
     path('list_plugins/', views.list_plugins, name='list_plugins'),
     path('list_device_drivers/', views.list_device_drivers, name='list_device_drivers'),
-    path('get_all_devices/', views.get_all_devices, name='get_all_devices'),  # New URL pattern
     path('list_targets/', views.list_targets, name='list_targets'),
     path('select_target', views.select_target, name='select_target'),
-    path('scan_all_devices/', views.scan_all_devices, name='scan_all_devices'),
 
     # Exploit
     path('exploit/', views.exploit, name='exploit'),
-    path('execute_plugin/', views.execute_plugin, name='execute_plugin'),  # Added trailing slash
+    path('execute_plugin/', views.execute_plugin, name='execute_plugin'),
 
-    # Add this to the urlpatterns list
+    # Plugin info and groups
     path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
     path('list_groups/', views.list_groups, name='list_groups'),
-
     path('execute_plugin_async/', views.execute_plugin_async, name='execute_plugin_async'),
     path('stop_plugin_async/', views.stop_plugin_async, name='stop_plugin_async'),
 
-    # Add this new URL pattern
+    # Additional endpoints
     path('active_channels/', views.active_channels, name='active_channels'),
-
-    # Add this new URL pattern
     path('list_device_commands/<str:device_name>/', views.list_device_commands, name='list_device_commands'),
-
-    # Add this new URL pattern
     path('execute_device_command/<str:device_name>/', views.execute_device_command, name='execute_device_command'),
-
-    # Add this new URL pattern
     path('create_group/', views.create_group, name='create_group'),
-
     path('delete_group/', views.delete_group, name='delete_group'),
-
-    path('scan_device/<str:device_name>/', views.scan_specific_device, name='scan_specific_device'),
 ]

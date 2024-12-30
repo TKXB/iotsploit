@@ -42,112 +42,6 @@ from .tasks import execute_plugin_task
 from sat_toolkit.core.stream_manager import StreamManager
 
 
-def device_info(request:HttpRequest):
-    """
-    GET		
-    {
-        "设备名称": "SAT_0102",
-        "电池电量": "80%",
-        "user_input": "xxxxxx"
-    }
-    """    
-    Env_Mgr.Instance().set("SAT_RUN_IN_SHELL", False)
-    
-    battery_charge = "充电中"
-    if Pi_Mgr.Instance().pi_info()["battery"]["Charging"] != True:
-        battery_charge = "放电中"
-
-    info_dict = {
-        "设备名称":  Pi_Mgr.Instance().pi_info()["hostname"],
-        "后台WIFI": Pi_Mgr.Instance().pi_info()["admin_wifi"]["SSID"],
-        "WIFI密码": Pi_Mgr.Instance().pi_info()["admin_wifi"]["PASSWD"],
-        "后台IP":   Pi_Mgr.Instance().pi_info()["admin_wifi"]["ADMIN_IP"],
-        "电池电量": Pi_Mgr.Instance().pi_info()["battery"]["Percent"] + " " + battery_charge,
-        "核心温度": Pi_Mgr.Instance().pi_info()["cpu_temp"]
-    }
-
-    # wifi_staus = WiFi_Mgr.Instance().status()
-    # if wifi_staus["WIFI_MODE"] == "IDLE":
-    #     info_dict["WIFI状态"] = "待机模式"
-
-    # if wifi_staus["WIFI_MODE"] == "STA":
-    #     info_dict["WIFI状态"] = "STA模式"
-    #     info_dict["连接WIFI"] = wifi_staus["sta_status"]
-
-    # if wifi_staus["WIFI_MODE"] == "AP":
-    #     info_dict["WIFI状态"] = "热点模式"
-    #     info_dict["热点名称"] = wifi_staus["ap_ssid"]
-    #     info_dict["热点密码"] = wifi_staus["ap_passwd"]
-    #     info_dict["设备连接数"] = len(wifi_staus["client_list"])
-
-    return HttpResponse(json.dumps(info_dict))    
-
-def ota_info(request):
-    """
-    GET		
-    {
-        "toolkit version": "v0.0.1",
-        "database version": "20231112",
-        "user_input": "xxxxxx"
-    }
-    """    
-    curr_version = OTA_Mgr.Instance().curr_version()
-    
-    return HttpResponse(json.dumps(curr_version))
-
-def vehicle_info(request):
-    """
-    GET
-    {
-    "描述": "测试车辆1",
-    "user_input":  "xxxxxx"
-    }
-    """
-    curr_vehicle = Toolkit_Main.Instance().curr_vehicle_profile()
-    if curr_vehicle != None:
-        vehicle_dict = {
-            "描述": curr_vehicle.Description,
-            "车型": curr_vehicle.vehicle_model.Name
-        }
-    else:
-        vehicle_dict = {
-            "user_input": "list_vehicle_profiles_to_select"
-        }
-        
-    return HttpResponse(json.dumps(vehicle_dict))
-
-@csrf_exempt
-def select_vehicle_profile(request:HttpRequest):
-    user_select = json.loads(request.body).get("user_select", "")
-    select_vehicle = None    
-    for vehicle_profile in Toolkit_Main.Instance().list_vehicle_profiles_to_select():
-        if user_select == str(vehicle_profile):
-            select_vehicle = vehicle_profile
-            break
-
-    if select_vehicle != None:
-        logger.info("User Select Vehicle Profile:{}".format(user_select))
-        Toolkit_Main.Instance().select_vehicle_profile(vehicle_profile)
-        result = \
-        {
-            "status":"User Select Vehicle Profile:{}".format(user_select),
-            "action": "GET vehicle_info",
-            "result": True,
-        }
-        return HttpResponse(json.dumps(result))
-        # return redirect('http://example.com/foo/')
-        # return HttpResponse("User Select Vehicle Profile:{}".format(user_select))
-
-    else:
-        logger.error("User Select Vehicle Profile Not Found!:{}".format(user_select))
-        result = \
-        {
-            "status":"User Select Vehicle Profile Not Found!:{}".format(user_select),
-            "result": False,
-        }
-        return HttpResponse(json.dumps(result))
-        # return HttpResponse("User Select Vehicle Profile Not Found!:{}".format(user_select))
-
 def request_enter_test_page(request):
     """
     GET		
@@ -227,7 +121,7 @@ def request_test_status(request):
             ]
         else:
             detail_list = []
-            children_nodes = Toolkit_Main.Instance().curr_test_project().list_child_nodes( parent_list = [])
+            children_nodes = Toolkit_Main.Instance().curr_test_project().list_child_nodes( parent_list =[])
             for child_node in children_nodes:
                 detail_list.append(
                     {
@@ -587,27 +481,6 @@ def exploit(request):
             "results": formatted_results
         })
 
-def get_all_devices(request):
-    """
-    GET
-    Returns a list of all registered devices
-    """
-    try:
-        device_manager = DeviceManager.get_instance()
-        devices = device_manager.get_all_devices()
-        
-        return JsonResponse({
-            "status": "success",
-            "devices": devices
-        })
-        
-    except Exception as e:
-        logger.error(f"Error retrieving devices: {str(e)}")
-        return JsonResponse({
-            "status": "error",
-            "message": f"Failed to retrieve devices: {str(e)}"
-        }, status=500)
-    
 def list_targets(request):
     """
     GET
@@ -629,16 +502,6 @@ def list_targets(request):
         }
     
     return JsonResponse(result)
-
-def scan_all_devices(request):
-    """
-    GET
-    Scans for all devices using the DeviceDriverManager
-    """
-    device_manager = DeviceDriverManager()
-    scan_results = device_manager.scan_all_devices()
-    
-    return JsonResponse(scan_results)
 
 @csrf_exempt
 def execute_plugin(request):
@@ -1319,68 +1182,5 @@ def delete_group(request):
         return JsonResponse({
             "status": "error",
             "message": f"Failed to delete group: {str(e)}"
-        }, status=500)
-
-@csrf_exempt
-def scan_specific_device(request, device_name):
-    """
-    GET
-    Scans for devices using a specific device driver
-    
-    Parameters:
-        device_name (str): Name of the device driver to use for scanning
-        
-    Returns:
-        JSON response containing the scan results for the specified driver
-    """
-    try:
-        device_manager = DeviceDriverManager()
-        
-        # Verify the device exists
-        available_devices = device_manager.list_drivers()
-        if device_name not in available_devices:
-            return JsonResponse({
-                "status": "error",
-                "message": f"Device '{device_name}' not found. Available devices: {available_devices}"
-            }, status=404)
-        
-        # Get driver instance
-        driver = device_manager.get_driver_instance(device_name)
-        if not driver:
-            return JsonResponse({
-                "status": "error",
-                "message": f"No driver found for device: {device_name}"
-            }, status=404)
-            
-        # Perform scan
-        scan_result = driver.scan()
-        
-        # Format the response
-        if scan_result:
-            devices = []
-            if isinstance(scan_result, list):
-                devices = [device_manager.device_to_dict(device) for device in scan_result]
-            else:
-                devices = [device_manager.device_to_dict(scan_result)]
-                
-            return JsonResponse({
-                "status": "success",
-                "driver": device_name,
-                "devices_found": True,
-                "devices": devices
-            })
-        else:
-            return JsonResponse({
-                "status": "success",
-                "driver": device_name,
-                "devices_found": False,
-                "message": "No devices found"
-            })
-            
-    except Exception as e:
-        logger.error(f"Error scanning with device driver: {str(e)}")
-        return JsonResponse({
-            "status": "error",
-            "message": f"Failed to scan with device driver: {str(e)}"
         }, status=500)
 

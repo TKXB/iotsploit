@@ -47,6 +47,7 @@ celery = "^5.3.6"
 redis = "^5.0.1"
 channels_redis = "^4.1.0"
 esptool = "4.8.1"
+dataclasses-json = "0.6.7"
 # ... (other dependencies)
 
 [tool.poetry.dev-dependencies]
