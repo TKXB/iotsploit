@@ -67,10 +67,10 @@ class SocketCANDriver(BaseDeviceDriver):
                 if not self.running.is_set():
                     break
                 if message:
-                    # Create StreamData object
+                    # Create StreamData object using device_id as channel
                     stream_data = StreamData(
                         stream_type=StreamType.CAN,
-                        channel=f"can_{self.current_interface}",
+                        channel=self.device.device_id,  # Use device_id instead of constructed channel name
                         timestamp=time.time(),
                         data={
                             'id': hex(message.arbitration_id),
@@ -98,48 +98,51 @@ class SocketCANDriver(BaseDeviceDriver):
             logger.info("Starting scan for SocketCAN interfaces...")
             import subprocess
             devices = []
+            seen_interfaces = set()  # Track interfaces we've already processed
             
-            # Check for both CAN and VCAN interfaces
-            for interface_type in ['can', 'vcan']:
-                logger.debug(f"Running 'ip link show type {interface_type}' command")
-                result = subprocess.run(['ip', 'link', 'show', 'type', f'{interface_type}'], 
-                                     capture_output=True, text=True)
-                
-                logger.debug(f"Command output for {interface_type}: {result.stdout}")
-                
-                for line in result.stdout.splitlines():
-                    if ('can' in line or 'vcan' in line) and ':' in line:
-                        parts = line.split(':')
-                        if len(parts) > 1:
-                            interface = parts[1].strip()
-                            logger.info(f"Found {interface_type.upper()} interface: {interface}")
-                            
-                            # Determine if this is a virtual interface
-                            is_virtual = interface_type == 'vcan'
-                            
-                            # Generate device_id to match devices.json format
-                            if is_virtual:
-                                device_id = "vcan_001"  # For virtual CAN
-                            else:
-                                # Extract number from can0, can1, etc and format as can_001, can_002
-                                interface_num = int(interface.replace('can', '')) + 1
-                                device_id = f"can_{str(interface_num).zfill(3)}"
-                            
-                            device = SocketCANDevice(
-                                device_id=device_id,
-                                name=f"SocketCAN_{interface}",
-                                interface=interface,
-                                attributes={
-                                    'description': 'Virtual SocketCAN Interface' if is_virtual else 'SocketCAN Interface',
-                                    'type': 'CAN',
-                                    'bitrate': 500000,  # Default bitrate
-                                    'is_virtual': is_virtual
-                                }
-                            )
-                            logger.debug(f"Created device object: {device.name} (ID: {device.device_id})")
-                            devices.append(device)
-                        else:
-                            logger.warning(f"Unexpected line format: {line}")
+            # Check for both CAN and VCAN interfaces in a single command
+            result = subprocess.run(['ip', 'link', 'show'], 
+                                 capture_output=True, text=True)
+            
+            logger.debug(f"Command output: {result.stdout}")
+            
+            for line in result.stdout.splitlines():
+                # Check if line contains CAN interface info
+                if (':' in line) and ('can' in line or 'vcan' in line):
+                    parts = line.split(':')
+                    if len(parts) > 1:
+                        interface = parts[1].strip()
+                        
+                        # Skip if we've already processed this interface
+                        if interface in seen_interfaces:
+                            continue
+                        seen_interfaces.add(interface)
+                        
+                        logger.info(f"Found CAN interface: {interface}")
+                        
+                        # Extract number from interface name and use appropriate prefix
+                        interface_num = int(''.join(filter(str.isdigit, interface))) + 1
+                        prefix = 'vcan_' if interface.startswith('vcan') else 'can_'
+                        device_id = f"{prefix}{str(interface_num).zfill(3)}"
+                        
+                        # Determine if it's a virtual interface
+                        is_virtual = interface.startswith('vcan')
+                        
+                        device = SocketCANDevice(
+                            device_id=device_id,
+                            name=f"SocketCAN_{interface}",
+                            interface=interface,
+                            attributes={
+                                'description': 'Virtual SocketCAN Interface' if is_virtual else 'SocketCAN Interface',
+                                'type': 'CAN',
+                                'bitrate': 500000,  # Default bitrate
+                                'is_virtual': is_virtual
+                            }
+                        )
+                        logger.debug(f"Created device object: {device.name} (ID: {device.device_id})")
+                        devices.append(device)
+                    else:
+                        logger.warning(f"Unexpected line format: {line}")
             
             logger.info(f"Scan complete. Found {len(devices)} SocketCAN interfaces")
             return devices
@@ -170,6 +173,7 @@ class SocketCANDriver(BaseDeviceDriver):
             self.current_interface = device.interface
             self.device = device
             self.connected = True
+            # Remove any automatic stream registration here
             logger.info(f"{'Virtual ' if is_virtual else ''}SocketCAN device initialized successfully")
             return True
         except Exception as e:
@@ -186,6 +190,7 @@ class SocketCANDriver(BaseDeviceDriver):
             self.bus = can.interface.Bus(channel=self.current_interface, 
                                        bustype='socketcan')
             self.connected = True
+            # Remove any automatic stream registration here
             logger.info(f"SocketCAN device connected successfully on {device.interface}")
             return True
         except Exception as e:
@@ -208,12 +213,13 @@ class SocketCANDriver(BaseDeviceDriver):
                 self.bus = can.interface.Bus(channel=self.current_interface, 
                                            bustype='socketcan')
                 logger.info("Starting CAN message monitoring")
-                channel = device.device_id  # Using device_id instead of constructing from interface
+                # Use only device_id for the channel
+                channel = device.device_id
                 asyncio.run(self.stream_manager.register_stream(channel))
                 self.start_receiver()
             
             elif command == "stop":
-                channel = device.device_id  # Using device_id here as well
+                channel = device.device_id
                 asyncio.run(self.stream_manager.unregister_stream(channel))
                 asyncio.run(self.stream_manager.stop_broadcast(channel))
                 self.stop_receiver()

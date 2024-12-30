@@ -908,19 +908,6 @@ def execute_device_command(request, device_name):
     """
     POST
     Execute a command on a specific device
-    
-    Parameters:
-        device_name (str): Name of the device driver
-    
-    Request Body:
-        {
-            "command": "command_name",
-            "args": "command_arguments",  # Optional
-            "hardware_id": "device_id"    # Optional, for hardware device selection
-        }
-    
-    Returns:
-        JSON response containing the command execution result
     """
     if request.method != 'POST':
         return JsonResponse({
@@ -929,11 +916,13 @@ def execute_device_command(request, device_name):
         }, status=405)
         
     try:
-        # Parse request body
+        # Parse and log request body
         data = json.loads(request.body)
+        logger.debug(f"Execute device command POST data of /api/execute_device_command: {data}")
+        
         command = data.get('command')
         args = data.get('args', '')
-        hardware_id = data.get('hardware_id', '')  # New parameter
+        hardware_id = data.get('hardware_id', '')
         
         if not command:
             return JsonResponse({

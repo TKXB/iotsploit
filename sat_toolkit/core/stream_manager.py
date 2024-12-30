@@ -9,6 +9,8 @@ from channels.layers import get_channel_layer
 import redis
 from django.conf import settings
 
+#todo: clean redis keys when stream is stopped
+
 logger = logging.getLogger(__name__)
 
 class StreamType(Enum):
