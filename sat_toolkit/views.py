@@ -1321,3 +1321,66 @@ def delete_group(request):
             "message": f"Failed to delete group: {str(e)}"
         }, status=500)
 
+@csrf_exempt
+def scan_specific_device(request, device_name):
+    """
+    GET
+    Scans for devices using a specific device driver
+    
+    Parameters:
+        device_name (str): Name of the device driver to use for scanning
+        
+    Returns:
+        JSON response containing the scan results for the specified driver
+    """
+    try:
+        device_manager = DeviceDriverManager()
+        
+        # Verify the device exists
+        available_devices = device_manager.list_drivers()
+        if device_name not in available_devices:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Device '{device_name}' not found. Available devices: {available_devices}"
+            }, status=404)
+        
+        # Get driver instance
+        driver = device_manager.get_driver_instance(device_name)
+        if not driver:
+            return JsonResponse({
+                "status": "error",
+                "message": f"No driver found for device: {device_name}"
+            }, status=404)
+            
+        # Perform scan
+        scan_result = driver.scan()
+        
+        # Format the response
+        if scan_result:
+            devices = []
+            if isinstance(scan_result, list):
+                devices = [device_manager.device_to_dict(device) for device in scan_result]
+            else:
+                devices = [device_manager.device_to_dict(scan_result)]
+                
+            return JsonResponse({
+                "status": "success",
+                "driver": device_name,
+                "devices_found": True,
+                "devices": devices
+            })
+        else:
+            return JsonResponse({
+                "status": "success",
+                "driver": device_name,
+                "devices_found": False,
+                "message": "No devices found"
+            })
+            
+    except Exception as e:
+        logger.error(f"Error scanning with device driver: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to scan with device driver: {str(e)}"
+        }, status=500)
+

@@ -58,4 +58,6 @@ urlpatterns = [
     path('create_group/', views.create_group, name='create_group'),
 
     path('delete_group/', views.delete_group, name='delete_group'),
+
+    path('scan_device/<str:device_name>/', views.scan_specific_device, name='scan_specific_device'),
 ]
