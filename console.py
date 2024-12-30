@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import colorlog
+from typing import Dict
 
 # Set up Django settings first, before any Django-related imports
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -34,7 +35,7 @@ from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.tools.firmware_mgr import FirmwareManager
-
+from sat_toolkit.core.device_registry import DeviceRegistry
 logger = logging.getLogger(__name__)
 
 def global_exception_handler(exctype, value, traceback):
@@ -1267,6 +1268,65 @@ class SAT_Shell(cmd2.Cmd):
 
     # Add an alias for delete_group
     do_dg = do_delete_group
+
+    @cmd2.with_category('Device Commands')
+    def do_scan_devices(self, arg):
+        'Scan for devices and show detailed information'
+        try:
+            # 获取设备注册表实例
+            device_registry = DeviceRegistry()
+            device_registry.initialize()  # 确保已初始化
+            
+            # 执行设备扫描
+            logger.info(ansi.style("Scanning for devices...", fg=ansi.Fg.CYAN))
+            discovered_devices = device_registry.scan_devices()
+            
+            # 获取所有设备（包括已存储的和新发现的）
+            all_devices = device_registry.device_store.devices
+            device_sources = device_registry.device_store.device_sources  # 直接获取设备来源字典
+            
+            # 分类显示设备
+            static_devices = {
+                device_id: device 
+                for device_id, device in all_devices.items()
+                if device_sources.get(device_id) == "static"
+            }
+            
+            dynamic_devices = {
+                device_id: device 
+                for device_id, device in all_devices.items()
+                if device_sources.get(device_id) == "dynamic"
+            }
+            
+            if static_devices:
+                logger.info(ansi.style("\nConfigured Devices:", fg=ansi.Fg.BLUE))
+                self._display_devices(static_devices, device_sources)
+            
+            if dynamic_devices:
+                logger.info(ansi.style("\nDynamically Discovered Devices:", fg=ansi.Fg.GREEN))
+                self._display_devices(dynamic_devices, device_sources)
+            
+            if not static_devices and not dynamic_devices:
+                logger.info(ansi.style("No devices found.", fg=ansi.Fg.YELLOW))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error scanning devices: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    def _display_devices(self, devices: Dict, sources: Dict):
+        """Helper method to display device information"""
+        for device_id, device in devices.items():
+            source = sources.get(device_id, "unknown")
+            source_color = ansi.Fg.GREEN if source == "dynamic" else ansi.Fg.BLUE
+            
+            # Only display ID, Name, and Source
+            logger.info(ansi.style(f"\n  Device ID: {device_id}", fg=ansi.Fg.CYAN))
+            logger.info(ansi.style(f"  Source: {source}", fg=source_color))
+            logger.info(f"  Name: {device.name}")
+            logger.info("  " + "-" * 40)  # Separator line
+
+    # 添加命令别名
+    do_scan = do_scan_devices
 
 if __name__ == '__main__':
     shell = SAT_Shell()
