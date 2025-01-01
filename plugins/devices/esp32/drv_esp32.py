@@ -50,7 +50,7 @@ class ESP32Driver(BaseDeviceDriver):
         # In a real implementation, you might want to scan available serial ports
         # For now, we'll return a predefined device
         device = SerialDevice(
-            device_id=str(uuid.uuid4()),
+            device_id="esp32_001",
             name="ESP32",
             port='/dev/ttyUSB1',
             baud_rate=115200,
