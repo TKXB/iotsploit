@@ -10,6 +10,8 @@ from plugins.devices.ft2232.protocol import (
     create_ft2232_interface, close_ft2232_interface,
     uart_read, uart_write, spi_exchange, jtag_write_tms, jtag_write_tdi
 )
+import threading
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,54 @@ FT2232_PRODUCT_ID = 0x6010
 
 class FT2232Driver(BaseDeviceDriver):
     def __init__(self):
+        super().__init__()
         self.ft2232_interface = None
         self.mode = None
+        self._device_counter = 0
+        self.running = threading.Event()
+        self.receiver_thread = None
+        self.connected = False
+        # Define commands with descriptions
+        self.supported_commands = {
+            "start": "Start monitoring/receiving UART data",
+            "stop": "Stop monitoring/receiving UART data",
+            "send": "Send data over UART (format: send <hex_data>)",
+            "mode": "Set interface mode (uart/spi/jtag)",
+            "status": "Display current interface status and mode"
+        }
+
+    def start_receiver(self):
+        """Helper method to start the receiver thread if it's not already running"""
+        if not self.running.is_set() and not (self.receiver_thread and self.receiver_thread.is_alive()):
+            self.running.set()
+            self.receiver_thread = threading.Thread(
+                target=self.receiver_thread_fn,
+                name='FT2232_RECEIVER'
+            )
+            self.receiver_thread.daemon = True
+            self.receiver_thread.start()
+            logger.info("Started UART monitoring")
+
+    def stop_receiver(self):
+        """Helper method to stop the receiver thread"""
+        self.running.clear()
+        if self.receiver_thread and self.receiver_thread.is_alive():
+            self.receiver_thread.join(timeout=1.0)
+            self.receiver_thread = None
+        logger.info("Stopped UART monitoring")
+
+    def receiver_thread_fn(self):
+        """Thread function to continuously read UART data"""
+        while self.running.is_set():
+            try:
+                if self.mode == 'uart' and self.ft2232_interface:
+                    data = uart_read(self.ft2232_interface)
+                    if data:
+                        logger.info(f"Received UART data: {data.hex()}")
+                time.sleep(0.01)  # Small delay to prevent CPU hogging
+            except Exception as e:
+                logger.error(f"Error reading UART data: {str(e)}")
+                time.sleep(0.1)
 
     @hookimpl
     def scan(self):
@@ -38,19 +86,31 @@ class FT2232Driver(BaseDeviceDriver):
                 serial_number = usb.util.get_string(usb_dev, usb_dev.iSerialNumber)
                 logger.info(f"Found FT2232 device with serial number: {serial_number}")
                 
+                # 创建可序列化的设备对象
                 device = USBDevice(
-                    device_id=str(uuid.uuid4()),
+                    device_id=f"ft2232_{serial_number}",
                     name="FT2232",
                     vendor_id=hex(FT2232_VENDOR_ID),
                     product_id=hex(FT2232_PRODUCT_ID),
                     attributes={
                         'serial_number': serial_number,
-                        'usb_device': usb_dev,
+                        'bus': str(usb_dev.bus),
+                        'address': str(usb_dev.address),
+                        'port_number': str(usb_dev.port_number) if hasattr(usb_dev, 'port_number') else None,
+                        'manufacturer': usb.util.get_string(usb_dev, usb_dev.iManufacturer) if hasattr(usb_dev, 'iManufacturer') else None,
+                        'product': usb.util.get_string(usb_dev, usb_dev.iProduct) if hasattr(usb_dev, 'iProduct') else None
                     }
                 )
+                
+                # 使用 dataclasses-json 的序列化方法验证
+                device_dict = device.to_dict()  # 验证可以序列化
                 found_devices.append(device)
+                
             except usb.core.USBError as e:
                 logger.error(f"Could not access device: {e}")
+                continue
+            except Exception as e:
+                logger.error(f"Error creating device object: {e}")
                 continue
 
         return found_devices
@@ -63,23 +123,40 @@ class FT2232Driver(BaseDeviceDriver):
         
         if 'usb_device' not in device.attributes:
             found_devices = self.scan()
-            matching_device = next((d for d in found_devices if d.attributes['serial_number'] == device.attributes.get('serial_number')), None)
+            matching_device = next(
+                (d for d in found_devices if d.attributes['serial_number'] == device.attributes.get('serial_number')),
+                None
+            )
             if not matching_device:
                 raise ValueError("No compatible FT2232 device found. Unable to initialize.")
             device.attributes.update(matching_device.attributes)
         
         logger.info(f"Initializing FT2232 device: {device.name}")
-        self.mode = device.attributes.get('mode', 'uart')  # Default to UART if not specified
-        device_url = f'ftdi://ftdi:2232h/{device.attributes["serial_number"]}'
-        self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+        self.mode = device.attributes.get('mode', 'uart')  # Default to UART
+        
+        # 使用简化的 URL 格式，只指定产品类型和序列号
+        # 对于 FT2232H，使用 2232h 作为产品标识符
+        serial_number = device.attributes["serial_number"]
+        device_url = f'ftdi://:2232h:{serial_number}/1'
+        
+        try:
+            self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+            if not self.ft2232_interface:
+                raise Exception("Failed to create FT2232 interface")
+        except Exception as e:
+            logger.error(f"Failed to initialize device: {e}")
+            self.connected = False
+            raise
 
     @hookimpl
     def connect(self, device: USBDevice):
         if not self.ft2232_interface:
             logger.error("FT2232 interface not initialized. Please initialize first.")
+            self.connected = False
             return False
 
         logger.info(f"FT2232 device {device.name} connected successfully in {self.mode} mode.")
+        self.connected = True
         return True
 
     @hookimpl
@@ -89,19 +166,79 @@ class FT2232Driver(BaseDeviceDriver):
 
     @hookimpl
     def command(self, device: USBDevice, command: str):
-        if self.ft2232_interface:
-            try:
-                if self.mode == 'uart':
-                    uart_write(self.ft2232_interface, command.encode())
-                elif self.mode == 'spi':
-                    spi_exchange(self.ft2232_interface, command.encode())
-                elif self.mode == 'jtag':
-                    jtag_write_tdi(self.ft2232_interface, command.encode())
-                logger.info(f"Sent command '{command}' to FT2232 device {device.name} in {self.mode} mode")
-            except Exception as e:
-                logger.error(f"Failed to send command to FT2232 device {device.name}: {str(e)}")
-        else:
-            logger.error(f"Cannot send command: FT2232 device {device.name} is not connected")
+        try:
+            cmd_parts = command.lower().split()
+            cmd = cmd_parts[0]
+            args = cmd_parts[1:] if len(cmd_parts) > 1 else []
+
+            if not self.ft2232_interface:
+                try:
+                    logger.info("Device not connected, attempting to initialize...")
+                    self.initialize(device)
+                    self.connect(device)
+                except Exception as e:
+                    logger.error(f"Failed to initialize or connect to device: {e}")
+                    return
+
+            if cmd == "start":
+                if self.mode != 'uart':
+                    logger.info("Switching to UART mode for start command")
+                    self.mode = 'uart'
+                    serial_number = device.attributes["serial_number"]
+                    device_url = f'ftdi://:2232h:{serial_number}/1'  # 保持与 initialize 相同的 URL 格式
+                    close_ft2232_interface(self.mode, self.ft2232_interface)
+                    self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+                self.start_receiver()
+
+            elif cmd == "stop":
+                self.stop_receiver()
+
+            elif cmd == "send":
+                if self.mode != 'uart':
+                    logger.error("Send command only available in UART mode")
+                    return
+                if not args:
+                    logger.error("Send command requires hex data argument")
+                    return
+                try:
+                    data = bytes.fromhex(args[0])
+                    uart_write(self.ft2232_interface, data)
+                    logger.info(f"Sent UART data: {data.hex()}")
+                except ValueError:
+                    logger.error("Invalid hex data format")
+
+            elif cmd == "mode":
+                if not args:
+                    logger.error("Mode command requires argument (uart/spi/jtag)")
+                    return
+                new_mode = args[0]
+                if new_mode in ['uart', 'spi', 'jtag']:
+                    # Stop any ongoing operations
+                    self.stop_receiver()
+                    # Close and recreate interface with new mode
+                    close_ft2232_interface(self.mode, self.ft2232_interface)
+                    device_url = f'ftdi://ftdi:2232h/{device.attributes["serial_number"]}'
+                    self.mode = new_mode
+                    self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+                    logger.info(f"Changed mode to: {new_mode}")
+                else:
+                    logger.error("Invalid mode specified")
+
+            elif cmd == "status":
+                status = {
+                    "mode": self.mode,
+                    "running": self.running.is_set(),
+                    "receiver_active": bool(self.receiver_thread and self.receiver_thread.is_alive()),
+                    "interface_connected": bool(self.ft2232_interface)
+                }
+                logger.info(f"Device status: {status}")
+
+            else:
+                logger.error(f"Unknown command: {cmd}. Valid commands are: {', '.join(self.supported_commands.keys())}")
+
+        except Exception as e:
+            logger.error(f"Failed to execute command {command}: {e}")
+            raise
 
     @hookimpl
     def reset(self, device: USBDevice):
@@ -117,15 +254,18 @@ class FT2232Driver(BaseDeviceDriver):
     def close(self, device: USBDevice):
         if not self.ft2232_interface:
             logger.error("FT2232 interface not found. Nothing to close.")
+            self.connected = False
             return False
 
         try:
             close_ft2232_interface(self.mode, self.ft2232_interface)
             self.ft2232_interface = None
+            self.connected = False
             logger.info(f"FT2232 device {device.name} closed successfully.")
             return True
         except Exception as e:
             logger.error(f"Failed to close FT2232 device {device.name}: {e}")
+            self.connected = False
             return False
 
 
