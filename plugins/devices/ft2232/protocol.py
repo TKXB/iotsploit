@@ -8,16 +8,32 @@ logger = logging.getLogger(__name__)
 
 # UART functions
 def uart_open(url, baudrate=115200):
-    return serial_for_url(url, baudrate=baudrate)
+    try:
+        port = serial_for_url(url, baudrate=baudrate)
+        # Test if port is actually open
+        if not port.is_open:
+            port.open()
+        return port
+    except Exception as e:
+        logger.error(f"Failed to open UART port: {e}")
+        raise
 
 def uart_close(port):
     port.close()
 
-def uart_read(port, size):
-    return port.read(size)
+def uart_read(port, size=1024):
+    try:
+        return port.read(size)
+    except Exception as e:
+        logger.error(f"UART read error: {e}")
+        return b''
 
 def uart_write(port, data):
-    return port.write(data)
+    try:
+        return port.write(data)
+    except Exception as e:
+        logger.error(f"UART write error: {e}")
+        return 0
 
 # SPI functions
 def spi_open(url, frequency=1000000):
@@ -95,14 +111,19 @@ def ftdi_write(ftdi_device: Ftdi, data: bytes) -> int:
 
 # Function to create the appropriate interface based on the mode
 def create_ft2232_interface(mode, url):
-    if mode == 'uart':
-        return uart_open(url)
-    elif mode == 'spi':
-        return spi_open(url)
-    elif mode == 'jtag':
-        return jtag_open(url)
-    else:
-        raise ValueError(f"Invalid mode: {mode}. Choose 'uart', 'spi', or 'jtag'.")
+    try:
+        logger.debug(f"Creating interface with mode: {mode}, url: {url}")
+        if mode == 'uart':
+            return uart_open(url)
+        elif mode == 'spi':
+            return spi_open(url)
+        elif mode == 'jtag':
+            return jtag_open(url)
+        else:
+            raise ValueError(f"Invalid mode: {mode}. Choose 'uart', 'spi', or 'jtag'.")
+    except Exception as e:
+        logger.error(f"Failed to create interface: {e}")
+        raise
 
 # Function to close the interface based on the mode
 def close_ft2232_interface(mode, interface):

@@ -121,43 +121,54 @@ class FT2232Driver(BaseDeviceDriver):
             logger.error(f"Current device type: {device.device_type}")
             raise ValueError("This plugin only supports USB devices")
         
-        if 'usb_device' not in device.attributes:
-            found_devices = self.scan()
-            matching_device = next(
-                (d for d in found_devices if d.attributes['serial_number'] == device.attributes.get('serial_number')),
-                None
-            )
-            if not matching_device:
-                raise ValueError("No compatible FT2232 device found. Unable to initialize.")
-            device.attributes.update(matching_device.attributes)
-        
-        logger.info(f"Initializing FT2232 device: {device.name}")
-        self.mode = device.attributes.get('mode', 'uart')  # Default to UART
-        
-        # 使用简化的 URL 格式，只指定产品类型和序列号
-        # 对于 FT2232H，使用 2232h 作为产品标识符
-        serial_number = device.attributes["serial_number"]
-        device_url = f'ftdi://:2232h:{serial_number}/1'
-        
         try:
+            logger.info(f"Initializing FT2232 device: {device.name}")
+            self.mode = device.attributes.get('mode', 'uart')  # Default to UART
+            
+            # Updated URL format
+            serial_number = device.attributes["serial_number"]
+            device_url = f'ftdi://ftdi:2232h:{serial_number}/1'
+            
+            logger.debug(f"Attempting to create interface with URL: {device_url}")
             self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+            
             if not self.ft2232_interface:
                 raise Exception("Failed to create FT2232 interface")
+                
+            # Test the connection
+            if self.mode == 'uart':
+                self.ft2232_interface.write(b'\x00')  # Send a null byte to test connection
+                
+            self.connected = True
+            logger.info(f"Successfully initialized FT2232 device with serial: {serial_number}")
+            return True
+            
         except Exception as e:
             logger.error(f"Failed to initialize device: {e}")
             self.connected = False
+            self.ft2232_interface = None
             raise
 
     @hookimpl
     def connect(self, device: USBDevice):
-        if not self.ft2232_interface:
-            logger.error("FT2232 interface not initialized. Please initialize first.")
+        try:
+            if not self.ft2232_interface:
+                logger.error("FT2232 interface not initialized. Please initialize first.")
+                self.connected = False
+                return False
+
+            # Test the connection
+            if self.mode == 'uart':
+                self.ft2232_interface.write(b'\x00')  # Send a null byte to test connection
+
+            logger.info(f"FT2232 device {device.name} connected successfully in {self.mode} mode.")
+            self.connected = True
+            return True
+            
+        except Exception as e:
+            logger.error(f"Connection failed: {e}")
             self.connected = False
             return False
-
-        logger.info(f"FT2232 device {device.name} connected successfully in {self.mode} mode.")
-        self.connected = True
-        return True
 
     @hookimpl
     def execute(self, device: USBDevice, target: str):
