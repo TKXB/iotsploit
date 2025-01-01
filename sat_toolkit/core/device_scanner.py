@@ -54,6 +54,10 @@ class CompositeDeviceScanner(DeviceScanner):
         super().__init__(device_store)
         self.scanners: List[DeviceScanner] = []
         
+    def clear_scanners(self):
+        """清理所有已注册的扫描器"""
+        self.scanners = []
+        
     def add_scanner(self, scanner: DeviceScanner):
         """添加一个扫描器"""
         self.scanners.append(scanner)

@@ -29,6 +29,9 @@ class DeviceRegistry:
         """初始化设备注册表"""
         logger.debug("Initializing device registry...")
         
+        # 清理现有的扫描器
+        self.scanner.clear_scanners()
+        
         # 为每个驱动创建扫描器
         for driver_name, driver in self.driver_manager.drivers.items():
             scanner = PluginDeviceScanner(self.device_store, driver)
