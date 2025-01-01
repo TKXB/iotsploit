@@ -69,7 +69,7 @@ class SocketCANDevice(Device):
     interface: str = field(default="can0")
 
 class DeviceDBModel(Base):
-    __tablename__ = 'devices'  # Ensure this is different from the targets table
+    __tablename__ = 'devices'
 
     device_id = Column(String, primary_key=True)
     name = Column(String)
@@ -178,14 +178,43 @@ class DeviceManager:
             devices = session.query(DeviceDBModel).all()
             result = []
             for d in devices:
-                device_info = {
-                    "device_id": d.device_id,
-                    "name": d.name,
-                    "device_type": d.device_type.value,
-                    "attributes": d.attributes
-                }
-                result.append(device_info)
+                # 根据设备类型创建相应的设备对象
+                if d.device_type == DeviceType.Serial:
+                    device = SerialDevice(
+                        device_id=d.device_id,
+                        name=d.name,
+                        port=d.attributes.get('port', ''),
+                        baud_rate=d.attributes.get('baud_rate', 115200),
+                        attributes=d.attributes
+                    )
+                elif d.device_type == DeviceType.USB:
+                    device = USBDevice(
+                        device_id=d.device_id,
+                        name=d.name,
+                        vendor_id=d.attributes.get('vendor_id', ''),
+                        product_id=d.attributes.get('product_id', ''),
+                        attributes=d.attributes
+                    )
+                elif d.device_type == DeviceType.CAN:
+                    device = SocketCANDevice(
+                        device_id=d.device_id,
+                        name=d.name,
+                        interface=d.attributes.get('interface', 'can0'),
+                        attributes=d.attributes
+                    )
+                else:
+                    device = Device(
+                        device_id=d.device_id,
+                        name=d.name,
+                        device_type=d.device_type,
+                        attributes=d.attributes
+                    )
+                # 使用 dataclasses_json 的 to_dict() 方法
+                result.append(device.to_dict())
             return result
+        except Exception as e:
+            logger.error(f"Error getting devices: {e}")
+            return []
         finally:
             session.close()
 
@@ -237,11 +266,11 @@ if __name__ == "__main__":
     device_manager.register_device(DeviceType.USB, USBDevice)
 
     # Load devices from JSON file
-    json_file_path = "path_to_your_json_file.json"  # Update with your actual JSON file path
+    json_file_path = "path_to_your_json_file.json"
     device_manager.parse_and_set_device_from_json(json_file_path)
 
     # Retrieve and print all Devices from the database
     all_devices = device_manager.get_all_devices()
-    for d in all_devices:
-        print(f"Retrieved from DB: {d['name']}, ID: {d['device_id']}, Type: {d['device_type']}")
-        print(json.dumps(d, indent=2))
+    for device in all_devices:
+        print(f"Retrieved from DB: {device['name']}, ID: {device['device_id']}, Type: {device['device_type']}")
+        print(json.dumps(device, indent=2))

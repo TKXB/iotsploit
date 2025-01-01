@@ -21,7 +21,7 @@ urlpatterns = [
     # DEPRECATED: Use scan_devices/ endpoint instead
     path('scan_all_devices/', scan_all_devices, name='scan_all_devices'),
 
-    path('scan_device/<str:device_name>/', scan_specific_device, name='scan_specific_device'),
+    path('scan_device/<str:driver_name>/', scan_specific_device, name='scan_specific_device'),
     path('list_devices/', list_devices, name='list_devices'),
 
     # OTA and vehicle information (from vehicle_views.py)

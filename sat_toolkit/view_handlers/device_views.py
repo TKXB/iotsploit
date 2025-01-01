@@ -54,23 +54,23 @@ def scan_all_devices(request):
     return JsonResponse(scan_results)
 
 @csrf_exempt
-def scan_specific_device(request, device_name):
+def scan_specific_device(request, driver_name):
     """Scan for devices using a specific device driver."""
     try:
         device_manager = DeviceDriverManager()
         
-        available_devices = device_manager.list_drivers()
-        if device_name not in available_devices:
+        available_drivers = device_manager.list_drivers()
+        if driver_name not in available_drivers:
             return JsonResponse({
                 "status": "error",
-                "message": f"Device '{device_name}' not found. Available devices: {available_devices}"
+                "message": f"Device '{driver_name}' not found. Available devices: {available_drivers}"
             }, status=404)
         
-        driver = device_manager.get_driver_instance(device_name)
+        driver = device_manager.get_driver_instance(driver_name)
         if not driver:
             return JsonResponse({
                 "status": "error",
-                "message": f"No driver found for device: {device_name}"
+                "message": f"No driver found for device: {driver_name}"
             }, status=404)
             
         scan_result = driver.scan()
@@ -84,14 +84,14 @@ def scan_specific_device(request, device_name):
                 
             return JsonResponse({
                 "status": "success",
-                "driver": device_name,
+                "driver": driver_name,
                 "devices_found": True,
                 "devices": devices
             })
         else:
             return JsonResponse({
                 "status": "success",
-                "driver": device_name,
+                "driver": driver_name,
                 "devices_found": False,
                 "message": "No devices found"
             })
