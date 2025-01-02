@@ -12,6 +12,10 @@ from plugins.devices.ft2232.protocol import (
 )
 import threading
 import time
+from pyftdi.ftdi import Ftdi
+from pyftdi.serialext import serial_for_url
+from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -24,19 +28,20 @@ FT2232_PRODUCT_ID = 0x6010
 class FT2232Driver(BaseDeviceDriver):
     def __init__(self):
         super().__init__()
-        self.ft2232_interface = None
-        self.mode = None
+        self.uart = None
+        self.mode = 'uart'
         self._device_counter = 0
         self.running = threading.Event()
         self.receiver_thread = None
         self.connected = False
-        # Define commands with descriptions
+        self.stream_manager = StreamManager()
+        self.device = None  # Store the connected device
+        # Update supported commands for UART only
         self.supported_commands = {
             "start": "Start monitoring/receiving UART data",
             "stop": "Stop monitoring/receiving UART data",
             "send": "Send data over UART (format: send <hex_data>)",
-            "mode": "Set interface mode (uart/spi/jtag)",
-            "status": "Display current interface status and mode"
+            "status": "Display current interface status"
         }
 
     def start_receiver(self):
@@ -63,11 +68,28 @@ class FT2232Driver(BaseDeviceDriver):
         """Thread function to continuously read UART data"""
         while self.running.is_set():
             try:
-                if self.mode == 'uart' and self.ft2232_interface:
-                    data = uart_read(self.ft2232_interface)
+                if self.uart and self.device:  # Check that both uart and device are available
+                    data = self.uart.read(16)  # Read up to 16 bytes
                     if data:
                         logger.info(f"Received UART data: {data.hex()}")
-                time.sleep(0.01)  # Small delay to prevent CPU hogging
+                        # Create StreamData object for WebSocket transmission
+                        stream_data = StreamData(
+                            stream_type=StreamType.UART,
+                            channel=self.device.device_id,  # Now self.device is guaranteed to exist
+                            timestamp=time.time(),
+                            data={
+                                'data': data.hex(),
+                                'length': len(data)
+                            },
+                            metadata={
+                                'interface': self.device.device_id,
+                                'baudrate': self.uart.baudrate
+                            }
+                        )
+                        
+                        # Use asyncio to broadcast the data
+                        asyncio.run(self.stream_manager.broadcast_data(stream_data))
+                time.sleep(0.01)
             except Exception as e:
                 logger.error(f"Error reading UART data: {str(e)}")
                 time.sleep(0.1)
@@ -123,51 +145,51 @@ class FT2232Driver(BaseDeviceDriver):
         
         try:
             logger.info(f"Initializing FT2232 device: {device.name}")
-            self.mode = device.attributes.get('mode', 'uart')  # Default to UART
             
-            # Updated URL format
             serial_number = device.attributes["serial_number"]
             device_url = f'ftdi://ftdi:2232h:{serial_number}/1'
             
             logger.debug(f"Attempting to create interface with URL: {device_url}")
-            self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+            self.uart = serial_for_url(
+                device_url,
+                baudrate=115200,
+                bytesize=8,
+                parity='N',
+                stopbits=1
+            )
             
-            if not self.ft2232_interface:
-                raise Exception("Failed to create FT2232 interface")
-                
-            # Test the connection
-            if self.mode == 'uart':
-                self.ft2232_interface.write(b'\x00')  # Send a null byte to test connection
+            if not self.uart:
+                raise Exception("Failed to create UART interface")
                 
             self.connected = True
+            self.device = device  # Store the device instance
             logger.info(f"Successfully initialized FT2232 device with serial: {serial_number}")
             return True
             
         except Exception as e:
             logger.error(f"Failed to initialize device: {e}")
             self.connected = False
-            self.ft2232_interface = None
+            self.uart = None
+            self.device = None  # Clear device instance on failure
             raise
 
     @hookimpl
     def connect(self, device: USBDevice):
         try:
-            if not self.ft2232_interface:
-                logger.error("FT2232 interface not initialized. Please initialize first.")
+            if not self.uart:
+                logger.error("UART interface not initialized. Please initialize first.")
                 self.connected = False
                 return False
 
-            # Test the connection
-            if self.mode == 'uart':
-                self.ft2232_interface.write(b'\x00')  # Send a null byte to test connection
-
             logger.info(f"FT2232 device {device.name} connected successfully in {self.mode} mode.")
+            self.device = device  # Ensure device is stored here as well
             self.connected = True
             return True
             
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             self.connected = False
+            self.device = None  # Clear device instance on failure
             return False
 
     @hookimpl
@@ -182,7 +204,7 @@ class FT2232Driver(BaseDeviceDriver):
             cmd = cmd_parts[0]
             args = cmd_parts[1:] if len(cmd_parts) > 1 else []
 
-            if not self.ft2232_interface:
+            if not self.uart:
                 try:
                     logger.info("Device not connected, attempting to initialize...")
                     self.initialize(device)
@@ -192,55 +214,36 @@ class FT2232Driver(BaseDeviceDriver):
                     return
 
             if cmd == "start":
-                if self.mode != 'uart':
-                    logger.info("Switching to UART mode for start command")
-                    self.mode = 'uart'
-                    serial_number = device.attributes["serial_number"]
-                    device_url = f'ftdi://:2232h:{serial_number}/1'  # 保持与 initialize 相同的 URL 格式
-                    close_ft2232_interface(self.mode, self.ft2232_interface)
-                    self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+                # Stop any existing receiver
+                self.stop_receiver()
+                # Register the stream before starting
+                channel = device.device_id
+                asyncio.run(self.stream_manager.register_stream(channel))
                 self.start_receiver()
 
             elif cmd == "stop":
+                channel = device.device_id
+                asyncio.run(self.stream_manager.unregister_stream(channel))
+                asyncio.run(self.stream_manager.stop_broadcast(channel))
                 self.stop_receiver()
 
             elif cmd == "send":
-                if self.mode != 'uart':
-                    logger.error("Send command only available in UART mode")
-                    return
                 if not args:
                     logger.error("Send command requires hex data argument")
                     return
                 try:
                     data = bytes.fromhex(args[0])
-                    uart_write(self.ft2232_interface, data)
+                    self.uart.write(data)
                     logger.info(f"Sent UART data: {data.hex()}")
                 except ValueError:
                     logger.error("Invalid hex data format")
 
-            elif cmd == "mode":
-                if not args:
-                    logger.error("Mode command requires argument (uart/spi/jtag)")
-                    return
-                new_mode = args[0]
-                if new_mode in ['uart', 'spi', 'jtag']:
-                    # Stop any ongoing operations
-                    self.stop_receiver()
-                    # Close and recreate interface with new mode
-                    close_ft2232_interface(self.mode, self.ft2232_interface)
-                    device_url = f'ftdi://ftdi:2232h/{device.attributes["serial_number"]}'
-                    self.mode = new_mode
-                    self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
-                    logger.info(f"Changed mode to: {new_mode}")
-                else:
-                    logger.error("Invalid mode specified")
-
             elif cmd == "status":
                 status = {
-                    "mode": self.mode,
+                    "mode": "uart",
                     "running": self.running.is_set(),
                     "receiver_active": bool(self.receiver_thread and self.receiver_thread.is_alive()),
-                    "interface_connected": bool(self.ft2232_interface)
+                    "interface_connected": bool(self.uart)
                 }
                 logger.info(f"Device status: {status}")
 
@@ -253,24 +256,25 @@ class FT2232Driver(BaseDeviceDriver):
 
     @hookimpl
     def reset(self, device: USBDevice):
-        if self.ft2232_interface:
-            close_ft2232_interface(self.mode, self.ft2232_interface)
+        if self.uart:
+            close_ft2232_interface(self.mode, self.uart)
             device_url = f'ftdi://ftdi:2232h/{device.attributes["serial_number"]}'
-            self.ft2232_interface = create_ft2232_interface(self.mode, device_url)
+            self.uart = create_ft2232_interface(self.mode, device_url)
             logger.info(f"Reset FT2232 device: {device.name}")
         else:
             logger.error(f"Cannot reset: FT2232 device {device.name} is not connected")
 
     @hookimpl
     def close(self, device: USBDevice):
-        if not self.ft2232_interface:
-            logger.error("FT2232 interface not found. Nothing to close.")
+        if not self.uart:
+            logger.error("UART interface not found. Nothing to close.")
             self.connected = False
             return False
 
         try:
-            close_ft2232_interface(self.mode, self.ft2232_interface)
-            self.ft2232_interface = None
+            self.stop_receiver()
+            self.uart.close()
+            self.uart = None
             self.connected = False
             logger.info(f"FT2232 device {device.name} closed successfully.")
             return True
@@ -278,6 +282,18 @@ class FT2232Driver(BaseDeviceDriver):
             logger.error(f"Failed to close FT2232 device {device.name}: {e}")
             self.connected = False
             return False
+
+    def send_uart_data(self, device: USBDevice, data: bytes):
+        """Helper method to send UART data"""
+        if not self.uart:
+            logger.error("Cannot send data: UART device not connected")
+            return
+
+        try:
+            self.uart.write(data)
+            logger.info(f"Sent UART data: {data.hex()}")
+        except Exception as e:
+            logger.error(f"Failed to send UART data: {e}")
 
 
 # Example usage
