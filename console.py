@@ -1006,11 +1006,51 @@ class SAT_Shell(cmd2.Cmd):
     def do_execute_device_command(self, arg):
         'Send a command to a device. Usage: device_command [command_string]'
         try:
+            # Check if we need to select a device first
+            if not hasattr(self, '_current_device') or not hasattr(self, '_current_driver'):
+                logger.info(ansi.style("No device selected. Please select a device first.", fg=ansi.Fg.YELLOW))
+                if not self._select_device():
+                    return
+            
+            # Now we can be sure we have a device selected
+            if not arg:
+                # If no command provided, list available commands and let user select one
+                commands = self.device_plugin_manager.get_plugin_commands(self._current_plugin)
+                if commands:
+                    logger.info(ansi.style(f"\nAvailable commands for {self._current_plugin}:", fg=ansi.Fg.CYAN))
+                    
+                    # Create list of command choices with descriptions
+                    cmd_choices = [f"{cmd:<10} - {desc}" for cmd, desc in commands.items()]
+                    
+                    # Let user select a command
+                    selected = Input_Mgr.Instance().single_choice(
+                        "Select command to execute",
+                        cmd_choices
+                    )
+                    
+                    # Extract just the command name from the selection
+                    selected_cmd = selected.split()[0].strip()
+                    
+                    # Execute the selected command
+                    self._current_driver.command(self._current_device, selected_cmd)
+                else:
+                    logger.warning(ansi.style(f"No commands available for driver: {self._current_plugin}", fg=ansi.Fg.YELLOW))
+            else:
+                # Send the command to the device
+                self._current_driver.command(self._current_device, arg)
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error sending command: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    def _select_device(self):
+        """Helper method to handle device selection process"""
+        try:
             # Get available device plugins
             available_plugins = self.device_plugin_manager.list_drivers()
             if not available_plugins:
                 logger.error(ansi.style("No device drivers available", fg=ansi.Fg.RED))
-                return
+                return False
 
             # Let user select a plugin
             selected_plugin = Input_Mgr.Instance().single_choice(
@@ -1020,6 +1060,10 @@ class SAT_Shell(cmd2.Cmd):
 
             # Create a temporary plugin instance to scan for devices
             plugin_instance = self.device_plugin_manager.plugins[selected_plugin]
+            driver = None
+            scan_result = None
+
+            # Find the driver class and create an instance
             for attr_name in dir(plugin_instance):
                 attr = getattr(plugin_instance, attr_name)
                 if (isinstance(attr, type) and 
@@ -1031,7 +1075,7 @@ class SAT_Shell(cmd2.Cmd):
 
             if not scan_result:
                 logger.error(ansi.style(f"No devices found for driver: {selected_plugin}", fg=ansi.Fg.RED))
-                return
+                return False
 
             # Let user select a device
             device_choices = [f"{dev.name} ({dev.device_type.value})" for dev in scan_result]
@@ -1046,28 +1090,52 @@ class SAT_Shell(cmd2.Cmd):
 
             # Initialize and connect to the device
             if driver.initialize(device) and driver.connect(device):
-                if not arg:
-                    # If no command provided, list available commands
-                    commands = self.device_plugin_manager.get_plugin_commands(selected_plugin)
-                    if commands:
-                        logger.info(ansi.style(f"\nAvailable commands for {selected_plugin}:", fg=ansi.Fg.CYAN))
-                        for cmd, description in commands.items():
-                            logger.info(ansi.style(f"  {cmd:<10}", fg=ansi.Fg.GREEN) + 
-                                      ansi.style(f"- {description}", fg=ansi.Fg.WHITE))
-                    else:
-                        logger.warning(ansi.style(f"No commands available for driver: {selected_plugin}", fg=ansi.Fg.YELLOW))
-                else:
-                    # Send the command to the device
-                    driver.command(device, arg)
+                # Store the current device and driver
+                self._current_device = device
+                self._current_driver = driver
+                self._current_plugin = selected_plugin
+                logger.info(ansi.style(f"Successfully connected to {device.name}", fg=ansi.Fg.GREEN))
+                return True
             else:
                 logger.error(ansi.style("Failed to initialize or connect to device", fg=ansi.Fg.RED))
+                return False
 
         except Exception as e:
-            logger.error(ansi.style(f"Error sending command: {str(e)}", fg=ansi.Fg.RED))
+            logger.error(ansi.style(f"Error during device selection: {str(e)}", fg=ansi.Fg.RED))
             logger.debug("Detailed error:", exc_info=True)
+            return False
 
-    # Add an alias for send_command
-    do_ecmd = do_execute_device_command
+    @cmd2.with_category('Device Commands')
+    def do_select_device(self, arg):
+        'Select a device for subsequent commands'
+        if self._select_device():
+            logger.info(ansi.style("Device selected successfully. Use 'execute_device_command' to send commands.", fg=ansi.Fg.GREEN))
+        else:
+            logger.error(ansi.style("Device selection failed.", fg=ansi.Fg.RED))
+
+    # Add alias for select_device
+    do_sd = do_select_device
+
+    @cmd2.with_category('Device Commands')
+    def do_switch_device(self, arg):
+        'Switch to a different device'
+        if hasattr(self, '_current_device'):
+            # Try to disconnect current device if possible
+            try:
+                if hasattr(self._current_driver, 'disconnect'):
+                    self._current_driver.disconnect(self._current_device)
+            except Exception as e:
+                logger.debug(f"Error disconnecting device: {str(e)}")
+
+            delattr(self, '_current_device')
+            delattr(self, '_current_driver')
+            delattr(self, '_current_plugin')
+            
+        # Immediately prompt for new device selection
+        if self._select_device():
+            logger.info(ansi.style("Successfully switched to new device.", fg=ansi.Fg.GREEN))
+        else:
+            logger.error(ansi.style("Failed to switch device.", fg=ansi.Fg.RED))
 
     @cmd2.with_category('Device Commands')
     def do_list_device_commands(self, arg):
@@ -1327,6 +1395,9 @@ class SAT_Shell(cmd2.Cmd):
 
     # 添加命令别名
     do_scan = do_scan_devices
+
+    # Add alias for execute_device_command
+    do_dc = do_execute_device_command
 
 if __name__ == '__main__':
     shell = SAT_Shell()
