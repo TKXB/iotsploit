@@ -1173,3 +1173,51 @@ def delete_group(request):
             "message": f"Failed to delete group: {str(e)}"
         }, status=500)
 
+def list_urls(request):
+    """
+    GET
+    Returns a list of all available API endpoints
+    """
+    try:
+        from .urls import get_url_patterns
+        
+        url_patterns = get_url_patterns()
+        
+        # Group endpoints by category based on their names or patterns
+        categorized_endpoints = {
+            'device': [],
+            'vehicle': [],
+            'test': [],
+            'plugin': [],
+            'group': [],
+            'misc': []
+        }
+        
+        for pattern in url_patterns:
+            name = pattern['name']
+            if 'device' in name:
+                categorized_endpoints['device'].append(pattern)
+            elif 'vehicle' in name or 'ota' in name:
+                categorized_endpoints['vehicle'].append(pattern)
+            elif 'test' in name:
+                categorized_endpoints['test'].append(pattern)
+            elif 'plugin' in name:
+                categorized_endpoints['plugin'].append(pattern)
+            elif 'group' in name:
+                categorized_endpoints['group'].append(pattern)
+            else:
+                categorized_endpoints['misc'].append(pattern)
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Found {len(url_patterns)} endpoints',
+            'endpoints': categorized_endpoints
+        })
+        
+    except Exception as e:
+        logger.error(f"Error listing URLs: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Failed to list URLs: {str(e)}'
+        }, status=500)
+

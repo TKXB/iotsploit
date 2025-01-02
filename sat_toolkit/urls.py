@@ -1,4 +1,4 @@
-from django.urls import path, re_path
+from django.urls import path, re_path, get_resolver
 from . import views
 from .view_handlers.device_views import (
     device_info,
@@ -13,7 +13,31 @@ from .view_handlers.vehicle_views import (
     select_vehicle_profile
 )
 
+def get_url_patterns():
+    """Helper function to get all URL patterns with their names"""
+    patterns = []
+    
+    for pattern in urlpatterns:
+        if hasattr(pattern, 'name') and pattern.name:
+            # Include all named URLs from our patterns
+            method = 'POST' if hasattr(pattern.callback, 'csrf_exempt') else 'GET'
+            
+            # Get documentation from the view function's docstring
+            doc = pattern.callback.__doc__ or ''
+            
+            patterns.append({
+                'name': pattern.name,
+                'pattern': f'/api/{str(pattern.pattern)}',  # Add /api/ prefix
+                'method': method,
+                'description': doc.strip(),
+                'deprecated': 'DEPRECATED' in doc
+            })
+    return patterns
+
 urlpatterns = [
+    # New endpoint to list all URLs
+    path('list_urls/', views.list_urls, name='list_urls'),
+
     # Device-related endpoints (from device_views.py)
     path('device_info/', device_info, name='device_info'),
     path('get_all_devices/', get_all_devices, name='get_all_devices'),
