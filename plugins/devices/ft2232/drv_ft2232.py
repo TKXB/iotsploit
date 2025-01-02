@@ -16,6 +16,7 @@ from pyftdi.ftdi import Ftdi
 from pyftdi.serialext import serial_for_url
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType
 import asyncio
+import pyudev
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +103,24 @@ class FT2232Driver(BaseDeviceDriver):
             logger.info("No FT2232 devices found.")
             return []
 
+        # Initialize pyudev context
+        context = pyudev.Context()
         found_devices = []
+
         for usb_dev in devices:
             try:
                 serial_number = usb.util.get_string(usb_dev, usb_dev.iSerialNumber)
                 logger.info(f"Found FT2232 device with serial number: {serial_number}")
                 
-                # 创建可序列化的设备对象
+                # Find corresponding ttyUSB devices
+                tty_devices = []
+                for device in context.list_devices(subsystem='tty', ID_VENDOR_ID=f'{FT2232_VENDOR_ID:04x}'):
+                    if device.get('ID_SERIAL_SHORT') == serial_number:
+                        tty_devices.append(device.get('DEVNAME'))
+                
+                tty_devices.sort()  # Sort to ensure consistent ordering
+                
+                # Create device object with additional tty information
                 device = USBDevice(
                     device_id=f"ft2232_{serial_number}",
                     name="FT2232",
@@ -120,12 +132,12 @@ class FT2232Driver(BaseDeviceDriver):
                         'address': str(usb_dev.address),
                         'port_number': str(usb_dev.port_number) if hasattr(usb_dev, 'port_number') else None,
                         'manufacturer': usb.util.get_string(usb_dev, usb_dev.iManufacturer) if hasattr(usb_dev, 'iManufacturer') else None,
-                        'product': usb.util.get_string(usb_dev, usb_dev.iProduct) if hasattr(usb_dev, 'iProduct') else None
+                        'product': usb.util.get_string(usb_dev, usb_dev.iProduct) if hasattr(usb_dev, 'iProduct') else None,
+                        'tty_devices': tty_devices  # Add the tty device paths
                     }
                 )
                 
-                # 使用 dataclasses-json 的序列化方法验证
-                device_dict = device.to_dict()  # 验证可以序列化
+                logger.info(f"Found TTY devices for {serial_number}: {tty_devices}")
                 found_devices.append(device)
                 
             except usb.core.USBError as e:
@@ -226,6 +238,21 @@ class FT2232Driver(BaseDeviceDriver):
                 asyncio.run(self.stream_manager.unregister_stream(channel))
                 asyncio.run(self.stream_manager.stop_broadcast(channel))
                 self.stop_receiver()
+                
+                # 添加设备重置和重新枚举逻辑
+                if hasattr(self.uart, '_ftdi'):
+                    try:
+                        self.uart._ftdi.usb_dev.reset()
+                        usb.util.dispose_resources(self.uart._ftdi.usb_dev)
+                    except Exception as e:
+                        logger.warning(f"Error during USB device cleanup: {e}")
+                
+                self.uart.close()
+                self.uart = None
+                self.connected = False
+                
+                # 添加短暂延时，让系统有时间重新枚举设备
+                time.sleep(1)
 
             elif cmd == "send":
                 if not args:
@@ -273,9 +300,22 @@ class FT2232Driver(BaseDeviceDriver):
 
         try:
             self.stop_receiver()
+            
+            # 确保正确释放 FTDI 设备
+            if hasattr(self.uart, '_ftdi'):
+                try:
+                    self.uart._ftdi.usb_dev.reset()
+                    usb.util.dispose_resources(self.uart._ftdi.usb_dev)
+                except Exception as e:
+                    logger.warning(f"Error during USB device cleanup: {e}")
+
             self.uart.close()
             self.uart = None
             self.connected = False
+            
+            # 添加短暂延时，让系统有时间重新枚举设备
+            time.sleep(1)
+            
             logger.info(f"FT2232 device {device.name} closed successfully.")
             return True
         except Exception as e:
