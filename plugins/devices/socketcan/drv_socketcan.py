@@ -62,7 +62,6 @@ class SocketCANDriver(BaseDeviceDriver):
     def receiver_thread_fn(self):
         while self.running.is_set():
             try:
-                logger.debug(f"Receiver thread running state: {self.running.is_set()}")
                 message = self.bus.recv(timeout=0.1)
                 if not self.running.is_set():
                     break
