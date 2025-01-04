@@ -916,13 +916,10 @@ def execute_device_command(request, device_name):
         }, status=405)
         
     try:
-        # Parse and log request body
         data = json.loads(request.body)
-        logger.debug(f"Execute device command POST data of /api/execute_device_command: {data}")
-        
         command = data.get('command')
+        device_id = data.get('device_id')
         args = data.get('args', '')
-        hardware_id = data.get('hardware_id', '')
         
         if not command:
             return JsonResponse({
@@ -964,22 +961,22 @@ def execute_device_command(request, device_name):
             logger.info(f"Found {len(scan_result)} devices: {[dev.device_id for dev in scan_result]}")
             
             selected_device = None
-            if hardware_id:
-                logger.info(f"Attempting to find device with hardware_id: {hardware_id}")
+            if device_id:
+                logger.info(f"Attempting to find device with device_id: {device_id}")
                 selected_device = next(
-                    (dev for dev in scan_result if dev.device_id == hardware_id),
+                    (dev for dev in scan_result if dev.device_id == device_id),
                     None
                 )
                 if not selected_device:
-                    logger.error(f"Hardware device with ID {hardware_id} not found in scan results")
+                    logger.error(f"Device with ID {device_id} not found in scan results")
                     return JsonResponse({
                         "status": "error",
-                        "message": f"Hardware device with ID {hardware_id} not found"
+                        "message": f"Device with ID {device_id} not found"
                     }, status=404)
                 logger.info(f"Found matching device: {selected_device.device_id}")
             else:
                 selected_device = scan_result[0]
-                logger.info(f"No hardware_id specified, defaulting to first device: {selected_device.device_id}")
+                logger.info(f"No device_id specified, defaulting to first device: {selected_device.device_id}")
             
             logger.info(f"Initializing driver for device: {selected_device.device_id}")
             driver.initialize(selected_device)
@@ -993,7 +990,7 @@ def execute_device_command(request, device_name):
         return JsonResponse({
             "status": "success",
             "device": device_name,
-            "hardware_device": hardware_id or driver.device.device_id,
+            "device_id": device_id or driver.device.device_id,
             "command": command,
             "args": args,
             "result": result
