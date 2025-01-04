@@ -5,8 +5,9 @@ from sat_toolkit.tools.monitor_mgr import SystemMonitor
 import asyncio
 from asgiref.sync import async_to_sync
 from celery.result import AsyncResult
-from sat_toolkit.core.stream_manager import StreamManager
+from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 from sat_toolkit.core.device_manager import DeviceDriverManager
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -123,84 +124,129 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(text_data)
-            if data.get('action') == 'send_can':
+            json_data = json.loads(text_data)
+            stream_data = StreamData.from_dict(json_data)
+
+            if stream_data.stream_type == StreamType.CAN and stream_data.action == StreamAction.SEND:
                 # Get the driver instance
                 device_manager = DeviceDriverManager()
                 driver = device_manager.get_driver_instance('drv_socketcan')
                 logger.info(f"Driver instance details: {driver}")
                 
                 if not driver:
-                    await self.send(text_data=json.dumps({
-                        'status': 'error',
-                        'message': 'CAN driver not found'
-                    }))
+                    error_data = StreamData(
+                        stream_type=StreamType.CAN,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SYSTEM,
+                        action=StreamAction.ERROR,
+                        data={'message': 'CAN driver not found'},
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(error_data.to_dict()))
                     return
 
                 if not driver.connected:
                     logger.info("Driver not connected, attempting to scan and connect...")
-                    # Try to scan and connect if not already connected
                     devices = driver.scan()
                     logger.info(f"Scan results: {devices}")
                     
                     if devices:
-                        device = devices[0]  # Use the first available device
-                        logger.info(f"Attempting to initialize device: {device}")
+                        device = devices[0]
                         init_result = driver.initialize(device)
-                        logger.info(f"Initialize result: {init_result}")
-                        
-                        logger.info(f"Attempting to connect to device: {device}")
                         connect_result = driver.connect(device)
-                        logger.info(f"Connect result: {connect_result}")
                         
-                        if init_result and connect_result:
-                            logger.info("Successfully initialized and connected to CAN device")
-                        else:
-                            await self.send(text_data=json.dumps({
-                                'status': 'error',
-                                'message': 'Failed to initialize/connect CAN device'
-                            }))
+                        if not (init_result and connect_result):
+                            error_data = StreamData(
+                                stream_type=StreamType.CAN,
+                                channel=self.channel,
+                                timestamp=time.time(),
+                                source=StreamSource.SYSTEM,
+                                action=StreamAction.ERROR,
+                                data={'message': 'Failed to initialize/connect CAN device'},
+                                metadata={'original_request': stream_data.to_dict()}
+                            )
+                            await self.send(text_data=json.dumps(error_data.to_dict()))
                             return
                     else:
-                        await self.send(text_data=json.dumps({
-                            'status': 'error',
-                            'message': 'No CAN devices found'
-                        }))
+                        error_data = StreamData(
+                            stream_type=StreamType.CAN,
+                            channel=self.channel,
+                            timestamp=time.time(),
+                            source=StreamSource.SYSTEM,
+                            action=StreamAction.ERROR,
+                            data={'message': 'No CAN devices found'},
+                            metadata={'original_request': stream_data.to_dict()}
+                        )
+                        await self.send(text_data=json.dumps(error_data.to_dict()))
                         return
 
                 # Extract CAN message parameters
                 try:
-                    can_id = int(data['id'], 16)  # Convert hex string to int
-                    can_data = bytes.fromhex(data['data'])  # Convert hex string to bytes
-                except (ValueError, KeyError) as e:
-                    await self.send(text_data=json.dumps({
-                        'status': 'error',
-                        'message': f'Invalid message format: {str(e)}'
-                    }))
-                    return
-
-                # Send the CAN message
-                try:
+                    can_id = int(stream_data.data['id'], 16)
+                    can_data = bytes.fromhex(stream_data.data['data'])
+                    
+                    # Send the CAN message
                     driver.send_can_message(driver.device, can_id, can_data)
-                    await self.send(text_data=json.dumps({
-                        'status': 'success',
-                        'message': f'Sent CAN message - ID: {hex(can_id)}, Data: {can_data.hex()}'
-                    }))
+                    
+                    # Send success response
+                    response_data = StreamData(
+                        stream_type=StreamType.CAN,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SERVER,
+                        action=StreamAction.STATUS,
+                        data={
+                            'status': 'success',
+                            'message': f'Sent CAN message - ID: {hex(can_id)}, Data: {can_data.hex()}'
+                        },
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(response_data.to_dict()))
+                    
+                except (ValueError, KeyError) as e:
+                    error_data = StreamData(
+                        stream_type=StreamType.CAN,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SYSTEM,
+                        action=StreamAction.ERROR,
+                        data={'message': f'Invalid message format: {str(e)}'},
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(error_data.to_dict()))
+                    
                 except Exception as e:
-                    await self.send(text_data=json.dumps({
-                        'status': 'error',
-                        'message': f'Failed to send CAN message: {str(e)}'
-                    }))
+                    error_data = StreamData(
+                        stream_type=StreamType.CAN,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SYSTEM,
+                        action=StreamAction.ERROR,
+                        data={'message': f'Failed to send CAN message: {str(e)}'},
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(error_data.to_dict()))
                     
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON received: {e}")
-            await self.send(text_data=json.dumps({
-                'status': 'error',
-                'message': 'Invalid JSON format'
-            }))
+            error_data = StreamData(
+                stream_type=StreamType.CAN,
+                channel=self.channel,
+                timestamp=time.time(),
+                source=StreamSource.SYSTEM,
+                action=StreamAction.ERROR,
+                data={'message': 'Invalid JSON format'},
+                metadata={'error': str(e)}
+            )
+            await self.send(text_data=json.dumps(error_data.to_dict()))
         except Exception as e:
-            logger.error(f"Error processing WebSocket message: {e}")
-            await self.send(text_data=json.dumps({
-                'status': 'error',
-                'message': str(e)
-            }))
+            error_data = StreamData(
+                stream_type=StreamType.CAN,
+                channel=self.channel,
+                timestamp=time.time(),
+                source=StreamSource.SYSTEM,
+                action=StreamAction.ERROR,
+                data={'message': str(e)},
+                metadata={'error': str(e)}
+            )
+            await self.send(text_data=json.dumps(error_data.to_dict()))

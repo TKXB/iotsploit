@@ -8,7 +8,7 @@ import can
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, SocketCANDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType
+from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,8 @@ class SocketCANDriver(BaseDeviceDriver):
                         stream_type=StreamType.CAN,
                         channel=self.device.device_id,
                         timestamp=time.time(),
+                        source=StreamSource.SERVER,
+                        action=StreamAction.DATA,
                         data={
                             'id': hex(message.arbitration_id),
                             'data': message.data.hex(),
