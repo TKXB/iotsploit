@@ -277,10 +277,31 @@ class SocketCANDriver(BaseDeviceDriver):
             return False
 
     # Add a new method for sending actual CAN messages
+    def validate_can_message(self, can_id: int, data: bytes) -> bool:
+        """Validate CAN message parameters"""
+        try:
+            # Check ID range (standard CAN = 11 bits, extended = 29 bits)
+            if not (0 <= can_id <= 0x7FF) and not (0 <= can_id <= 0x1FFFFFFF):
+                logger.error(f"Invalid CAN ID: {hex(can_id)}")
+                return False
+            
+            # Check data length (0-8 bytes for standard CAN)
+            if len(data) > 8:
+                logger.error(f"Invalid data length: {len(data)}")
+                return False
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error validating CAN message: {e}")
+            return False
+
     def send_can_message(self, device: SocketCANDevice, can_id: int, data: bytes):
+        """Send a CAN message with validation"""
         if not self.bus:
-            logger.error("Cannot send message: SocketCAN device not connected")
-            return
+            raise RuntimeError("Cannot send message: SocketCAN device not connected")
+
+        if not self.validate_can_message(can_id, data):
+            raise ValueError("Invalid CAN message parameters")
 
         try:
             message = can.Message(
@@ -293,6 +314,7 @@ class SocketCANDriver(BaseDeviceDriver):
                        f"Data: {message.data.hex()}")
         except Exception as e:
             logger.error(f"Failed to send CAN message: {e}")
+            raise
 
     def is_connected(self):
         return self.connected
