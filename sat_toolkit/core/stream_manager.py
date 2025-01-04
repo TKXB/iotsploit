@@ -9,8 +9,6 @@ from channels.layers import get_channel_layer
 import redis
 from django.conf import settings
 
-#todo: clean redis keys when stream is stopped
-
 logger = logging.getLogger(__name__)
 
 class StreamType(Enum):
@@ -37,6 +35,27 @@ class StreamData:
             "metadata": self.metadata
         }
 
+class StreamWrapper:
+    """Wrapper class to handle async operations for stream management"""
+    def __init__(self, stream_manager):
+        self.stream_manager = stream_manager
+
+    def register_stream(self, channel):
+        """Synchronous wrapper for registering a stream"""
+        asyncio.run(self.stream_manager.register_stream(channel))
+
+    def unregister_stream(self, channel):
+        """Synchronous wrapper for unregistering a stream"""
+        asyncio.run(self.stream_manager.unregister_stream(channel))
+
+    def stop_broadcast(self, channel):
+        """Synchronous wrapper for stopping broadcast"""
+        asyncio.run(self.stream_manager.stop_broadcast(channel))
+
+    def broadcast_data(self, stream_data):
+        """Synchronous wrapper for broadcasting data"""
+        asyncio.run(self.stream_manager.broadcast_data(stream_data))
+
 class StreamManager:
     _instance = None
     _redis = None
@@ -49,7 +68,6 @@ class StreamManager:
     def __init__(self):
         if not hasattr(self, 'initialized'):
             self.channel_layer = get_channel_layer()
-            # Initialize Redis connection
             self._redis = redis.Redis(
                 host=getattr(settings, 'REDIS_HOST', 'localhost'),
                 port=getattr(settings, 'REDIS_PORT', 6379),
