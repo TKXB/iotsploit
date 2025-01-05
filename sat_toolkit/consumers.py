@@ -127,66 +127,131 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
             json_data = json.loads(text_data)
             stream_data = StreamData.from_dict(json_data)
 
-            if stream_data.stream_type == StreamType.CAN and stream_data.action == StreamAction.SEND:
-                # Get the driver instance
-                device_manager = DeviceDriverManager()
+            # Get the driver instance based on stream type
+            device_manager = DeviceDriverManager()
+            if stream_data.stream_type == StreamType.UART:
+                driver = device_manager.get_driver_instance('drv_ft2232')
+            elif stream_data.stream_type == StreamType.CAN:
                 driver = device_manager.get_driver_instance('drv_socketcan')
-                logger.info(f"Driver instance details: {driver}")
+            else:
+                error_data = StreamData(
+                    stream_type=stream_data.stream_type,
+                    channel=self.channel,
+                    timestamp=time.time(),
+                    source=StreamSource.SYSTEM,
+                    action=StreamAction.ERROR,
+                    data={'message': f'Unsupported stream type: {stream_data.stream_type.value}'},
+                    metadata={'original_request': stream_data.to_dict()}
+                )
+                await self.send(text_data=json.dumps(error_data.to_dict()))
+                return
+
+            logger.info(f"Driver instance details: {driver}")
+            
+            if not driver:
+                error_data = StreamData(
+                    stream_type=stream_data.stream_type,
+                    channel=self.channel,
+                    timestamp=time.time(),
+                    source=StreamSource.SYSTEM,
+                    action=StreamAction.ERROR,
+                    data={'message': f'{stream_data.stream_type.value} driver not found'},
+                    metadata={'original_request': stream_data.to_dict()}
+                )
+                await self.send(text_data=json.dumps(error_data.to_dict()))
+                return
+
+            if not driver.connected:
+                logger.info("Driver not connected, attempting to scan and connect...")
+                devices = driver.scan()
+                logger.info(f"Scan results: {devices}")
                 
-                if not driver:
+                if devices:
+                    device = devices[0]
+                    init_result = driver.initialize(device)
+                    connect_result = driver.connect(device)
+                    
+                    if not (init_result and connect_result):
+                        error_data = StreamData(
+                            stream_type=stream_data.stream_type,
+                            channel=self.channel,
+                            timestamp=time.time(),
+                            source=StreamSource.SYSTEM,
+                            action=StreamAction.ERROR,
+                            data={'message': f'Failed to initialize/connect {stream_data.stream_type.value} device'},
+                            metadata={'original_request': stream_data.to_dict()}
+                        )
+                        await self.send(text_data=json.dumps(error_data.to_dict()))
+                        return
+                else:
                     error_data = StreamData(
-                        stream_type=StreamType.CAN,
+                        stream_type=stream_data.stream_type,
                         channel=self.channel,
                         timestamp=time.time(),
                         source=StreamSource.SYSTEM,
                         action=StreamAction.ERROR,
-                        data={'message': 'CAN driver not found'},
+                        data={'message': f'No {stream_data.stream_type.value} devices found'},
                         metadata={'original_request': stream_data.to_dict()}
                     )
                     await self.send(text_data=json.dumps(error_data.to_dict()))
                     return
 
-                if not driver.connected:
-                    logger.info("Driver not connected, attempting to scan and connect...")
-                    devices = driver.scan()
-                    logger.info(f"Scan results: {devices}")
+            # Handle UART-specific actions
+            if stream_data.stream_type == StreamType.UART and stream_data.action == StreamAction.SEND:
+                try:
+                    uart_channel = stream_data.metadata.get('channel', 'A')  # Default to channel A if not specified
+                    hex_data = stream_data.data.get('data')
+                    if not hex_data:
+                        raise ValueError("No data provided for UART transmission")
                     
-                    if devices:
-                        device = devices[0]
-                        init_result = driver.initialize(device)
-                        connect_result = driver.connect(device)
-                        
-                        if not (init_result and connect_result):
-                            error_data = StreamData(
-                                stream_type=StreamType.CAN,
-                                channel=self.channel,
-                                timestamp=time.time(),
-                                source=StreamSource.SYSTEM,
-                                action=StreamAction.ERROR,
-                                data={'message': 'Failed to initialize/connect CAN device'},
-                                metadata={'original_request': stream_data.to_dict()}
-                            )
-                            await self.send(text_data=json.dumps(error_data.to_dict()))
-                            return
-                    else:
-                        error_data = StreamData(
-                            stream_type=StreamType.CAN,
-                            channel=self.channel,
-                            timestamp=time.time(),
-                            source=StreamSource.SYSTEM,
-                            action=StreamAction.ERROR,
-                            data={'message': 'No CAN devices found'},
-                            metadata={'original_request': stream_data.to_dict()}
-                        )
-                        await self.send(text_data=json.dumps(error_data.to_dict()))
-                        return
+                    data = bytes.fromhex(hex_data)
+                    driver.send_uart_data(driver.device, uart_channel, data)
+                    
+                    # Send success response
+                    response_data = StreamData(
+                        stream_type=StreamType.UART,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SERVER,
+                        action=StreamAction.STATUS,
+                        data={
+                            'status': 'success',
+                            'message': f'Sent UART data on channel {uart_channel}: {hex_data}'
+                        },
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(response_data.to_dict()))
+                    
+                except (ValueError, KeyError) as e:
+                    error_data = StreamData(
+                        stream_type=StreamType.UART,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SYSTEM,
+                        action=StreamAction.ERROR,
+                        data={'message': f'Invalid UART message format: {str(e)}'},
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(error_data.to_dict()))
+                    
+                except Exception as e:
+                    error_data = StreamData(
+                        stream_type=StreamType.UART,
+                        channel=self.channel,
+                        timestamp=time.time(),
+                        source=StreamSource.SYSTEM,
+                        action=StreamAction.ERROR,
+                        data={'message': f'Failed to send UART data: {str(e)}'},
+                        metadata={'original_request': stream_data.to_dict()}
+                    )
+                    await self.send(text_data=json.dumps(error_data.to_dict()))
 
-                # Extract CAN message parameters
+            # Handle CAN-specific actions
+            elif stream_data.stream_type == StreamType.CAN and stream_data.action == StreamAction.SEND:
                 try:
                     can_id = int(stream_data.data['id'], 16)
                     can_data = bytes.fromhex(stream_data.data['data'])
                     
-                    # Send the CAN message
                     driver.send_can_message(driver.device, can_id, can_data)
                     
                     # Send success response
@@ -211,7 +276,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                         timestamp=time.time(),
                         source=StreamSource.SYSTEM,
                         action=StreamAction.ERROR,
-                        data={'message': f'Invalid message format: {str(e)}'},
+                        data={'message': f'Invalid CAN message format: {str(e)}'},
                         metadata={'original_request': stream_data.to_dict()}
                     )
                     await self.send(text_data=json.dumps(error_data.to_dict()))
@@ -230,7 +295,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     
         except json.JSONDecodeError as e:
             error_data = StreamData(
-                stream_type=StreamType.CAN,
+                stream_type=StreamType.CAN,  # Default to CAN for backward compatibility
                 channel=self.channel,
                 timestamp=time.time(),
                 source=StreamSource.SYSTEM,
@@ -241,7 +306,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps(error_data.to_dict()))
         except Exception as e:
             error_data = StreamData(
-                stream_type=StreamType.CAN,
+                stream_type=StreamType.CAN,  # Default to CAN for backward compatibility
                 channel=self.channel,
                 timestamp=time.time(),
                 source=StreamSource.SYSTEM,

@@ -1,26 +1,20 @@
 import usb.core
 import usb.util
-import pluggy
 import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 import uuid
-from plugins.devices.ft2232.protocol import (
-    create_ft2232_interface, close_ft2232_interface,
-    uart_read, uart_write, spi_exchange, jtag_write_tms, jtag_write_tdi
-)
 import threading
 import time
 from pyftdi.ftdi import Ftdi
 from pyftdi.serialext import serial_for_url
-from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType
+from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction, StreamWrapper
 import asyncio
 import pyudev
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-hookimpl = pluggy.HookimplMarker("device_mgr")
 
 # Define the vendor and product IDs for FT2232 devices
 FT2232_VENDOR_ID = 0x0403
@@ -29,74 +23,494 @@ FT2232_PRODUCT_ID = 0x6010
 class FT2232Driver(BaseDeviceDriver):
     def __init__(self):
         super().__init__()
-        self.uart = None
+        self.uart_channels = {
+            'A': None,  # Channel A
+            'B': None   # Channel B
+        }
         self.mode = 'uart'
         self._device_counter = 0
-        self.running = threading.Event()
-        self.receiver_thread = None
+        self.running = {
+            'A': threading.Event(),
+            'B': threading.Event()
+        }
+        self.receiver_threads = {
+            'A': None,
+            'B': None
+        }
         self.connected = False
         self.stream_manager = StreamManager()
-        self.device = None  # Store the connected device
-        # Update supported commands for UART only
+        self.stream_wrapper = StreamWrapper(self.stream_manager)
+        self.device = None
+        self.usb_dev = None  # Store USB device reference
         self.supported_commands = {
-            "start": "Start monitoring/receiving UART data",
-            "stop": "Stop monitoring/receiving UART data",
-            "send": "Send data over UART (format: send <hex_data>)",
+            "start": "Start monitoring/receiving UART data (format: start <channel>)",
+            "stop": "Stop monitoring/receiving UART data (format: stop <channel>)",
+            "send": "Send data over UART (format: send <channel> <hex_data>)",
             "status": "Display current interface status"
         }
 
-    def start_receiver(self):
-        """Helper method to start the receiver thread if it's not already running"""
-        if not self.running.is_set() and not (self.receiver_thread and self.receiver_thread.is_alive()):
-            self.running.set()
-            self.receiver_thread = threading.Thread(
-                target=self.receiver_thread_fn,
-                name='FT2232_RECEIVER'
-            )
-            self.receiver_thread.daemon = True
-            self.receiver_thread.start()
-            logger.info("Started UART monitoring")
+    def _detach_kernel_driver(self, usb_dev):
+        """Helper function to detach kernel driver from both interfaces"""
+        try:
+            for interface in [0, 1]:  # FT2232 has two interfaces
+                if usb_dev.is_kernel_driver_active(interface):
+                    logger.debug(f"Detaching kernel driver from interface {interface}")
+                    usb_dev.detach_kernel_driver(interface)
+        except Exception as e:
+            logger.warning(f"Error detaching kernel driver: {e}")
 
-    def stop_receiver(self):
-        """Helper method to stop the receiver thread"""
-        self.running.clear()
-        if self.receiver_thread and self.receiver_thread.is_alive():
-            self.receiver_thread.join(timeout=1.0)
-            self.receiver_thread = None
-        logger.info("Stopped UART monitoring")
+    def _attach_kernel_driver(self, usb_dev):
+        """Helper function to re-attach kernel driver to both interfaces"""
+        try:
+            for interface in [0, 1]:  # FT2232 has two interfaces
+                if not usb_dev.is_kernel_driver_active(interface):
+                    logger.debug(f"Re-attaching kernel driver to interface {interface}")
+                    usb_dev.attach_kernel_driver(interface)
+        except Exception as e:
+            logger.warning(f"Error re-attaching kernel driver: {e}")
 
-    def receiver_thread_fn(self):
-        """Thread function to continuously read UART data"""
-        while self.running.is_set():
+    def initialize(self, device: USBDevice):
+        if self.connected and self.device == device:
+            logger.info("Device is already initialized and connected.")
+            return True
+
+        if device.device_type != DeviceType.USB:
+            raise ValueError("This plugin only supports USB devices")
+        
+        try:
+            logger.info(f"Initializing FT2232 device: {device.name}")
+            serial_number = device.attributes["serial_number"]
+            
+            # Find USB device
+            self.usb_dev = usb.core.find(idVendor=FT2232_VENDOR_ID, 
+                                       idProduct=FT2232_PRODUCT_ID,
+                                       serial_number=serial_number)
+            if not self.usb_dev:
+                raise Exception("USB device not found")
+
+            # Reset the device first
             try:
-                if self.uart and self.device:  # Check that both uart and device are available
-                    data = self.uart.read(16)  # Read up to 16 bytes
+                self.usb_dev.reset()
+                time.sleep(1)  # Wait for reset
+            except Exception as e:
+                logger.warning(f"Device reset failed: {e}")
+
+            # Detach kernel driver using the helper function
+            self._detach_kernel_driver(self.usb_dev)
+            time.sleep(0.5)  # Wait after detaching
+
+            # Set configuration
+            try:
+                self.usb_dev.set_configuration()
+                time.sleep(0.5)  # Wait for configuration
+            except Exception as e:
+                logger.error(f"Error setting configuration: {e}")
+                raise
+
+            # Verify kernel driver is detached
+            for interface in [0, 1]:
+                if self.usb_dev.is_kernel_driver_active(interface):
+                    raise Exception(f"Kernel driver still active on interface {interface}")
+
+            # Initialize UART channels
+            for channel, index in [('A', 1), ('B', 2)]:
+                try:
+                    device_url = f'ftdi://ftdi:2232h:{serial_number}/{index}'
+                    logger.info(f"Creating UART interface for channel {channel}")
+                    
+                    uart = serial_for_url(
+                        device_url,
+                        baudrate=115200,
+                        bytesize=8,
+                        parity='N',
+                        stopbits=1
+                    )
+                    
+                    if not uart:
+                        raise Exception(f"Failed to create UART interface for channel {channel}")
+                    
+                    self.uart_channels[channel] = uart
+                    logger.info(f"Successfully initialized channel {channel}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to initialize channel {channel}: {e}")
+                    raise
+
+            # Verify TTY devices are gone (kernel driver successfully detached)
+            if any(Path(f"/dev/ttyUSB{i}").exists() for i in [1, 2]):
+                logger.warning("TTY devices still exist after initialization")
+            
+            self.connected = True
+            self.device = device
+            logger.info("Device initialization complete")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize device: {e}")
+            self.connected = False
+            self.uart_channels = {'A': None, 'B': None}
+            self.device = None
+            self.usb_dev = None
+            raise
+
+    def receiver_thread_fn(self, channel):
+        """Thread function to continuously read UART data for a specific channel"""
+        uart = self.uart_channels[channel]
+        channel_id = f"{self.device.device_id}_{channel}"
+        
+        while self.running[channel].is_set():
+            try:
+                if uart and self.device:
+                    data = uart.read(16)
                     if data:
-                        logger.info(f"Received UART data: {data.hex()}")
-                        # Create StreamData object for WebSocket transmission
                         stream_data = StreamData(
                             stream_type=StreamType.UART,
-                            channel=self.device.device_id,  # Now self.device is guaranteed to exist
+                            channel=channel_id,
                             timestamp=time.time(),
+                            source=StreamSource.SERVER,
+                            action=StreamAction.DATA,
                             data={
                                 'data': data.hex(),
-                                'length': len(data)
+                                'length': len(data),
+                                'channel': channel
                             },
                             metadata={
-                                'interface': self.device.device_id,
-                                'baudrate': self.uart.baudrate
+                                'interface': channel_id,
+                                'baudrate': uart.baudrate,
+                                'channel': channel
                             }
                         )
-                        
-                        # Use asyncio to broadcast the data
-                        asyncio.run(self.stream_manager.broadcast_data(stream_data))
+                        self.stream_wrapper.broadcast_data(stream_data)
+                        logger.info(f"Received UART data on channel {channel}: {data.hex()}")
                 time.sleep(0.01)
             except Exception as e:
-                logger.error(f"Error reading UART data: {str(e)}")
+                logger.error(f"Error reading UART data on channel {channel}: {str(e)}")
                 time.sleep(0.1)
 
-    @hookimpl
+    def start_monitoring(self, device, channel):
+        """Start UART monitoring for a specific channel"""
+        if channel not in self.uart_channels:
+            raise ValueError(f"Invalid channel: {channel}. Must be 'A' or 'B'")
+            
+        self.stop_receiver(channel)
+        logger.info(f"Starting UART monitoring for channel {channel}")
+        channel_id = f"{device.device_id}_{channel}"
+        self.stream_wrapper.register_stream(channel_id)
+        self.start_receiver(channel)
+
+    def stop_monitoring(self, device, channel):
+        """Stop UART monitoring for a specific channel"""
+        if channel not in self.uart_channels:
+            raise ValueError(f"Invalid channel: {channel}. Must be 'A' or 'B'")
+            
+        channel_id = f"{device.device_id}_{channel}"
+        self.stream_wrapper.unregister_stream(channel_id)
+        self.stream_wrapper.stop_broadcast(channel_id)
+        self.stop_receiver(channel)
+
+    def start_receiver(self, channel):
+        """Start receiver thread for a specific channel"""
+        if not self.running[channel].is_set() and not (self.receiver_threads[channel] and self.receiver_threads[channel].is_alive()):
+            self.running[channel].set()
+            self.receiver_threads[channel] = threading.Thread(
+                target=self.receiver_thread_fn,
+                args=(channel,),
+                name=f'FT2232_RECEIVER_{channel}'
+            )
+            self.receiver_threads[channel].daemon = True
+            self.receiver_threads[channel].start()
+            logger.info(f"Started UART monitoring for channel {channel}")
+
+    def stop_receiver(self, channel):
+        """Stop receiver thread for a specific channel"""
+        self.running[channel].clear()
+        if self.receiver_threads[channel] and self.receiver_threads[channel].is_alive():
+            self.receiver_threads[channel].join(timeout=1.0)
+            self.receiver_threads[channel] = None
+        
+        # Close the UART channel when stopping
+        if self.uart_channels[channel]:
+            try:
+                if hasattr(self.uart_channels[channel], '_ftdi'):
+                    self.uart_channels[channel]._ftdi.close()
+                self.uart_channels[channel].close()
+                self.uart_channels[channel] = None
+            except Exception as e:
+                logger.warning(f"Error closing channel {channel}: {e}")
+        
+        logger.info(f"Stopped UART monitoring for channel {channel}")
+
+    def send_uart_data(self, device: USBDevice, channel: str, data: bytes):
+        """Send UART data on a specific channel"""
+        if channel not in self.uart_channels:
+            raise ValueError(f"Invalid channel: {channel}. Must be 'A' or 'B'")
+            
+        uart = self.uart_channels[channel]
+        if not uart:
+            # Try to reinitialize if the channel is not connected
+            if not self.initialize(device):
+                logger.error("Cannot send data: UART channel initialization failed")
+                raise Exception("Failed to initialize UART channel")
+
+        try:
+            # Ensure kernel driver is detached before sending data
+            if self.usb_dev:
+                interface = 0 if channel == 'A' else 1
+                if self.usb_dev.is_kernel_driver_active(interface):
+                    logger.debug(f"Detaching kernel driver from interface {interface}")
+                    self.usb_dev.detach_kernel_driver(interface)
+
+            uart.write(data)
+            channel_id = f"{device.device_id}_{channel}"
+            stream_data = StreamData(
+                stream_type=StreamType.UART,
+                channel=channel_id,
+                timestamp=time.time(),
+                source=StreamSource.SERVER,
+                action=StreamAction.SEND,
+                data={
+                    'data': data.hex(),
+                    'length': len(data),
+                    'channel': channel
+                },
+                metadata={
+                    'interface': channel_id,
+                    'baudrate': uart.baudrate,
+                    'channel': channel
+                }
+            )
+            self.stream_wrapper.broadcast_data(stream_data)
+            logger.info(f"Sent UART data on channel {channel}: {data.hex()}")
+        except Exception as e:
+            logger.error(f"Failed to send UART data on channel {channel}: {e}")
+            # Try to recover by reinitializing the device
+            try:
+                self.reset(device)
+            except Exception as reset_error:
+                logger.error(f"Failed to reset device after send error: {reset_error}")
+            raise
+
+    def command(self, device: USBDevice, command: str):
+        try:
+            cmd_parts = command.lower().split()
+            if len(cmd_parts) < 1:
+                logger.error("Empty command received")
+                return
+
+            cmd = cmd_parts[0]
+
+            if not self.connected and cmd != "status":
+                logger.info("Device not connected, attempting to initialize...")
+                if not self.initialize(device):
+                    logger.error("Failed to initialize device")
+                    return
+
+            if cmd == "start":
+                # Ensure kernel driver is detached before starting
+                if self.usb_dev:
+                    self._detach_kernel_driver(self.usb_dev)
+                    # Verify TTY devices are gone
+                    timeout = 5  # 5 seconds timeout
+                    start_time = time.time()
+                    while time.time() - start_time < timeout:
+                        if not any(Path(f"/dev/ttyUSB{i}").exists() for i in [1, 2]):
+                            logger.info("TTY devices successfully removed")
+                            break
+                        time.sleep(0.5)
+                    else:
+                        logger.warning("TTY devices still present after timeout")
+
+                if len(cmd_parts) < 2:
+                    # If no channel specified, start both channels
+                    logger.info("No channel specified, starting both channels")
+                    for channel in ['A', 'B']:
+                        self.start_monitoring(device, channel)
+                else:
+                    channel = cmd_parts[1].upper()
+                    self.start_monitoring(device, channel)
+
+            elif cmd == "stop":
+                if len(cmd_parts) < 2:
+                    # If no channel specified, stop both channels
+                    logger.info("No channel specified, stopping both channels")
+                    for channel in ['A', 'B']:
+                        self.stop_monitoring(device, channel)
+                    
+                    # Add delay after stopping channels
+                    time.sleep(1)
+                    
+                    # Release USB interfaces before reattaching
+                    if self.usb_dev:
+                        for interface in [0, 1]:
+                            try:
+                                usb.util.release_interface(self.usb_dev, interface)
+                            except Exception as e:
+                                logger.warning(f"Error releasing interface {interface}: {e}")
+                        
+                        # Add delay after releasing interfaces
+                        time.sleep(0.5)
+                        
+                        # Re-attach kernel driver after stopping all channels
+                        self._attach_kernel_driver(self.usb_dev)
+                        
+                        # Wait for TTY devices to appear
+                        timeout = 5  # 5 seconds timeout
+                        start_time = time.time()
+                        while time.time() - start_time < timeout:
+                            if all(Path(f"/dev/ttyUSB{i}").exists() for i in [1, 2]):
+                                logger.info("TTY devices successfully restored")
+                                break
+                            time.sleep(0.5)
+                        else:
+                            logger.warning("TTY devices did not reappear after timeout")
+                else:
+                    channel = cmd_parts[1].upper()
+                    self.stop_monitoring(device, channel)
+
+            elif cmd == "send":
+                if len(cmd_parts) < 3:
+                    logger.error("Send command requires channel and hex data arguments")
+                    return
+                channel = cmd_parts[1].upper()
+                try:
+                    data = bytes.fromhex(cmd_parts[2])
+                    self.send_uart_data(device, channel, data)
+                except ValueError:
+                    logger.error("Invalid hex data format")
+
+            elif cmd == "status":
+                status = {
+                    "mode": self.mode,
+                    "channel_A": {
+                        "running": self.running['A'].is_set(),
+                        "receiver_active": bool(self.receiver_threads['A'] and self.receiver_threads['A'].is_alive()),
+                        "interface_connected": bool(self.uart_channels['A'])
+                    },
+                    "channel_B": {
+                        "running": self.running['B'].is_set(),
+                        "receiver_active": bool(self.receiver_threads['B'] and self.receiver_threads['B'].is_alive()),
+                        "interface_connected": bool(self.uart_channels['B'])
+                    }
+                }
+                logger.info(f"Device status: {status}")
+
+            else:
+                logger.error(f"Unknown command: {cmd}. Valid commands are: {', '.join(self.supported_commands.keys())}")
+
+        except Exception as e:
+            logger.error(f"Failed to execute command {command}: {e}")
+            raise
+
+    def reset(self, device: USBDevice):
+        try:
+            logger.info(f"Resetting FT2232 device: {device.name}")
+            for channel in self.uart_channels:
+                if self.uart_channels[channel]:
+                    self.uart_channels[channel].close()
+                    
+            # Reinitialize both channels
+            self.initialize(device)
+            logger.info(f"Reset FT2232 device: {device.name}")
+            return True
+        except Exception as e:
+            logger.error(f"Cannot reset FT2232 device {device.name}: {e}")
+            return False
+
+    def close(self, device: USBDevice):
+        try:
+            # Stop all receivers first
+            for channel in ['A', 'B']:
+                self.stop_receiver(channel)
+            
+            # Close each channel
+            for channel, uart in self.uart_channels.items():
+                if uart:
+                    try:
+                        if hasattr(uart, '_ftdi'):
+                            # Close FTDI connection properly
+                            uart._ftdi.close()
+                        uart.close()
+                    except Exception as e:
+                        logger.warning(f"Error closing channel {channel}: {e}")
+
+            self.uart_channels = {'A': None, 'B': None}
+            self.connected = False
+            
+            # Reset and cleanup USB device
+            if self.usb_dev:
+                try:
+                    # Release claimed interfaces
+                    for interface in [0, 1]:
+                        try:
+                            usb.util.release_interface(self.usb_dev, interface)
+                        except Exception as e:
+                            logger.warning(f"Error releasing interface {interface}: {e}")
+                    
+                    # Reset the device
+                    self.usb_dev.reset()
+                    time.sleep(1)  # Wait for reset to complete
+                    
+                    # Re-attach kernel driver
+                    for interface in [0, 1]:
+                        try:
+                            if not self.usb_dev.is_kernel_driver_active(interface):
+                                logger.info(f"Re-attaching kernel driver to interface {interface}")
+                                self.usb_dev.attach_kernel_driver(interface)
+                                time.sleep(0.5)  # Wait between attaching
+                        except Exception as e:
+                            logger.warning(f"Error re-attaching kernel driver to interface {interface}: {e}")
+                    
+                    # Dispose of USB resources
+                    usb.util.dispose_resources(self.usb_dev)
+                    
+                except Exception as e:
+                    logger.warning(f"Error during USB device cleanup: {e}")
+            
+            self.usb_dev = None
+            self.device = None
+            
+            # Add a longer delay to ensure device re-enumeration
+            time.sleep(2)
+            
+            # Verify TTY devices are back
+            timeout = 5  # 5 seconds timeout
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if all(Path(f"/dev/ttyUSB{i}").exists() for i in [1, 2]):
+                    logger.info("TTY devices successfully restored")
+                    break
+                time.sleep(0.5)
+            else:
+                logger.warning("TTY devices did not reappear after timeout")
+            
+            logger.info(f"FT2232 device {device.name} closed successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to close FT2232 device {device.name}: {e}")
+            self.connected = False
+            return False
+
+    def connect(self, device: USBDevice):
+        """Connect to the device after initialization"""
+        try:
+            if not any(self.uart_channels.values()):
+                self.initialize(device)
+            
+            self.connected = all(uart is not None for uart in self.uart_channels.values())
+            if self.connected:
+                logger.info(f"Connected to FT2232 device: {device.name}")
+            else:
+                logger.error("Not all channels were initialized properly")
+            
+            return self.connected
+            
+        except Exception as e:
+            logger.error(f"Failed to connect to device: {e}")
+            self.connected = False
+            return False
+
     def scan(self):
+        """Scan for available FT2232 devices"""
         devices = usb.core.find(find_all=True, idVendor=FT2232_VENDOR_ID, idProduct=FT2232_PRODUCT_ID)
         
         if devices is None:
@@ -124,16 +538,19 @@ class FT2232Driver(BaseDeviceDriver):
                 device = USBDevice(
                     device_id=f"ft2232_{serial_number}",
                     name="FT2232",
-                    vendor_id=hex(FT2232_VENDOR_ID),
-                    product_id=hex(FT2232_PRODUCT_ID),
+                    device_type=DeviceType.USB,  # Add device_type for compatibility
                     attributes={
                         'serial_number': serial_number,
+                        'vendor_id': FT2232_VENDOR_ID,
+                        'product_id': FT2232_PRODUCT_ID,
                         'bus': str(usb_dev.bus),
                         'address': str(usb_dev.address),
                         'port_number': str(usb_dev.port_number) if hasattr(usb_dev, 'port_number') else None,
                         'manufacturer': usb.util.get_string(usb_dev, usb_dev.iManufacturer) if hasattr(usb_dev, 'iManufacturer') else None,
                         'product': usb.util.get_string(usb_dev, usb_dev.iProduct) if hasattr(usb_dev, 'iProduct') else None,
-                        'tty_devices': tty_devices  # Add the tty device paths
+                        'tty_devices': tty_devices,  # Add the tty device paths
+                        'channel_A': tty_devices[0] if len(tty_devices) > 0 else None,  # First TTY device is channel A
+                        'channel_B': tty_devices[1] if len(tty_devices) > 1 else None   # Second TTY device is channel B
                     }
                 )
                 
@@ -149,191 +566,13 @@ class FT2232Driver(BaseDeviceDriver):
 
         return found_devices
 
-    @hookimpl
-    def initialize(self, device: USBDevice):
-        if device.device_type != DeviceType.USB:
-            logger.error(f"Current device type: {device.device_type}")
-            raise ValueError("This plugin only supports USB devices")
-        
-        try:
-            logger.info(f"Initializing FT2232 device: {device.name}")
-            
-            serial_number = device.attributes["serial_number"]
-            device_url = f'ftdi://ftdi:2232h:{serial_number}/1'
-            
-            logger.debug(f"Attempting to create interface with URL: {device_url}")
-            self.uart = serial_for_url(
-                device_url,
-                baudrate=115200,
-                bytesize=8,
-                parity='N',
-                stopbits=1
-            )
-            
-            if not self.uart:
-                raise Exception("Failed to create UART interface")
-                
-            self.connected = True
-            self.device = device  # Store the device instance
-            logger.info(f"Successfully initialized FT2232 device with serial: {serial_number}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize device: {e}")
-            self.connected = False
-            self.uart = None
-            self.device = None  # Clear device instance on failure
-            raise
-
-    @hookimpl
-    def connect(self, device: USBDevice):
-        try:
-            if not self.uart:
-                logger.error("UART interface not initialized. Please initialize first.")
-                self.connected = False
-                return False
-
-            logger.info(f"FT2232 device {device.name} connected successfully in {self.mode} mode.")
-            self.device = device  # Ensure device is stored here as well
-            self.connected = True
-            return True
-            
-        except Exception as e:
-            logger.error(f"Connection failed: {e}")
-            self.connected = False
-            self.device = None  # Clear device instance on failure
-            return False
-
-    @hookimpl
-    def execute(self, device: USBDevice, target: str):
-        logger.info(f"Executing action on {target} using FT2232 device {device.name}")
-        # Implement specific FT2232 execution logic here based on the mode
-
-    @hookimpl
-    def command(self, device: USBDevice, command: str):
-        try:
-            cmd_parts = command.lower().split()
-            cmd = cmd_parts[0]
-            args = cmd_parts[1:] if len(cmd_parts) > 1 else []
-
-            if not self.uart:
-                try:
-                    logger.info("Device not connected, attempting to initialize...")
-                    self.initialize(device)
-                    self.connect(device)
-                except Exception as e:
-                    logger.error(f"Failed to initialize or connect to device: {e}")
-                    return
-
-            if cmd == "start":
-                # Stop any existing receiver
-                self.stop_receiver()
-                # Register the stream before starting
-                channel = device.device_id
-                asyncio.run(self.stream_manager.register_stream(channel))
-                self.start_receiver()
-
-            elif cmd == "stop":
-                channel = device.device_id
-                asyncio.run(self.stream_manager.unregister_stream(channel))
-                asyncio.run(self.stream_manager.stop_broadcast(channel))
-                self.stop_receiver()
-                
-                # 添加设备重置和重新枚举逻辑
-                if hasattr(self.uart, '_ftdi'):
-                    try:
-                        self.uart._ftdi.usb_dev.reset()
-                        usb.util.dispose_resources(self.uart._ftdi.usb_dev)
-                    except Exception as e:
-                        logger.warning(f"Error during USB device cleanup: {e}")
-                
-                self.uart.close()
-                self.uart = None
-                self.connected = False
-                
-                # 添加短暂延时，让系统有时间重新枚举设备
-                time.sleep(1)
-
-            elif cmd == "send":
-                if not args:
-                    logger.error("Send command requires hex data argument")
-                    return
-                try:
-                    data = bytes.fromhex(args[0])
-                    self.uart.write(data)
-                    logger.info(f"Sent UART data: {data.hex()}")
-                except ValueError:
-                    logger.error("Invalid hex data format")
-
-            elif cmd == "status":
-                status = {
-                    "mode": "uart",
-                    "running": self.running.is_set(),
-                    "receiver_active": bool(self.receiver_thread and self.receiver_thread.is_alive()),
-                    "interface_connected": bool(self.uart)
-                }
-                logger.info(f"Device status: {status}")
-
-            else:
-                logger.error(f"Unknown command: {cmd}. Valid commands are: {', '.join(self.supported_commands.keys())}")
-
-        except Exception as e:
-            logger.error(f"Failed to execute command {command}: {e}")
-            raise
-
-    @hookimpl
-    def reset(self, device: USBDevice):
-        if self.uart:
-            close_ft2232_interface(self.mode, self.uart)
-            device_url = f'ftdi://ftdi:2232h/{device.attributes["serial_number"]}'
-            self.uart = create_ft2232_interface(self.mode, device_url)
-            logger.info(f"Reset FT2232 device: {device.name}")
-        else:
-            logger.error(f"Cannot reset: FT2232 device {device.name} is not connected")
-
-    @hookimpl
-    def close(self, device: USBDevice):
-        if not self.uart:
-            logger.error("UART interface not found. Nothing to close.")
-            self.connected = False
-            return False
-
-        try:
-            self.stop_receiver()
-            
-            # 确保正确释放 FTDI 设备
-            if hasattr(self.uart, '_ftdi'):
-                try:
-                    self.uart._ftdi.usb_dev.reset()
-                    usb.util.dispose_resources(self.uart._ftdi.usb_dev)
-                except Exception as e:
-                    logger.warning(f"Error during USB device cleanup: {e}")
-
-            self.uart.close()
-            self.uart = None
-            self.connected = False
-            
-            # 添加短暂延时，让系统有时间重新枚举设备
-            time.sleep(1)
-            
-            logger.info(f"FT2232 device {device.name} closed successfully.")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to close FT2232 device {device.name}: {e}")
-            self.connected = False
-            return False
-
-    def send_uart_data(self, device: USBDevice, data: bytes):
-        """Helper method to send UART data"""
-        if not self.uart:
-            logger.error("Cannot send data: UART device not connected")
-            return
-
-        try:
-            self.uart.write(data)
-            logger.info(f"Sent UART data: {data.hex()}")
-        except Exception as e:
-            logger.error(f"Failed to send UART data: {e}")
+    def __del__(self):
+        """Cleanup method called when the driver is destroyed"""
+        if self.device:
+            try:
+                self.close(self.device)
+            except Exception as e:
+                logger.error(f"Error during cleanup: {e}")
 
 
 # Example usage

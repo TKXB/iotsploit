@@ -68,21 +68,63 @@ class StreamWrapper:
     def __init__(self, stream_manager):
         self.stream_manager = stream_manager
 
+    def _get_or_create_loop(self):
+        """Get existing loop or create new one if needed"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            # If there's no loop in the current thread, create one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop
+
     def register_stream(self, channel):
         """Synchronous wrapper for registering a stream"""
-        asyncio.run(self.stream_manager.register_stream(channel))
+        loop = self._get_or_create_loop()
+        try:
+            if loop.is_running():
+                return loop.create_task(self.stream_manager.register_stream(channel))
+            else:
+                return loop.run_until_complete(self.stream_manager.register_stream(channel))
+        except Exception as e:
+            logger.error(f"Error in register_stream: {e}")
+            raise
 
     def unregister_stream(self, channel):
         """Synchronous wrapper for unregistering a stream"""
-        asyncio.run(self.stream_manager.unregister_stream(channel))
+        loop = self._get_or_create_loop()
+        try:
+            if loop.is_running():
+                return loop.create_task(self.stream_manager.unregister_stream(channel))
+            else:
+                return loop.run_until_complete(self.stream_manager.unregister_stream(channel))
+        except Exception as e:
+            logger.error(f"Error in unregister_stream: {e}")
+            raise
 
     def stop_broadcast(self, channel):
         """Synchronous wrapper for stopping broadcast"""
-        asyncio.run(self.stream_manager.stop_broadcast(channel))
+        loop = self._get_or_create_loop()
+        try:
+            if loop.is_running():
+                return loop.create_task(self.stream_manager.stop_broadcast(channel))
+            else:
+                return loop.run_until_complete(self.stream_manager.stop_broadcast(channel))
+        except Exception as e:
+            logger.error(f"Error in stop_broadcast: {e}")
+            raise
 
     def broadcast_data(self, stream_data):
         """Synchronous wrapper for broadcasting data"""
-        asyncio.run(self.stream_manager.broadcast_data(stream_data))
+        loop = self._get_or_create_loop()
+        try:
+            if loop.is_running():
+                return loop.create_task(self.stream_manager.broadcast_data(stream_data))
+            else:
+                return loop.run_until_complete(self.stream_manager.broadcast_data(stream_data))
+        except Exception as e:
+            logger.error(f"Error in broadcast_data: {e}")
+            raise
 
 class StreamManager:
     _instance = None
