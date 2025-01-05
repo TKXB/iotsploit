@@ -1,7 +1,10 @@
+# your_app/device_manager.py
+
 import pluggy
 import os
 import importlib.util
 import logging
+import threading
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
@@ -12,23 +15,26 @@ logger = logging.getLogger(__name__)
 
 class DeviceDriverManager:
     _instance = None
+    _lock = threading.Lock()  # 添加线程锁
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(DeviceDriverManager, cls).__new__(cls)
-            cls._instance._initialized = False
+            with cls._lock:  # 使用线程锁
+                if cls._instance is None:
+                    cls._instance = super(DeviceDriverManager, cls).__new__(cls)
+                    cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
         if not self._initialized:
-            logger.debug("Initializing DeviceManager")
+            logger.debug("Initializing DeviceDriverManager")
             self.pm = pluggy.PluginManager("device_mgr")
             self.pm.add_hookspecs(DevicePluginSpec)
             self.plugins = {}
-            self.drivers = {}  # Store driver instances
+            self.drivers = {}  # 存储驱动实例
             self.load_plugins()
             self._initialized = True
-            logger.debug("DeviceManager initialized")
+            logger.debug("DeviceDriverManager initialized")
 
     def load_plugins(self):
         plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
@@ -44,7 +50,7 @@ class DeviceDriverManager:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         
-        # Auto-register any class that inherits from BaseDeviceDriver
+        # 自动注册继承自 BaseDeviceDriver 的任何类
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
             if (isinstance(attr, type) and 
@@ -53,10 +59,10 @@ class DeviceDriverManager:
                 driver_instance = attr()
                 self.pm.register(driver_instance)
                 self.plugins[module_name] = module
-                self.drivers[module_name] = driver_instance  # Store the instance
+                self.drivers[module_name] = driver_instance  # 存储实例
                 logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
                 break
-    
+
     def get_driver_instance(self, plugin_name):
         return self.drivers.get(plugin_name)
     
@@ -123,9 +129,7 @@ class DeviceDriverManager:
 
     def initialize_device(self, device: Device):
         print(f"Initializing device: {device.name}")
-        for plugin in self.pm.get_plugins():
-            if isinstance(plugin, DevicePluginSpec):
-                plugin.initialize(device=device)
+        self.pm.hook.initialize(device=device)
 
     def connect_device(self, device: Device):
         print(f"Connecting to device: {device.name}")
@@ -137,7 +141,7 @@ class DeviceDriverManager:
 
     def send_command_to_device(self, device: Device, command: str):
         print(f"Sending command to device: {device.name}")
-        # Add command validation
+        # 添加命令验证
         for plugin in self.pm.get_plugins():
             if isinstance(plugin, BaseDeviceDriver):
                 if command not in plugin.get_supported_commands().keys():
@@ -154,14 +158,14 @@ class DeviceDriverManager:
         self.pm.hook.close(device=device)
 
     def get_device_commands(self, device: Device) -> Dict[str, str]:
-        """Get supported commands and their descriptions for a specific device/driver"""
+        """获取特定设备/驱动的支持命令及其描述"""
         for plugin in self.pm.get_plugins():
             if isinstance(plugin, BaseDeviceDriver):
                 return plugin.get_supported_commands()
         return {}
 
     def get_plugin_commands(self, plugin_name: str) -> Dict[str, str]:
-        """Get supported commands for a specific plugin"""
+        """获取特定插件的支持命令"""
         if plugin_name not in self.plugins:
             return {}
         
