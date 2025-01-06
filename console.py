@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import os
 import sys
-import logging
-import colorlog
 from typing import Dict
 
 # Set up Django settings first, before any Django-related imports
@@ -36,7 +34,7 @@ from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.tools.firmware_mgr import FirmwareManager
 from sat_toolkit.core.device_registry import DeviceRegistry
-logger = logging.getLogger(__name__)
+from sat_toolkit.tools.xlogger import xlog as logger
 
 def global_exception_handler(exctype, value, traceback):
     logger.error("Unhandled exception", exc_info=(exctype, value, traceback))
@@ -64,12 +62,8 @@ class SAT_Shell(cmd2.Cmd):
         
         # Rest of your initialization code...
         self.django_server_process = None
-        self.django_server_thread = None
         self.daphne_server_process = None
-        self.daphne_server_thread = None
         self.celery_worker_process = None
-        self.celery_worker_thread = None
-        self.setup_colored_logger()
         
         # Initialize plugin manager
         self.plugin_manager = ExploitPluginManager()
@@ -131,27 +125,6 @@ class SAT_Shell(cmd2.Cmd):
             'test_select': 'Shell Commands',
             'vehicle_select': 'Shell Commands'
         })
-
-    def setup_colored_logger(self):
-        root_logger = logging.getLogger()
-        if root_logger.handlers:
-            for handler in root_logger.handlers:
-                root_logger.removeHandler(handler)
-        
-        handler = colorlog.StreamHandler()
-        handler.setFormatter(colorlog.ColoredFormatter(
-            '%(log_color)s%(asctime)s | %(levelname)s | %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S',
-            log_colors={
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'red,bg_white',
-            }
-        ))
-        root_logger.addHandler(handler)
-        root_logger.setLevel(logging.INFO)
 
     def emptyline(self):
         self.onecmd("help")
@@ -292,10 +265,8 @@ class SAT_Shell(cmd2.Cmd):
         try:
             logger.info("Attempting to start Django, Daphne, and Celery servers in background...")
             
-            # Prepare the Django command
+            # Prepare the commands
             django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
-            
-            # Prepare the Daphne command
             daphne_cmd = [
                 sys.executable, 
                 '-m', 
@@ -306,8 +277,6 @@ class SAT_Shell(cmd2.Cmd):
                 '9999', 
                 'sat_django_entry.asgi:application'
             ]
-            
-            # Prepare the Celery command
             celery_cmd = [
                 sys.executable,
                 '-m',
@@ -322,60 +291,33 @@ class SAT_Shell(cmd2.Cmd):
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
             logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
             
-            # Start the Django server as a subprocess
+            # Start the processes with direct output to stdout/stderr
             self.django_server_process = subprocess.Popen(
                 django_cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.STDOUT, 
+                stdout=sys.stdout,  # 直接输出到控制台
+                stderr=sys.stderr,
                 universal_newlines=True
             )
             
-            # Start the Daphne server as a subprocess
             self.daphne_server_process = subprocess.Popen(
                 daphne_cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.STDOUT, 
+                stdout=sys.stdout,  # 直接输出到控制台
+                stderr=sys.stderr,
                 universal_newlines=True
             )
             
-            # Start the Celery worker as a subprocess
             self.celery_worker_process = subprocess.Popen(
                 celery_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stdout=sys.stdout,  # 直接输出到控制台
+                stderr=sys.stderr,
                 universal_newlines=True
             )
             
-            # Start threads to read the output
-            self.django_server_thread = threading.Thread(
-                target=self._read_server_output, 
-                args=(self.django_server_process, "Django"), 
-                daemon=True
-            )
-            self.django_server_thread.start()
-            
-            self.daphne_server_thread = threading.Thread(
-                target=self._read_server_output, 
-                args=(self.daphne_server_process, "Daphne"), 
-                daemon=True
-            )
-            self.daphne_server_thread.start()
-            
-            self.celery_worker_thread = threading.Thread(
-                target=self._read_server_output,
-                args=(self.celery_worker_process, "Celery"),
-                daemon=True
-            )
-            self.celery_worker_thread.start()
-            
             logger.info("All servers started successfully in the background.")
+            
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
-            logger.exception("Detailed traceback:")
-
-    def _read_server_output(self, process, server_name):
-        for line in process.stdout:
-            logger.info(f"{server_name}: {line.strip()}")
+            logger.debug("Detailed traceback:", exc_info=True)
 
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
@@ -383,17 +325,14 @@ class SAT_Shell(cmd2.Cmd):
         if self.django_server_process:
             self.django_server_process.terminate()
             self.django_server_process = None
-            self.django_server_thread = None
         
         if self.daphne_server_process:
             self.daphne_server_process.terminate()
             self.daphne_server_process = None
-            self.daphne_server_thread = None
         
         if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
             self.celery_worker_process.terminate()
             self.celery_worker_process = None
-            self.celery_worker_thread = None
         
         if not any([self.django_server_process, self.daphne_server_process, 
                     getattr(self, 'celery_worker_process', None)]):

@@ -5,7 +5,7 @@ from datetime import datetime
 
 class XLogger:
     _instance = None
-    _logger = None
+    _loggers = {}  # 存储不同模块的logger
 
     def __new__(cls):
         if cls._instance is None:
@@ -13,57 +13,60 @@ class XLogger:
         return cls._instance
 
     def __init__(self):
-        if self._logger is None:
-            self._setup_logger()
+        if not hasattr(self, 'initialized'):
+            self.initialized = True
 
-    def _setup_logger(self):
-        """Setup the custom logger with color formatting"""
-        self._logger = logging.getLogger('xlogger')
+    def get_logger(self, name: str = 'console'):
+        """Get or create a logger for the specified name"""
+        if name not in self._loggers:
+            # 创建新的logger
+            logger = logging.getLogger(name)
+            logger.setLevel(logging.INFO)
+            
+            # 确保没有重复的handler
+            if logger.handlers:
+                for handler in logger.handlers:
+                    logger.removeHandler(handler)
+            
+            # 创建并配置handler
+            handler = colorlog.StreamHandler()
+            handler.setFormatter(colorlog.ColoredFormatter(
+                '%(log_color)s%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S',
+                log_colors={
+                    'DEBUG': 'cyan',
+                    'INFO': 'green',
+                    'WARNING': 'yellow',
+                    'ERROR': 'red',
+                    'CRITICAL': 'red,bg_white',
+                }
+            ))
+            
+            # 添加handler到logger
+            logger.addHandler(handler)
+            logger.propagate = False
+            
+            # 存储logger
+            self._loggers[name] = logger
         
-        # Prevent log propagation to parent loggers
-        self._logger.propagate = False
-        
-        # Remove any existing handlers
-        if self._logger.handlers:
-            for handler in self._logger.handlers:
-                self._logger.removeHandler(handler)
-        
-        # Add new color handler with simplified format
-        handler = colorlog.StreamHandler()
-        handler.setFormatter(colorlog.ColoredFormatter(
-            '%(message)s',
-            log_colors={
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'red,bg_white',
-            }
-        ))
-        self._logger.addHandler(handler)
-        self._logger.setLevel(logging.INFO)
+        return self._loggers[name]
 
-    def debug(self, msg: str):
-        formatted_msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | DEBUG | {msg}"
-        self._logger.debug(formatted_msg)
+    def debug(self, msg: str, name: str = 'console'):
+        self.get_logger(name).debug(msg)
 
-    def info(self, msg: str):
-        formatted_msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | {msg}"
-        self._logger.info(formatted_msg)
+    def info(self, msg: str, name: str = 'console'):
+        self.get_logger(name).info(msg)
 
-    def warning(self, msg: str):
-        formatted_msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | WARNING | {msg}"
-        self._logger.warning(formatted_msg)
+    def warning(self, msg: str, name: str = 'console'):
+        self.get_logger(name).warning(msg)
 
-    def error(self, msg: str):
-        formatted_msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | ERROR | {msg}"
-        self._logger.error(formatted_msg)
+    def error(self, msg: str, name: str = 'console'):
+        self.get_logger(name).error(msg)
 
-    def critical(self, msg: str):
-        formatted_msg = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | CRITICAL | {msg}"
-        self._logger.critical(formatted_msg)
+    def critical(self, msg: str, name: str = 'console'):
+        self.get_logger(name).critical(msg)
 
-    def set_level(self, level: str):
+    def set_level(self, level: str, name: str = 'console'):
         """Set logging level"""
         level_map = {
             'DEBUG': logging.DEBUG,
@@ -73,7 +76,7 @@ class XLogger:
             'CRITICAL': logging.CRITICAL
         }
         if level.upper() in level_map:
-            self._logger.setLevel(level_map[level.upper()])
+            self.get_logger(name).setLevel(level_map[level.upper()])
 
 # Global instance
 xlog = XLogger()

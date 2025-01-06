@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from typing import Dict, Set, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -8,9 +7,9 @@ from datetime import datetime
 from channels.layers import get_channel_layer
 import redis
 from django.conf import settings
+from sat_toolkit.tools.xlogger import xlog
 
-logger = logging.getLogger(__name__)
-
+logger = xlog.get_logger(__name__)  
 class StreamType(Enum):
     UART = "uart"
     CAN = "can"

@@ -163,6 +163,45 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        }
+    },
+    "handlers": {
+        "stream": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        }
+    },
+    "loggers": {
+        "daphne": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "channels": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "channels.layers": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "sat_toolkit": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "": {
+            "level": "WARNING",
+            "handlers": [],
+        }
+    },
 }
 
 # Update these CSP settings
