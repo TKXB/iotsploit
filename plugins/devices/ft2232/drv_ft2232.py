@@ -1,6 +1,6 @@
 import usb.core
 import usb.util
-import logging
+from sat_toolkit.tools.xlogger import xlog
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
@@ -14,7 +14,7 @@ import asyncio
 import pyudev
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+logger = xlog.get_logger(__name__)
 
 # Define the vendor and product IDs for FT2232 devices
 FT2232_VENDOR_ID = 0x0403
@@ -160,6 +160,7 @@ class FT2232Driver(BaseDeviceDriver):
         
         while self.running[channel].is_set():
             try:
+                logger.debug(f"UART: {uart}, Device: {self.device}")
                 if uart and self.device:
                     data = uart.read(16)
                     if data:
