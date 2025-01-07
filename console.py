@@ -343,15 +343,31 @@ class SAT_Shell(cmd2.Cmd):
     @cmd2.with_category('System Commands')
     def do_set_log_level(self, arg):
         'Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)'
-        levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-        if arg.upper() not in levels:
-            self.poutput(f"Invalid log level. Choose from: {', '.join(levels)}")
-            return
+        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        
+        if not arg:
+            # If no argument provided, let user select from valid levels
+            selected_level = Input_Mgr.Instance().single_choice(
+                "Select logging level",
+                valid_levels
+            )
+        else:
+            # If argument provided, validate it
+            selected_level = arg.upper()
+            if selected_level not in valid_levels:
+                logger.error(ansi.style(f"Invalid log level. Choose from: {', '.join(valid_levels)}", fg=ansi.Fg.RED))
+                return
 
-        level = getattr(logging, arg.upper())
-        logging.getLogger().setLevel(level)
-        Report_Mgr.Instance().set_log_level(level)
-        self.poutput(f"Log level set to {arg.upper()}")
+        try:
+            # Set the log level using XLogger's set_level method
+            logger.set_level(selected_level)
+            logger.info(ansi.style(f"Log level set to {selected_level}", fg=ansi.Fg.GREEN))
+        except Exception as e:
+            logger.error(ansi.style(f"Error setting log level: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for set_log_level
+    do_sll = do_set_log_level
 
     @cmd2.with_category('Plugin Commands')
     def do_list_plugins(self, arg):
