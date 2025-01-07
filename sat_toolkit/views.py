@@ -904,7 +904,7 @@ def list_device_commands(request, device_name):
         }, status=500)
 
 @csrf_exempt
-def execute_device_command(request, device_name):
+def execute_device_command(request, driver_name):
     """
     POST
     Execute a command on a specific device
@@ -927,74 +927,16 @@ def execute_device_command(request, device_name):
                 "message": "Command name is required"
             }, status=400)
 
-        # Get device plugin manager
+        # 使用 DeviceDriverManager 执行命令
         device_manager = DeviceDriverManager()
+        result = device_manager.execute_command(
+            driver_name=driver_name,
+            command=command,
+            device_id=device_id,
+            args=args
+        )
         
-        # Verify device exists
-        available_plugins = device_manager.list_drivers()
-        if device_name not in available_plugins:
-            return JsonResponse({
-                "status": "error",
-                "message": f"Device '{device_name}' not found. Available devices: {available_plugins}"
-            }, status=404)
-
-        # Get driver instance
-        driver = device_manager.get_driver_instance(device_name)
-
-        if not driver:
-            return JsonResponse({
-                "status": "error",
-                "message": f"No driver found for device: {device_name}"
-            }, status=404)
-        
-        if not driver.connected:
-            # Need to scan and select the device
-            logger.info(f"Scanning for devices with plugin: {device_name}")
-            scan_result = driver.scan()
-            if not scan_result:
-                logger.warning(f"No devices found during scan for plugin: {device_name}")
-                return JsonResponse({
-                    "status": "error", 
-                    "message": f"No devices found for plugin: {device_name}"
-                }, status=404)
-            
-            logger.info(f"Found {len(scan_result)} devices: {[dev.device_id for dev in scan_result]}")
-            
-            selected_device = None
-            if device_id:
-                logger.info(f"Attempting to find device with device_id: {device_id}")
-                selected_device = next(
-                    (dev for dev in scan_result if dev.device_id == device_id),
-                    None
-                )
-                if not selected_device:
-                    logger.error(f"Device with ID {device_id} not found in scan results")
-                    return JsonResponse({
-                        "status": "error",
-                        "message": f"Device with ID {device_id} not found"
-                    }, status=404)
-                logger.info(f"Found matching device: {selected_device.device_id}")
-            else:
-                selected_device = scan_result[0]
-                logger.info(f"No device_id specified, defaulting to first device: {selected_device.device_id}")
-            
-            logger.info(f"Initializing driver for device: {selected_device.device_id}")
-            driver.initialize(selected_device)
-            
-            logger.info(f"Connecting to device: {selected_device.device_id}")
-            driver.connect(selected_device)
-            logger.info(f"Successfully connected to device: {selected_device.device_id}")
-
-        # Execute the command
-        result = driver.command(driver.device, f"{command} {args}".strip())
-        return JsonResponse({
-            "status": "success",
-            "device": device_name,
-            "device_id": device_id or driver.device.device_id,
-            "command": command,
-            "args": args,
-            "result": result
-        })
+        return JsonResponse(result)
 
     except Exception as e:
         logger.error(f"Error executing device command: {str(e)}")

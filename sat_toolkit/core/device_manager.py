@@ -5,21 +5,22 @@ import os
 import importlib.util
 import logging
 import threading
+from typing import Dict, List, Optional, Any
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
+from sat_toolkit.core.device_spec import DeviceState
 from sat_toolkit.config import DEVICE_PLUGINS_DIR
-from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 class DeviceDriverManager:
     _instance = None
-    _lock = threading.Lock()  # 添加线程锁
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            with cls._lock:  # 使用线程锁
+            with cls._lock:
                 if cls._instance is None:
                     cls._instance = super(DeviceDriverManager, cls).__new__(cls)
                     cls._instance._initialized = False
@@ -27,153 +28,370 @@ class DeviceDriverManager:
 
     def __init__(self):
         if not self._initialized:
-            logger.debug("Initializing DeviceDriverManager")
+            logger.info("Initializing DeviceDriverManager")
             self.pm = pluggy.PluginManager("device_mgr")
             self.pm.add_hookspecs(DevicePluginSpec)
             self.plugins = {}
             self.drivers = {}  # 存储驱动实例
+            self.device_states = {}  # 存储设备状态
+            self._connection_locks = {}  # 设备操作锁
+            
+            # 定义合法的状态转换
+            self._state_transitions = {
+                DeviceState.UNKNOWN: [DeviceState.DISCOVERED],
+                DeviceState.DISCOVERED: [DeviceState.INITIALIZED],
+                DeviceState.INITIALIZED: [DeviceState.CONNECTED, DeviceState.DISCONNECTED],
+                DeviceState.CONNECTED: [DeviceState.ACTIVE, DeviceState.DISCONNECTED],
+                DeviceState.ACTIVE: [DeviceState.CONNECTED, DeviceState.ERROR],
+                DeviceState.ERROR: [DeviceState.DISCONNECTED],
+                DeviceState.DISCONNECTED: [DeviceState.INITIALIZED]
+            }
+            
             self.load_plugins()
             self._initialized = True
-            logger.debug("DeviceDriverManager initialized")
+            logger.info("DeviceDriverManager initialized")
 
     def load_plugins(self):
+        """加载所有设备驱动插件"""
         plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
-        logger.debug(f"Loading device plugins from {plugin_dir}")
+        logger.info(f"Loading device plugins from {plugin_dir}")
         for root, _, files in os.walk(plugin_dir):
             for filename in files:
-                if filename.startswith("drv_") and filename.endswith(".py") and filename != "__init__.py":
+                if filename.startswith("drv_") and filename.endswith(".py"):
                     self.load_plugin(os.path.join(root, filename))
 
-    def load_plugin(self, filepath):
-        module_name = os.path.splitext(os.path.basename(filepath))[0]
-        spec = importlib.util.spec_from_file_location(module_name, filepath)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        
-        # 自动注册继承自 BaseDeviceDriver 的任何类
-        for attr_name in dir(module):
-            attr = getattr(module, attr_name)
-            if (isinstance(attr, type) and 
-                issubclass(attr, BaseDeviceDriver) and 
-                attr != BaseDeviceDriver):
-                driver_instance = attr()
-                self.pm.register(driver_instance)
-                self.plugins[module_name] = module
-                self.drivers[module_name] = driver_instance  # 存储实例
-                logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
-                break
-
-    def get_driver_instance(self, plugin_name):
-        return self.drivers.get(plugin_name)
-    
-    def register_plugin(self, plugin):
-        self.pm.register(plugin)
-
-    def list_drivers(self):
-        return list(self.plugins.keys())
-
-    def scan_device(self, device: Device):
-        print(f"Scanning device: {device.name}")
-        self.pm.hook.scan(device=device)
-
-    def scan_all_devices(self):
-        logger.info("Scanning for all devices")
-        scan_results = {}
-        devices_found = False
-
-        for plugin_name, plugin in self.plugins.items():
-            logger.info(f"Scanning with plugin: {plugin_name}")
-            result = self.pm.hook.scan(device=None)
+    def load_plugin(self, filepath: str):
+        """加载单个插件"""
+        try:
+            module_name = os.path.splitext(os.path.basename(filepath))[0]
+            spec = importlib.util.spec_from_file_location(module_name, filepath)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
             
-            if result:
-                devices_found = True
-                if isinstance(result, list):
-                    scan_results[plugin_name] = {
-                        "status": "success",
-                        "devices": [self.device_to_dict(device) for device in result if isinstance(device, Device)]
-                    }
-                elif isinstance(result, bool):
-                    scan_results[plugin_name] = {
-                        "status": "success",
-                        "devices": ["Device detected"]
-                    }
-                else:
-                    scan_results[plugin_name] = {
-                        "status": "success",
-                        "devices": [self.device_to_dict(result)] if isinstance(result, Device) else ["Unknown device detected"]
-                    }
-                logger.info(f"Devices found with plugin: {plugin_name}")
-            else:
-                scan_results[plugin_name] = {
-                    "status": "failure",
-                    "message": "No devices found"
-                }
-                logger.info(f"No devices found with plugin: {plugin_name}")
+            # 自动注册继承自 BaseDeviceDriver 的类
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (isinstance(attr, type) and 
+                    issubclass(attr, BaseDeviceDriver) and 
+                    attr != BaseDeviceDriver):
+                    driver_instance = attr()
+                    self.pm.register(driver_instance)
+                    self.plugins[module_name] = module
+                    self.drivers[module_name] = driver_instance
+                    logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
+                    break
+        except Exception as e:
+            logger.error(f"Failed to load plugin {filepath}: {str(e)}")
 
-        return {
-            "status": "success" if devices_found else "failure",
-            "devices_found": devices_found,
-            "message": "Device scan completed successfully." if devices_found else "No devices found.",
-            "scan_results": scan_results
-        }
-
-    def device_to_dict(self, device):
-        if not isinstance(device, Device):
-            return str(device)
-        return {
-            "device_id": device.device_id,
-            "name": device.name,
-            "device_type": device.device_type.value,
-            "attributes": device.attributes
-        }
-
-    def initialize_device(self, device: Device):
-        print(f"Initializing device: {device.name}")
-        self.pm.hook.initialize(device=device)
-
-    def connect_device(self, device: Device):
-        print(f"Connecting to device: {device.name}")
-        self.pm.hook.connect(device=device)
-
-    def execute_on_target(self, device: Device, target: str):
-        print(f"Executing on target: {target} using device: {device.name}")
-        self.pm.hook.execute(device=device, target=target)
-
-    def send_command_to_device(self, device: Device, command: str):
-        print(f"Sending command to device: {device.name}")
-        # 添加命令验证
-        for plugin in self.pm.get_plugins():
-            if isinstance(plugin, BaseDeviceDriver):
-                if command not in plugin.get_supported_commands().keys():
-                    logger.warning(f"Command '{command}' not supported by device {device.name}")
-                    return
-                self.pm.hook.command(device=device, command=command)
-
-    def reset_device(self, device: Device):
-        print(f"Resetting device: {device.name}")
-        self.pm.hook.reset(device=device)
-
-    def close_device(self, device: Device):
-        print(f"Closing device: {device.name}")
-        self.pm.hook.close(device=device)
-
-    def get_device_commands(self, device: Device) -> Dict[str, str]:
-        """获取特定设备/驱动的支持命令及其描述"""
-        for plugin in self.pm.get_plugins():
-            if isinstance(plugin, BaseDeviceDriver):
-                return plugin.get_supported_commands()
-        return {}
-
-    def get_plugin_commands(self, plugin_name: str) -> Dict[str, str]:
-        """获取特定插件的支持命令"""
-        if plugin_name not in self.plugins:
-            return {}
+    def execute_command(self, driver_name: str, command: str, device_id: str = "", **kwargs) -> Dict:
+        """执行设备命令
         
-        plugin_module = self.plugins[plugin_name]
-        for attr_name in dir(plugin_module):
-            attr = getattr(plugin_module, attr_name)
-            if (isinstance(attr, type) and 
-                issubclass(attr, BaseDeviceDriver) and 
-                attr != BaseDeviceDriver):
-                return attr().get_supported_commands()
+        Args:
+            driver_name: 驱动名称 (e.g., 'drv_socketcan')
+            command: 要执行的命令
+            device_id: 可选的设备ID，用于多设备场景
+            **kwargs: 命令参数
+        
+        Returns:
+            Dict: 包含操作结果的字典
+        """
+        return self._manage_device_lifecycle(
+            driver_name=driver_name,
+            action='command',
+            device_id=device_id,
+            command=command,
+            args=kwargs
+        )
+
+    def scan_devices(self, driver_name: str) -> Dict:
+        """扫描设备"""
+        return self._manage_device_lifecycle(
+            driver_name=driver_name,
+            action='scan'
+        )
+
+    def initialize_device(self, driver_name: str, device: Device) -> Dict:
+        """初始化设备"""
+        return self._manage_device_lifecycle(
+            driver_name=driver_name,
+            action='initialize',
+            device=device
+        )
+
+    def connect_device(self, driver_name: str, device: Device) -> Dict:
+        """连接设备"""
+        return self._manage_device_lifecycle(
+            driver_name=driver_name,
+            action='connect',
+            device=device
+        )
+
+    def reset_device(self, driver_name: str, device: Device) -> Dict:
+        """重置设备"""
+        return self._manage_device_lifecycle(
+            driver_name=driver_name,
+            action='reset',
+            device=device
+        )
+
+    def close_device(self, driver_name: str, device: Device) -> Dict:
+        """关闭设备"""
+        return self._manage_device_lifecycle(
+            driver_name=driver_name,
+            action='close',
+            device=device
+        )
+
+    def get_device_state(self, driver_name: str, device_id: str = "") -> DeviceState:
+        """获取设备当前状态"""
+        device_key = self._get_device_key(driver_name, device_id=device_id)
+        return self._get_device_state(device_key)
+
+    def get_supported_commands(self, driver_name: str) -> Dict[str, str]:
+        """获取设备支持的命令"""
+        driver = self.get_driver_instance(driver_name)
+        if driver:
+            return driver.get_supported_commands()
         return {}
+
+    def _manage_device_lifecycle(self, driver_name: str, action: str, **kwargs) -> Dict:
+        """内部使用的设备生命周期管理方法"""
+        try:
+            driver = self.get_driver_instance(driver_name)
+            if not driver:
+                return {
+                    "status": "error",
+                    "message": f"Driver {driver_name} not found"
+                }
+
+            # Build the device_key from plugin name, not from driver.__class__.__name__
+            device = kwargs.get('device')
+            device_id = kwargs.get('device_id', '')
+            if device and hasattr(device, 'device_id'):
+                device_id = device.device_id
+
+            device_key = f"{driver_name}_{device_id}"
+
+            with self._get_device_lock(device_key):
+                current_state = self._get_device_state(device_key)
+                
+                # 自动处理设备状态转换
+                if action != 'scan':
+                    if current_state == DeviceState.UNKNOWN:
+                        # 自动扫描
+                        scan_result = self._handle_scan(driver, driver_name, **kwargs)
+                        if scan_result["status"] != "success":
+                            return scan_result
+                    
+                    if current_state in [DeviceState.UNKNOWN, DeviceState.DISCOVERED]:
+                        # 自动初始化
+                        init_result = self._handle_initialize(driver, driver_name, **kwargs)
+                        if init_result["status"] != "success":
+                            return init_result
+                            
+                    if action != 'close' and current_state != DeviceState.CONNECTED:
+                        # 自动连接
+                        connect_result = self._handle_connect(driver, driver_name, **kwargs)
+                        if connect_result["status"] != "success":
+                            return connect_result
+
+                return self._execute_action(driver, action, current_state, device_key, driver_name, **kwargs)
+
+        except Exception as e:
+            logger.error(f"Lifecycle management failed: {str(e)}", exc_info=True)
+            self._update_device_state(device_key, DeviceState.ERROR)
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
+    def _get_device_lock(self, device_key: str) -> threading.Lock:
+        """获取设备操作锁"""
+        if device_key not in self._connection_locks:
+            self._connection_locks[device_key] = threading.Lock()
+        return self._connection_locks[device_key]
+
+    def _get_device_state(self, device_key: str) -> DeviceState:
+        """获取设备当前状态"""
+        return self.device_states.get(device_key, DeviceState.UNKNOWN)
+
+    def _update_device_state(self, device_key: str, new_state: DeviceState):
+        """更新设备状态"""
+        current_state = self._get_device_state(device_key)
+        
+        if current_state == new_state:
+            return
+        
+        if new_state in self._state_transitions.get(current_state, []):
+            self.device_states[device_key] = new_state
+            logger.info(f"Device {device_key} state changed: {current_state} -> {new_state}")
+        else:
+            # 特殊处理：如果设备已经处于更高级的状态，不要降级
+            state_hierarchy = {
+                DeviceState.UNKNOWN: 0,
+                DeviceState.DISCOVERED: 1,
+                DeviceState.INITIALIZED: 2,
+                DeviceState.CONNECTED: 3,
+                DeviceState.ACTIVE: 4,
+            }
+            
+            # 只有当新状态的等级高于当前状态时才更新
+            if state_hierarchy.get(new_state, 0) > state_hierarchy.get(current_state, 0):
+                self.device_states[device_key] = new_state
+                logger.info(f"Device {device_key} state upgraded: {current_state} -> {new_state}")
+            else:
+                logger.info(f"Ignoring state transition: {current_state} -> {new_state}")
+
+    def _execute_action(self, 
+                        driver: BaseDeviceDriver, 
+                        action: str, 
+                        current_state: DeviceState, 
+                        device_key: str, 
+                        driver_name: str,
+                        **kwargs) -> Dict:
+        """执行具体的动作"""
+        try:
+            if action == 'scan':
+                return self._handle_scan(driver, driver_name, **kwargs)
+            elif action == 'initialize':
+                return self._handle_initialize(driver, driver_name, **kwargs)
+            elif action == 'connect':
+                return self._handle_connect(driver, driver_name, **kwargs)
+            elif action == 'command':
+                return self._handle_command(driver, driver_name, device_key, **kwargs)
+            elif action == 'reset':
+                return self._handle_reset(driver, driver_name, **kwargs)
+            elif action == 'close':
+                return self._handle_close(driver, driver_name, **kwargs)
+            else:
+                return {"status": "error", "message": f"Unknown action: {action}"}
+        except Exception as e:
+            logger.error(f"Action execution failed: {str(e)}")
+            self._update_device_state(device_key, DeviceState.ERROR)
+            return {"status": "error", "message": str(e)}
+
+    def _get_device_key(self, driver_name: str, device: Device = None, device_id: str = "") -> str:
+        """统一生成设备键值的方法"""
+        if device:
+            key = f"{driver_name}_{device.device_id}"
+        else:
+            key = f"{driver_name}_{device_id}"
+        return key
+
+    def _handle_scan(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
+        """处理扫描操作"""
+        try:
+            devices = driver.scan()
+            for device in devices:
+                device_key = f"{driver_name}_{device.device_id}"
+                self._update_device_state(device_key, DeviceState.DISCOVERED)
+            return {
+                "status": "success",
+                "devices": devices
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _handle_initialize(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
+        """处理初始化操作"""
+        try:
+            device = kwargs.get('device')
+            if not device:
+                return {"status": "error", "message": "Device not specified"}
+
+            success = driver.initialize(device)
+            device_key = f"{driver_name}_{device.device_id}"
+            if success:
+                self._update_device_state(device_key, DeviceState.INITIALIZED)
+                return {
+                    "status": "success",
+                    "message": "Device initialized"
+                }
+            return {
+                "status": "error",
+                "message": "Initialization failed"
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _handle_connect(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
+        """处理连接操作"""
+        try:
+            device = kwargs.get('device')
+            if not device:
+                return {"status": "error", "message": "Device not specified"}
+
+            success = driver.connect(device)
+            device_key = f"{driver_name}_{device.device_id}"
+            if success:
+                self._update_device_state(device_key, DeviceState.CONNECTED)
+                return {
+                    "status": "success",
+                    "message": "Device connected"
+                }
+            return {
+                "status": "error",
+                "message": "Connection failed"
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _handle_command(self, driver: BaseDeviceDriver, driver_name: str, device_key: str, **kwargs) -> Dict:
+        """处理命令执行"""
+        try:
+            command = kwargs.get('command')
+            args = kwargs.get('args')
+            if not command:
+                return {"status": "error", "message": "Command not specified"}
+
+            # Move to ACTIVE
+            self._update_device_state(device_key, DeviceState.ACTIVE)
+
+            # Execute the actual command
+            result = driver.command(driver.device, command, args)
+
+            # Transition back to CONNECTED
+            self._update_device_state(device_key, DeviceState.CONNECTED)
+
+            return {
+                "status": "success",
+                "result": result
+            }
+        except Exception as e:
+            self._update_device_state(device_key, DeviceState.ERROR)
+            return {"status": "error", "message": str(e)}
+
+    def _handle_reset(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
+        """处理重置操作"""
+        try:
+            device = kwargs.get('device')
+            if not device:
+                return {"status": "error", "message": "Device not specified"}
+            
+            success = driver.reset(device)
+            return {
+                "status": "success" if success else "error",
+                "message": "Device reset" if success else "Reset failed"
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _handle_close(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
+        """处理关闭操作"""
+        try:
+            device = kwargs.get('device')
+            if not device:
+                return {"status": "error", "message": "Device not specified"}
+            
+            success = driver.close(device)
+            return {
+                "status": "success" if success else "error",
+                "message": "Device closed" if success else "Close failed"
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_driver_instance(self, plugin_name: str) -> Optional[BaseDeviceDriver]:
+        """获取驱动实例"""
+        return self.drivers.get(plugin_name)
+
