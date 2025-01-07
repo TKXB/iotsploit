@@ -164,7 +164,6 @@ class DeviceDriverManager:
                     "message": f"Driver {driver_name} not found"
                 }
 
-            # Build the device_key from plugin name, not from driver.__class__.__name__
             device = kwargs.get('device')
             device_id = kwargs.get('device_id', '')
             if device and hasattr(device, 'device_id'):
@@ -175,25 +174,36 @@ class DeviceDriverManager:
             with self._get_device_lock(device_key):
                 current_state = self._get_device_state(device_key)
                 
-                # 自动处理设备状态转换
+                # 修改状态转换逻辑
                 if action != 'scan':
-                    if current_state == DeviceState.UNKNOWN:
-                        # 自动扫描
-                        scan_result = self._handle_scan(driver, driver_name, **kwargs)
-                        if scan_result["status"] != "success":
-                            return scan_result
-                    
-                    if current_state in [DeviceState.UNKNOWN, DeviceState.DISCOVERED]:
-                        # 自动初始化
-                        init_result = self._handle_initialize(driver, driver_name, **kwargs)
-                        if init_result["status"] != "success":
-                            return init_result
-                            
-                    if action != 'close' and current_state != DeviceState.CONNECTED:
-                        # 自动连接
-                        connect_result = self._handle_connect(driver, driver_name, **kwargs)
-                        if connect_result["status"] != "success":
-                            return connect_result
+                    if action == 'initialize':
+                        # 对于初始化操作，只在未初始化状态下执行
+                        if current_state not in [DeviceState.UNKNOWN, DeviceState.DISCOVERED]:
+                            return {
+                                "status": "error",
+                                "message": f"Cannot perform initialize in current state {current_state}. Expected states: [unknown, discovered]"
+                            }
+                    elif action == 'connect':
+                        # 对于连接操作，确保设备已初始化
+                        if current_state == DeviceState.UNKNOWN:
+                            # 自动扫描
+                            scan_result = self._handle_scan(driver, driver_name, **kwargs)
+                            if scan_result["status"] != "success":
+                                return scan_result
+                            current_state = self._get_device_state(device_key)
+                        
+                        if current_state == DeviceState.DISCOVERED:
+                            # 只在发现状态时执行初始化
+                            init_result = self._handle_initialize(driver, driver_name, **kwargs)
+                            if init_result["status"] != "success":
+                                return init_result
+                            current_state = self._get_device_state(device_key)
+                        
+                        if current_state != DeviceState.INITIALIZED:
+                            return {
+                                "status": "error",
+                                "message": f"Cannot connect device in state {current_state}. Expected state: initialized"
+                            }
 
                 return self._execute_action(driver, action, current_state, device_key, driver_name, **kwargs)
 
