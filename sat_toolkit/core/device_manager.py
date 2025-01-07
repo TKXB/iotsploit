@@ -154,6 +154,20 @@ class DeviceDriverManager:
             return driver.get_supported_commands()
         return {}
 
+    def get_plugin_commands(self, plugin_name: str) -> Dict[str, str]:
+        """获取插件支持的命令列表
+        
+        Args:
+            plugin_name: 插件名称
+            
+        Returns:
+            Dict[str, str]: 命令名称和描述的字典
+        """
+        driver = self.get_driver_instance(plugin_name)
+        if driver:
+            return driver.get_supported_commands()
+        return {}
+
     def _manage_device_lifecycle(self, driver_name: str, action: str, **kwargs) -> Dict:
         """内部使用的设备生命周期管理方法"""
         try:
@@ -404,4 +418,12 @@ class DeviceDriverManager:
     def get_driver_instance(self, plugin_name: str) -> Optional[BaseDeviceDriver]:
         """获取驱动实例"""
         return self.drivers.get(plugin_name)
+
+    def list_drivers(self) -> List[str]:
+        """获取所有已加载的驱动列表
+        
+        Returns:
+            List[str]: 驱动名称列表
+        """
+        return list(self.drivers.keys())
 
