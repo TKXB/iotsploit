@@ -1,6 +1,5 @@
 # your_app/device_manager.py
 
-import pluggy
 import os
 import importlib.util
 import logging
@@ -29,8 +28,6 @@ class DeviceDriverManager:
     def __init__(self):
         if not self._initialized:
             logger.info("Initializing DeviceDriverManager")
-            self.pm = pluggy.PluginManager("device_mgr")
-            self.pm.add_hookspecs(DevicePluginSpec)
             self.plugins = {}
             self.drivers = {}  # 存储驱动实例
             self.device_states = {}  # 存储设备状态
@@ -68,14 +65,13 @@ class DeviceDriverManager:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             
-            # 自动注册继承自 BaseDeviceDriver 的类
+            # 修改插件注册逻辑，移除 pluggy 相关代码
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
                 if (isinstance(attr, type) and 
                     issubclass(attr, BaseDeviceDriver) and 
                     attr != BaseDeviceDriver):
                     driver_instance = attr()
-                    self.pm.register(driver_instance)
                     self.plugins[module_name] = module
                     self.drivers[module_name] = driver_instance
                     logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
@@ -371,18 +367,26 @@ class DeviceDriverManager:
             # Move to ACTIVE
             self._update_device_state(device_key, DeviceState.ACTIVE)
 
-            # Execute the actual command
-            result = driver.command(driver.device, command, args)
+            try:
+                # Execute the actual command
+                result = driver.command(driver.device, command, args)
 
-            # Transition back to CONNECTED
-            self._update_device_state(device_key, DeviceState.CONNECTED)
+                # Transition back to CONNECTED
+                self._update_device_state(device_key, DeviceState.CONNECTED)
 
-            return {
-                "status": "success",
-                "result": result
-            }
+                return {
+                    "status": "success",
+                    "result": result
+                }
+            except Exception as cmd_error:
+                # 命令执行失败时，仍然回到 CONNECTED 状态，而不是 ERROR
+                self._update_device_state(device_key, DeviceState.CONNECTED)
+                raise cmd_error
+
         except Exception as e:
-            self._update_device_state(device_key, DeviceState.ERROR)
+            # 只有在设备本身出现问题时才设置 ERROR 状态
+            if isinstance(e, (IOError, ConnectionError)):
+                self._update_device_state(device_key, DeviceState.ERROR)
             return {"status": "error", "message": str(e)}
 
     def _handle_reset(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:

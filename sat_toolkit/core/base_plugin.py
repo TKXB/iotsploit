@@ -1,13 +1,11 @@
 import threading
 import logging
-import pluggy
 from typing import Dict, Any, List, Optional
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamWrapper
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.core.device_spec import DeviceState
 
 logger = logging.getLogger(__name__)
-hookimpl = pluggy.HookimplMarker("device_mgr")
 
 class BasePlugin:
     def __init__(self, info: Dict[str, Any] = None):
@@ -76,7 +74,6 @@ class BaseDeviceDriver(BasePlugin):
         return self.supported_commands
 
     # Base implementations of device lifecycle methods
-    @hookimpl
     def scan(self) -> List[Device]:
         """Scan for available devices with state management"""
         self._set_state(DeviceState.UNKNOWN)
@@ -90,7 +87,6 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Scan failed: {str(e)}")
             raise
 
-    @hookimpl
     def initialize(self, device: Device) -> bool:
         """Initialize device with state management"""
         self._validate_state(
@@ -107,7 +103,6 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Initialization failed: {str(e)}")
             raise
 
-    @hookimpl
     def connect(self, device: Device) -> bool:
         """Connect to device with state management"""
         self._validate_state([DeviceState.INITIALIZED], "connect")
@@ -121,7 +116,6 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Connection failed: {str(e)}")
             raise
 
-    @hookimpl
     def command(self, device: Device, command: str) -> Optional[str]:
         """Execute command with state management"""
         self._validate_state([DeviceState.CONNECTED], "command")
@@ -131,11 +125,15 @@ class BaseDeviceDriver(BasePlugin):
             self._set_state(DeviceState.CONNECTED)
             return result
         except Exception as e:
-            self._set_state(DeviceState.ERROR)
-            logger.error(f"Command execution failed: {str(e)}")
+            if isinstance(e, (IOError, ConnectionError)):
+                self._set_state(DeviceState.ERROR)
+                logger.error(f"Command execution failed: {str(e)}")
+            else:
+                # 对于普通错误（如参数错误），将状态调回 CONNECTED
+                self._set_state(DeviceState.CONNECTED)
+                logger.error(f"Command execution failed: {str(e)}")
             raise
 
-    @hookimpl
     def reset(self, device: Device) -> bool:
         """Reset device with state management"""
         try:
@@ -148,7 +146,6 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Reset failed: {str(e)}")
             raise
 
-    @hookimpl
     def close(self, device: Device) -> bool:
         """Close device with state management"""
         if self.state == DeviceState.UNKNOWN:

@@ -1010,10 +1010,14 @@ class SAT_Shell(cmd2.Cmd):
     def _select_device(self):
         """Helper method to handle device selection process"""
         try:
-            # Get available device plugins
-            available_plugins = self.device_driver_manager.list_drivers()
+            # Get available device plugins with connected devices
+            available_plugins = [
+                driver_name for driver_name, device 
+                in self.connected_devices.items()
+            ]
+            
             if not available_plugins:
-                logger.error(ansi.style("No device drivers available", fg=ansi.Fg.RED))
+                logger.error(ansi.style("No initialized devices available", fg=ansi.Fg.RED))
                 return False
 
             # Let user select a plugin
@@ -1022,47 +1026,19 @@ class SAT_Shell(cmd2.Cmd):
                 available_plugins
             )
 
-            # Create a temporary plugin instance to scan for devices
-            plugin_instance = self.device_driver_manager.plugins[selected_plugin]
-            driver = None
-            scan_result = None
-
-            # Find the driver class and create an instance
-            for attr_name in dir(plugin_instance):
-                attr = getattr(plugin_instance, attr_name)
-                if (isinstance(attr, type) and 
-                    issubclass(attr, BaseDeviceDriver) and 
-                    attr != BaseDeviceDriver):
-                    driver = attr()
-                    scan_result = driver.scan()
-                    break
-
-            if not scan_result:
-                logger.error(ansi.style(f"No devices found for driver: {selected_plugin}", fg=ansi.Fg.RED))
+            # Get the already connected device
+            device = self.connected_devices.get(selected_plugin)
+            if not device:
+                logger.error(ansi.style(f"Device not found for {selected_plugin}", fg=ansi.Fg.RED))
                 return False
 
-            # Let user select a device
-            device_choices = [f"{dev.name} ({dev.device_type.value})" for dev in scan_result]
-            selected = Input_Mgr.Instance().single_choice(
-                "Select device",
-                device_choices
-            )
+            # Store the current device and driver information
+            self._current_device = device
+            self._current_driver = self.device_driver_manager.get_driver_instance(selected_plugin)
+            self._current_plugin = selected_plugin
 
-            # Get the selected device
-            selected_idx = device_choices.index(selected)
-            device = scan_result[selected_idx]
-
-            # Initialize and connect to the device
-            if driver.initialize(device) and driver.connect(device):
-                # Store the current device and driver
-                self._current_device = device
-                self._current_driver = driver
-                self._current_plugin = selected_plugin
-                logger.info(ansi.style(f"Successfully connected to {device.name}", fg=ansi.Fg.GREEN))
-                return True
-            else:
-                logger.error(ansi.style("Failed to initialize or connect to device", fg=ansi.Fg.RED))
-                return False
+            logger.info(ansi.style(f"Selected device: {device.name}", fg=ansi.Fg.GREEN))
+            return True
 
         except Exception as e:
             logger.error(ansi.style(f"Error during device selection: {str(e)}", fg=ansi.Fg.RED))
