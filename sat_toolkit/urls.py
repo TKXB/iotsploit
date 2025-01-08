@@ -89,7 +89,7 @@ urlpatterns = [
     # Additional endpoints
     path('active_channels/', views.active_channels, name='active_channels'),
     path('list_device_commands/<str:device_name>/', views.list_device_commands, name='list_device_commands'),
-    path('execute_device_command/<str:device_name>/', views.execute_device_command, name='execute_device_command'),
+    path('execute_device_command/<str:driver_name>/', views.execute_device_command, name='execute_device_command'),
     path('create_group/', views.create_group, name='create_group'),
     path('delete_group/', views.delete_group, name='delete_group'),
 ]
