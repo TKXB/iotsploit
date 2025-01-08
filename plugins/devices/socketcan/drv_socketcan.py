@@ -9,12 +9,15 @@ from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, SocketCANDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
+from sat_toolkit.tools.xlogger import xlog
+from typing import Optional, Dict
 
-logger = logging.getLogger(__name__)
+logger = xlog.get_logger(__name__)  
 
 class SocketCANDriver(BaseDeviceDriver):
     def __init__(self):
         super().__init__()
+        self.bus = None  # Initialize bus attribute
         self.supported_commands = {
             "start": "Start monitoring/receiving CAN messages",
             "stop": "Stop monitoring/receiving CAN messages",
@@ -65,7 +68,7 @@ class SocketCANDriver(BaseDeviceDriver):
         self.bus = can.interface.Bus(channel=self.current_interface, 
                                    bustype='socketcan')
 
-    def scan(self):
+    def _scan_impl(self):
         try:
             logger.info("Starting scan for SocketCAN interfaces...")
             import subprocess
@@ -116,7 +119,7 @@ class SocketCANDriver(BaseDeviceDriver):
             logger.debug("Scan failed with exception", exc_info=True)
             return []
 
-    def initialize(self, device: SocketCANDevice):
+    def _initialize_impl(self, device: SocketCANDevice):
         if not isinstance(device, SocketCANDevice):
             raise ValueError("This plugin only supports SocketCAN devices")
         
@@ -140,14 +143,14 @@ class SocketCANDriver(BaseDeviceDriver):
             logger.error(f"Failed to initialize SocketCAN device: {e}")
             return False
 
-    def connect(self, device: SocketCANDevice):
+    def _connect_impl(self, device: SocketCANDevice):
         if not self.current_interface:
             logger.error("Device not initialized. Please initialize first.")
             return False
 
         try:
-            self.bus = can.interface.Bus(channel=self.current_interface, 
-                                       bustype='socketcan')
+            # Setup the bus connection
+            self.setup_bus()  # Call setup_bus here
             self.connected = True
             logger.info(f"SocketCAN device connected successfully on {device.interface}")
             return True
@@ -155,8 +158,8 @@ class SocketCANDriver(BaseDeviceDriver):
             logger.error(f"Failed to connect to SocketCAN device: {e}")
             return False
 
-    def command(self, device: SocketCANDevice, command: str):
-        logger.debug(f"Received command: '{command}'")
+    def _command_impl(self, device: SocketCANDevice, command: str, args: Optional[Dict] = None):
+        logger.debug(f"Received command: '{command}', args: {args}")
         if not self.bus and command.lower() != "start":
             logger.error("Cannot execute command: SocketCAN device not connected")
             return
@@ -174,10 +177,11 @@ class SocketCANDriver(BaseDeviceDriver):
                           f"Interface: {self.current_interface}")
             
             elif command == "send":
-                test_id = 0x123
-                test_data = bytes.fromhex("DEADBEEF")
-                self.send_can_message(device, test_id, test_data)
-                logger.info("Test CAN message sent")
+                # Use args if provided, otherwise use default test values
+                can_id = args.get('id', 0x123) if args else 0x123
+                data = args.get('data', bytes.fromhex("DEADBEEF")) if args else bytes.fromhex("DEADBEEF")
+                self.send_can_message(device, can_id, data)
+                logger.info("CAN message sent")
             
             else:
                 logger.error(f"Unknown command: {command}. Valid commands are: {', '.join(self.supported_commands.keys())}")
@@ -185,7 +189,7 @@ class SocketCANDriver(BaseDeviceDriver):
         except Exception as e:
             logger.error(f"Failed to execute command {command}: {e}")
 
-    def reset(self, device: SocketCANDevice):
+    def _reset_impl(self, device: SocketCANDevice):
         if self.current_interface:
             try:
                 import subprocess
@@ -197,7 +201,7 @@ class SocketCANDriver(BaseDeviceDriver):
                 logger.error(f"Failed to reset SocketCAN device: {e}")
                 return False
 
-    def close(self, device: SocketCANDevice):
+    def _close_impl(self, device: SocketCANDevice):
         try:
             self.stop_receiver()
             if self.bus:
@@ -268,11 +272,6 @@ class SocketCANDriver(BaseDeviceDriver):
         self.stop_receiver()
         self.shutdown_bus()  # CAN-specific shutdown
         self.bus = None
-
-    def setup_bus(self):
-        """CAN-specific bus setup"""
-        self.bus = can.interface.Bus(channel=self.current_interface, 
-                                   bustype='socketcan')
 
     def shutdown_bus(self):
         """CAN-specific bus shutdown"""

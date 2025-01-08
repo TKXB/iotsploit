@@ -38,6 +38,8 @@ class BaseDeviceDriver(BasePlugin):
         self.receiver_thread = None
         self.running = threading.Event()
 
+        self._devices: Dict[str, Device] = {}  # 存储设备实例
+        
     def get_supported_commands(self) -> Dict[str, str]:
         """Get dictionary of supported commands and their descriptions"""
         if not hasattr(self, 'supported_commands'):
@@ -48,7 +50,10 @@ class BaseDeviceDriver(BasePlugin):
     def scan(self) -> List[Device]:
         """Scan for available devices"""
         try:
-            return self._scan_impl()
+            devices = self._scan_impl()
+            for device in devices:
+                self._register_device(device)
+            return devices
         except Exception as e:
             logger.error(f"Scan failed: {str(e)}")
             raise
@@ -69,10 +74,10 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Connection failed: {str(e)}")
             raise
 
-    def command(self, device: Device, command: str) -> Optional[str]:
+    def command(self, device: Device, command: str, args: Optional[Dict] = None) -> Optional[str]:
         """Execute command"""
         try:
-            return self._command_impl(device, command)
+            return self._command_impl(device, command, args)
         except Exception as e:
             logger.error(f"Command execution failed: {str(e)}")
             raise
@@ -106,7 +111,7 @@ class BaseDeviceDriver(BasePlugin):
         """Implementation of device connection"""
         raise NotImplementedError
 
-    def _command_impl(self, device: Device, command: str) -> Optional[str]:
+    def _command_impl(self, device: Device, command: str, args: Optional[Dict] = None) -> Optional[str]:
         """Implementation of command execution"""
         raise NotImplementedError
 
@@ -150,3 +155,11 @@ class BaseDeviceDriver(BasePlugin):
                 self.close(self.device)
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
+
+    def get_device(self, device_id: str) -> Optional[Device]:
+        """获取设备实例"""
+        return self._devices.get(device_id)
+
+    def _register_device(self, device: Device):
+        """注册设备"""
+        self._devices[device.device_id] = device

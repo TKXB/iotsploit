@@ -360,16 +360,23 @@ class DeviceDriverManager:
         """处理命令执行"""
         try:
             command = kwargs.get('command')
-            args = kwargs.get('args')
+            args = kwargs.get('args', {})
+            device_id = kwargs.get('device_id')
+            
             if not command:
                 return {"status": "error", "message": "Command not specified"}
+
+            # 获取设备实例
+            device = driver.get_device(device_id)
+            if not device:
+                return {"status": "error", "message": f"Device {device_id} not found"}
 
             # Move to ACTIVE
             self._update_device_state(device_key, DeviceState.ACTIVE)
 
             try:
-                # Execute the actual command
-                result = driver.command(driver.device, command, args)
+                # 使用 device 实例执行命令
+                result = driver.command(device, command, args)
 
                 # Transition back to CONNECTED
                 self._update_device_state(device_key, DeviceState.CONNECTED)

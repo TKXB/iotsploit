@@ -916,6 +916,9 @@ def execute_device_command(request, driver_name):
         }, status=405)
         
     try:
+        # 打印原始请求体
+        logger.info(f"Raw request body: {request.body}")
+        
         data = json.loads(request.body)
         command = data.get('command')
         device_id = data.get('device_id')
