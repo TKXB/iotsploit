@@ -76,11 +76,10 @@ def scan_specific_device(request, driver_name):
         scan_result = driver.scan()
         
         if scan_result:
-            devices = []
             if isinstance(scan_result, list):
-                devices = [device_manager.device_to_dict(device) for device in scan_result]
+                devices = [dev.to_dict(encode_json=True) for dev in scan_result]
             else:
-                devices = [device_manager.device_to_dict(scan_result)]
+                devices = [scan_result.to_dict(encode_json=True)]
                 
             return JsonResponse({
                 "status": "success",
@@ -132,7 +131,7 @@ def list_devices(request):
         for device_id, device in all_devices.items():
             try:
                 # Convert device to dictionary using dataclasses-json
-                device_dict = device.to_dict()
+                device_dict = device.to_dict(encode_json=True)
                 
                 # Convert DeviceType enum to string
                 device_dict["device_type"] = device.device_type.value
