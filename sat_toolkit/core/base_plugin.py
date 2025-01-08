@@ -22,10 +22,6 @@ class BaseDeviceDriver(BasePlugin):
     
     def __init__(self, info: Dict[str, Any] = None):
         super().__init__(info)
-        # State management
-        self.state = DeviceState.UNKNOWN
-        self._state_lock = threading.Lock()
-        
         # Device management
         self.device = None
         self.device_interface = None
@@ -42,122 +38,58 @@ class BaseDeviceDriver(BasePlugin):
         self.receiver_thread = None
         self.running = threading.Event()
 
-    def _set_state(self, new_state: DeviceState):
-        """Thread-safe state transition"""
-        with self._state_lock:
-            old_state = self.state
-            self.state = new_state
-            logger.debug(f"Device state changed: {old_state.value} -> {new_state.value}")
-
-    def _validate_state(self, expected_states: List[DeviceState], operation: str):
-        """Validate current state against expected states"""
-        if self.state not in expected_states:
-            raise RuntimeError(
-                f"Cannot perform {operation} in current state {self.state.value}. "
-                f"Expected states: {[s.value for s in expected_states]}"
-            )
-
-    def get_state(self) -> DeviceState:
-        """Get current device state"""
-        with self._state_lock:
-            return self.state
-
-    def is_connected(self) -> bool:
-        """Check if device is in CONNECTED state"""
-        return self.state == DeviceState.CONNECTED
-
     def get_supported_commands(self) -> Dict[str, str]:
         """Get dictionary of supported commands and their descriptions"""
-        # 如果子类没有定义 supported_commands，返回空字典
         if not hasattr(self, 'supported_commands'):
             return {}
         return self.supported_commands
 
     # Base implementations of device lifecycle methods
     def scan(self) -> List[Device]:
-        """Scan for available devices with state management"""
-        self._set_state(DeviceState.UNKNOWN)
+        """Scan for available devices"""
         try:
-            devices = self._scan_impl()
-            if devices:
-                self._set_state(DeviceState.DISCOVERED)
-            return devices
+            return self._scan_impl()
         except Exception as e:
-            self._set_state(DeviceState.ERROR)
             logger.error(f"Scan failed: {str(e)}")
             raise
 
     def initialize(self, device: Device) -> bool:
-        """Initialize device with state management"""
-        self._validate_state(
-            [DeviceState.DISCOVERED, DeviceState.DISCONNECTED], 
-            "initialize"
-        )
+        """Initialize device"""
         try:
-            success = self._initialize_impl(device)
-            if success:
-                self._set_state(DeviceState.INITIALIZED)
-            return success
+            return self._initialize_impl(device)
         except Exception as e:
-            self._set_state(DeviceState.ERROR)
             logger.error(f"Initialization failed: {str(e)}")
             raise
 
     def connect(self, device: Device) -> bool:
-        """Connect to device with state management"""
-        self._validate_state([DeviceState.INITIALIZED], "connect")
+        """Connect to device"""
         try:
-            success = self._connect_impl(device)
-            if success:
-                self._set_state(DeviceState.CONNECTED)
-            return success
+            return self._connect_impl(device)
         except Exception as e:
-            self._set_state(DeviceState.ERROR)
             logger.error(f"Connection failed: {str(e)}")
             raise
 
     def command(self, device: Device, command: str) -> Optional[str]:
-        """Execute command with state management"""
-        self._validate_state([DeviceState.CONNECTED], "command")
+        """Execute command"""
         try:
-            self._set_state(DeviceState.ACTIVE)
-            result = self._command_impl(device, command)
-            self._set_state(DeviceState.CONNECTED)
-            return result
+            return self._command_impl(device, command)
         except Exception as e:
-            if isinstance(e, (IOError, ConnectionError)):
-                self._set_state(DeviceState.ERROR)
-                logger.error(f"Command execution failed: {str(e)}")
-            else:
-                # 对于普通错误（如参数错误），将状态调回 CONNECTED
-                self._set_state(DeviceState.CONNECTED)
-                logger.error(f"Command execution failed: {str(e)}")
+            logger.error(f"Command execution failed: {str(e)}")
             raise
 
     def reset(self, device: Device) -> bool:
-        """Reset device with state management"""
+        """Reset device"""
         try:
-            success = self._reset_impl(device)
-            if success:
-                self._set_state(DeviceState.INITIALIZED)
-            return success
+            return self._reset_impl(device)
         except Exception as e:
-            self._set_state(DeviceState.ERROR)
             logger.error(f"Reset failed: {str(e)}")
             raise
 
     def close(self, device: Device) -> bool:
-        """Close device with state management"""
-        if self.state == DeviceState.UNKNOWN:
-            return True
-            
+        """Close device"""
         try:
-            success = self._close_impl(device)
-            if success:
-                self._set_state(DeviceState.DISCONNECTED)
-            return success
+            return self._close_impl(device)
         except Exception as e:
-            self._set_state(DeviceState.ERROR)
             logger.error(f"Close failed: {str(e)}")
             raise
 
