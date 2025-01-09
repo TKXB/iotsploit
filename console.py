@@ -322,6 +322,33 @@ class SAT_Shell(cmd2.Cmd):
             
             logger.info("All servers started successfully in the background.")
             
+            # Wait for HTTP server to be available and initialize devices
+            import requests
+            import time
+            max_retries = 30
+            retry_interval = 1
+            
+            logger.info("Waiting for HTTP server to be available...")
+            for i in range(max_retries):
+                try:
+                    # Try to initialize devices using the HTTP endpoint (GET method)
+                    response = requests.get('http://127.0.0.1:8888/api/initialize_devices/')
+                    if response.status_code == 200:
+                        logger.info("Devices initialized successfully via HTTP API")
+                        break
+                    else:
+                        logger.error(f"Failed to initialize devices: {response.text}")
+                        break
+                except requests.exceptions.ConnectionError:
+                    if i < max_retries - 1:
+                        time.sleep(retry_interval)
+                    else:
+                        logger.error("HTTP server did not become available in time")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error initializing devices: {str(e)}")
+                    break
+            
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
             logger.debug("Detailed traceback:", exc_info=True)
@@ -329,23 +356,42 @@ class SAT_Shell(cmd2.Cmd):
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
         'Stop Django development server, Daphne WebSocket server, and Celery worker'
-        if self.django_server_process:
-            self.django_server_process.terminate()
-            self.django_server_process = None
-        
-        if self.daphne_server_process:
-            self.daphne_server_process.terminate()
-            self.daphne_server_process = None
-        
-        if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
-            self.celery_worker_process.terminate()
-            self.celery_worker_process = None
-        
-        if not any([self.django_server_process, self.daphne_server_process, 
-                    getattr(self, 'celery_worker_process', None)]):
-            logger.info("All servers stopped.")
-        else:
-            logger.error("No servers were running.")
+        try:
+            # Cleanup devices using HTTP endpoint (GET method)
+            import requests
+            try:
+                response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')
+                if response.status_code == 200:
+                    logger.info("Devices cleaned up successfully via HTTP API")
+                else:
+                    logger.error(f"Failed to cleanup devices: {response.text}")
+            except requests.exceptions.ConnectionError:
+                logger.warning("Could not reach HTTP server for device cleanup")
+            except Exception as e:
+                logger.error(f"Error during device cleanup: {str(e)}")
+            
+            # Stop the servers
+            if self.django_server_process:
+                self.django_server_process.terminate()
+                self.django_server_process = None
+            
+            if self.daphne_server_process:
+                self.daphne_server_process.terminate()
+                self.daphne_server_process = None
+            
+            if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
+                self.celery_worker_process.terminate()
+                self.celery_worker_process = None
+            
+            if not any([self.django_server_process, self.daphne_server_process, 
+                        getattr(self, 'celery_worker_process', None)]):
+                logger.info("All servers stopped.")
+            else:
+                logger.error("No servers were running.")
+                
+        except Exception as e:
+            logger.error(f"Error stopping servers: {str(e)}")
+            logger.debug("Detailed error:", exc_info=True)
 
     @cmd2.with_category('System Commands')
     def do_set_log_level(self, arg):
