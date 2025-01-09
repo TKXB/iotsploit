@@ -1,19 +1,14 @@
 import usb.core
 import usb.util
 from sat_toolkit.tools.xlogger import xlog
-from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
-import uuid
-import threading
 import time
 from pyftdi.ftdi import Ftdi
 from pyftdi.serialext import serial_for_url
-from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction, StreamWrapper
-import asyncio
+from sat_toolkit.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 import pyudev
-from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 logger = xlog.get_logger(__name__)
 
@@ -29,20 +24,9 @@ class FT2232Driver(BaseDeviceDriver):
             'B': None   # Channel B
         }
         self.mode = 'uart'
-        self._device_counter = 0
-        self.running = {
-            'A': threading.Event(),
-            'B': threading.Event()
-        }
-        self.receiver_threads = {
-            'A': None,
-            'B': None
-        }
         self.connected = False
-        self.stream_manager = StreamManager()
-        self.stream_wrapper = StreamWrapper(self.stream_manager)
         self.device = None
-        self.usb_dev = None  # Store USB device reference
+        self.usb_dev = None
         self.supported_commands = {
             "start": "Start monitoring/receiving UART data (format: start <channel>)",
             "stop": "Stop monitoring/receiving UART data (format: stop <channel>)",
@@ -170,44 +154,44 @@ class FT2232Driver(BaseDeviceDriver):
 
     def _connect_impl(self, device: USBDevice) -> bool:
         try:
-            if not any(self.uart_channels.values()):
-                self._initialize_impl(device)
-            
             self.connected = all(uart is not None for uart in self.uart_channels.values())
             return self.connected
-            
         except Exception as e:
             logger.error(f"Failed to connect to device: {e}")
             return False
 
-    def _command_impl(self, device: USBDevice, command: str) -> Optional[str]:
+    def _command_impl(self, device: USBDevice, command: str, args: Optional[Dict] = None) -> Optional[str]:
         try:
-            cmd_parts = command.lower().split()
-            if len(cmd_parts) < 1:
+            cmd_parts = command.lower().split() if isinstance(command, str) else []
+            if not cmd_parts:
                 raise ValueError("Empty command received")
 
             cmd = cmd_parts[0]
 
             if cmd == "start":
                 if len(cmd_parts) < 2:
-                    for channel in ['A', 'B']:
-                        self.start_monitoring(device, channel)
+                    self.start_streaming(device)
                 else:
                     channel = cmd_parts[1].upper()
-                    self.start_monitoring(device, channel)
+                    if channel not in ['A', 'B']:
+                        raise ValueError("Invalid channel. Must be 'A' or 'B'")
+                    self.start_streaming(device)
 
             elif cmd == "stop":
                 if len(cmd_parts) < 2:
-                    for channel in ['A', 'B']:
-                        self.stop_monitoring(device, channel)
+                    self.stop_streaming(device)
                 else:
                     channel = cmd_parts[1].upper()
-                    self.stop_monitoring(device, channel)
+                    if channel not in ['A', 'B']:
+                        raise ValueError("Invalid channel. Must be 'A' or 'B'")
+                    self.stop_streaming(device)
 
             elif cmd == "send":
                 if len(cmd_parts) < 3:
                     raise ValueError("Send command requires channel and hex data arguments")
                 channel = cmd_parts[1].upper()
+                if channel not in ['A', 'B']:
+                    raise ValueError("Invalid channel. Must be 'A' or 'B'")
                 data = bytes.fromhex(cmd_parts[2])
                 self.send_uart_data(device, channel, data)
 
@@ -215,18 +199,15 @@ class FT2232Driver(BaseDeviceDriver):
                 status = {
                     "mode": self.mode,
                     "channel_A": {
-                        "running": self.running['A'].is_set(),
-                        "receiver_active": bool(self.receiver_threads['A'] and self.receiver_threads['A'].is_alive()),
-                        "interface_connected": bool(self.uart_channels['A'])
+                        "interface_connected": bool(self.uart_channels['A']),
+                        "is_acquiring": self.is_acquiring.is_set()
                     },
                     "channel_B": {
-                        "running": self.running['B'].is_set(),
-                        "receiver_active": bool(self.receiver_threads['B'] and self.receiver_threads['B'].is_alive()),
-                        "interface_connected": bool(self.uart_channels['B'])
+                        "interface_connected": bool(self.uart_channels['B']),
+                        "is_acquiring": self.is_acquiring.is_set()
                     }
                 }
                 return str(status)
-
             else:
                 raise ValueError(f"Unknown command: {cmd}")
 
@@ -240,8 +221,6 @@ class FT2232Driver(BaseDeviceDriver):
             for channel in self.uart_channels:
                 if self.uart_channels[channel]:
                     self.uart_channels[channel].close()
-                    
-            self._initialize_impl(device)
             return True
         except Exception as e:
             logger.error(f"Cannot reset FT2232 device {device.name}: {e}")
@@ -250,7 +229,6 @@ class FT2232Driver(BaseDeviceDriver):
     def _close_impl(self, device: USBDevice) -> bool:
         try:
             for channel in ['A', 'B']:
-                self.stop_receiver(channel)
                 if self.uart_channels[channel]:
                     if hasattr(self.uart_channels[channel], '_ftdi'):
                         self.uart_channels[channel]._ftdi.close()
@@ -277,93 +255,77 @@ class FT2232Driver(BaseDeviceDriver):
             self.connected = False
             return False
 
-    def receiver_thread_fn(self, channel):
-        """Thread function to continuously read UART data for a specific channel"""
-        uart = self.uart_channels[channel]
-        channel_id = f"{self.device.device_id}_{channel}"
-        
-        while self.running[channel].is_set():
-            try:
-                logger.debug(f"UART: {uart}, Device: {self.device}")
-                if uart and self.device:
-                    data = uart.read(16)
-                    if data:
-                        stream_data = StreamData(
-                            stream_type=StreamType.UART,
-                            channel=channel_id,
-                            timestamp=time.time(),
-                            source=StreamSource.SERVER,
-                            action=StreamAction.DATA,
-                            data={
-                                'data': data.hex(),
-                                'length': len(data),
-                                'channel': channel
-                            },
-                            metadata={
-                                'interface': channel_id,
-                                'baudrate': uart.baudrate,
-                                'channel': channel
-                            }
-                        )
-                        self.stream_wrapper.broadcast_data(stream_data)
-                        logger.info(f"Received UART data on channel {channel}: {data.hex()}")
-                time.sleep(0.01)
-            except Exception as e:
-                logger.error(f"Error reading UART data on channel {channel}: {str(e)}")
-                time.sleep(0.1)
+    def _setup_acquisition(self, device: Device):
+        """Setup acquisition for UART channels"""
+        logger.info("Setting up UART acquisition")
+        self.device = device
 
-    def start_monitoring(self, device, channel):
-        """Start UART monitoring for a specific channel"""
-        if channel not in self.uart_channels:
-            raise ValueError(f"Invalid channel: {channel}. Must be 'A' or 'B'")
-            
-        self.stop_receiver(channel)
-        logger.info(f"Starting UART monitoring for channel {channel}")
-        channel_id = f"{device.device_id}_{channel}"
-        self.stream_wrapper.register_stream(channel_id)
-        self.start_receiver(channel)
-
-    def stop_monitoring(self, device, channel):
-        """Stop UART monitoring for a specific channel"""
-        if channel not in self.uart_channels:
-            raise ValueError(f"Invalid channel: {channel}. Must be 'A' or 'B'")
-            
-        channel_id = f"{device.device_id}_{channel}"
-        self.stream_wrapper.unregister_stream(channel_id)
-        self.stream_wrapper.stop_broadcast(channel_id)
-        self.stop_receiver(channel)
-
-    def start_receiver(self, channel):
-        """Start receiver thread for a specific channel"""
-        if not self.running[channel].is_set() and not (self.receiver_threads[channel] and self.receiver_threads[channel].is_alive()):
-            self.running[channel].set()
-            self.receiver_threads[channel] = threading.Thread(
-                target=self.receiver_thread_fn,
-                args=(channel,),
-                name=f'FT2232_RECEIVER_{channel}'
-            )
-            self.receiver_threads[channel].daemon = True
-            self.receiver_threads[channel].start()
-            logger.info(f"Started UART monitoring for channel {channel}")
-
-    def stop_receiver(self, channel):
-        """Stop receiver thread for a specific channel"""
-        self.running[channel].clear()
-        if self.receiver_threads[channel] and self.receiver_threads[channel].is_alive():
-            self.receiver_threads[channel].join(timeout=1.0)
-            self.receiver_threads[channel] = None
-        
-        # Close the UART channel when stopping
-        if self.uart_channels[channel]:
-            try:
-                if hasattr(self.uart_channels[channel], '_ftdi'):
-                    self.uart_channels[channel]._ftdi.close()
-                self.uart_channels[channel].close()
+    def _cleanup_acquisition(self, device: Device):
+        """Cleanup acquisition for UART channels"""
+        logger.info("Cleaning up UART acquisition")
+        for channel in ['A', 'B']:
+            if self.uart_channels[channel]:
+                try:
+                    if hasattr(self.uart_channels[channel], '_ftdi'):
+                        self.uart_channels[channel]._ftdi.close()
+                    self.uart_channels[channel].close()
+                except Exception as e:
+                    logger.warning(f"Error closing channel {channel}: {e}")
                 self.uart_channels[channel] = None
-            except Exception as e:
-                logger.warning(f"Error closing channel {channel}: {e}")
+
+    def _acquisition_loop(self):
+        """Main acquisition loop for reading from both UART channels"""
+        logger.info("Starting UART acquisition loop")
         
-        logger.info(f"Stopped UART monitoring for channel {channel}")
+        while self.is_acquiring.is_set():
+            try:
+                # Read from UART channels
+                for channel in ['A', 'B']:
+                    uart = self.uart_channels[channel]
+                    if uart and self.device:
+                        try:
+                            data = uart.read(16)
+                            if data:
+                                stream_data = StreamData(
+                                    stream_type=StreamType.UART,
+                                    channel=self.device.device_id,  # Use device_id only
+                                    timestamp=time.time(),
+                                    source=StreamSource.SERVER,
+                                    action=StreamAction.DATA,
+                                    data={
+                                        'data': data.hex(),
+                                        'length': len(data),
+                                        'channel': channel
+                                    },
+                                    metadata={
+                                        'uart_channel': channel,
+                                        'baudrate': uart.baudrate
+                                    }
+                                )
+                                self.stream_wrapper.broadcast_data(stream_data)
+                                logger.debug(f"Received UART data on channel {channel}: {data.hex()}")
+                        except Exception as e:
+                            logger.error(f"Error reading UART channel {channel}: {str(e)}")
+                            continue
+
+                # Handle data from WebSocket clients
+                client_data = self.stream_manager.get_client_data()
+                if client_data and client_data.stream_type == StreamType.UART:
+                    try:
+                        uart_data = client_data.data
+                        channel = uart_data.get('channel', 'A')  # Default to channel A if not specified
+                        data = bytes.fromhex(uart_data['data']) if isinstance(uart_data['data'], str) else uart_data['data']
+                        
+                        self.send_uart_data(self.device, channel, data)
+                        logger.debug(f"Processed client UART data for channel {channel}: {data.hex()}")
+                    except Exception as e:
+                        logger.error(f"Failed to process client UART data: {e}")
+                
+                time.sleep(0.01)  # Small delay to prevent CPU hogging
+                
+            except Exception as e:
+                logger.error(f"Error in acquisition loop: {str(e)}")
+                time.sleep(0.1)
 
     def send_uart_data(self, device: USBDevice, channel: str, data: bytes):
         """Send UART data on a specific channel"""
@@ -372,79 +334,46 @@ class FT2232Driver(BaseDeviceDriver):
             
         uart = self.uart_channels[channel]
         if not uart:
-            # Try to reinitialize if the channel is not connected
-            if not self._initialize_impl(device):
-                logger.error("Cannot send data: UART channel initialization failed")
-                raise Exception("Failed to initialize UART channel")
+            raise Exception("UART channel not initialized")
 
         try:
-            # Ensure kernel driver is detached before sending data
-            if self.usb_dev:
-                interface = 0 if channel == 'A' else 1
-                if self.usb_dev.is_kernel_driver_active(interface):
-                    logger.debug(f"Detaching kernel driver from interface {interface}")
-                    self.usb_dev.detach_kernel_driver(interface)
-
-            uart.write(data)
-            channel_id = f"{device.device_id}_{channel}"
+            bytes_written = uart.write(data)
             stream_data = StreamData(
                 stream_type=StreamType.UART,
-                channel=channel_id,
+                channel=device.device_id,  # Use device_id only
                 timestamp=time.time(),
                 source=StreamSource.SERVER,
                 action=StreamAction.SEND,
                 data={
-                    'data': data.hex(),
-                    'length': len(data),
+                    'result': 'success',
+                    'bytes_written': bytes_written,
                     'channel': channel
                 },
                 metadata={
-                    'interface': channel_id,
-                    'baudrate': uart.baudrate,
-                    'channel': channel
+                    'uart_channel': channel,
+                    'baudrate': uart.baudrate
                 }
             )
             self.stream_wrapper.broadcast_data(stream_data)
-            logger.info(f"Sent UART data on channel {channel}: {data.hex()}")
+            logger.info(f"Successfully sent {bytes_written} bytes on UART channel {channel}")
         except Exception as e:
-            logger.error(f"Failed to send UART data on channel {channel}: {e}")
-            # Try to recover by reinitializing the device
-            try:
-                self._reset_impl(device)
-            except Exception as reset_error:
-                logger.error(f"Failed to reset device after send error: {reset_error}")
+            error_msg = str(e)
+            stream_data = StreamData(
+                stream_type=StreamType.UART,
+                channel=device.device_id,
+                timestamp=time.time(),
+                source=StreamSource.SERVER,
+                action=StreamAction.SEND,
+                data={
+                    'result': 'error',
+                    'error': error_msg,
+                    'channel': channel
+                },
+                metadata={
+                    'uart_channel': channel,
+                    'baudrate': uart.baudrate if uart else None
+                }
+            )
+            self.stream_wrapper.broadcast_data(stream_data)
+            logger.error(f"Failed to send UART data on channel {channel}: {error_msg}")
             raise
-
-    def __del__(self):
-        """Cleanup method called when the driver is destroyed"""
-        if self.device:
-            try:
-                self._close_impl(self.device)
-            except Exception as e:
-                logger.error(f"Error during cleanup: {e}")
-
-
-# Example usage
-if __name__ == "__main__":
-    from sat_toolkit.models.Device_Model import USBDevice
-    
-    ability = FT2232Driver()
-    
-    found_devices = ability._scan_impl()
-    if found_devices:
-        test_device = found_devices[0]  # Use the first found device
-        test_device.attributes['mode'] = 'uart'  # Set the mode
-        print(f"FT2232 Device Found: {test_device}")
-        ability._initialize_impl(test_device)
-        if ability._connect_impl(test_device):
-            print("Device connected successfully.")
-            ability._command_impl(test_device, "test_command")
-            ability._reset_impl(test_device)
-            if ability._close_impl(test_device):
-                print("Device closed successfully.")
-            else:
-                print("Failed to close device.")
-        else:
-            print("Failed to connect to device.")
-    else:
-        print("No FT2232 devices found.")
