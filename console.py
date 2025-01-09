@@ -72,8 +72,6 @@ class SAT_Shell(cmd2.Cmd):
         self._current_driver = None
         self.connected_devices = {}
         
-        # Auto initialize devices
-        self._auto_initialize_devices()
         
         # Initialize plugin manager
         self.plugin_manager = ExploitPluginManager()
@@ -1435,6 +1433,15 @@ class SAT_Shell(cmd2.Cmd):
                     logger.error(f"Failed to close {device.name}: {result['message']}")
             except Exception as e:
                 logger.error(f"Error closing {device.name}: {str(e)}")
+
+    @cmd2.with_category('Device Commands')
+    def do_initialize_devices(self, arg):
+        'Auto-initialize all available devices'
+        logger.info("Starting device initialization...")
+        self._auto_initialize_devices()
+
+    # Add alias for initialize_devices
+    do_initdev = do_initialize_devices
 
 if __name__ == '__main__':
     shell = SAT_Shell()
