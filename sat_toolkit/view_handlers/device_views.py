@@ -3,12 +3,14 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpRequest, HttpResponse
 import json
 import logging
+from django.apps import apps
 
 from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.models.Device_Model import DeviceManager
 from sat_toolkit.tools.monitor_mgr import Pi_Mgr
 from sat_toolkit.core.device_registry import DeviceRegistry
 from sat_toolkit.tools.env_mgr import Env_Mgr
+from sat_toolkit.apps import SatToolkitConfig
 
 logger = logging.getLogger(__name__)
 
@@ -179,4 +181,62 @@ def list_devices(request):
         return JsonResponse({
             "status": "error",
             "message": f"Failed to scan devices: {str(e)}"
+        }, status=500)
+
+def initialize_devices(request):
+    """
+    GET
+    Initialize all available devices
+    """
+    if request.method != 'GET':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only GET method is allowed"
+        }, status=405)
+    try:
+        # 直接使用 DeviceDriverManager 的单例
+        device_manager = DeviceDriverManager()
+        results = device_manager.initialize_all_devices()
+        
+        return JsonResponse({
+            "status": "success",
+            "results": results
+        })
+
+    except Exception as e:
+        logger.error(f"Error in device initialization: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+def cleanup_devices(request):
+    """
+    GET
+    Clean up all device connections and reset states
+    """
+    if request.method != 'GET':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only GET method is allowed"
+        }, status=405)
+    try:
+        device_manager = DeviceDriverManager()
+        if not device_manager:
+            return JsonResponse({
+                "status": "success",
+                "message": "No device manager to clean up"
+            })
+
+        results = device_manager.cleanup_all_devices()
+        return JsonResponse({
+            "status": "success",
+            "results": results
+        })
+
+    except Exception as e:
+        logger.error(f"Error in device cleanup: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
         }, status=500)

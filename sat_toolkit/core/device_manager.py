@@ -30,8 +30,8 @@ class DeviceDriverManager:
             logger.info("Initializing DeviceDriverManager")
             self.plugins = {}
             self.drivers = {}  # 存储驱动实例
-            self.device_states = {}  # 存储设备状态
-            self._connection_locks = {}  # 设备操作锁
+            self.device_states = {}  # 存储设备状态，格式: 'driver_name::device_id': DeviceState
+            self._connection_locks = {}  # 设备操作锁，格式: 'driver_name::device_id': Lock
             
             # 定义合法的状态转换
             self._state_transitions = {
@@ -141,7 +141,7 @@ class DeviceDriverManager:
     def get_device_state(self, driver_name: str, device_id: str = "") -> DeviceState:
         """获取设备当前状态"""
         device_key = self._get_device_key(driver_name, device_id=device_id)
-        return self._get_device_state(device_key)
+        return self.device_states.get(device_key, DeviceState.UNKNOWN)
 
     def get_supported_commands(self, driver_name: str) -> Dict[str, str]:
         """获取设备支持的命令"""
@@ -176,13 +176,10 @@ class DeviceDriverManager:
 
             device = kwargs.get('device')
             device_id = kwargs.get('device_id', '')
-            if device and hasattr(device, 'device_id'):
-                device_id = device.device_id
-
-            device_key = f"{driver_name}_{device_id}"
+            device_key = self._get_device_key(driver_name, device, device_id)
 
             with self._get_device_lock(device_key):
-                current_state = self._get_device_state(device_key)
+                current_state = self.device_states.get(device_key, DeviceState.UNKNOWN)
                 
                 # 修改状态转换逻辑
                 if action != 'scan':
@@ -200,14 +197,14 @@ class DeviceDriverManager:
                             scan_result = self._handle_scan(driver, driver_name, **kwargs)
                             if scan_result["status"] != "success":
                                 return scan_result
-                            current_state = self._get_device_state(device_key)
+                            current_state = self.device_states.get(device_key, DeviceState.UNKNOWN)
                         
                         if current_state == DeviceState.DISCOVERED:
                             # 只在发现状态时执行初始化
                             init_result = self._handle_initialize(driver, driver_name, **kwargs)
                             if init_result["status"] != "success":
                                 return init_result
-                            current_state = self._get_device_state(device_key)
+                            current_state = self.device_states.get(device_key, DeviceState.UNKNOWN)
                         
                         if current_state != DeviceState.INITIALIZED:
                             return {
@@ -231,13 +228,9 @@ class DeviceDriverManager:
             self._connection_locks[device_key] = threading.Lock()
         return self._connection_locks[device_key]
 
-    def _get_device_state(self, device_key: str) -> DeviceState:
-        """获取设备当前状态"""
-        return self.device_states.get(device_key, DeviceState.UNKNOWN)
-
     def _update_device_state(self, device_key: str, new_state: DeviceState):
         """更新设备状态"""
-        current_state = self._get_device_state(device_key)
+        current_state = self.device_states.get(device_key, DeviceState.UNKNOWN)
         
         if current_state == new_state:
             return
@@ -291,19 +284,44 @@ class DeviceDriverManager:
             return {"status": "error", "message": str(e)}
 
     def _get_device_key(self, driver_name: str, device: Device = None, device_id: str = "") -> str:
-        """统一生成设备键值的方法"""
-        if device:
-            key = f"{driver_name}_{device.device_id}"
+        """统一生成设备键值的方法
+        
+        Args:
+            driver_name: 驱动名称 (e.g., 'drv_socketcan')
+            device: 设备实例 (可选)
+            device_id: 设备ID (可选，当device不存在时使用)
+            
+        Returns:
+            str: 格式化的设备键值 (e.g., 'drv_socketcan::vcan0')
+        """
+        if device and hasattr(device, 'device_id'):
+            key = f"{driver_name}::{device.device_id}"
         else:
-            key = f"{driver_name}_{device_id}"
+            key = f"{driver_name}::{device_id}"
         return key
+
+    def _parse_device_key(self, device_key: str) -> tuple[str, str]:
+        """解析设备键值
+        
+        Args:
+            device_key: 设备键值 (e.g., 'drv_socketcan::vcan0')
+            
+        Returns:
+            tuple[str, str]: (driver_name, device_id)
+        """
+        try:
+            driver_name, device_id = device_key.split("::", 1)
+            return driver_name, device_id
+        except ValueError:
+            logger.error(f"Invalid device key format: {device_key}")
+            return "", ""
 
     def _handle_scan(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
         """处理扫描操作"""
         try:
             devices = driver.scan()
             for device in devices:
-                device_key = f"{driver_name}_{device.device_id}"
+                device_key = self._get_device_key(driver_name, device)
                 self._update_device_state(device_key, DeviceState.DISCOVERED)
             return {
                 "status": "success",
@@ -320,7 +338,7 @@ class DeviceDriverManager:
                 return {"status": "error", "message": "Device not specified"}
 
             success = driver.initialize(device)
-            device_key = f"{driver_name}_{device.device_id}"
+            device_key = self._get_device_key(driver_name, device)
             if success:
                 self._update_device_state(device_key, DeviceState.INITIALIZED)
                 return {
@@ -342,7 +360,7 @@ class DeviceDriverManager:
                 return {"status": "error", "message": "Device not specified"}
 
             success = driver.connect(device)
-            device_key = f"{driver_name}_{device.device_id}"
+            device_key = self._get_device_key(driver_name, device)
             if success:
                 self._update_device_state(device_key, DeviceState.CONNECTED)
                 return {
@@ -437,4 +455,153 @@ class DeviceDriverManager:
             List[str]: 驱动名称列表
         """
         return list(self.drivers.keys())
+
+    def cleanup_all_devices(self) -> Dict:
+        """Clean up all device connections and reset states"""
+        logger.info("Starting device cleanup")
+        
+        results = {}
+        for device_key in list(self.device_states.keys()):
+            logger.info(f"Closing device: {device_key}")
+            try:
+                driver_name, device_id = self._parse_device_key(device_key)
+                if not driver_name:
+                    continue
+                    
+                driver = self.get_driver_instance(driver_name)
+                if not driver:
+                    logger.warning(f"Driver {driver_name} not found")
+                    continue
+                
+                device = driver.get_device(device_id)
+                if device:
+                    result = self._manage_device_lifecycle(
+                        driver_name=driver_name,
+                        action='close',
+                        device=device
+                    )
+                    results[driver_name] = result
+                else:
+                    logger.warning(f"Device not found for ID: {device_id}")
+                    
+            except Exception as e:
+                logger.error(f"Error closing device {device_key}: {str(e)}")
+                results[driver_name if 'driver_name' in locals() else device_key] = {
+                    "status": "error",
+                    "message": str(e)
+                }
+
+        # Reset all internal state
+        self.device_states.clear()
+        self._connection_locks.clear()
+        
+        # Reset all drivers
+        for driver_name, driver in self.drivers.items():
+            try:
+                if hasattr(driver, 'reset'):
+                    driver.reset()
+            except Exception as e:
+                logger.warning(f"Failed to reset driver {driver_name}: {e}")
+
+        return results
+
+    def initialize_all_devices(self) -> Dict:
+        """Initialize and connect all available devices"""
+        logger.info("Starting device initialization")
+        
+        # Reset internal state
+        self.device_states.clear()
+        self._connection_locks.clear()
+        
+        # Get all available drivers
+        available_drivers = list(self.drivers.keys())
+        if not available_drivers:
+            return {
+                "status": "warning",
+                "message": "No device drivers available!"
+            }
+
+        results = {}
+        for driver_name in available_drivers:
+            try:
+                logger.info(f"Initializing {driver_name}...")
+                
+                # Scan devices using _manage_device_lifecycle
+                scan_result = self._manage_device_lifecycle(
+                    driver_name=driver_name,
+                    action='scan'
+                )
+                
+                if scan_result['status'] != 'success':
+                    results[driver_name] = {
+                        "status": "error",
+                        "message": f"Failed to scan: {scan_result.get('message', 'Unknown error')}"
+                    }
+                    continue
+                
+                devices = scan_result.get('devices', [])
+                if not devices:
+                    results[driver_name] = {
+                        "status": "warning",
+                        "message": "No devices found"
+                    }
+                    continue
+
+                # Process each device
+                device_results = []
+                for device in devices:
+                    try:
+                        # Initialize device using _manage_device_lifecycle
+                        init_result = self._manage_device_lifecycle(
+                            driver_name=driver_name,
+                            action='initialize',
+                            device=device
+                        )
+                        if init_result['status'] != 'success':
+                            device_results.append({
+                                "device": device.name,
+                                "status": "error",
+                                "message": f"Init failed: {init_result['message']}"
+                            })
+                            continue
+
+                        # Connect device using _manage_device_lifecycle
+                        connect_result = self._manage_device_lifecycle(
+                            driver_name=driver_name,
+                            action='connect',
+                            device=device
+                        )
+                        if connect_result['status'] != 'success':
+                            device_results.append({
+                                "device": device.name,
+                                "status": "error",
+                                "message": f"Connect failed: {connect_result['message']}"
+                            })
+                            continue
+
+                        device_results.append({
+                            "device": device.name,
+                            "status": "success",
+                            "message": "Successfully connected"
+                        })
+
+                    except Exception as e:
+                        device_results.append({
+                            "device": getattr(device, 'name', 'Unknown'),
+                            "status": "error",
+                            "message": str(e)
+                        })
+
+                results[driver_name] = {
+                    "status": "success",
+                    "devices": device_results
+                }
+
+            except Exception as e:
+                results[driver_name] = {
+                    "status": "error",
+                    "message": str(e)
+                }
+
+        return results
 
