@@ -24,22 +24,20 @@ class BaseDeviceDriver(BasePlugin):
         super().__init__(info)
         # Device management
         self.device = None
-        self.device_interface = None
-        
-        # 确保 supported_commands 总是存在
-        if not hasattr(self, 'supported_commands'):
-            self.supported_commands = {}  # format: {'command': 'description'}
+        self._devices: Dict[str, Device] = {}
         
         # Stream management
         self.stream_manager = StreamManager()
         self.stream_wrapper = StreamWrapper(self.stream_manager)
         
-        # Thread management
-        self.receiver_thread = None
-        self.running = threading.Event()
+        # Acquisition management
+        self.acquisition_thread = None
+        self.is_acquiring = threading.Event()
 
-        self._devices: Dict[str, Device] = {}  # 存储设备实例
-        
+        # 确保 supported_commands 总是存在
+        if not hasattr(self, 'supported_commands'):
+            self.supported_commands = {}  # format: {'command': 'description'}
+
     def get_supported_commands(self) -> Dict[str, str]:
         """Get dictionary of supported commands and their descriptions"""
         if not hasattr(self, 'supported_commands'):
@@ -98,6 +96,60 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Close failed: {str(e)}")
             raise
 
+    # Streaming and acquisition control
+    def start_streaming(self, device: Device):
+        """启动设备数据流（包括数据采集和WebSocket分发）"""
+        try:
+            logger.info(f"Starting streaming for device {device.device_id}")
+            self.stream_wrapper.register_stream(device.device_id)
+            self.start_acquisition(device)
+        except Exception as e:
+            logger.error(f"Failed to start streaming: {e}")
+            self.stop_streaming(device)
+            raise
+
+    def stop_streaming(self, device: Device):
+        """停止设备数据流（包括数据采集和WebSocket分发）"""
+        try:
+            logger.info(f"Stopping streaming for device {device.device_id}")
+            self.stop_acquisition(device)
+            self.stream_wrapper.unregister_stream(device.device_id)
+            self.stream_wrapper.stop_broadcast(device.device_id)
+        except Exception as e:
+            logger.error(f"Error stopping streaming: {e}")
+            raise
+
+    def start_acquisition(self, device: Device):
+        """启动设备数据采集（不包括WebSocket分发）"""
+        try:
+            logger.info(f"Starting data acquisition for device {device.device_id}")
+            self._setup_acquisition(device)
+            if not self.is_acquiring.is_set():
+                self.is_acquiring.set()
+                self.acquisition_thread = threading.Thread(
+                    target=self._acquisition_loop,
+                    name=f'{self.__class__.__name__}_Acquisition'
+                )
+                self.acquisition_thread.daemon = True
+                self.acquisition_thread.start()
+        except Exception as e:
+            logger.error(f"Failed to start acquisition: {e}")
+            self.stop_acquisition(device)
+            raise
+
+    def stop_acquisition(self, device: Device):
+        """停止设备数据采集（不包括WebSocket分发）"""
+        logger.info(f"Stopping data acquisition for device {device.device_id}")
+        self.is_acquiring.clear()
+        if self.acquisition_thread and self.acquisition_thread.is_alive():
+            self.acquisition_thread.join(timeout=1.0)
+            self.acquisition_thread = None
+        try:
+            self._cleanup_acquisition(device)
+        except Exception as e:
+            logger.error(f"Error in acquisition cleanup: {e}")
+            raise
+
     # Methods to be implemented by derived classes
     def _scan_impl(self) -> List[Device]:
         """Implementation of device scanning"""
@@ -123,38 +175,17 @@ class BaseDeviceDriver(BasePlugin):
         """Implementation of device closure"""
         raise NotImplementedError
 
-    # Thread management methods
-    def start_receiver(self):
-        """Helper method to start the receiver thread"""
-        if not self.running.is_set() and not (self.receiver_thread and self.receiver_thread.is_alive()):
-            self.running.set()
-            self.receiver_thread = threading.Thread(
-                target=self.receiver_thread_fn,
-                name=f'{self.__class__.__name__}_RECEIVER'
-            )
-            self.receiver_thread.daemon = True
-            self.receiver_thread.start()
-            logger.info("Started message monitoring")
+    def _setup_acquisition(self, device: Device):
+        """设备特定的采集初始化"""
+        pass
 
-    def stop_receiver(self):
-        """Helper method to stop the receiver thread"""
-        self.running.clear()
-        if self.receiver_thread and self.receiver_thread.is_alive():
-            self.receiver_thread.join(timeout=1.0)
-            self.receiver_thread = None
-        logger.info("Stopped message monitoring")
+    def _cleanup_acquisition(self, device: Device):
+        """设备特定的采集清理"""
+        pass
 
-    def receiver_thread_fn(self):
-        """Override this method in derived classes"""
+    def _acquisition_loop(self):
+        """数据采集循环的具体实现"""
         raise NotImplementedError
-
-    def __del__(self):
-        """Cleanup when object is destroyed"""
-        try:
-            if self.device and self.state != DeviceState.DISCONNECTED:
-                self.close(self.device)
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
 
     def get_device(self, device_id: str) -> Optional[Device]:
         """获取设备实例"""
@@ -163,3 +194,11 @@ class BaseDeviceDriver(BasePlugin):
     def _register_device(self, device: Device):
         """注册设备"""
         self._devices[device.device_id] = device
+
+    def __del__(self):
+        """Cleanup when object is destroyed"""
+        try:
+            if self.device and hasattr(self, 'state') and self.state != DeviceState.DISCONNECTED:
+                self.close(self.device)
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
