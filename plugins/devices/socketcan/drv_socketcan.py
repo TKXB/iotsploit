@@ -203,10 +203,12 @@ class SocketCANDriver(BaseDeviceDriver):
         logger.info("Starting CAN acquisition loop")
         while self.is_acquiring.is_set():
             try:
+                # 从CAN设备读取数据
                 message = self.bus.recv(timeout=0.1)
                 if not self.is_acquiring.is_set():
                     break
                 if message:
+                    # 发送设备数据到客户端
                     stream_data = StreamData(
                         stream_type=StreamType.CAN,
                         channel=self.device.device_id,
@@ -226,8 +228,28 @@ class SocketCANDriver(BaseDeviceDriver):
                     self.stream_wrapper.broadcast_data(stream_data)
                     logger.info(f"Received and broadcast CAN message - ID: {hex(message.arbitration_id)}, "
                               f"Data: {message.data.hex()}, DLC: {message.dlc}")
+
+                # 处理来自客户端的数据
+                client_data = self.stream_manager.get_client_data()
+                if client_data and client_data.stream_type == StreamType.CAN:
+                    try:
+                        can_data = client_data.data
+                        can_id = int(can_data['id'], 16) if isinstance(can_data['id'], str) else can_data['id']
+                        data = bytes.fromhex(can_data['data']) if isinstance(can_data['data'], str) else can_data['data']
+                        
+                        message = can.Message(
+                            arbitration_id=can_id,
+                            data=data,
+                            is_extended_id=can_data.get('is_extended_id', False)
+                        )
+                        self.bus.send(message)
+                        logger.info(f"Sent client CAN message - ID: {hex(message.arbitration_id)}, "
+                                  f"Data: {message.data.hex()}")
+                    except Exception as e:
+                        logger.error(f"Failed to process client CAN data: {e}")
+
             except Exception as e:
-                logger.error(f"Error receiving CAN message: {str(e)}")
+                logger.error(f"Error in CAN acquisition loop: {str(e)}")
                 time.sleep(0.1)
         logger.info("CAN acquisition loop stopped")
 

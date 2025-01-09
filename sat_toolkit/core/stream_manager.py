@@ -8,8 +8,10 @@ from channels.layers import get_channel_layer
 import redis
 from django.conf import settings
 from sat_toolkit.tools.xlogger import xlog
+from queue import Queue
 
 logger = xlog.get_logger(__name__)  
+
 class StreamType(Enum):
     UART = "uart"
     CAN = "can"
@@ -142,16 +144,23 @@ class StreamManager:
                 port=getattr(settings, 'REDIS_PORT', 6379),
                 db=getattr(settings, 'REDIS_DB', 0)
             )
+            # 为每个channel创建一个队列来存储客户端数据
+            self._client_queues = {}
             self.initialized = True
 
     async def register_stream(self, channel: str):
         """Register a channel when a client connects"""
         self._redis.sadd('active_channels', channel)
+        # 为新channel创建队列
+        if channel not in self._client_queues:
+            self._client_queues[channel] = Queue()
         logger.info(f"Registered stream for channel {channel}")
 
     async def unregister_stream(self, channel: str):
         """Unregister a channel when a client disconnects"""
         self._redis.srem('active_channels', channel)
+        # 移除channel的队列
+        self._client_queues.pop(channel, None)
         logger.info(f"Unregistered stream for channel {channel}")
 
     async def broadcast_data(self, stream_data: StreamData):
@@ -159,6 +168,15 @@ class StreamManager:
         logger.debug(f"Broadcasting data: {stream_data}")
 
         channel = stream_data.channel
+        
+        # 如果是客户端发来的数据，存入对应的队列
+        if stream_data.source == StreamSource.CLIENT:
+            if channel in self._client_queues:
+                self._client_queues[channel].put(stream_data)
+                logger.debug(f"Queued client data for channel {channel}")
+            return
+
+        # 服务器发往客户端的数据通过WebSocket广播
         self._redis.sadd('broadcast_channels', channel)
         group_name = f"stream_{channel}"
         
@@ -186,3 +204,12 @@ class StreamManager:
     def get_broadcast_channels(self):
         """Get channels where data is being broadcast"""
         return [channel.decode() for channel in self._redis.smembers('broadcast_channels')]
+
+    def get_client_data(self) -> Optional[StreamData]:
+        """获取来自客户端的数据"""
+        # 检查所有活跃channel的队列
+        for channel in self._client_queues:
+            queue = self._client_queues[channel]
+            if not queue.empty():
+                return queue.get_nowait()
+        return None
