@@ -8,6 +8,7 @@ from celery.result import AsyncResult
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 from sat_toolkit.core.device_manager import DeviceDriverManager
 import time
+from sat_toolkit.core.device_spec import DeviceState
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +128,14 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
             json_data = json.loads(text_data)
             stream_data = StreamData.from_dict(json_data)
 
-            # Get the driver instance based on stream type
-            device_manager = DeviceDriverManager()
+            # 根据 stream_type 获取对应的驱动名称
+            driver_name = None
             if stream_data.stream_type == StreamType.UART:
-                driver = device_manager.get_driver_instance('drv_ft2232')
+                driver_name = 'drv_ft2232'
             elif stream_data.stream_type == StreamType.CAN:
-                driver = device_manager.get_driver_instance('drv_socketcan')
-            else:
+                driver_name = 'drv_socketcan'
+
+            if not driver_name:
                 error_data = StreamData(
                     stream_type=stream_data.stream_type,
                     channel=self.channel,
@@ -146,6 +148,9 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps(error_data.to_dict()))
                 return
 
+            # Get the driver instance
+            device_manager = DeviceDriverManager()
+            driver = device_manager.get_driver_instance(driver_name)
             logger.info(f"Driver instance details: {driver}")
             
             if not driver:
@@ -161,17 +166,19 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps(error_data.to_dict()))
                 return
 
-            if not driver.connected:
-                logger.info("Driver not connected, attempting to scan and connect...")
+            # 检查设备状态
+            device_state = device_manager.get_device_state(driver_name, self.channel)
+            if device_state != DeviceState.CONNECTED:
+                logger.info("Device not connected, attempting to scan and connect...")
                 devices = driver.scan()
                 logger.info(f"Scan results: {devices}")
                 
                 if devices:
                     device = devices[0]
-                    init_result = driver.initialize(device)
-                    connect_result = driver.connect(device)
+                    init_result = device_manager.initialize_device(driver_name, device)
+                    connect_result = device_manager.connect_device(driver_name, device)
                     
-                    if not (init_result and connect_result):
+                    if not (init_result.get('status') == 'success' and connect_result.get('status') == 'success'):
                         error_data = StreamData(
                             stream_type=stream_data.stream_type,
                             channel=self.channel,

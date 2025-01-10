@@ -9,63 +9,25 @@ from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, SocketCANDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
+from sat_toolkit.tools.xlogger import xlog
+from typing import Optional, Dict, List
 
-logger = logging.getLogger(__name__)
+logger = xlog.get_logger(__name__)
 
 class SocketCANDriver(BaseDeviceDriver):
     def __init__(self):
         super().__init__()
+        self.bus = None
+        self.current_interface = None
         self.supported_commands = {
-            "start": "Start monitoring/receiving CAN messages",
-            "stop": "Stop monitoring/receiving CAN messages",
-            "dump": "Display current CAN interface status and state",
-            "send": "Send a test CAN message with ID 0x123 and data DEADBEEF"
+            "start": "Start streaming CAN messages",
+            "stop": "Stop streaming CAN messages",
+            "dump": "Display current CAN interface status",
+            "send": "Send a CAN message"
         }
 
-    def receiver_thread_fn(self):
-        while self.running.is_set():
-            try:
-                message = self.bus.recv(timeout=0.1)
-                if not self.running.is_set():
-                    break
-                if message:
-                    stream_data = StreamData(
-                        stream_type=StreamType.CAN,
-                        channel=self.device.device_id,
-                        timestamp=time.time(),
-                        source=StreamSource.SERVER,
-                        action=StreamAction.DATA,
-                        data={
-                            'id': hex(message.arbitration_id),
-                            'data': message.data.hex(),
-                            'dlc': message.dlc
-                        },
-                        metadata={
-                            'interface': self.current_interface,
-                            'is_extended_id': message.is_extended_id
-                        }
-                    )
-                    self.stream_wrapper.broadcast_data(stream_data)
-                    logger.info(f"Received and broadcast CAN message - ID: {hex(message.arbitration_id)}, "
-                              f"Data: {message.data.hex()}, DLC: {message.dlc}")
-            except Exception as e:
-                logger.error(f"Error receiving CAN message: {str(e)}")
-                time.sleep(0.1)
-
-    def shutdown_bus(self):
-        """CAN-specific bus shutdown"""
-        if self.bus:
-            try:
-                self.bus.shutdown()
-            except Exception as e:
-                logger.error(f"Error shutting down CAN bus: {e}")
-
-    def setup_bus(self):
-        """CAN-specific bus setup"""
-        self.bus = can.interface.Bus(channel=self.current_interface, 
-                                   bustype='socketcan')
-
-    def scan(self):
+    def _scan_impl(self) -> List[Device]:
+        """扫描可用的CAN接口"""
         try:
             logger.info("Starting scan for SocketCAN interfaces...")
             import subprocess
@@ -82,7 +44,6 @@ class SocketCANDriver(BaseDeviceDriver):
                     parts = line.split(':')
                     if len(parts) > 1:
                         interface = parts[1].strip()
-                        
                         if interface in seen_interfaces:
                             continue
                         seen_interfaces.add(interface)
@@ -94,7 +55,6 @@ class SocketCANDriver(BaseDeviceDriver):
                         device_id = f"{prefix}{str(interface_num).zfill(3)}"
                         
                         is_virtual = interface.startswith('vcan')
-                        
                         device = SocketCANDevice(
                             device_id=device_id,
                             name=f"SocketCAN_{interface}",
@@ -114,9 +74,10 @@ class SocketCANDriver(BaseDeviceDriver):
         except Exception as e:
             logger.error(f"Error scanning for CAN interfaces: {str(e)}")
             logger.debug("Scan failed with exception", exc_info=True)
-            return []
+            raise
 
-    def initialize(self, device: SocketCANDevice):
+    def _initialize_impl(self, device: SocketCANDevice) -> bool:
+        """初始化CAN接口"""
         if not isinstance(device, SocketCANDevice):
             raise ValueError("This plugin only supports SocketCAN devices")
         
@@ -133,110 +94,187 @@ class SocketCANDriver(BaseDeviceDriver):
             
             self.current_interface = device.interface
             self.device = device
-            self.connected = True
             logger.info(f"{'Virtual ' if is_virtual else ''}SocketCAN device initialized successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize SocketCAN device: {e}")
-            return False
+            raise
 
-    def connect(self, device: SocketCANDevice):
+    def _connect_impl(self, device: SocketCANDevice) -> bool:
+        """连接到CAN接口"""
         if not self.current_interface:
             logger.error("Device not initialized. Please initialize first.")
-            return False
+            raise RuntimeError("Device not initialized")
 
         try:
-            self.bus = can.interface.Bus(channel=self.current_interface, 
-                                       bustype='socketcan')
-            self.connected = True
-            logger.info(f"SocketCAN device connected successfully on {device.interface}")
+            self.setup_bus()
+            logger.info(f"Connected to SocketCAN device on {device.interface}")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to SocketCAN device: {e}")
-            return False
+            raise
 
-    def command(self, device: SocketCANDevice, command: str):
-        logger.debug(f"Received command: '{command}'")
-        if not self.bus and command.lower() != "start":
-            logger.error("Cannot execute command: SocketCAN device not connected")
-            return
-
+    def _command_impl(self, device: Device, command: str, args: Optional[Dict] = None) -> Optional[str]:
+        """执行设备命令"""
+        logger.debug(f"Received command: '{command}', args: {args}")
         try:
             command = command.lower()
             if command == "start":
-                self.start_monitoring(device)
+                self.start_streaming(device)
+                logger.info("Started CAN streaming")
+                return "Started CAN streaming"
             
             elif command == "stop":
-                self.stop_monitoring(device)
+                self.stop_streaming(device)
+                logger.info("Stopped CAN streaming")
+                return "Stopped CAN streaming"
             
             elif command == "dump":
-                logger.info(f"CAN Interface Status - Running: {self.running.is_set()}, "
-                          f"Interface: {self.current_interface}")
+                status = {
+                    "is_acquiring": self.is_acquiring.is_set(),
+                    "interface": self.current_interface,
+                    "bus_active": self.bus is not None
+                }
+                logger.info(f"CAN Interface Status: {status}")
+                return str(status)
             
             elif command == "send":
-                test_id = 0x123
-                test_data = bytes.fromhex("DEADBEEF")
-                self.send_can_message(device, test_id, test_data)
-                logger.info("Test CAN message sent")
+                if not args:
+                    raise ValueError("Missing arguments for send command")
+                can_id = args.get('id', 0x123)
+                data = args.get('data', bytes.fromhex("DEADBEEF"))
+                self.send_can_message(device, can_id, data)
+                return f"Sent CAN message - ID: {hex(can_id)}, Data: {data.hex()}"
             
             else:
-                logger.error(f"Unknown command: {command}. Valid commands are: {', '.join(self.supported_commands.keys())}")
+                logger.error(f"Unknown command: {command}")
+                raise ValueError(f"Unknown command: {command}")
                 
         except Exception as e:
-            logger.error(f"Failed to execute command {command}: {e}")
+            logger.error(f"Command execution failed: {str(e)}")
+            raise
 
-    def reset(self, device: SocketCANDevice):
-        if self.current_interface:
-            try:
+    def _reset_impl(self, device: SocketCANDevice) -> bool:
+        """重置CAN接口"""
+        try:
+            if self.current_interface:
                 import subprocess
+                logger.info(f"Resetting interface {self.current_interface}")
                 subprocess.run(['sudo', 'ip', 'link', 'set', self.current_interface, 'down'])
                 subprocess.run(['sudo', 'ip', 'link', 'set', self.current_interface, 'up'])
                 logger.info("SocketCAN device reset successfully")
                 return True
-            except Exception as e:
-                logger.error(f"Failed to reset SocketCAN device: {e}")
-                return False
+            return False
+        except Exception as e:
+            logger.error(f"Failed to reset SocketCAN device: {e}")
+            raise
 
-    def close(self, device: SocketCANDevice):
+    def _close_impl(self, device: SocketCANDevice) -> bool:
+        """关闭CAN接口"""
         try:
-            self.stop_receiver()
-            if self.bus:
-                self.bus.shutdown()
-            
+            logger.info(f"Closing SocketCAN device on {self.current_interface}")
+            self.stop_streaming(device)
             if self.current_interface:
                 import subprocess
                 subprocess.run(['sudo', 'ip', 'link', 'set', self.current_interface, 'down'])
-            
             self.bus = None
             self.current_interface = None
-            
             logger.info("SocketCAN device closed successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to close SocketCAN device: {e}")
-            return False
+            raise
 
-    def validate_can_message(self, can_id: int, data: bytes) -> bool:
-        try:
-            if not (0 <= can_id <= 0x7FF) and not (0 <= can_id <= 0x1FFFFFFF):
-                logger.error(f"Invalid CAN ID: {hex(can_id)}")
-                return False
-            
-            if len(data) > 8:
-                logger.error(f"Invalid data length: {len(data)}")
-                return False
-            
-            return True
-        except Exception as e:
-            logger.error(f"Error validating CAN message: {e}")
-            return False
-
-    def send_can_message(self, device: SocketCANDevice, can_id: int, data: bytes):
+    def _setup_acquisition(self, device: Device):
+        """设置CAN数据采集"""
+        logger.info("Setting up CAN acquisition")
         if not self.bus:
-            raise RuntimeError("Cannot send message: SocketCAN device not connected")
+            self.setup_bus()
 
-        if not self.validate_can_message(can_id, data):
-            raise ValueError("Invalid CAN message parameters")
+    def _cleanup_acquisition(self, device: Device):
+        """清理CAN数据采集"""
+        logger.info("Cleaning up CAN acquisition")
+        if self.bus:
+            self.shutdown_bus()
+            self.bus = None
+
+    def _acquisition_loop(self):
+        """CAN数据采集循环"""
+        logger.info("Starting CAN acquisition loop")
+        while self.is_acquiring.is_set():
+            try:
+                # 从CAN设备读取数据
+                message = self.bus.recv(timeout=0.1)
+                if not self.is_acquiring.is_set():
+                    break
+                if message:
+                    # 发送设备数据到客户端
+                    stream_data = StreamData(
+                        stream_type=StreamType.CAN,
+                        channel=self.device.device_id,
+                        timestamp=time.time(),
+                        source=StreamSource.SERVER,
+                        action=StreamAction.DATA,
+                        data={
+                            'id': hex(message.arbitration_id),
+                            'data': message.data.hex(),
+                            'dlc': message.dlc
+                        },
+                        metadata={
+                            'interface': self.current_interface,
+                            'is_extended_id': message.is_extended_id
+                        }
+                    )
+                    self.stream_wrapper.broadcast_data(stream_data)
+                    logger.info(f"Received and broadcast CAN message - ID: {hex(message.arbitration_id)}, "
+                              f"Data: {message.data.hex()}, DLC: {message.dlc}")
+
+                # 处理来自客户端的数据
+                client_data = self.stream_manager.get_client_data()
+                if client_data and client_data.stream_type == StreamType.CAN:
+                    try:
+                        can_data = client_data.data
+                        can_id = int(can_data['id'], 16) if isinstance(can_data['id'], str) else can_data['id']
+                        data = bytes.fromhex(can_data['data']) if isinstance(can_data['data'], str) else can_data['data']
+                        
+                        message = can.Message(
+                            arbitration_id=can_id,
+                            data=data,
+                            is_extended_id=can_data.get('is_extended_id', False)
+                        )
+                        self.bus.send(message)
+                        logger.info(f"Sent client CAN message - ID: {hex(message.arbitration_id)}, "
+                                  f"Data: {message.data.hex()}")
+                    except Exception as e:
+                        logger.error(f"Failed to process client CAN data: {e}")
+
+            except Exception as e:
+                logger.error(f"Error in CAN acquisition loop: {str(e)}")
+                time.sleep(0.1)
+        logger.info("CAN acquisition loop stopped")
+
+    def setup_bus(self):
+        """设置CAN总线"""
+        logger.info(f"Setting up CAN bus on interface {self.current_interface}")
+        self.bus = can.interface.Bus(channel=self.current_interface, 
+                                   bustype='socketcan')
+        logger.debug("CAN bus setup complete")
+
+    def shutdown_bus(self):
+        """关闭CAN总线"""
+        if self.bus:
+            try:
+                logger.info("Shutting down CAN bus")
+                self.bus.shutdown()
+                logger.debug("CAN bus shutdown complete")
+            except Exception as e:
+                logger.error(f"Error shutting down CAN bus: {e}")
+
+    def send_can_message(self, device: Device, can_id: int, data: bytes):
+        """发送CAN消息"""
+        if not self.bus:
+            logger.error("Cannot send message: SocketCAN device not connected")
+            raise RuntimeError("Cannot send message: SocketCAN device not connected")
 
         try:
             message = can.Message(
@@ -250,34 +288,3 @@ class SocketCANDriver(BaseDeviceDriver):
         except Exception as e:
             logger.error(f"Failed to send CAN message: {e}")
             raise 
-
-    def start_monitoring(self, device):
-        """Override start_monitoring to include CAN-specific bus setup"""
-        self.stop_receiver()
-        self.setup_bus()  # CAN-specific setup
-        logger.info("Starting message monitoring")
-        channel = device.device_id
-        self.stream_wrapper.register_stream(channel)
-        self.start_receiver()
-
-    def stop_monitoring(self, device):
-        """Override stop_monitoring to include CAN-specific bus shutdown"""
-        channel = device.device_id
-        self.stream_wrapper.unregister_stream(channel)
-        self.stream_wrapper.stop_broadcast(channel)
-        self.stop_receiver()
-        self.shutdown_bus()  # CAN-specific shutdown
-        self.bus = None
-
-    def setup_bus(self):
-        """CAN-specific bus setup"""
-        self.bus = can.interface.Bus(channel=self.current_interface, 
-                                   bustype='socketcan')
-
-    def shutdown_bus(self):
-        """CAN-specific bus shutdown"""
-        if self.bus:
-            try:
-                self.bus.shutdown()
-            except Exception as e:
-                logger.error(f"Error shutting down CAN bus: {e}") 

@@ -29,7 +29,6 @@ from sat_toolkit.tools.input_mgr import Input_Mgr
 from sat_toolkit.models.Plugin_Model import Plugin
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
-from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.tools.firmware_mgr import FirmwareManager
@@ -65,6 +64,15 @@ class SAT_Shell(cmd2.Cmd):
         self.daphne_server_process = None
         self.celery_worker_process = None
         
+        # Initialize device manager and connected devices
+        self.device_driver_manager = DeviceDriverManager()
+        # 初始化设备相关属性
+        self._current_plugin = None
+        self._current_device = None
+        self._current_driver = None
+        self.connected_devices = {}
+        
+        
         # Initialize plugin manager
         self.plugin_manager = ExploitPluginManager()
         self.plugin_manager.initialize()
@@ -81,8 +89,6 @@ class SAT_Shell(cmd2.Cmd):
         self.device_manager.register_device(DeviceType.CAN, SocketCANDevice)
         self.device_manager.parse_and_set_device_from_json('conf/devices.json')
 
-        # Initialize device plugin manager (if still needed)
-        self.device_plugin_manager = DeviceDriverManager()
 
         # Customize help display
         self.help_category_header = ansi.style("\n{:-^80}\n", fg=ansi.Fg.BLUE)
@@ -231,6 +237,7 @@ class SAT_Shell(cmd2.Cmd):
             self.do_stop_server(arg)
         Toolkit_Main.Instance().exit_quick_test()
         Toolkit_Main.Instance().stop_audit()
+        self._cleanup_devices()  # Add device cleanup
         logger.info("IotSploit Shell Quit. ByeBye~")
         return True
 
@@ -315,6 +322,33 @@ class SAT_Shell(cmd2.Cmd):
             
             logger.info("All servers started successfully in the background.")
             
+            # Wait for HTTP server to be available and initialize devices
+            import requests
+            import time
+            max_retries = 30
+            retry_interval = 1
+            
+            logger.info("Waiting for HTTP server to be available...")
+            for i in range(max_retries):
+                try:
+                    # Try to initialize devices using the HTTP endpoint (GET method)
+                    response = requests.get('http://127.0.0.1:8888/api/initialize_devices/')
+                    if response.status_code == 200:
+                        logger.info("Devices initialized successfully via HTTP API")
+                        break
+                    else:
+                        logger.error(f"Failed to initialize devices: {response.text}")
+                        break
+                except requests.exceptions.ConnectionError:
+                    if i < max_retries - 1:
+                        time.sleep(retry_interval)
+                    else:
+                        logger.error("HTTP server did not become available in time")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error initializing devices: {str(e)}")
+                    break
+            
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
             logger.debug("Detailed traceback:", exc_info=True)
@@ -322,23 +356,42 @@ class SAT_Shell(cmd2.Cmd):
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
         'Stop Django development server, Daphne WebSocket server, and Celery worker'
-        if self.django_server_process:
-            self.django_server_process.terminate()
-            self.django_server_process = None
-        
-        if self.daphne_server_process:
-            self.daphne_server_process.terminate()
-            self.daphne_server_process = None
-        
-        if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
-            self.celery_worker_process.terminate()
-            self.celery_worker_process = None
-        
-        if not any([self.django_server_process, self.daphne_server_process, 
-                    getattr(self, 'celery_worker_process', None)]):
-            logger.info("All servers stopped.")
-        else:
-            logger.error("No servers were running.")
+        try:
+            # Cleanup devices using HTTP endpoint (GET method)
+            import requests
+            try:
+                response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')
+                if response.status_code == 200:
+                    logger.info("Devices cleaned up successfully via HTTP API")
+                else:
+                    logger.error(f"Failed to cleanup devices: {response.text}")
+            except requests.exceptions.ConnectionError:
+                logger.warning("Could not reach HTTP server for device cleanup")
+            except Exception as e:
+                logger.error(f"Error during device cleanup: {str(e)}")
+            
+            # Stop the servers
+            if self.django_server_process:
+                self.django_server_process.terminate()
+                self.django_server_process = None
+            
+            if self.daphne_server_process:
+                self.daphne_server_process.terminate()
+                self.daphne_server_process = None
+            
+            if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
+                self.celery_worker_process.terminate()
+                self.celery_worker_process = None
+            
+            if not any([self.django_server_process, self.daphne_server_process, 
+                        getattr(self, 'celery_worker_process', None)]):
+                logger.info("All servers stopped.")
+            else:
+                logger.error("No servers were running.")
+                
+        except Exception as e:
+            logger.error(f"Error stopping servers: {str(e)}")
+            logger.debug("Detailed error:", exc_info=True)
 
     @cmd2.with_category('System Commands')
     def do_set_log_level(self, arg):
@@ -421,7 +474,7 @@ class SAT_Shell(cmd2.Cmd):
     @cmd2.with_category('Device Commands')
     def do_list_device_drivers(self, arg):
         'List all available device plugins'
-        available_devices = self.device_plugin_manager.list_drivers()
+        available_devices = self.device_driver_manager.list_drivers()
         if available_devices:
             logger.info(ansi.style("Available device plugins:", fg=ansi.Fg.CYAN))
             for device in available_devices:
@@ -970,7 +1023,7 @@ class SAT_Shell(cmd2.Cmd):
             # Now we can be sure we have a device selected
             if not arg:
                 # If no command provided, list available commands and let user select one
-                commands = self.device_plugin_manager.get_plugin_commands(self._current_plugin)
+                commands = self.device_driver_manager.get_plugin_commands(self._current_plugin)
                 if commands:
                     logger.info(ansi.style(f"\nAvailable commands for {self._current_plugin}:", fg=ansi.Fg.CYAN))
                     
@@ -1001,10 +1054,14 @@ class SAT_Shell(cmd2.Cmd):
     def _select_device(self):
         """Helper method to handle device selection process"""
         try:
-            # Get available device plugins
-            available_plugins = self.device_plugin_manager.list_drivers()
+            # Get available device plugins with connected devices
+            available_plugins = [
+                driver_name for driver_name, device 
+                in self.connected_devices.items()
+            ]
+            
             if not available_plugins:
-                logger.error(ansi.style("No device drivers available", fg=ansi.Fg.RED))
+                logger.error(ansi.style("No initialized devices available", fg=ansi.Fg.RED))
                 return False
 
             # Let user select a plugin
@@ -1013,47 +1070,19 @@ class SAT_Shell(cmd2.Cmd):
                 available_plugins
             )
 
-            # Create a temporary plugin instance to scan for devices
-            plugin_instance = self.device_plugin_manager.plugins[selected_plugin]
-            driver = None
-            scan_result = None
-
-            # Find the driver class and create an instance
-            for attr_name in dir(plugin_instance):
-                attr = getattr(plugin_instance, attr_name)
-                if (isinstance(attr, type) and 
-                    issubclass(attr, BaseDeviceDriver) and 
-                    attr != BaseDeviceDriver):
-                    driver = attr()
-                    scan_result = driver.scan()
-                    break
-
-            if not scan_result:
-                logger.error(ansi.style(f"No devices found for driver: {selected_plugin}", fg=ansi.Fg.RED))
+            # Get the already connected device
+            device = self.connected_devices.get(selected_plugin)
+            if not device:
+                logger.error(ansi.style(f"Device not found for {selected_plugin}", fg=ansi.Fg.RED))
                 return False
 
-            # Let user select a device
-            device_choices = [f"{dev.name} ({dev.device_type.value})" for dev in scan_result]
-            selected = Input_Mgr.Instance().single_choice(
-                "Select device",
-                device_choices
-            )
+            # Store the current device and driver information
+            self._current_device = device
+            self._current_driver = self.device_driver_manager.get_driver_instance(selected_plugin)
+            self._current_plugin = selected_plugin
 
-            # Get the selected device
-            selected_idx = device_choices.index(selected)
-            device = scan_result[selected_idx]
-
-            # Initialize and connect to the device
-            if driver.initialize(device) and driver.connect(device):
-                # Store the current device and driver
-                self._current_device = device
-                self._current_driver = driver
-                self._current_plugin = selected_plugin
-                logger.info(ansi.style(f"Successfully connected to {device.name}", fg=ansi.Fg.GREEN))
-                return True
-            else:
-                logger.error(ansi.style("Failed to initialize or connect to device", fg=ansi.Fg.RED))
-                return False
+            logger.info(ansi.style(f"Selected device: {device.name}", fg=ansi.Fg.GREEN))
+            return True
 
         except Exception as e:
             logger.error(ansi.style(f"Error during device selection: {str(e)}", fg=ansi.Fg.RED))
@@ -1097,7 +1126,7 @@ class SAT_Shell(cmd2.Cmd):
         'List available commands for a device driver'
         try:
             # Get available device plugins
-            available_plugins = self.device_plugin_manager.list_drivers()
+            available_plugins = self.device_driver_manager.list_drivers()
             if not available_plugins:
                 logger.error(ansi.style("No device plugins available", fg=ansi.Fg.RED))
                 return
@@ -1109,7 +1138,7 @@ class SAT_Shell(cmd2.Cmd):
             )
 
             # Get commands for the selected plugin
-            commands = self.device_plugin_manager.get_plugin_commands(selected_plugin)
+            commands = self.device_driver_manager.get_plugin_commands(selected_plugin)
             
             if not commands:
                 logger.warning(ansi.style(f"No commands available for plugin: {selected_plugin}", fg=ansi.Fg.YELLOW))
@@ -1353,6 +1382,112 @@ class SAT_Shell(cmd2.Cmd):
 
     # Add alias for execute_device_command
     do_dc = do_execute_device_command
+
+    def _auto_initialize_devices(self):
+        """自动扫描并初始化所有可用设备"""
+        logger.info("Automatic device initialization started...")
+        
+        available_drivers = list(self.device_driver_manager.drivers.keys())
+        if not available_drivers:
+            logger.warning("No device drivers available!")
+            return
+
+        logger.info(f"Found {len(available_drivers)} drivers: {', '.join(available_drivers)}")
+
+        for driver_name in available_drivers:
+            try:
+                logger.info(f"Initializing {driver_name}...")
+                
+                scan_result = self.device_driver_manager.scan_devices(driver_name)
+                if scan_result['status'] != 'success':
+                    logger.error(f"Failed to scan {driver_name}: {scan_result.get('message', 'Unknown error')}")
+                    continue
+                
+                devices = scan_result.get('devices', [])
+                if not devices:
+                    logger.warning(f"No devices found for {driver_name}")
+                    continue
+
+                logger.info(f"Found {len(devices)} device(s) for {driver_name}")
+
+                for device in devices:
+                    try:
+                        logger.info(f"Processing device: {device.name} (ID: {device.device_id})")
+
+                        init_result = self.device_driver_manager.initialize_device(driver_name, device)
+                        if init_result['status'] != 'success':
+                            logger.error(f"Failed to initialize {device.name}: {init_result['message']}")
+                            continue
+
+                        connect_result = self.device_driver_manager.connect_device(driver_name, device)
+                        if connect_result['status'] != 'success':
+                            logger.error(f"Failed to connect {device.name}: {connect_result['message']}")
+                            continue
+
+                        self.connected_devices[driver_name] = device
+                        logger.info(f"Successfully connected {device.name} using {driver_name}")
+
+                    except Exception as e:
+                        logger.error(f"Error processing device: {str(e)}")
+
+            except Exception as e:
+                logger.error(f"Error initializing {driver_name}: {str(e)}")
+
+        self._show_initialization_summary()
+
+    def _show_initialization_summary(self):
+        """打印设备初始化摘要"""
+        logger.info("Device Initialization Summary:")
+        
+        for driver_name, driver in self.device_driver_manager.drivers.items():
+            logger.info("")
+            logger.info(f"{driver_name}:")
+            
+            # 获取当前设备
+            current_device = self.connected_devices.get(driver_name)
+            
+            if current_device:
+                # 使用当前设备的 device_id 获取状态
+                state = self.device_driver_manager.get_device_state(
+                    driver_name, 
+                    device_id=current_device.device_id
+                )
+                logger.info(f"  Device: {current_device.name}")
+                logger.info(f"  State: {state.value}")
+            else:
+                logger.info(f"  Device: No device connected")
+                logger.info(f"  State: unknown")
+                
+            # 获取支持的命令
+            commands = self.device_driver_manager.get_supported_commands(driver_name)
+            if commands:
+                logger.info(f"  Commands: {', '.join(commands.keys())}")
+
+    def _cleanup_devices(self):
+        """清理所有设备连接"""
+        if not self.connected_devices:
+            return
+
+        logger.info("Cleaning up device connections...")
+        for driver_name, device in list(self.connected_devices.items()):
+            try:
+                result = self.device_driver_manager.close_device(driver_name, device)
+                if result['status'] == 'success':
+                    logger.info(f"Successfully closed {device.name}")
+                    del self.connected_devices[driver_name]
+                else:
+                    logger.error(f"Failed to close {device.name}: {result['message']}")
+            except Exception as e:
+                logger.error(f"Error closing {device.name}: {str(e)}")
+
+    @cmd2.with_category('Device Commands')
+    def do_initialize_devices(self, arg):
+        'Auto-initialize all available devices'
+        logger.info("Starting device initialization...")
+        self._auto_initialize_devices()
+
+    # Add alias for initialize_devices
+    do_initdev = do_initialize_devices
 
 if __name__ == '__main__':
     shell = SAT_Shell()

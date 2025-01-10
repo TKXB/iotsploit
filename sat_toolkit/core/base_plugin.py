@@ -1,12 +1,11 @@
 import threading
 import logging
-import pluggy
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamWrapper
 from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.core.device_spec import DeviceState
 
 logger = logging.getLogger(__name__)
-hookimpl = pluggy.HookimplMarker("device_mgr")
 
 class BasePlugin:
     def __init__(self, info: Dict[str, Any] = None):
@@ -23,96 +22,183 @@ class BaseDeviceDriver(BasePlugin):
     
     def __init__(self, info: Dict[str, Any] = None):
         super().__init__(info)
-        self.device_interface = None
-        self.supported_commands = {}  # format: {'command': 'description'}
-        self.bus = None
-        self.receiver_thread = None
-        self.running = threading.Event()
-        self.current_interface = None
+        # Device management
+        self.device = None
+        self._devices: Dict[str, Device] = {}
+        
+        # Stream management
         self.stream_manager = StreamManager()
         self.stream_wrapper = StreamWrapper(self.stream_manager)
-        self.device = None
-        self.connected = False
+        
+        # Acquisition management
+        self.acquisition_thread = None
+        self.is_acquiring = threading.Event()
 
-    def start_receiver(self):
-        """Helper method to start the receiver thread if it's not already running"""
-        if not self.running.is_set() and not (self.receiver_thread and self.receiver_thread.is_alive()):
-            self.running.set()
-            self.receiver_thread = threading.Thread(
-                target=self.receiver_thread_fn,
-                name=f'{self.__class__.__name__}_RECEIVER'
-            )
-            self.receiver_thread.daemon = True
-            self.receiver_thread.start()
-            logger.info("Started message monitoring")
-
-    def stop_receiver(self):
-        """Helper method to stop the receiver thread"""
-        self.running.clear()
-        if self.receiver_thread and self.receiver_thread.is_alive():
-            self.receiver_thread.join(timeout=1.0)
-            self.receiver_thread = None
-        logger.info("Stopped message monitoring")
-
-    def receiver_thread_fn(self):
-        """Override this method in derived classes"""
-        raise NotImplementedError
-
-    def start_monitoring(self, device):
-        """Helper method to start monitoring"""
-        self.stop_receiver()
-        logger.info("Starting message monitoring")
-        channel = device.device_id
-        self.stream_wrapper.register_stream(channel)
-        self.start_receiver()
-
-    def stop_monitoring(self, device):
-        """Helper method to stop monitoring"""
-        channel = device.device_id
-        self.stream_wrapper.unregister_stream(channel)
-        self.stream_wrapper.stop_broadcast(channel)
-        self.stop_receiver()
-        self.bus = None
-
-    def is_connected(self):
-        """Check if device is connected"""
-        return self.connected
+        # 确保 supported_commands 总是存在
+        if not hasattr(self, 'supported_commands'):
+            self.supported_commands = {}  # format: {'command': 'description'}
 
     def get_supported_commands(self) -> Dict[str, str]:
         """Get dictionary of supported commands and their descriptions"""
+        if not hasattr(self, 'supported_commands'):
+            return {}
         return self.supported_commands
 
-    # Plugin interface methods implementing DevicePluginSpec
-    @hookimpl
+    # Base implementations of device lifecycle methods
     def scan(self) -> List[Device]:
-        """Scan for available devices.
-            
-        Returns:
-            list[Device]: A list of discovered devices matching the configuration.
-        """
+        """Scan for available devices"""
+        try:
+            devices = self._scan_impl()
+            for device in devices:
+                self._register_device(device)
+            return devices
+        except Exception as e:
+            logger.error(f"Scan failed: {str(e)}")
+            raise
+
+    def initialize(self, device: Device) -> bool:
+        """Initialize device"""
+        try:
+            return self._initialize_impl(device)
+        except Exception as e:
+            logger.error(f"Initialization failed: {str(e)}")
+            raise
+
+    def connect(self, device: Device) -> bool:
+        """Connect to device"""
+        try:
+            return self._connect_impl(device)
+        except Exception as e:
+            logger.error(f"Connection failed: {str(e)}")
+            raise
+
+    def command(self, device: Device, command: str, args: Optional[Dict] = None) -> Optional[str]:
+        """Execute command"""
+        try:
+            return self._command_impl(device, command, args)
+        except Exception as e:
+            logger.error(f"Command execution failed: {str(e)}")
+            raise
+
+    def reset(self, device: Device) -> bool:
+        """Reset device"""
+        try:
+            return self._reset_impl(device)
+        except Exception as e:
+            logger.error(f"Reset failed: {str(e)}")
+            raise
+
+    def close(self, device: Device) -> bool:
+        """Close device"""
+        try:
+            return self._close_impl(device)
+        except Exception as e:
+            logger.error(f"Close failed: {str(e)}")
+            raise
+
+    # Streaming and acquisition control
+    def start_streaming(self, device: Device):
+        """启动设备数据流（包括数据采集和WebSocket分发）"""
+        try:
+            logger.info(f"Starting streaming for device {device.device_id}")
+            self.stream_wrapper.register_stream(device.device_id)
+            self.start_acquisition(device)
+        except Exception as e:
+            logger.error(f"Failed to start streaming: {e}")
+            self.stop_streaming(device)
+            raise
+
+    def stop_streaming(self, device: Device):
+        """停止设备数据流（包括数据采集和WebSocket分发）"""
+        try:
+            logger.info(f"Stopping streaming for device {device.device_id}")
+            self.stop_acquisition(device)
+            self.stream_wrapper.unregister_stream(device.device_id)
+            self.stream_wrapper.stop_broadcast(device.device_id)
+        except Exception as e:
+            logger.error(f"Error stopping streaming: {e}")
+            raise
+
+    def start_acquisition(self, device: Device):
+        """启动设备数据采集（不包括WebSocket分发）"""
+        try:
+            logger.info(f"Starting data acquisition for device {device.device_id}")
+            self._setup_acquisition(device)
+            if not self.is_acquiring.is_set():
+                self.is_acquiring.set()
+                self.acquisition_thread = threading.Thread(
+                    target=self._acquisition_loop,
+                    name=f'{self.__class__.__name__}_Acquisition'
+                )
+                self.acquisition_thread.daemon = True
+                self.acquisition_thread.start()
+        except Exception as e:
+            logger.error(f"Failed to start acquisition: {e}")
+            self.stop_acquisition(device)
+            raise
+
+    def stop_acquisition(self, device: Device):
+        """停止设备数据采集（不包括WebSocket分发）"""
+        logger.info(f"Stopping data acquisition for device {device.device_id}")
+        self.is_acquiring.clear()
+        if self.acquisition_thread and self.acquisition_thread.is_alive():
+            self.acquisition_thread.join(timeout=1.0)
+            self.acquisition_thread = None
+        try:
+            self._cleanup_acquisition(device)
+        except Exception as e:
+            logger.error(f"Error in acquisition cleanup: {e}")
+            raise
+
+    # Methods to be implemented by derived classes
+    def _scan_impl(self) -> List[Device]:
+        """Implementation of device scanning"""
         raise NotImplementedError
 
-    @hookimpl
-    def initialize(self, device: Device):
-        """Initialize the plugin for a specific device."""
+    def _initialize_impl(self, device: Device) -> bool:
+        """Implementation of device initialization"""
         raise NotImplementedError
 
-    @hookimpl
-    def connect(self, device: Device):
-        """Connect to the device."""
+    def _connect_impl(self, device: Device) -> bool:
+        """Implementation of device connection"""
         raise NotImplementedError
 
-    @hookimpl
-    def command(self, device: Device, command: str):
-        """Send a command to the device."""
+    def _command_impl(self, device: Device, command: str, args: Optional[Dict] = None) -> Optional[str]:
+        """Implementation of command execution"""
         raise NotImplementedError
 
-    @hookimpl
-    def reset(self, device: Device):
-        """Reset the device to its initial state."""
+    def _reset_impl(self, device: Device) -> bool:
+        """Implementation of device reset"""
         raise NotImplementedError
 
-    @hookimpl
-    def close(self, device: Device):
-        """Close the device."""
+    def _close_impl(self, device: Device) -> bool:
+        """Implementation of device closure"""
         raise NotImplementedError
+
+    def _setup_acquisition(self, device: Device):
+        """设备特定的采集初始化"""
+        pass
+
+    def _cleanup_acquisition(self, device: Device):
+        """设备特定的采集清理"""
+        pass
+
+    def _acquisition_loop(self):
+        """数据采集循环的具体实现"""
+        raise NotImplementedError
+
+    def get_device(self, device_id: str) -> Optional[Device]:
+        """获取设备实例"""
+        return self._devices.get(device_id)
+
+    def _register_device(self, device: Device):
+        """注册设备"""
+        self._devices[device.device_id] = device
+
+    def __del__(self):
+        """Cleanup when object is destroyed"""
+        try:
+            if self.device and hasattr(self, 'state') and self.state != DeviceState.DISCONNECTED:
+                self.close(self.device)
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")

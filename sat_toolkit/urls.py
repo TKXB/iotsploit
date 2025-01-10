@@ -5,7 +5,9 @@ from .view_handlers.device_views import (
     get_all_devices,
     scan_all_devices,
     scan_specific_device,
-    list_devices
+    list_devices,
+    initialize_devices,
+    cleanup_devices
 )
 from .view_handlers.vehicle_views import (
     ota_info,
@@ -89,7 +91,11 @@ urlpatterns = [
     # Additional endpoints
     path('active_channels/', views.active_channels, name='active_channels'),
     path('list_device_commands/<str:device_name>/', views.list_device_commands, name='list_device_commands'),
-    path('execute_device_command/<str:device_name>/', views.execute_device_command, name='execute_device_command'),
+    path('execute_device_command/<str:driver_name>/', views.execute_device_command, name='execute_device_command'),
     path('create_group/', views.create_group, name='create_group'),
     path('delete_group/', views.delete_group, name='delete_group'),
+
+    # Add these new endpoints
+    path('initialize_devices/', initialize_devices, name='initialize_devices'),
+    path('cleanup_devices/', cleanup_devices, name='cleanup_devices'),
 ]

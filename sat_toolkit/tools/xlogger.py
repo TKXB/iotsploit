@@ -51,20 +51,25 @@ class XLogger:
         
         return self._loggers[name]
 
-    def debug(self, msg: str, name: str = 'console'):
-        self.get_logger(name).debug(msg)
+    def debug(self, msg: str, name: str = 'console', **kwargs):
+        """Log a debug message with optional kwargs (exc_info, stack_info, stacklevel, extra)"""
+        self.get_logger(name).debug(msg, **kwargs)
 
-    def info(self, msg: str, name: str = 'console'):
-        self.get_logger(name).info(msg)
+    def info(self, msg: str, name: str = 'console', **kwargs):
+        """Log an info message with optional kwargs (exc_info, stack_info, stacklevel, extra)"""
+        self.get_logger(name).info(msg, **kwargs)
 
-    def warning(self, msg: str, name: str = 'console'):
-        self.get_logger(name).warning(msg)
+    def warning(self, msg: str, name: str = 'console', **kwargs):
+        """Log a warning message with optional kwargs (exc_info, stack_info, stacklevel, extra)"""
+        self.get_logger(name).warning(msg, **kwargs)
 
-    def error(self, msg: str, name: str = 'console'):
-        self.get_logger(name).error(msg)
+    def error(self, msg: str, name: str = 'console', **kwargs):
+        """Log an error message with optional kwargs (exc_info, stack_info, stacklevel, extra)"""
+        self.get_logger(name).error(msg, **kwargs)
 
-    def critical(self, msg: str, name: str = 'console'):
-        self.get_logger(name).critical(msg)
+    def critical(self, msg: str, name: str = 'console', **kwargs):
+        """Log a critical message with optional kwargs (exc_info, stack_info, stacklevel, extra)"""
+        self.get_logger(name).critical(msg, **kwargs)
 
     def set_level(self, level: str, name: str = 'console'):
         """Set logging level"""
