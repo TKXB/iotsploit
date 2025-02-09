@@ -26,6 +26,7 @@ Poetry is used for dependency management. Install and configure it with:
 
 ```bash
 pip install poetry
+pip install poetry-plugin-shell
 poetry lock        # This may take 10-20 minutes
 poetry install     # This may take 10-20 minutes
 poetry shell
