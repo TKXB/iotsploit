@@ -6,6 +6,8 @@ from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.scpi_client.transport import ScpiSerialTransport
 from sat_toolkit.scpi_client.client import ScpiClient
 import time
+import glob
+import serial.tools.list_ports
 
 logger = logging.getLogger(__name__)
 
@@ -65,18 +67,49 @@ class ESP32Driver(BaseDeviceDriver):
 
     def _scan_impl(self) -> List[Device]:
         """
-        Scan for available ESP32 devices.
+        Scan for available ESP32 devices by checking all CP210x devices.
+        Returns the device with correct version number.
         """
-        device = SerialDevice(
-            device_id="esp32_001",
-            name="ESP32",
-            port='/dev/ttyUSB3',
-            baud_rate=115200,
-            attributes={
-                'description': 'ESP32 Development Board',
-            }
-        )
-        return [device]
+        devices = []
+        # Find all CP210x devices
+        for port in serial.tools.list_ports.comports():
+            if "CP210" in port.description:
+                logger.info(f"Found CP210x device at {port.device}")
+                try:
+                    # Try to connect and check version
+                    temp_transport = ScpiSerialTransport(
+                        port=port.device,
+                        baudrate=115200,
+                        timeout=1.0
+                    )
+                    temp_client = ScpiClient(temp_transport)
+                    temp_client.connect()
+                    
+                    try:
+                        version = temp_client.get_version()
+                        if version.strip() == "1.0.0":
+                            logger.info(f"Found ESP32 device at {port.device} with correct version")
+                            devices.append(SerialDevice(
+                                device_id="esp32_001",
+                                name="ESP32",
+                                port=port.device,
+                                baud_rate=115200,
+                                attributes={
+                                    'description': 'ESP32 Development Board',
+                                    'serial_number': port.serial_number
+                                }
+                            ))
+                    except Exception as e:
+                        logger.debug(f"Not an ESP32 device at {port.device}: {e}")
+                    
+                    temp_client.close()
+                except Exception as e:
+                    logger.debug(f"Failed to check device at {port.device}: {e}")
+                    continue
+
+        if not devices:
+            logger.warning("No ESP32 devices found")
+        return devices
 
     def _initialize_impl(self, device: SerialDevice) -> bool:
         """
