@@ -70,7 +70,7 @@ class ESP32Driver(BaseDeviceDriver):
         device = SerialDevice(
             device_id="esp32_001",
             name="ESP32",
-            port='/dev/ttyUSB1',
+            port='/dev/ttyUSB3',
             baud_rate=115200,
             attributes={
                 'description': 'ESP32 Development Board',
@@ -136,9 +136,11 @@ class ESP32Driver(BaseDeviceDriver):
 
     # --- Optimized command dispatch below ---
 
-    def _handle_scan_wifi(self, device: SerialDevice, args: Optional[Dict] = None) -> str:
+    def _handle_scan_wifi(self, device: SerialDevice, args: Optional[Dict] = None) -> Dict:
         wifi_list = self._scan_wifi_networks()
-        return str(wifi_list)
+        return {
+            "networks": wifi_list
+        }
 
     def _handle_start_wifi_monitor(self, device: SerialDevice, args: Optional[Dict] = None) -> str:
         if not self.is_acquiring.is_set():
