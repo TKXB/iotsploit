@@ -4,7 +4,7 @@
       "target_id": "benz_001",
       "name": "Mercedes-Benz E-Class",
       "type": "vehicle",
-     "ip_address": "192.168.1.100",
+      "ip_address": "192.168.50.234",
       "location": "Garage A",
       "status": "active",
       "properties": {

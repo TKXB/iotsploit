@@ -137,10 +137,23 @@ class TargetManager:
         try:
             existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()
             if existing_target:
-                logger.info(f"Target with target_id '{target.target_id}' already exists. Skipping insertion.")
-                return
+                logger.info(f"Target with target_id '{target.target_id}' already exists. Updating record with new values.")
+                # Update base fields
+                existing_target.name = target.name
+                existing_target.status = target.status
+                existing_target.properties = target.properties
+
+                # If the target is a Vehicle, update vehicle-specific fields
+                if isinstance(target, Vehicle):
+                    existing_target.ip_address = target.ip_address
+                    existing_target.location = target.location
+                    existing_target.components = [comp.model_dump() for comp in target.components]
+                    existing_target.interfaces = [intf.model_dump() for intf in target.interfaces]
+
+                # Commit the updates
+                session.commit()
             else:
-                # Instantiate the appropriate ORM model
+                # Create a new record if it doesn't exist
                 if isinstance(target, Vehicle):
                     target_model = VehicleDBModel(target)
                 else:
