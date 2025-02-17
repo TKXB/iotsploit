@@ -49,6 +49,7 @@ channels_redis = "^4.1.0"
 esptool = "4.8.1"
 dataclasses-json = "0.6.7"
 pyudev = "0.24.3"
+facedancer = "^3.0.0"
 # ... (other dependencies)
 
 [tool.poetry.dev-dependencies]
