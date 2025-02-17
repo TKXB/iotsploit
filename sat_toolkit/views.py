@@ -440,71 +440,11 @@ def list_device_drivers(request):
     return JsonResponse(result)
 
 @csrf_exempt
-def exploit(request):
+def execute_plugin(request):
     """
     POST
-    Execute all plugins in the IotSploit System
+    Execute a plugin either synchronously or asynchronously based on plugin type or request parameters.
     """
-    plugin_manager = ExploitPluginManager()
-    plugin_manager.initialize()
-    
-    results = plugin_manager.exploit()
-    
-    if not results:
-        return JsonResponse({
-            "status": "warning",
-            "message": "No results returned from any plugins"
-        })
-    else:
-        formatted_results = {}
-        for plugin_name, result in results.items():
-            if result is None:
-                formatted_results[plugin_name] = {
-                    "status": "warning",
-                    "message": f"Plugin {plugin_name} returned no result"
-                }
-            elif isinstance(result, ExploitResult):
-                formatted_results[plugin_name] = {
-                    "status": "success" if result.success else "failure",
-                    "message": result.message,
-                    "data": result.data
-                }
-            else:
-                formatted_results[plugin_name] = {
-                    "status": "success",
-                    "result": str(result)
-                }
-        
-        return JsonResponse({
-            "status": "success",
-            "message": "Exploit execution completed",
-            "results": formatted_results
-        })
-
-def list_targets(request):
-    """
-    GET
-    Returns a list of all targets
-    """
-    target_manager = TargetManager.get_instance()
-    all_targets = target_manager.get_all_targets()
-    
-    if all_targets:
-        result = {
-            "status": "success",
-            "targets": all_targets
-        }
-    else:
-        result = {
-            "status": "success",
-            "targets": [],
-            "message": "No targets available."
-        }
-    
-    return JsonResponse(result)
-
-@csrf_exempt
-def execute_plugin(request):
     if request.method != 'POST':
         return JsonResponse({
             "status": "error",
@@ -517,6 +457,7 @@ def execute_plugin(request):
         
         plugin_name = data.get('plugin_name')
         parameters = data.get('parameters', {})
+        force_sync = data.get('force_sync', False)  # Optional parameter to force synchronous execution
         
         if not plugin_name:
             return JsonResponse({
@@ -566,44 +507,114 @@ def execute_plugin(request):
 
         plugin_manager = ExploitPluginManager()
         plugin_manager.initialize()
-        result = plugin_manager.execute_plugin(
-            plugin_name, 
-            target=current_target,
-            parameters=parameters
-        )
-        logger.debug(f"Plugin execution result over http: {result}")
-        
-        if result is None:
+
+        # Check if plugin exists and get its instance
+        try:
+            plugin_instance = plugin_manager.get_plugin(plugin_name)
+        except ValueError as e:
             return JsonResponse({
                 "status": "error",
-                "message": f"Plugin {plugin_name} execution failed"
+                "message": str(e)
             }, status=400)
+
+        # Determine if we should execute asynchronously
+        should_execute_async = (
+            not force_sync and (
+                hasattr(plugin_instance, 'execute_async') or  # Plugin supports async
+                parameters.get('duration', 0) > 5 or          # Long running task
+                parameters.get('stream', False) or            # Streaming data
+                parameters.get('async', False)                # Explicitly requested async
+            )
+        )
+
+        if should_execute_async:
+            # Start Celery task for async execution
+            logger.info(f"Starting async execution for plugin: {plugin_name}")
             
-        if isinstance(result, ExploitResult):
-            response_data = {
+            # Convert Vehicle object to dictionary if it exists
+            serializable_target = current_target.get_info() if current_target else None
+            
+            task = execute_plugin_task.delay(
+                plugin_name,
+                target=serializable_target,
+                parameters=parameters
+            )
+            
+            response = {
                 "status": "success",
-                "result": {
-                    "success": result.success,
-                    "message": result.message,
-                    "data": result.data
-                }
+                "execution_type": "async",
+                "task_id": task.id,
+                "message": "Async execution started",
+                "websocket_url": f"/ws/exploit/{task.id}/"
             }
+            logger.info(f"Plugin async execution response: {response}")
+            return JsonResponse(response)
         else:
-            response_data = {
-                "status": "success",
-                "result": {
-                    "message": str(result)
+            # Execute synchronously
+            logger.info(f"Executing plugin synchronously: {plugin_name}")
+            result = plugin_manager.execute_plugin(
+                plugin_name, 
+                target=current_target,
+                parameters=parameters
+            )
+            
+            if result is None:
+                return JsonResponse({
+                    "status": "error",
+                    "execution_type": "sync",
+                    "message": f"Plugin {plugin_name} execution failed"
+                }, status=400)
+                
+            if isinstance(result, ExploitResult):
+                response_data = {
+                    "status": "success",
+                    "execution_type": "sync",
+                    "result": {
+                        "success": result.success,
+                        "message": result.message,
+                        "data": result.data
+                    }
                 }
-            }
-        logger.debug(f"Plugin execution result over http: {response_data}")
-        return JsonResponse(response_data)
-        
+            else:
+                response_data = {
+                    "status": "success",
+                    "execution_type": "sync",
+                    "result": {
+                        "message": str(result)
+                    }
+                }
+            
+            logger.debug(f"Plugin execution result: {response_data}")
+            return JsonResponse(response_data)
+            
     except Exception as e:
         logger.error(f"Error executing plugin: {str(e)}")
         return JsonResponse({
             "status": "error",
             "message": f"Error executing plugin: {str(e)}"
         }, status=500)
+
+def list_targets(request):
+    """
+    GET
+    Returns a list of all targets
+    """
+    target_manager = TargetManager.get_instance()
+    all_targets = target_manager.get_all_targets()
+    
+    if all_targets:
+        result = {
+            "status": "success",
+            "targets": all_targets
+        }
+    else:
+        result = {
+            "status": "success",
+            "targets": [],
+            "message": "No targets available."
+        }
+    
+    return JsonResponse(result)
 
 def list_plugin_info(request):
     """

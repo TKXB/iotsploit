@@ -79,13 +79,12 @@ urlpatterns = [
     path('select_target', views.select_target, name='select_target'),
 
     # Exploit
-    path('exploit/', views.exploit, name='exploit'),
+    # path('exploit/', views.exploit, name='exploit'),
     path('execute_plugin/', views.execute_plugin, name='execute_plugin'),
 
     # Plugin info and groups
     path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
     path('list_groups/', views.list_groups, name='list_groups'),
-    path('execute_plugin_async/', views.execute_plugin_async, name='execute_plugin_async'),
     path('stop_plugin_async/', views.stop_plugin_async, name='stop_plugin_async'),
 
     # Additional endpoints

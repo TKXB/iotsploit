@@ -48,11 +48,15 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
         logger.info(f"WebSocket connected for task: {self.task_id}")
         await self.accept()
         
-        # Fetch initial task status
-        await self.send_task_status()
+        # Flag to control polling
+        self.is_polling = True
+        # Start a periodic polling task for task status updates.
+        asyncio.create_task(self.poll_task_status())
 
     async def disconnect(self, close_code):
         logger.info(f"WebSocket disconnected for task: {self.task_id}")
+        # Stop polling on disconnect
+        self.is_polling = False
 
     async def receive(self, text_data):
         """Handle incoming messages - could be used for requesting status updates"""
@@ -76,6 +80,8 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
                     'status': 'complete',
                     'result': task_result
                 }))
+                # Stop polling when task is complete
+                self.is_polling = False
             else:
                 # Task is still pending
                 await self.send(text_data=json.dumps({
@@ -89,6 +95,14 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
                 'status': 'error',
                 'message': f'Error fetching task status: {str(e)}'
             }))
+            # Stop polling on error
+            self.is_polling = False
+
+    async def poll_task_status(self):
+        # Poll for a status update every 1 second while is_polling is True
+        while self.is_polling:
+            await self.send_task_status()
+            await asyncio.sleep(1)
 
 class DeviceStreamConsumer(AsyncWebsocketConsumer):
     async def connect(self):

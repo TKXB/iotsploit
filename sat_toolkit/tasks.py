@@ -3,6 +3,7 @@ from celery.utils.log import get_task_logger
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from sat_toolkit.models.Target_Model import TargetManager
 import asyncio
 import json
 
@@ -13,8 +14,13 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
     try:
         plugin_manager = ExploitPluginManager()
         
-        # Run the async function in an event loop
-        raw_result = asyncio.run(plugin_manager.execute_plugin_async(plugin_name, target, parameters))
+        # Convert target dictionary back to Vehicle object if it exists
+        if target and isinstance(target, dict):
+            target_manager = TargetManager.get_instance()
+            target = target_manager.create_target_instance(target)
+        
+        # Execute the plugin
+        raw_result = plugin_manager.execute_plugin(plugin_name, target, parameters)
         
         result = {
             'status': 'success',
