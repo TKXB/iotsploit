@@ -1,5 +1,13 @@
+import logging
 from pydantic import BaseModel, ValidationError, conint, constr, IPvAnyAddress, model_validator
 from typing import List, Optional, Union, Literal
+
+logger = logging.getLogger(__name__)
+logger.warning(
+    "DEPRECATION WARNING: Vehicle_Model.py will be removed in a future version. "
+    "This module has been superseded by Target_Model.py. "
+    "Please update your code to use the new implementation."
+)
 
 # 示例数据
 car_data = {
