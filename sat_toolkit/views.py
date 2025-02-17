@@ -457,7 +457,6 @@ def execute_plugin(request):
         
         plugin_name = data.get('plugin_name')
         parameters = data.get('parameters', {})
-        force_sync = data.get('force_sync', False)  # Optional parameter to force synchronous execution
         
         if not plugin_name:
             return JsonResponse({
@@ -508,56 +507,20 @@ def execute_plugin(request):
         plugin_manager = ExploitPluginManager()
         plugin_manager.initialize()
 
-        # Check if plugin exists and get its instance
-        try:
-            plugin_instance = plugin_manager.get_plugin(plugin_name)
-        except ValueError as e:
+        # Let ExploitPluginManager handle the execution mode
+        result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
+        
+        if isinstance(result, dict) and result.get('execution_type') == 'async':
+            # For async execution, return task information
             return JsonResponse({
-                "status": "error",
-                "message": str(e)
-            }, status=400)
-
-        # Determine if we should execute asynchronously
-        should_execute_async = (
-            not force_sync and (
-                hasattr(plugin_instance, 'execute_async') or  # Plugin supports async
-                parameters.get('duration', 0) > 5 or          # Long running task
-                parameters.get('stream', False) or            # Streaming data
-                parameters.get('async', False)                # Explicitly requested async
-            )
-        )
-
-        if should_execute_async:
-            # Start Celery task for async execution
-            logger.info(f"Starting async execution for plugin: {plugin_name}")
-            
-            # Convert Vehicle object to dictionary if it exists
-            serializable_target = current_target.get_info() if current_target else None
-            
-            task = execute_plugin_task.delay(
-                plugin_name,
-                target=serializable_target,
-                parameters=parameters
-            )
-            
-            response = {
                 "status": "success",
                 "execution_type": "async",
-                "task_id": task.id,
+                "task_id": result.get('task_id'),
                 "message": "Async execution started",
-                "websocket_url": f"/ws/exploit/{task.id}/"
-            }
-            logger.info(f"Plugin async execution response: {response}")
-            return JsonResponse(response)
+                "websocket_url": f"/ws/exploit/{result.get('task_id')}/"
+            })
         else:
-            # Execute synchronously
-            logger.info(f"Executing plugin synchronously: {plugin_name}")
-            result = plugin_manager.execute_plugin(
-                plugin_name, 
-                target=current_target,
-                parameters=parameters
-            )
-            
+            # For sync execution, return the result directly
             if result is None:
                 return JsonResponse({
                     "status": "error",
@@ -565,24 +528,11 @@ def execute_plugin(request):
                     "message": f"Plugin {plugin_name} execution failed"
                 }, status=400)
                 
-            if isinstance(result, ExploitResult):
-                response_data = {
-                    "status": "success",
-                    "execution_type": "sync",
-                    "result": {
-                        "success": result.success,
-                        "message": result.message,
-                        "data": result.data
-                    }
-                }
-            else:
-                response_data = {
-                    "status": "success",
-                    "execution_type": "sync",
-                    "result": {
-                        "message": str(result)
-                    }
-                }
+            response_data = {
+                "status": "success",
+                "execution_type": "sync",
+                "result": result
+            }
             
             logger.debug(f"Plugin execution result: {response_data}")
             return JsonResponse(response_data)

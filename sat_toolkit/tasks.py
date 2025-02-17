@@ -19,14 +19,32 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
             target_manager = TargetManager.get_instance()
             target = target_manager.create_target_instance(target)
         
-        # Execute the plugin
-        raw_result = plugin_manager.execute_plugin(plugin_name, target, parameters)
+        # Get plugin instance and execute
+        plugin_instance = plugin_manager.get_plugin(plugin_name)
         
+        # Execute the plugin
+        raw_result = plugin_instance.execute_async(target, parameters)
+        
+        # Handle both async and sync results
+        if asyncio.iscoroutine(raw_result):
+            # Create event loop for async execution
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            raw_result = loop.run_until_complete(raw_result)
+        
+        # Format the result
         result = {
             'status': 'success',
             'message': str(raw_result.message) if hasattr(raw_result, 'message') else 'Completed',
-            'data': raw_result.data if hasattr(raw_result, 'data') else None
+            'data': raw_result.data if hasattr(raw_result, 'data') else None,
+            'progress': raw_result.progress if hasattr(raw_result, 'progress') else 100
         }
+        
+        # Send status update through WebSocket
+        send_task_status(self.request.id, result)
         return result
 
     except Exception as e:
@@ -36,6 +54,8 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
             'data': None
         }
         logger.error(f"Task failed: {str(e)}", exc_info=True)
+        # Send error status through WebSocket
+        send_task_status(self.request.id, error_result)
         return error_result
 
 def send_task_status(task_id, data):
