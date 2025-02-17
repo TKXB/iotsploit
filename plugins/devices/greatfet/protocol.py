@@ -60,7 +60,7 @@ def get_version_number(device: USBDevice):
         )
         
         # Convert the response to a string and remove null terminators
-        version = response.tostring().decode('utf-8').rstrip('\x00')
+        version = response.tobytes().decode('utf-8').rstrip('\x00')
         logger.info(f"GreatFET firmware version: {version}")
         return version
     
