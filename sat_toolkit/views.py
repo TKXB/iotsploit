@@ -21,8 +21,10 @@ from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
 from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.models.Plugin_Model import Plugin
 
+from sat_toolkit.tools.xlogger import xlog
+
 import logging
-logger = logging.getLogger(__name__)
+logger = xlog.get_logger('views')
 
 import json
 import datetime
@@ -512,13 +514,15 @@ def execute_plugin(request):
         
         if isinstance(result, dict) and result.get('execution_type') == 'async':
             # For async execution, return task information
-            return JsonResponse({
-                "status": "success",
+            response = {
+                "status": "success", 
                 "execution_type": "async",
                 "task_id": result.get('task_id'),
                 "message": "Async execution started",
                 "websocket_url": f"/ws/exploit/{result.get('task_id')}/"
-            })
+            }
+            logger.debug(f"Async execution response: {response}")
+            return JsonResponse(response)
         else:
             # For sync execution, return the result directly
             if result is None:

@@ -246,4 +246,6 @@ REDIS_DB = 0  # Using the same DB as Celery for simplicity
 
 # Set the log level for the 'exploit_mgr' logger to DEBUG
 xlog.set_level("DEBUG", "exploit_mgr")
+# Set the log level for the 'views' logger to DEBUG
+xlog.set_level("DEBUG", "views")
 
