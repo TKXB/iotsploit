@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from django.conf import settings
+from sat_toolkit.tools.xlogger import xlog
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -242,4 +243,7 @@ ASGI_APPLICATION = "sat_django_entry.asgi.application"
 REDIS_HOST = '127.0.0.1'  # Using the same host as your channel layers
 REDIS_PORT = 6379
 REDIS_DB = 0  # Using the same DB as Celery for simplicity
+
+# Set the log level for the 'exploit_mgr' logger to DEBUG
+xlog.set_level("DEBUG", "exploit_mgr")
 
