@@ -27,6 +27,8 @@ class GreatFETDriver(BaseDeviceDriver):
             try:
                 serial_number = usb.util.get_string(usb_dev, usb_dev.iSerialNumber)
                 logger.info(f"Found GreatFET device with serial number: {serial_number}")
+                # Store the raw USB device in a temporary attribute
+                self.usb_device = usb_dev
                 device = USBDevice(
                     device_id=str(uuid.uuid4()),
                     name="GreatFET",
@@ -34,7 +36,7 @@ class GreatFETDriver(BaseDeviceDriver):
                     product_id=hex(0x60e6),
                     attributes={
                         'serial_number': serial_number,
-                        'usb_device': usb_dev,
+                        # Don't include the raw USB device in attributes
                     }
                 )
                 found_devices.append(device)
