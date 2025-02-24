@@ -52,7 +52,7 @@ pyudev = "0.24.3"
 facedancer = "^3.0.0"
 # ... (other dependencies)
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 flood_attack = {path = "plugins/exploits/flood_attack", develop = true}
 esp32_driver = {path = "plugins/devices/esp32", develop = true}
 socketcan_driver = {path = "plugins/devices/socketcan", develop = true}
