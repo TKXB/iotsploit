@@ -97,4 +97,5 @@ urlpatterns = [
     # Add these new endpoints
     path('initialize_devices/', initialize_devices, name='initialize_devices'),
     path('cleanup_devices/', cleanup_devices, name='cleanup_devices'),
+    path('cleanup_plugins/', views.cleanup_plugins, name='cleanup_plugins'),
 ]

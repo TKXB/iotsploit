@@ -1128,3 +1128,31 @@ def list_urls(request):
             'message': f'Failed to list URLs: {str(e)}'
         }, status=500)
 
+@csrf_exempt
+def cleanup_plugins(request):
+    """
+    POST
+    Cleanup all plugins and their resources
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        plugin_manager = ExploitPluginManager()
+        plugin_manager.cleanup_all_plugins()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "All plugins cleaned up successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up plugins: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to cleanup plugins: {str(e)}"
+        }, status=500)
+
