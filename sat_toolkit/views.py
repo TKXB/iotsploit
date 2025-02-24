@@ -1156,3 +1156,58 @@ def cleanup_plugins(request):
             "message": f"Failed to cleanup plugins: {str(e)}"
         }, status=500)
 
+@csrf_exempt
+def set_log_level(request):
+    """
+    POST
+    Set the logging level for all xloggers
+    
+    Expected JSON body:
+    {
+        "level": "DEBUG|INFO|WARNING|ERROR|CRITICAL"
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        level = data.get('level', '').upper()
+        
+        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        
+        if not level:
+            return JsonResponse({
+                "status": "error",
+                "message": "Log level is required",
+                "valid_levels": valid_levels
+            }, status=400)
+            
+        if level not in valid_levels:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Invalid log level. Must be one of: {', '.join(valid_levels)}",
+                "valid_levels": valid_levels
+            }, status=400)
+            
+        # Set the log level for all loggers
+        for logger_name in xlog._loggers.keys():
+            xlog.set_level(level, name=logger_name)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Log level set to {level} for all loggers",
+            "level": level,
+            "affected_loggers": list(xlog._loggers.keys())
+        })
+        
+    except Exception as e:
+        xlog.error(f"Error setting log level: {str(e)}", name="views")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to set log level: {str(e)}"
+        }, status=500)
+

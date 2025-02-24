@@ -40,6 +40,9 @@ urlpatterns = [
     # New endpoint to list all URLs
     path('list_urls/', views.list_urls, name='list_urls'),
 
+    # Logging configuration
+    path('set_log_level/', views.set_log_level, name='set_log_level'),
+
     # Device-related endpoints (from device_views.py)
     path('device_info/', device_info, name='device_info'),
     path('get_all_devices/', get_all_devices, name='get_all_devices'),
