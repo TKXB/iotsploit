@@ -7,10 +7,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 import json
-import logging
 from .database import Base, engine, SessionLocal
-
-logger = logging.getLogger(__name__)
+from sat_toolkit.tools.xlogger import xlog
 
 class DeviceType(Enum):
     USB = "USB"
@@ -151,7 +149,7 @@ class DeviceManager:
         try:
             existing_device = session.query(DeviceDBModel).filter_by(device_id=device.device_id).first()
             if existing_device:
-                logger.info(f"Device with device_id '{device.device_id}' already exists. Skipping insertion.")
+                xlog.info(f"Device with device_id '{device.device_id}' already exists. Skipping insertion.", name="device_model")
                 return
             else:
                 if isinstance(device, SerialDevice):
@@ -164,10 +162,10 @@ class DeviceManager:
                     device_model = DeviceDBModel(device)
                 session.add(device_model)
                 session.commit()
-                logger.info(f"Device with device_id '{device.device_id}' has been added to the database.")
+                xlog.info(f"Device with device_id '{device.device_id}' has been added to the database.", name="device_model")
         except Exception as e:
             session.rollback()
-            logger.error(f"An error occurred while saving device '{device.device_id}': {e}")
+            xlog.error(f"An error occurred while saving device '{device.device_id}': {e}", name="device_model")
             raise e
         finally:
             session.close()
@@ -178,7 +176,7 @@ class DeviceManager:
             devices = session.query(DeviceDBModel).all()
             result = []
             for d in devices:
-                # 根据设备类型创建相应的设备对象
+                # Create device object based on device type
                 if d.device_type == DeviceType.Serial:
                     device = SerialDevice(
                         device_id=d.device_id,
@@ -209,18 +207,17 @@ class DeviceManager:
                         device_type=d.device_type,
                         attributes=d.attributes
                     )
-                # 使用 dataclasses_json 的 to_dict() 方法
                 result.append(device.to_dict())
             return result
         except Exception as e:
-            logger.error(f"Error getting devices: {e}")
+            xlog.error(f"Error getting devices: {e}", name="device_model")
             return []
         finally:
             session.close()
 
     def parse_and_set_device_from_json(self, json_file_path):
         if not os.path.exists(json_file_path):
-            logger.error(f"File not found: {json_file_path}")
+            xlog.error(f"File not found: {json_file_path}", name="device_model")
             return
 
         with open(json_file_path, 'r') as file:
@@ -230,7 +227,7 @@ class DeviceManager:
             device_type = DeviceType(device.get('device_type', 'USB'))
             device_class = self.devices.get(device_type, Device)
             if not device_class:
-                logger.error(f"No device type registered for: {device_type}")
+                xlog.error(f"No device type registered for: {device_type}", name="device_model")
                 continue
 
             device_data = {
@@ -251,7 +248,7 @@ class DeviceManager:
             device_instance = self.create_device(device_type, **device_data)
             self.current_device = device_instance
 
-        logger.debug("Parsed and created devices from JSON file")
+        xlog.debug("Parsed and created devices from JSON file", name="device_model")
 
     def get_current_device(self) -> Optional[Device]:
         return self.current_device

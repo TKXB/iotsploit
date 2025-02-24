@@ -6,10 +6,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 import json
-import logging
 from .database import Base, engine, SessionLocal
-
-logger = logging.getLogger(__name__)
+from sat_toolkit.tools.xlogger import xlog
 
 # Base Target class
 class Target(BaseModel, ABC):
@@ -137,7 +135,7 @@ class TargetManager:
         try:
             existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()
             if existing_target:
-                logger.info(f"Target with target_id '{target.target_id}' already exists. Updating record with new values.")
+                xlog.info(f"Target with target_id '{target.target_id}' already exists. Updating record with new values.", name="target_model")
                 # Update base fields
                 existing_target.name = target.name
                 existing_target.status = target.status
@@ -160,10 +158,10 @@ class TargetManager:
                     target_model = TargetDBModel(target)
                 session.add(target_model)
                 session.commit()
-                logger.info(f"Target with target_id '{target.target_id}' has been added to the database.")
+                xlog.info(f"Target with target_id '{target.target_id}' has been added to the database.", name="target_model")
         except Exception as e:
             session.rollback()
-            logger.error(f"An error occurred while saving target '{target.target_id}': {e}")
+            xlog.error(f"An error occurred while saving target '{target.target_id}': {e}", name="target_model")
             raise e
         finally:
             session.close()
@@ -196,21 +194,21 @@ class TargetManager:
 
 
     def parse_and_set_target_from_json(self, json_file_path):
-        logger.debug(f"Reading JSON file from: {json_file_path}")
+        xlog.debug(f"Reading JSON file from: {json_file_path}", name="target_model")
         if not os.path.exists(json_file_path):
-            logger.error(f"File not found: {json_file_path}")
+            xlog.error(f"File not found: {json_file_path}", name="target_model")
             return
 
         with open(json_file_path, 'r') as file:
             data = json.load(file)
 
-        logger.debug(f"JSON data: {data}")
+        xlog.debug(f"JSON data: {data}", name="target_model")
 
         for target in data.get('targets', []):
             target_type = target.get('type', 'unknown')
             target_class = self.targets.get(target_type, Target)
             if not target_class:
-                logger.error(f"No target type registered for: {target_type}")
+                xlog.error(f"No target type registered for: {target_type}", name="target_model")
                 continue
 
             # Get the fields of the target class
@@ -226,7 +224,7 @@ class TargetManager:
             target_instance = self.create_target(target_type, **target_data)
             self.current_target = target_instance  # Set the current Target
 
-        logger.debug("Parsed and created targets from JSON file")
+        xlog.debug("Parsed and created targets from JSON file", name="target_model")
 
     def get_current_target(self) -> Optional[Target]:
         return self.current_target
@@ -249,12 +247,12 @@ class TargetManager:
             # Find the existing target
             target_id = target_data.get('target_id')
             if not target_id:
-                logger.error("No target_id provided in update data")
+                xlog.error("No target_id provided in update data", name="target_model")
                 return False
             
             existing_target = session.query(TargetDBModel).filter_by(target_id=target_id).first()
             if not existing_target:
-                logger.error(f"No target found with target_id: {target_id}")
+                xlog.error(f"No target found with target_id: {target_id}", name="target_model")
                 return False
             
             # Update the fields
@@ -263,12 +261,12 @@ class TargetManager:
                     setattr(existing_target, key, value)
             
             session.commit()
-            logger.info(f"Successfully updated target {target_id}")
+            xlog.info(f"Successfully updated target {target_id}", name="target_model")
             return True
         
         except Exception as e:
             session.rollback()
-            logger.error(f"Error updating target: {str(e)}")
+            xlog.error(f"Error updating target: {str(e)}", name="target_model")
             return False
         
         finally:
@@ -316,11 +314,11 @@ class TargetManager:
         try:
             # Create Vehicle instance using the properly formatted data
             vehicle = Vehicle(**vehicle_data)
-            logger.debug(f"Created Vehicle instance: {vehicle}")
+            xlog.debug(f"Created Vehicle instance: {vehicle}", name="target_model")
             return vehicle
         except Exception as e:
-            logger.error(f"Error creating Vehicle instance: {str(e)}")
-            logger.debug(f"Vehicle data: {vehicle_data}")
+            xlog.error(f"Error creating Vehicle instance: {str(e)}", name="target_model")
+            xlog.debug(f"Vehicle data: {vehicle_data}", name="target_model")
             raise
 
 if __name__ == "__main__":
