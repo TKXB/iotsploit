@@ -29,8 +29,13 @@ class GreatFETDriver(BaseDeviceDriver):
                 logger.info(f"Found GreatFET device with serial number: {serial_number}")
                 # Store the raw USB device in a temporary attribute
                 self.usb_device = usb_dev
+                
+                # Create a deterministic device ID based on the device type and serial number
+                # This ensures the same physical device always gets the same ID
+                device_id = f"greatfet_{serial_number}"
+                
                 device = USBDevice(
-                    device_id=str(uuid.uuid4()),
+                    device_id=device_id,
                     name="GreatFET",
                     vendor_id=hex(0x1d50),
                     product_id=hex(0x60e6),
