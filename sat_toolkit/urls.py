@@ -101,4 +101,8 @@ urlpatterns = [
     path('initialize_devices/', initialize_devices, name='initialize_devices'),
     path('cleanup_devices/', cleanup_devices, name='cleanup_devices'),
     path('cleanup_plugins/', views.cleanup_plugins, name='cleanup_plugins'),
+    
+    # Plugin code editor endpoints
+    path('get_plugin_code/', views.get_plugin_code, name='get_plugin_code'),
+    path('save_plugin_code/', views.save_plugin_code, name='save_plugin_code'),
 ]

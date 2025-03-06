@@ -581,15 +581,31 @@ def list_plugin_info(request):
         # Get plugin info
         plugin_info_dict = plugin_manager.list_plugin_info()
         
+        # Get plugin database entries to access file paths
+        from sat_toolkit.models.Plugin_Model import Plugin
+        plugin_db_entries = {p.name: p for p in Plugin.objects.all()}
+        
         # Format the response with success/failure indicators
         formatted_plugins = []
         has_valid_plugins = False
         
         for plugin_name, info in plugin_info_dict.items():
+            # Get the plugin path from the database
+            plugin_path = None
+            if plugin_name in plugin_db_entries:
+                db_entry = plugin_db_entries[plugin_name]
+                # Extract the file path from the module path
+                if db_entry.module_path:
+                    module_parts = db_entry.module_path.split('.')
+                    # Convert module path to file path
+                    file_path = '/'.join(module_parts[:-1]) + '.py'
+                    plugin_path = file_path
+            
             plugin_entry = {
                 "name": plugin_name,
                 "info": info,
-                "status": "success" if "error" not in info else "failure"
+                "status": "success" if "error" not in info else "failure",
+                "path": plugin_path
             }
             formatted_plugins.append(plugin_entry)
             if "error" not in info:
@@ -1210,4 +1226,132 @@ def set_log_level(request):
             "status": "error",
             "message": f"Failed to set log level: {str(e)}"
         }, status=500)
+
+@csrf_exempt
+def get_plugin_code(request):
+    """
+    API endpoint to get the code of a plugin file
+    
+    POST parameters:
+    - plugin_path: Path to the plugin file
+    
+    Returns:
+    - JSON response with the plugin code
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Only POST method is allowed'})
+    
+    try:
+        data = json.loads(request.body)
+        plugin_path = data.get('plugin_path')
+        
+        if not plugin_path:
+            return JsonResponse({'status': 'error', 'message': 'Plugin path is required'})
+        
+        # Security check to prevent directory traversal
+        if '..' in plugin_path or plugin_path.startswith('/'):
+            return JsonResponse({'status': 'error', 'message': 'Invalid plugin path'})
+        
+        # Ensure the path is within the plugins directory
+        if not plugin_path.startswith('plugins/'):
+            plugin_path = f'plugins/{plugin_path}'
+        
+        try:
+            with open(plugin_path, 'r') as file:
+                code = file.read()
+            
+            return JsonResponse({
+                'status': 'success',
+                'code': code
+            })
+        except FileNotFoundError:
+            return JsonResponse({'status': 'error', 'message': f'Plugin file not found: {plugin_path}'})
+        except Exception as e:
+            logger.error(f"Error reading plugin file: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': f'Error reading plugin file: {str(e)}'})
+    
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON data'})
+    except Exception as e:
+        logger.error(f"Error in get_plugin_code: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': f'Server error: {str(e)}'})
+
+@csrf_exempt
+def save_plugin_code(request):
+    """
+    API endpoint to save the code of a plugin file
+    
+    POST parameters:
+    - plugin_path: Path to the plugin file
+    - code: New content for the plugin file
+    
+    Returns:
+    - JSON response indicating success or failure
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Only POST method is allowed'})
+    
+    try:
+        data = json.loads(request.body)
+        plugin_path = data.get('plugin_path')
+        code = data.get('code')
+        
+        if not plugin_path:
+            return JsonResponse({'status': 'error', 'message': 'Plugin path is required'})
+        
+        if code is None:
+            return JsonResponse({'status': 'error', 'message': 'Plugin code is required'})
+        
+        # Security check to prevent directory traversal
+        if '..' in plugin_path or plugin_path.startswith('/'):
+            return JsonResponse({'status': 'error', 'message': 'Invalid plugin path'})
+        
+        # Ensure the path is within the plugins directory
+        if not plugin_path.startswith('plugins/'):
+            plugin_path = f'plugins/{plugin_path}'
+        
+        try:
+            # Create a backup of the original file
+            import os
+            import shutil
+            from datetime import datetime
+            
+            if os.path.exists(plugin_path):
+                backup_dir = os.path.join(os.path.dirname(plugin_path), 'backups')
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                filename = os.path.basename(plugin_path)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_path = os.path.join(backup_dir, f"{filename}.{timestamp}.bak")
+                
+                shutil.copy2(plugin_path, backup_path)
+                logger.info(f"Created backup of {plugin_path} at {backup_path}")
+            
+            # Write the new code to the file
+            with open(plugin_path, 'w') as file:
+                file.write(code)
+            
+            # Reload the plugin if it's already loaded
+            plugin_manager = ExploitPluginManager()
+            plugin_name = os.path.basename(plugin_path).replace('.py', '')
+            
+            try:
+                plugin_manager.reload_plugin(plugin_name)
+                logger.info(f"Reloaded plugin: {plugin_name}")
+            except Exception as e:
+                logger.warning(f"Could not reload plugin {plugin_name}: {str(e)}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Plugin saved successfully'
+            })
+        except Exception as e:
+            logger.error(f"Error saving plugin file: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': f'Error saving plugin file: {str(e)}'})
+    
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON data'})
+    except Exception as e:
+        logger.error(f"Error in save_plugin_code: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': f'Server error: {str(e)}'})
 
