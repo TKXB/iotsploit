@@ -23,5 +23,14 @@
     "path": "firmware/rpi/usb_device/build/zephyr/zephyr.uf2",
     "device_type": "rpi_pico",
     "version": "1.0.2"
+  },
+  "iotsploit_func": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/iotsploit_func_fpga/gateware/iotsploit_func.bit",
+    "device_type": "fpga",
+    "version": "1.0.0",
+    "flash_options": {
+      "cable": "ft2232_b",
+      "target": "flash"
+    }
   }
-} 
+}
