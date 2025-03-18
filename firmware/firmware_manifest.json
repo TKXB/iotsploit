@@ -32,5 +32,80 @@
       "cable": "ft2232_b",
       "target": "flash"
     }
+  },
+  "esp32_bootloader": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/bootloader.bin",
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "address": "0x0",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB"
+    }
+  },
+  "esp32_partition_table": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/partition-table.bin",
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "address": "0x8000",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB"
+    }
+  },
+  "esp32_app": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/esp32-wifi-penetration-tool.bin",
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "address": "0x10000",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB"
+    }
+  },
+  "esp32s3-wifi-penetration-tool": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/esp32-wifi-penetration-tool.bin",
+    "device_type": "esp32s3",
+    "version": "1.0.0",
+    "flash_options": {
+      "port": "/dev/ttyACM2",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "address": "0x10000",
+      "chip": "esp32s3"
+    }
+  },
+  "esp32s3-bootloader": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/bootloader.bin",
+    "device_type": "esp32s3",
+    "version": "1.0.0",
+    "flash_options": {
+      "port": "/dev/ttyACM2",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "address": "0x0",
+      "chip": "esp32s3"
+    }
+  },
+  "esp32s3-partition-table": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/partition-table.bin",
+    "device_type": "esp32s3",
+    "version": "1.0.0",
+    "flash_options": {
+      "port": "/dev/ttyACM2",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "address": "0x8000",
+      "chip": "esp32s3"
+    }
   }
 }

@@ -325,14 +325,38 @@ class OpenOCDFPGAProgrammer(FPGAProgrammer):
 class ESP32Programmer(GenericProgrammer):
     def __init__(self):
         super().__init__("ESP32")
+        # Default path for esptool.py
         self.esptool_path = shutil.which('esptool.py')
+        # Check for custom path in environment
+        env_path = os.environ.get('ESPTOOL_PATH')
+        if env_path and os.path.exists(env_path):
+            self.esptool_path = env_path
         if not self.esptool_path:
             logger.warning("esptool.py not found in PATH. Please install it using: pip install esptool")
+            
+    def set_tool_path(self, path: str) -> bool:
+        """Set custom path for esptool.py"""
+        if os.path.exists(path):
+            self.esptool_path = path
+            logger.info(f"Using custom esptool.py path: {path}")
+            return True
+        else:
+            logger.error(f"esptool.py not found at {path}")
+            return False
             
     def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
         if not self.esptool_path:
             logger.error("esptool.py not found. Please install it using: pip install esptool")
             return False
+            
+        # Get tool path from options if provided
+        tool_path = options.get('tool_path')
+        if tool_path:
+            if os.path.exists(tool_path):
+                self.esptool_path = tool_path
+                logger.info(f"Using custom esptool.py path from options: {tool_path}")
+            else:
+                logger.warning(f"Custom esptool.py path {tool_path} not found, using default: {self.esptool_path}")
             
         port = options.get('port', '/dev/ttyUSB0')
         baud = options.get('baud', '921600')
@@ -340,12 +364,13 @@ class ESP32Programmer(GenericProgrammer):
         flash_freq = options.get('flash_freq', '40m')
         flash_size = options.get('flash_size', 'detect')
         address = options.get('address', '0x0')
+        chip = options.get('chip', 'esp32')
         
         cmd = [
             self.esptool_path,
-            '--chip', 'esp32',
-            '--port', port,
-            '--baud', baud,
+            '--chip', chip,
+            '-p', port,
+            '-b', baud,
             'write_flash',
             '--flash_mode', flash_mode,
             '--flash_freq', flash_freq,
@@ -354,12 +379,12 @@ class ESP32Programmer(GenericProgrammer):
         ]
         
         try:
-            logger.info(f"Flashing ESP32 firmware: {firmware_path}")
+            logger.info(f"Flashing {chip} firmware: {firmware_path} to address {address}")
             result = self.call(cmd)
-            logger.info("ESP32 firmware flashed successfully")
+            logger.info(f"{chip} firmware flashed successfully")
             return True
         except Exception as e:
-            logger.error(f"Failed to flash ESP32 firmware: {str(e)}")
+            logger.error(f"Failed to flash {chip} firmware: {str(e)}")
             return False
             
     def verify_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
@@ -367,26 +392,35 @@ class ESP32Programmer(GenericProgrammer):
             logger.error("esptool.py not found. Please install it using: pip install esptool")
             return False
             
+        # Get tool path from options if provided
+        tool_path = options.get('tool_path')
+        if tool_path:
+            if os.path.exists(tool_path):
+                self.esptool_path = tool_path
+            else:
+                logger.warning(f"Custom esptool.py path {tool_path} not found, using default: {self.esptool_path}")
+            
         port = options.get('port', '/dev/ttyUSB0')
         baud = options.get('baud', '921600')
         address = options.get('address', '0x0')
+        chip = options.get('chip', 'esp32')
         
         cmd = [
             self.esptool_path,
-            '--chip', 'esp32',
-            '--port', port,
-            '--baud', baud,
+            '--chip', chip,
+            '-p', port,
+            '-b', baud,
             'verify_flash',
             address, firmware_path
         ]
         
         try:
-            logger.info(f"Verifying ESP32 firmware: {firmware_path}")
+            logger.info(f"Verifying {chip} firmware: {firmware_path}")
             result = self.call(cmd)
-            logger.info("ESP32 firmware verified successfully")
+            logger.info(f"{chip} firmware verified successfully")
             return True
         except Exception as e:
-            logger.error(f"Failed to verify ESP32 firmware: {str(e)}")
+            logger.error(f"Failed to verify {chip} firmware: {str(e)}")
             return False
 
 # STM32 Programmer using OpenOCD
@@ -647,7 +681,7 @@ class FirmwareManager:
             firmware_info = self.manifests[name]
             device_type = firmware_info.get('device_type', '').lower()
             firmware_path = firmware_info['path']
-            
+
             # Merge options from manifest and provided options
             flash_options = firmware_info.get('flash_options', {})
             if options:
@@ -663,7 +697,7 @@ class FirmwareManager:
             if not programmer:
                 logger.error(f"Unsupported device type: {device_type}")
                 return False
-            
+
             logger.info(f"Flashing firmware: {name} using {programmer.name} programmer")
             result = programmer.flash_firmware(firmware_path, flash_options)
             
@@ -737,7 +771,7 @@ class FirmwareManager:
 
     def get_firmware_info(self, name: str) -> Optional[Dict]:
         """Get information about specific firmware"""
-        return self.manifests.get(name)
+        return self.manifests.get(name) 
     
     def download_firmware(self, url: str, output_path: Optional[str] = None) -> Optional[str]:
         """Download firmware from URL"""
