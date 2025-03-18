@@ -107,5 +107,14 @@
       "address": "0x8000",
       "chip": "esp32s3"
     }
+  },
+  "greatfet_usb_origin_sram": {
+    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/greatfet/firmware/greatfet_usb_origin.bin",
+    "device_type": "greatfet",
+    "version": "1.0.0",
+    "flash_options": {
+      "target": "sram",
+      "serial": "0000000000000000856c64e63349098b"
+    }
   }
 }
