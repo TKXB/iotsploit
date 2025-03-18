@@ -59,6 +59,10 @@ class ToolConfiguration:
                 "dfu_util": {
                     "path": shutil.which('dfu-util'),
                     "environment_var": "DFU_UTIL_PATH"
+                },
+                "greatfet_firmware": {
+                    "path": shutil.which('greatfet_firmware'),
+                    "environment_var": "GREATFET_FIRMWARE_PATH"
                 }
             }
         }
@@ -641,6 +645,69 @@ class DFUProgrammer(GenericProgrammer):
             logger.error(f"Failed to flash firmware via DFU: {str(e)}")
             return False
 
+# GreatFET Programmer for flashing GreatFET devices
+class GreatFETProgrammer(GenericProgrammer):
+    def __init__(self):
+        super().__init__("GreatFET")
+        self.greatfet_firmware_path = self.tool_config.get_tool_path("greatfet_firmware")
+        if not self.greatfet_firmware_path:
+            logger.warning("greatfet_firmware not found. Please install it or set its path using ToolConfiguration")
+    
+    def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
+        """Flash firmware to GreatFET device"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.greatfet_firmware_path = options.get('tool_path')
+            self.tool_config.set_tool_path("greatfet_firmware", self.greatfet_firmware_path)
+        
+        if not self.greatfet_firmware_path:
+            logger.error("greatfet_firmware not found. Please install it or set its path")
+            return False
+        
+        # Determine if we're loading to SRAM or flashing to SPI flash
+        target = options.get('target', 'spi').lower()
+        
+        try:
+            if target == 'sram':
+                # Flash to SRAM (temporary)
+                logger.info(f"Loading firmware to GreatFET SRAM: {firmware_path}")
+                cmd = [self.greatfet_firmware_path, '-V', firmware_path]
+            else:
+                # Flash to SPI flash (permanent)
+                logger.info(f"Flashing firmware to GreatFET SPI flash: {firmware_path}")
+                cmd = [self.greatfet_firmware_path, '-w', firmware_path]
+            
+            # Add serial number if specified
+            serial = options.get('serial')
+            if serial:
+                cmd.extend(['-s', serial])
+            
+            # Add board option if specified
+            board = options.get('board')
+            if board:
+                cmd.extend(['-b', board])
+            
+            # Execute the command
+            self.call(cmd)
+            
+            if target == 'sram':
+                logger.info("GreatFET firmware loaded successfully to SRAM")
+            else:
+                logger.info("GreatFET firmware flashed successfully to SPI flash")
+            
+            return True
+        except Exception as e:
+            if target == 'sram':
+                logger.error(f"Failed to load GreatFET firmware to SRAM: {str(e)}")
+            else:
+                logger.error(f"Failed to flash GreatFET firmware to SPI flash: {str(e)}")
+            return False
+    
+    def verify_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
+        """Verify firmware on GreatFET device - not implemented"""
+        logger.warning("Firmware verification not implemented for GreatFET devices")
+        return True
+
 class FirmwareManager:
     _instance = None
     
@@ -659,7 +726,8 @@ class FirmwareManager:
             'stm32': STM32Programmer(),
             'dfu': DFUProgrammer(),
             'fpga': OpenFPGALoader(),
-            'fpga_openocd': OpenOCDFPGAProgrammer()
+            'fpga_openocd': OpenOCDFPGAProgrammer(),
+            'greatfet': GreatFETProgrammer()
         }
 
     @classmethod

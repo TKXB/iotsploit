@@ -2,8 +2,11 @@ import usb.core
 import usb.util
 import logging
 import uuid
+import os
+from pathlib import Path
 from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
+from sat_toolkit.tools.firmware_mgr import FirmwareManager
 from plugins.devices.greatfet.protocol import get_version_number  # Updated to use absolute import
 
 logger = logging.getLogger(__name__)
@@ -12,9 +15,13 @@ class GreatFETDriver(BaseDeviceDriver):
     def __init__(self):
         super().__init__()
         self.usb_device = None
+        # Initialize firmware manager
+        self.firmware_mgr = FirmwareManager.Instance()
         self.supported_commands = {
             "get_version": "Get GreatFET device version",
-            "test_command": "Send test command to GreatFET device"
+            "test_command": "Send test command to GreatFET device",
+            "flash_firmware_sram": "Flash firmware to GreatFET device's SRAM (temporary)",
+            "flash_firmware_spiflash": "Flash firmware to GreatFET device's SPI flash (permanent)"
         }
     
     def _scan_impl(self) -> list:
@@ -79,16 +86,104 @@ class GreatFETDriver(BaseDeviceDriver):
             return False
 
     def _command_impl(self, device: USBDevice, command: str, args: dict = None) -> str:
-        if not self.usb_device:
+        if args is None:
+            args = {}
+            
+        if not self.usb_device and command not in ["flash_firmware_sram", "flash_firmware_spiflash"]:
             logger.error(f"Cannot send command: GreatFET device {device.name} is not connected")
             raise RuntimeError("Device not connected")
+            
         if command == "get_version":
             version = get_version_number(device)
             logger.info(f"Retrieved version for {device.name}: {version}")
             return version
+        elif command == "flash_firmware_sram":
+            return self._handle_flash_firmware(device, args, target="sram")
+        elif command == "flash_firmware_spiflash":
+            return self._handle_flash_firmware(device, args, target="spi")
         else:
             logger.info(f"Sent command '{command}' to GreatFET device {device.name}")
             return f"Command '{command}' sent"
+            
+    def _handle_flash_firmware(self, device: USBDevice, args: dict, target: str) -> dict:
+        """
+        Flash firmware to GreatFET device using FirmwareManager
+        
+        Args:
+            device: The device to flash
+            args: Command arguments
+            target: Target memory ('sram' or 'spi')
+        """
+        try:
+            # Get the firmware directory path
+            current_dir = Path(__file__).parent
+            firmware_dir = current_dir / "firmware"
+            
+            # Check if firmware file exists or use the one specified in args
+            firmware_name = args.get('firmware_name', 'greatfet_usb_origin')
+            firmware_path = args.get('firmware_path')
+            
+            if not firmware_path:
+                firmware_path = firmware_dir / f"{firmware_name}.bin"
+                if not firmware_path.exists():
+                    error_msg = f"Firmware file not found: {firmware_path}"
+                    logger.error(error_msg)
+                    return {"status": "error", "message": error_msg}
+            
+            # Get/set greatfet_firmware tool path if provided
+            tool_path = args.get('tool_path')
+            
+            # Determine full firmware name with target suffix
+            target_suffix = "_sram" if target == "sram" else "_spiflash"
+            full_firmware_name = f"{firmware_name}{target_suffix}"
+            
+            # Register firmware with the firmware manager if not already registered
+            if not self.firmware_mgr.get_firmware_info(full_firmware_name):
+                logger.info(f"Registering firmware: {full_firmware_name}")
+                
+                flash_options = {
+                    "target": target,
+                    "serial": device.attributes.get('serial_number')
+                }
+                
+                if tool_path:
+                    flash_options["tool_path"] = tool_path
+                
+                self.firmware_mgr.add_firmware(
+                    name=full_firmware_name,
+                    path=str(firmware_path),
+                    device_type="greatfet",
+                    version="1.0.0",
+                    flash_options=flash_options
+                )
+            
+            # Prepare flash options
+            flash_options = {
+                "target": target,
+                "serial": device.attributes.get('serial_number')
+            }
+            
+            if tool_path:
+                flash_options["tool_path"] = tool_path
+            
+            # Flash the firmware
+            target_desc = "SRAM (temporary)" if target == "sram" else "SPI flash (permanent)"
+            logger.info(f"Flashing {firmware_name} to GreatFET device {target_desc}")
+            result = self.firmware_mgr.flash_firmware(full_firmware_name, flash_options)
+            
+            if result:
+                success_msg = f"GreatFET firmware flashed successfully to {target_desc}"
+                logger.info(success_msg)
+                return {"status": "success", "message": success_msg}
+            else:
+                error_msg = f"Failed to flash GreatFET firmware to {target_desc}"
+                logger.error(error_msg)
+                return {"status": "error", "message": error_msg}
+                
+        except Exception as e:
+            error_msg = f"Error flashing GreatFET firmware: {str(e)}"
+            logger.error(error_msg)
+            return {"status": "error", "message": error_msg}
 
     def _reset_impl(self, device: USBDevice) -> bool:
         if self.usb_device:
