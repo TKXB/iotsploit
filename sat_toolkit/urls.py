@@ -105,4 +105,8 @@ urlpatterns = [
     # Plugin code editor endpoints
     path('get_plugin_code/', views.get_plugin_code, name='get_plugin_code'),
     path('save_plugin_code/', views.save_plugin_code, name='save_plugin_code'),
+    
+    # Firmware download endpoints
+    path('download_firmware/', views.file_download, name='list_firmware_files'),
+    path('download_firmware/<path:file_path>', views.file_download, name='download_firmware'),
 ]
