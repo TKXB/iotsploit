@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
+import time
 from typing import Dict
 
 # Set up Django settings first, before any Django-related imports
@@ -435,6 +436,9 @@ class SAT_Shell(cmd2.Cmd):
             logger.info(ansi.style("No plugins available.", fg=ansi.Fg.YELLOW))
     do_lsp = do_list_plugins
 
+    # runserver to start celery worker
+    # target_select to select target
+    # execute_plugin to execute plugin
     @cmd2.with_category('Plugin Commands')
     def do_execute_plugin(self, arg):
         'Execute a specific plugin'
@@ -458,8 +462,146 @@ class SAT_Shell(cmd2.Cmd):
 
         logger.info(ansi.style(f"Executing plugin: {choice}", fg=ansi.Fg.CYAN))
         try:
-            result = self.plugin_manager.execute_plugin(choice)
-            if isinstance(result, ExploitResult):
+            # Get the plugin instance to access its parameters
+            plugin_instance = self.plugin_manager.get_plugin(choice)
+            if not plugin_instance:
+                logger.error(ansi.style(f"Could not get plugin instance for '{choice}'", fg=ansi.Fg.RED))
+                return
+                
+            # Get plugin info with parameters
+            plugin_info = plugin_instance.get_info()
+            plugin_params = plugin_info.get('Parameters', {})
+            
+            # Get current target from target manager
+            target_manager = self.target_manager
+            current_target = target_manager.get_current_target()
+            
+            # Prepare target dictionary
+            target_dict = {}
+            
+            # If we have a target, include its properties
+            if current_target:
+                # Add target properties to target dictionary
+                target_dict = current_target.get_info() if hasattr(current_target, 'get_info') else {}
+            
+            # Prompt for required parameters that are not in the target
+            for param_name, param_info in plugin_params.items():
+                if param_name not in target_dict and param_info.get('required', False):
+                    param_type = param_info.get('type', 'str')
+                    description = param_info.get('description', f"Enter {param_name}")
+                    default = param_info.get('default')
+                    validation = param_info.get('validation', {})
+                    
+                    if param_type == 'str':
+                        if 'choices' in validation:
+                            # Use single_choice for string with choices
+                            value = Input_Mgr.Instance().single_choice(
+                                f"{description} (Choose one)",
+                                validation['choices']
+                            )
+                        else:
+                            # Regular string input
+                            value = Input_Mgr.Instance().string_input(description)
+                    elif param_type == 'int':
+                        # Integer input with optional min/max validation
+                        min_val = validation.get('min')
+                        max_val = validation.get('max')
+                        value = Input_Mgr.Instance().int_input(
+                            description,
+                            min_val=min_val,
+                            max_val=max_val
+                        )
+                    elif param_type == 'bool':
+                        # Boolean input
+                        value = Input_Mgr.Instance().yes_no_input(
+                            description,
+                            default=default if default is not None else True
+                        )
+                    else:
+                        # Default to string for unknown types
+                        value = Input_Mgr.Instance().string_input(description)
+                    
+                    # Add to target dict
+                    target_dict[param_name] = value
+            
+            logger.debug(f"Executing plugin with target configuration: {target_dict}")
+            
+            # Now execute the plugin with our target dictionary
+            result = self.plugin_manager.execute_plugin(choice, target=target_dict)
+            
+            # Check if this is an async execution
+            if isinstance(result, dict) and result.get('execution_type') == 'async':
+                task_id = result.get('task_id')
+                logger.info(ansi.style(f"Plugin running asynchronously with task ID: {task_id}", fg=ansi.Fg.CYAN))
+                
+                # Ask user if they want to wait for results
+                wait_for_results = Input_Mgr.Instance().yes_no_input(
+                    "Do you want to wait for the asynchronous task to complete?",
+                    default=True
+                )
+                
+                if wait_for_results:
+                    # Import celery here to avoid circular imports
+                    try:
+                        from celery.result import AsyncResult
+                        from sat_toolkit import celery_app
+                        import time
+
+                        task_result = AsyncResult(task_id, app=celery_app)
+                        
+                        # Poll for results with a progress bar
+                        progress = 0
+                        start_time = time.time()
+                        
+                        logger.info(ansi.style("Waiting for task to complete...", fg=ansi.Fg.CYAN))
+                        
+                        while not task_result.ready():
+                            # Try to get progress information
+                            task_info = task_result.info
+                            
+                            if isinstance(task_info, dict):
+                                new_progress = task_info.get('progress', 0)
+                                message = task_info.get('message', 'Processing...')
+                                
+                                # Only update if progress has changed
+                                if new_progress != progress:
+                                    progress = new_progress
+                                    # Print progress bar
+                                    bar_length = 50
+                                    filled_length = int(bar_length * progress / 100)
+                                    bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                                    logger.info(f"Progress: [{bar}] {progress:.1f}% - {message}")
+                            
+                            # Sleep briefly before checking again
+                            time.sleep(0.5)
+                            
+                            # Add a timeout to prevent infinite waiting
+                            if time.time() - start_time > 300:  # 5 minutes
+                                logger.warning(ansi.style("Timeout waiting for task to complete", fg=ansi.Fg.YELLOW))
+                                break
+                        
+                        # Get final result
+                        final_result = task_result.get(timeout=5)  # 5 second timeout for final result
+                        
+                        logger.info(ansi.style("Async plugin execution completed", fg=ansi.Fg.GREEN))
+                        if isinstance(final_result, dict):
+                            logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
+                            for key, value in final_result.items():
+                                logger.info(f"{key}: {value}")
+                        else:
+                            logger.info(f"Result: {final_result}")
+                    
+                    except ImportError as e:
+                        logger.error(ansi.style(f"Error importing Celery modules: {str(e)}", fg=ansi.Fg.RED))
+                    except Exception as e:
+                        logger.error(ansi.style(f"Error getting async result: {str(e)}", fg=ansi.Fg.RED))
+                        logger.debug("Detailed error:", exc_info=True)
+                
+                # Display initial async info regardless
+                logger.info(ansi.style("Initial async task info:", fg=ansi.Fg.GREEN))
+                logger.info(str(result))
+                
+            elif isinstance(result, ExploitResult):
                 logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
                 logger.info(f"Success: {result.success}")
                 logger.info(f"Message: {result.message}")
@@ -469,6 +611,7 @@ class SAT_Shell(cmd2.Cmd):
                 logger.info(str(result))
         except Exception as e:
             logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
     do_exec = do_execute_plugin
 
     @cmd2.with_category('Device Commands')
