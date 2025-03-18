@@ -11,10 +11,130 @@ import json
 
 logger = logging.getLogger(__name__)
 
+# Configuration management for tools
+class ToolConfiguration:
+    _instance = None
+    
+    def __init__(self):
+        self.config_dir = Path(os.path.expanduser("~/.sat_toolkit"))
+        self.config_file = self.config_dir / "tools_config.json"
+        self.config = self._load_config()
+    
+    @classmethod
+    def Instance(cls):
+        if cls._instance is None:
+            cls._instance = ToolConfiguration()
+        return cls._instance
+    
+    def _load_config(self) -> Dict:
+        """Load tool configuration from JSON file"""
+        if not self.config_dir.exists():
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+        
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, 'r') as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                logger.error("Error loading tool configuration file")
+                return self._get_default_config()
+        return self._get_default_config()
+    
+    def _get_default_config(self) -> Dict:
+        """Return default tool configuration"""
+        return {
+            "tools": {
+                "esptool": {
+                    "path": shutil.which('esptool.py'),
+                    "environment_var": "ESPTOOL_PATH"
+                },
+                "openocd": {
+                    "path": shutil.which('openocd'),
+                    "environment_var": "OPENOCD_PATH"
+                },
+                "openfpgaloader": {
+                    "path": shutil.which('openFPGALoader'),
+                    "environment_var": "OPENFPGALOADER_PATH"
+                },
+                "dfu_util": {
+                    "path": shutil.which('dfu-util'),
+                    "environment_var": "DFU_UTIL_PATH"
+                }
+            }
+        }
+    
+    def save_config(self):
+        """Save tool configuration to JSON file"""
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(self.config, f, indent=2)
+                logger.info(f"Tool configuration saved to {self.config_file}")
+        except Exception as e:
+            logger.error(f"Error saving tool configuration: {str(e)}")
+    
+    def get_tool_path(self, tool_name: str) -> Optional[str]:
+        """Get path for specified tool, checking configuration, environment variables, and PATH"""
+        if tool_name not in self.config.get("tools", {}):
+            logger.warning(f"Tool {tool_name} not found in configuration")
+            return None
+            
+        tool_config = self.config["tools"][tool_name]
+        
+        # First check if we have a configured path
+        if tool_config.get("path") and os.path.exists(tool_config["path"]):
+            return tool_config["path"]
+            
+        # Then check for an environment variable
+        env_var = tool_config.get("environment_var")
+        if env_var and os.environ.get(env_var) and os.path.exists(os.environ.get(env_var)):
+            # Update the stored path with the environment variable value
+            tool_config["path"] = os.environ.get(env_var)
+            self.save_config()
+            return tool_config["path"]
+            
+        # Finally check PATH
+        path_from_which = shutil.which(tool_name)
+        if path_from_which:
+            # Update the stored path with the detected value
+            tool_config["path"] = path_from_which
+            self.save_config()
+            return path_from_which
+            
+        return None
+    
+    def set_tool_path(self, tool_name: str, path: str) -> bool:
+        """Set custom path for specified tool"""
+        if not os.path.exists(path):
+            logger.error(f"Path {path} does not exist")
+            return False
+            
+        if tool_name not in self.config.get("tools", {}):
+            self.config.setdefault("tools", {})[tool_name] = {
+                "path": path,
+                "environment_var": f"{tool_name.upper()}_PATH"
+            }
+        else:
+            self.config["tools"][tool_name]["path"] = path
+            
+        self.save_config()
+        logger.info(f"Set {tool_name} path to {path}")
+        return True
+    
+    def get_all_tool_paths(self) -> Dict[str, str]:
+        """Get paths for all configured tools"""
+        result = {}
+        for tool_name in self.config.get("tools", {}):
+            path = self.get_tool_path(tool_name)
+            if path:
+                result[tool_name] = path
+        return result
+
+
 # Generic Programmer base class inspired by LiteX's architecture
 class GenericProgrammer:
     def __init__(self, name: str):
         self.name = name
+        self.tool_config = ToolConfiguration.Instance()
         
     def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
         """Flash firmware to device - must be implemented by subclasses"""
@@ -78,13 +198,20 @@ class FPGAProgrammer(GenericProgrammer):
 class OpenFPGALoader(FPGAProgrammer):
     def __init__(self):
         super().__init__("OpenFPGALoader")
-        self.openfpgaloader_path = shutil.which('openFPGALoader')
+        self.openfpgaloader_path = self.tool_config.get_tool_path("openfpgaloader")
         if not self.openfpgaloader_path:
-            logger.warning("openFPGALoader not found in PATH. Please install it")
+            logger.warning("openFPGALoader not found. Please install it or set its path using ToolConfiguration")
     
     def _build_base_command(self, options: Dict[str, Any]) -> List[str]:
         """Build the base command with common options"""
-        cmd = [self.openfpgaloader_path]
+        # Use tool_path from options if provided, otherwise use configured path
+        tool_path = options.get('tool_path')
+        if tool_path and os.path.exists(tool_path):
+            cmd = [tool_path]
+            # Update the configured path if needed
+            self.tool_config.set_tool_path("openfpgaloader", tool_path)
+        else:
+            cmd = [self.openfpgaloader_path]
         
         # Add board option if specified
         board = options.get('board', '')
@@ -120,8 +247,13 @@ class OpenFPGALoader(FPGAProgrammer):
     
     def load_bitstream(self, bitstream_path: str, options: Dict[str, Any]) -> bool:
         """Load bitstream to FPGA SRAM (temporary, lost on power cycle)"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.openfpgaloader_path = options.get('tool_path')
+            self.tool_config.set_tool_path("openfpgaloader", self.openfpgaloader_path)
+        
         if not self.openfpgaloader_path:
-            logger.error("openFPGALoader not found. Please install it")
+            logger.error("openFPGALoader not found. Please install it or set its path")
             return False
         
         # Build base command
@@ -133,7 +265,7 @@ class OpenFPGALoader(FPGAProgrammer):
         # Handle any additional options
         for key, value in options.items():
             if key not in ['board', 'fpga_part', 'cable', 'freq', 'index_chain', 
-                          'ftdi_serial', 'target']:
+                          'ftdi_serial', 'target', 'tool_path']:
                 cmd_key = f"--{key.replace('_', '-')}"
                 if value is not None:
                     cmd.append(cmd_key)
@@ -154,8 +286,13 @@ class OpenFPGALoader(FPGAProgrammer):
     
     def flash_bitstream(self, bitstream_path: str, options: Dict[str, Any]) -> bool:
         """Flash bitstream to FPGA's configuration flash (permanent)"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.openfpgaloader_path = options.get('tool_path')
+            self.tool_config.set_tool_path("openfpgaloader", self.openfpgaloader_path)
+        
         if not self.openfpgaloader_path:
-            logger.error("openFPGALoader not found. Please install it")
+            logger.error("openFPGALoader not found. Please install it or set its path")
             return False
         
         # Build base command
@@ -188,7 +325,7 @@ class OpenFPGALoader(FPGAProgrammer):
         for key, value in options.items():
             if key not in ['board', 'fpga_part', 'cable', 'freq', 'index_chain', 
                           'ftdi_serial', 'external_flash', 'address', 
-                          'verify', 'unprotect_flash', 'target']:
+                          'verify', 'unprotect_flash', 'target', 'tool_path']:
                 cmd_key = f"--{key.replace('_', '-')}"
                 if value is not None:
                     cmd.append(cmd_key)
@@ -224,14 +361,19 @@ class OpenFPGALoader(FPGAProgrammer):
 class OpenOCDFPGAProgrammer(FPGAProgrammer):
     def __init__(self):
         super().__init__("OpenOCD FPGA")
-        self.openocd_path = shutil.which('openocd')
+        self.openocd_path = self.tool_config.get_tool_path("openocd")
         if not self.openocd_path:
-            logger.warning("openocd not found in PATH. Please install it")
+            logger.warning("openocd not found. Please install it or set its path using ToolConfiguration")
     
     def load_bitstream(self, bitstream_path: str, options: Dict[str, Any]) -> bool:
         """Load bitstream to FPGA SRAM using OpenOCD"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.openocd_path = options.get('tool_path')
+            self.tool_config.set_tool_path("openocd", self.openocd_path)
+        
         if not self.openocd_path:
-            logger.error("openocd not found. Please install it")
+            logger.error("openocd not found. Please install it or set its path")
             return False
         
         config_file = options.get('config')
@@ -263,8 +405,13 @@ class OpenOCDFPGAProgrammer(FPGAProgrammer):
     
     def flash_bitstream(self, bitstream_path: str, options: Dict[str, Any]) -> bool:
         """Flash bitstream to FPGA's configuration flash using OpenOCD"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.openocd_path = options.get('tool_path')
+            self.tool_config.set_tool_path("openocd", self.openocd_path)
+        
         if not self.openocd_path:
-            logger.error("openocd not found. Please install it")
+            logger.error("openocd not found. Please install it or set its path")
             return False
         
         config_file = options.get('config')
@@ -325,38 +472,20 @@ class OpenOCDFPGAProgrammer(FPGAProgrammer):
 class ESP32Programmer(GenericProgrammer):
     def __init__(self):
         super().__init__("ESP32")
-        # Default path for esptool.py
-        self.esptool_path = shutil.which('esptool.py')
-        # Check for custom path in environment
-        env_path = os.environ.get('ESPTOOL_PATH')
-        if env_path and os.path.exists(env_path):
-            self.esptool_path = env_path
+        self.esptool_path = self.tool_config.get_tool_path("esptool")
         if not self.esptool_path:
-            logger.warning("esptool.py not found in PATH. Please install it using: pip install esptool")
-            
-    def set_tool_path(self, path: str) -> bool:
-        """Set custom path for esptool.py"""
-        if os.path.exists(path):
-            self.esptool_path = path
-            logger.info(f"Using custom esptool.py path: {path}")
-            return True
-        else:
-            logger.error(f"esptool.py not found at {path}")
-            return False
-            
+            logger.warning("esptool.py not found. Please install it using: pip install esptool or set its path using ToolConfiguration")
+    
     def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
+        """Flash firmware to ESP32 device"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.esptool_path = options.get('tool_path')
+            self.tool_config.set_tool_path("esptool", self.esptool_path)
+        
         if not self.esptool_path:
-            logger.error("esptool.py not found. Please install it using: pip install esptool")
+            logger.error("esptool.py not found. Please install it using: pip install esptool or set its path")
             return False
-            
-        # Get tool path from options if provided
-        tool_path = options.get('tool_path')
-        if tool_path:
-            if os.path.exists(tool_path):
-                self.esptool_path = tool_path
-                logger.info(f"Using custom esptool.py path from options: {tool_path}")
-            else:
-                logger.warning(f"Custom esptool.py path {tool_path} not found, using default: {self.esptool_path}")
             
         port = options.get('port', '/dev/ttyUSB0')
         baud = options.get('baud', '921600')
@@ -388,17 +517,15 @@ class ESP32Programmer(GenericProgrammer):
             return False
             
     def verify_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
+        """Verify firmware on ESP32 device"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.esptool_path = options.get('tool_path')
+            self.tool_config.set_tool_path("esptool", self.esptool_path)
+        
         if not self.esptool_path:
-            logger.error("esptool.py not found. Please install it using: pip install esptool")
+            logger.error("esptool.py not found. Please install it using: pip install esptool or set its path")
             return False
-            
-        # Get tool path from options if provided
-        tool_path = options.get('tool_path')
-        if tool_path:
-            if os.path.exists(tool_path):
-                self.esptool_path = tool_path
-            else:
-                logger.warning(f"Custom esptool.py path {tool_path} not found, using default: {self.esptool_path}")
             
         port = options.get('port', '/dev/ttyUSB0')
         baud = options.get('baud', '921600')
@@ -427,13 +554,19 @@ class ESP32Programmer(GenericProgrammer):
 class STM32Programmer(GenericProgrammer):
     def __init__(self):
         super().__init__("STM32")
-        self.openocd_path = shutil.which('openocd')
+        self.openocd_path = self.tool_config.get_tool_path("openocd")
         if not self.openocd_path:
-            logger.warning("openocd not found in PATH. Please install it")
+            logger.warning("openocd not found. Please install it or set its path using ToolConfiguration")
         
     def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
+        """Flash firmware to STM32 device"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.openocd_path = options.get('tool_path')
+            self.tool_config.set_tool_path("openocd", self.openocd_path)
+        
         if not self.openocd_path:
-            logger.error("openocd not found. Please install it")
+            logger.error("openocd not found. Please install it or set its path")
             return False
             
         interface = options.get('interface', 'stlink')
@@ -467,82 +600,23 @@ exit
                 os.unlink(script_path)
             return False
 
-# nRF52 Programmer using nrfjprog
-class NRF52Programmer(GenericProgrammer):
-    def __init__(self):
-        super().__init__("nRF52")
-        self.nrfjprog_path = shutil.which('nrfjprog')
-        if not self.nrfjprog_path:
-            logger.warning("nrfjprog not found in PATH. Please install Nordic tools")
-        
-    def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
-        if not self.nrfjprog_path:
-            logger.error("nrfjprog not found. Please install Nordic tools")
-            return False
-            
-        family = options.get('family', 'NRF52')
-        
-        try:
-            logger.info(f"Flashing nRF52 firmware: {firmware_path}")
-            # Erase all
-            erase_cmd = [self.nrfjprog_path, '--eraseall', '-f', family]
-            self.call(erase_cmd)
-            
-            # Program
-            program_cmd = [self.nrfjprog_path, '--program', firmware_path, '-f', family, '--verify']
-            self.call(program_cmd)
-            
-            # Reset
-            reset_cmd = [self.nrfjprog_path, '--reset', '-f', family]
-            self.call(reset_cmd)
-            
-            logger.info("nRF52 firmware flashed successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to flash nRF52 firmware: {str(e)}")
-            return False
-
-# RPi Pico Programmer using picotool
-class RPiPicoProgrammer(GenericProgrammer):
-    def __init__(self):
-        super().__init__("RPi Pico")
-        self.picotool_path = shutil.which('picotool')
-        if not self.picotool_path:
-            logger.warning("picotool not found in PATH. Please install it")
-        
-    def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
-        if not self.picotool_path:
-            logger.error("picotool not found. Please install it")
-            return False
-            
-        try:
-            logger.info(f"Flashing RPi Pico firmware: {firmware_path}")
-            # Check if file is UF2 format
-            if not firmware_path.lower().endswith('.uf2'):
-                logger.error("RPi Pico firmware must be in UF2 format")
-                return False
-                
-            # Load firmware
-            cmd = [self.picotool_path, 'load', '-x', firmware_path]
-            self.call(cmd)
-            
-            logger.info("RPi Pico firmware flashed successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to flash RPi Pico firmware: {str(e)}")
-            return False
-
 # DFU Programmer for USB DFU devices
 class DFUProgrammer(GenericProgrammer):
     def __init__(self):
         super().__init__("DFU")
-        self.dfu_util_path = shutil.which('dfu-util')
+        self.dfu_util_path = self.tool_config.get_tool_path("dfu_util")
         if not self.dfu_util_path:
-            logger.warning("dfu-util not found in PATH. Please install it")
+            logger.warning("dfu-util not found. Please install it or set its path using ToolConfiguration")
         
     def flash_firmware(self, firmware_path: str, options: Dict[str, Any]) -> bool:
+        """Flash firmware to DFU device"""
+        # Update tool path from options if provided
+        if options.get('tool_path') and os.path.exists(options.get('tool_path')):
+            self.dfu_util_path = options.get('tool_path')
+            self.tool_config.set_tool_path("dfu_util", self.dfu_util_path)
+        
         if not self.dfu_util_path:
-            logger.error("dfu-util not found. Please install it")
+            logger.error("dfu-util not found. Please install it or set its path")
             return False
             
         vid = options.get('vid')
@@ -576,12 +650,13 @@ class FirmwareManager:
         self.manifest_file = self.firmware_dir / 'firmware_manifest.json'
         self.manifests = self._load_manifests()
         
+        # Get tool configuration
+        self.tool_config = ToolConfiguration.Instance()
+        
         # Initialize programmers
         self.programmers = {
             'esp32': ESP32Programmer(),
             'stm32': STM32Programmer(),
-            'nrf52': NRF52Programmer(),
-            'rpi_pico': RPiPicoProgrammer(),
             'dfu': DFUProgrammer(),
             'fpga': OpenFPGALoader(),
             'fpga_openocd': OpenOCDFPGAProgrammer()
@@ -612,6 +687,18 @@ class FirmwareManager:
         except Exception as e:
             logger.error(f"Error saving firmware manifest: {str(e)}")
 
+    def set_tool_path(self, tool_name: str, path: str) -> bool:
+        """Set custom path for a specific tool"""
+        return self.tool_config.set_tool_path(tool_name, path)
+
+    def get_tool_path(self, tool_name: str) -> Optional[str]:
+        """Get the configured path for a specific tool"""
+        return self.tool_config.get_tool_path(tool_name)
+
+    def get_all_tool_paths(self) -> Dict[str, str]:
+        """Get paths for all configured tools"""
+        return self.tool_config.get_all_tool_paths()
+
     def init_workspace(self, name: str) -> bool:
         """Initialize a new West workspace"""
         try:
@@ -620,7 +707,7 @@ class FirmwareManager:
                 logger.warning(f"Workspace {name} already exists")
                 return False
 
-            west_path = shutil.which('west')
+            west_path = self.tool_config.get_tool_path("west") or shutil.which('west')
             if not west_path:
                 logger.error("West tool not found. Please install it using: pip install west")
                 return False
@@ -683,7 +770,7 @@ class FirmwareManager:
             firmware_path = firmware_info['path']
 
             # Merge options from manifest and provided options
-            flash_options = firmware_info.get('flash_options', {})
+            flash_options = firmware_info.get('flash_options', {}).copy()
             if options:
                 flash_options.update(options)
             
@@ -724,7 +811,7 @@ class FirmwareManager:
             firmware_path = firmware_info['path']
             
             # Merge options from manifest and provided options
-            verify_options = firmware_info.get('flash_options', {})
+            verify_options = firmware_info.get('flash_options', {}).copy()
             if options:
                 verify_options.update(options)
             
@@ -902,4 +989,4 @@ class FirmwareManager:
 
         except Exception as e:
             logger.error(f"Error flashing bitstream to FPGA configuration flash: {str(e)}")
-            return False 
+            return False
