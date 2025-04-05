@@ -14,6 +14,12 @@ from .view_handlers.vehicle_views import (
     vehicle_info,
     select_vehicle_profile
 )
+from .view_handlers.file_views import (
+    upload_file,
+    list_files,
+    download_file,
+    delete_file
+)
 
 def get_url_patterns():
     """Helper function to get all URL patterns with their names"""
@@ -109,4 +115,11 @@ urlpatterns = [
     # Firmware download endpoints
     path('download_firmware/', views.file_download, name='list_firmware_files'),
     path('download_firmware/<path:file_path>', views.file_download, name='download_firmware'),
+    
+    # New file upload/management endpoints
+    path('upload_file/', upload_file, name='upload_file'),
+    path('list_files/', list_files, name='list_files'),
+    path('download_file/<path:file_path>', download_file, name='download_file'),
+    path('download_file/', download_file, name='download_file'),
+    path('delete_file/<path:file_path>', delete_file, name='delete_file'),
 ]
