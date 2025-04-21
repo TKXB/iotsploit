@@ -278,101 +278,197 @@ class AsyncReadSerial(Thread):
         self.start_read = False
         self.total_bytes = 0
         self.status = "WAITING"  # Status string for UI
+        self.buffer = []  # Buffer to store partial data for incremental processing
 
     def run(self):
         self.status = "RUNNING"
-        data = self.read_incoming_serial_data()
-        if data:
-            read_input_stream(data, self.las)
-            self.status = "COMPLETED"
-        else:
-            self.status = "FAILED"
+        # Run the serial reading in a more incremental fashion
+        self.read_data_incrementally()
 
-    def read_incoming_serial_data(self):
+    def read_data_incrementally(self):
+        """Read and process data incrementally as it becomes available"""
         try:
             ser = serial.Serial(port=self.las.port, baudrate=self.las.baud, timeout=None, xonxoff=False)
             ser.reset_input_buffer()
             ser.open
 
-            byte_chunks = []
-
+            # Start capture
             ser.write(ENABLE_HEADER)
             ser.write(b'\x01')
+            logger.info(f"Started capture on {self.las.port} with settings: chan={self.las.channel}, trig={self.las.trigger_type}, rate={self.las.scaler}")
 
-            while (not self.full or not self.triggered) and not self.kill:
+            # Monitor for trigger
+            last_check = time.time()
+            timeout_seconds = 20  # Maximum time to wait for trigger
+            start_time = time.time()
+
+            while (not self.full and not self.triggered) and not self.kill and (time.time() - start_time < timeout_seconds):
+                # Check for available bytes
                 bytesToRead = ser.inWaiting()
 
                 if bytesToRead >= 2:
-                    logger.info("TRIGGERED & DONE")
+                    logger.info("TRIGGERED & DONE at once")
                     self.full = True
                     self.triggered = True
-                    ser.read(bytesToRead)
+                    ser.read(bytesToRead)  # Read and discard these bytes
                     break
 
                 elif bytesToRead == 1:
                     b = ser.read(bytesToRead)
 
                     if b == TRIGGERED_STATE_HEADER:
-                        logger.info("TRIGGERED")
+                        logger.info("TRIGGERED - starting data collection")
                         self.triggered = True
                         self.status = "TRIGGERED"
+                        # Immediately start reading data after trigger
+                        self.start_read = True
+                        ser.write(START_READ_HEADER)
+                        ser.write(b'\x01')
+                        break
                     elif b == DONE_HEADER:
-                        logger.info("DONE")
+                        logger.info("DONE received before trigger")
                         self.full = True
                         break
                     else:
                         logger.error(f"ERROR -- RECEIVED UNEXPECTED BYTE: {b}")
-                        break
+                        # Don't break - let's keep trying
 
+                # Add small sleep to avoid tight loop
+                if time.time() - last_check > 0.5:
+                    last_check = time.time()
+                    logger.debug(f"Waiting for trigger... {int(time.time() - start_time)}s elapsed")
+
+                time.sleep(0.01)
+
+            # Handle case where we got killed before trigger
             if self.kill:
-                logger.info("STOPPING")
+                logger.info("STOPPING - capture killed")
                 self.status = "STOPPED"
                 ser.write(STOP_HEADER)
                 ser.write(b'\x01')
                 ser.write(STOP_HEADER)
                 ser.write(b'\x00')
-            
-            max_time = ((1 / self.las.baud) * self.las.mem_depth * self.las.bytes_per_row * 8) + 3.0
-            timeout = time.time() + max_time
+                ser.close()
+                return
 
-            if self.triggered:
-                logger.info("START READ")
-                self.start_read = True
-                self.status = "READING"
-                ser.write(START_READ_HEADER)
-                ser.write(b'\x01')
-            else:
+            # Handle timeout without trigger
+            if not self.triggered and time.time() - start_time >= timeout_seconds:
+                logger.warning("Timeout waiting for trigger")
+                self.status = "TIMEOUT"
                 ser.write(ENABLE_HEADER)
                 ser.write(b'\x00')
-                logger.info("NO DATA")
-                return None
+                ser.close()
+                return
 
-            while timeout > time.time():
+            # If we didn't get a trigger, don't proceed with reading
+            if not self.triggered:
+                logger.warning("No trigger detected")
+                ser.write(ENABLE_HEADER)
+                ser.write(b'\x00')
+                ser.close()
+                return
+
+            # Read data in chunks
+            self.status = "READING"
+            logger.info("Reading data from device...")
+            
+            # Calculate read timeout
+            max_time = ((1 / self.las.baud) * self.las.mem_depth * self.las.bytes_per_row * 10) + 5.0
+            timeout = time.time() + max_time
+            expected_bytes = self.las.mem_depth * self.las.bytes_per_row
+            
+            # Read data in chunks, incrementally processing
+            byte_chunks = []
+            prev_chunk_time = time.time()
+            
+            while time.time() < timeout and not self.kill:
                 bytesToRead = ser.inWaiting()
+                
                 if bytesToRead > 0:
-                    self.total_bytes += bytesToRead
-                    byte_chunks.append(ser.read(bytesToRead))
-                    if (self.total_bytes >= self.las.mem_depth*self.las.bytes_per_row):
+                    chunk = ser.read(bytesToRead)
+                    byte_chunks.append(chunk)
+                    self.total_bytes += len(chunk)
+                    logger.debug(f"Read {len(chunk)} bytes, total: {self.total_bytes}/{expected_bytes} ({int((self.total_bytes/expected_bytes)*100)}%)")
+                    
+                    # Process incremental data if we have enough
+                    if time.time() - prev_chunk_time > 0.5 and len(byte_chunks) > 0:
+                        # Combine chunks received so far
+                        self.process_partial_data(byte_chunks)
+                        prev_chunk_time = time.time()
+                    
+                    # Break if we've read all expected data
+                    if self.total_bytes >= expected_bytes:
+                        logger.info(f"All expected data received: {self.total_bytes} bytes")
                         break
-
+                
+                # Short sleep to avoid CPU spinning
+                time.sleep(0.01)
+            
+            # Finish the capture
             ser.write(START_READ_HEADER)
             ser.write(b'\x00')
-
             ser.write(ENABLE_HEADER)
             ser.write(b'\x00')
-
             ser.close()
-
+            
+            # Final data processing if we have data
             if self.total_bytes > 0:
-                return self.convert_byte_lists(byte_chunks)
+                combined_data = self.convert_byte_lists(byte_chunks)
+                read_input_stream(combined_data, self.las)
+                self.status = "COMPLETED"
+                logger.info(f"Data processing complete: {len(self.las.channel_data)} channels with {len(self.las.channel_data[0]) if self.las.channel_data and len(self.las.channel_data) > 0 else 0} samples")
             else:
-                return None
+                self.status = "FAILED"
+                logger.error("No data received from device")
+            
         except Exception as e:
             logger.error(f"Error in serial communication: {str(e)}")
             self.status = "ERROR"
-            return None
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def process_partial_data(self, byte_chunks):
+        """Process partial data as it's being received"""
+        try:
+            # Only process if we have enough data to be meaningful
+            if self.total_bytes < 10:
+                return
+                
+            # Convert all chunks collected so far
+            partial_data = self.convert_byte_lists(byte_chunks)
+            
+            # Create a temporary copy of the logic analyzer model
+            temp_las = LogicAnalyzerModel()
+            temp_las.port = self.las.port
+            temp_las.baud = self.las.baud
+            temp_las.channel = self.las.channel
+            temp_las.trigger_type = self.las.trigger_type
+            temp_las.mem_depth = self.las.mem_depth
+            temp_las.num_channels = self.las.num_channels
+            temp_las.bytes_per_row = self.las.bytes_per_row
+            
+            # Try to process partial data
+            read_input_stream(partial_data, temp_las)
+            
+            # If we have valid channel data, update the main logic analyzer object
+            if temp_las.channel_data and len(temp_las.channel_data) > 0 and len(temp_las.channel_data[0]) > 0:
+                self.las.channel_data = temp_las.channel_data
+                self.las.compressed_data = temp_las.compressed_data
+                self.las.x_axis = temp_las.x_axis
+                self.las.timestamps = temp_las.timestamps
+                self.las.total_time_units = temp_las.total_time_units
+                self.las.pre_trigger_byte_count = temp_las.pre_trigger_byte_count
+                self.las.post_trigger_byte_count = temp_las.post_trigger_byte_count
+                logger.debug(f"Processed partial data: {len(self.las.channel_data[0])} samples")
+            
+        except Exception as e:
+            logger.error(f"Error processing partial data: {str(e)}")
+            # This is just a warning - we'll try again with more data
 
     def convert_byte_lists(self, byte_chunks):
+        if not byte_chunks:
+            return b''
+            
         combined = byte_chunks[0]
         for x in range(1, len(byte_chunks)):
             combined += byte_chunks[x]
