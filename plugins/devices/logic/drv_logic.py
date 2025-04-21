@@ -11,7 +11,7 @@ import serial.tools.list_ports
 import traceback
 
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.models.Device_Model import Device, SerialDevice
 from sat_toolkit.tools.xlogger import xlog as logger
 from sat_toolkit.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 
@@ -205,10 +205,12 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
             devices = []
             
             for port in available_ports:
-                device = Device(
+                # Create SerialDevice which already has DeviceType.Serial set by default
+                device = SerialDevice(
                     device_id=f"enxor_la_{port.replace('/', '_')}",
                     name=f"Enxor Logic Analyzer ({port})",
-                    device_type="Serial",
+                    port=port,
+                    baud_rate=115200,
                     attributes={"port": port, "baud_rate": 115200}
                 )
                 devices.append(device)
