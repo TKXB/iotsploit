@@ -12,6 +12,7 @@ import serial.tools.list_ports
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.tools.xlogger import xlog as logger
+from sat_toolkit.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 
 # Import components from protocol - using absolute import instead of relative
 from plugins.devices.logic.protocol import (
@@ -206,15 +207,18 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
         args = args or {}
         
         try:
-            if command == "scan":
+            cmd_parts = command.lower().split() if isinstance(command, str) else []
+            cmd = cmd_parts[0] if cmd_parts else ""
+            
+            if cmd == "scan":
                 return self.scan_devices()
             
-            elif command == "connect":
+            elif cmd == "connect":
                 result = self._connect_impl(device)
                 return {"status": "success" if result else "error", 
                         "message": f"Connected to {self.logic_analyzer.port}" if result else "Failed to connect"}
             
-            elif command == "configure":
+            elif cmd == "configure":
                 if not self.is_connected:
                     return {"status": "error", "message": "Not connected to logic analyzer"}
                 
@@ -239,26 +243,32 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
                 
                 return {"status": "success", "message": "Configuration updated"}
             
-            elif command == "start":
-                return self.start_capture()
+            elif cmd == "start":
+                # Use the base class's start_streaming method
+                # This will properly register WebSocket streams
+                self.start_streaming(device)
+                return {"status": "success", "message": "Capture started"}
             
-            elif command == "stop":
-                return self.stop_capture()
+            elif cmd == "stop":
+                # Use the base class's stop_streaming method
+                # This will properly unregister WebSocket streams
+                self.stop_streaming(device)
+                return {"status": "success", "message": "Capture stopped"}
             
-            elif command == "status":
+            elif cmd == "status":
                 return self.get_capture_status()
             
-            elif command == "save":
+            elif cmd == "save":
                 file_path = args.get("file_path", "captures/capture.xor")
                 return self.save_capture(file_path)
             
-            elif command == "load":
+            elif cmd == "load":
                 file_path = args.get("file_path")
                 if not file_path:
                     return {"status": "error", "message": "No file path provided"}
                 return self.load_capture(file_path)
             
-            elif command == "get_data":
+            elif cmd == "get_data":
                 return self.get_capture_data()
             
             else:
@@ -288,6 +298,10 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
         """Implementation of data acquisition loop"""
         logger.info("Starting acquisition loop")
         
+        # Start the actual capture if not already running
+        if not self.is_capturing:
+            self.start_capture()
+        
         while self.is_acquiring.is_set():
             # If there's a capture thread running, check its status
             if self.capture_thread and self.capture_thread.is_alive():
@@ -295,33 +309,56 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
                 
                 # Broadcast status via stream manager
                 if self.device and hasattr(self.device, 'device_id'):
-                    self.stream_wrapper.broadcast(
-                        self.device.device_id,
-                        {"type": "status", "data": status}
+                    stream_data = StreamData(
+                        stream_type=StreamType.CUSTOM,
+                        channel=self.device.device_id,
+                        timestamp=time.time(),
+                        source=StreamSource.SERVER,
+                        action=StreamAction.STATUS,
+                        data={"type": "status", "data": status},
+                        metadata={"device_type": "logic_analyzer"}
                     )
+                    self.stream_wrapper.broadcast_data(stream_data)
                 
                 # If capture completed, broadcast data
                 if status.get("status") == "completed" and self.logic_analyzer:
                     data = self.get_capture_data()
                     if data.get("status") == "success":
-                        self.stream_wrapper.broadcast(
-                            self.device.device_id,
-                            {"type": "data", "data": data.get("data", {})}
+                        stream_data = StreamData(
+                            stream_type=StreamType.CUSTOM,
+                            channel=self.device.device_id,
+                            timestamp=time.time(),
+                            source=StreamSource.SERVER,
+                            action=StreamAction.DATA,
+                            data={"type": "data", "data": data.get("data", {})},
+                            metadata={"device_type": "logic_analyzer"}
                         )
+                        self.stream_wrapper.broadcast_data(stream_data)
+                        # After broadcasting completed data, we can stop acquisition
+                        self.is_acquiring.clear()
             
             # Slow down the polling loop
             time.sleep(0.1)
         
         logger.info("Acquisition loop ended")
+        # Make sure to stop the capture when acquisition ends
+        if self.is_capturing:
+            self.stop_capture()
     
     def _setup_acquisition(self, device):
         """Set up acquisition for the given device"""
+        logger.info(f"Setting up acquisition for device {device.device_id}")
         self.device = device
+        
+        # Ensure we're connected before starting capture
         if not self.is_connected:
             self._connect_impl(device)
     
     def _cleanup_acquisition(self, device):
         """Clean up acquisition for the given device"""
+        logger.info(f"Cleaning up acquisition for device {device.device_id}")
+        
+        # Stop the capture if it's running
         if self.is_capturing:
             self.stop_capture()
     
