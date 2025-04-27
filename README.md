@@ -61,13 +61,13 @@ Once the application is running, you can interact with it using the IoTSploit Sh
 
 ### Device Commands
 
-- **device_info**: Show Zeekr SAT Device Info.
+- **device_info**: Show Device Info.
 - **list_devices**: List all devices stored in the database.
 - **list_device_drivers**: List all available device plugins.
 
 ### Network Commands
 
-- **connect_lab_wifi**: Connect to Zeekr Lab WiFi.
+- **connect_lab_wifi**: Connect to Lab WiFi.
 
 ### Django Commands
 

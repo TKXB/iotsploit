@@ -31,7 +31,7 @@ from plugins.devices.logic.protocol import (
 )
 
 class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
-    """Enxor Logic Analyzer device driver for zeekr_sat_main-master framework"""
+    """Enxor Logic Analyzer device driver for iotsploit framework"""
     
     def __init__(self):
         super().__init__()
@@ -74,7 +74,7 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
             "name": self.name,
             "version": self.version,
             "description": "Enxor Logic Analyzer driver for signal analysis",
-            "author": "Based on Matthew Crump's work, adapted for zeekr_sat_main",
+            "author": "Based on Matthew Crump's work, adapted for iotsploit",
             "device_type": "Serial",
             "commands": self.supported_commands,
             "Parameters": {
