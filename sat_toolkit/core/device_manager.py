@@ -1,14 +1,14 @@
-
 import os
 import importlib.util
 import logging
 import threading
 from typing import Dict, List, Optional, Any
 from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.models.Device_Model import Device, DeviceDriverState
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.core.device_spec import DeviceState
 from sat_toolkit.config import DEVICE_PLUGINS_DIR
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class DeviceDriverManager:
             self.drivers = {}  # Store driver instances
             self.device_states = {}  # Store device states, format: 'driver_name::device_id': DeviceState
             self._connection_locks = {}  # Device operation locks, format: 'driver_name::device_id': Lock
+            self.driver_states = {}  # Store driver enablement states
             
             # Define valid state transitions
             self._state_transitions = {
@@ -44,8 +45,55 @@ class DeviceDriverManager:
             }
             
             self.load_plugins()
+            self._load_driver_states()
             self._initialized = True
             logger.info("DeviceDriverManager initialized")
+
+    def _load_driver_states(self):
+        """Load driver states from database"""
+        from sqlalchemy.orm import sessionmaker
+        from sat_toolkit.models.database import SessionLocal
+        
+        session = SessionLocal()
+        try:
+            driver_states = session.query(DeviceDriverState).all()
+            for state in driver_states:
+                self.driver_states[state.driver_name] = state.enabled
+                logger.info(f"Loaded driver state: {state.driver_name} -> {'enabled' if state.enabled else 'disabled'}")
+        except Exception as e:
+            logger.error(f"Error loading driver states: {e}")
+        finally:
+            session.close()
+            
+        # For any driver not in the database, set to enabled by default
+        for driver_name in self.drivers.keys():
+            if driver_name not in self.driver_states:
+                self.driver_states[driver_name] = True
+                self._save_driver_state(driver_name, True)
+
+    def _save_driver_state(self, driver_name, enabled, description=None):
+        """Save driver state to database"""
+        from sqlalchemy.orm import sessionmaker
+        from sat_toolkit.models.database import SessionLocal
+        
+        session = SessionLocal()
+        try:
+            driver_state = session.query(DeviceDriverState).filter_by(driver_name=driver_name).first()
+            if driver_state:
+                driver_state.enabled = enabled
+                driver_state.last_updated = datetime.datetime.now()
+                if description:
+                    driver_state.description = description
+            else:
+                driver_state = DeviceDriverState(driver_name=driver_name, enabled=enabled, description=description)
+                session.add(driver_state)
+            session.commit()
+            logger.info(f"Saved driver state: {driver_name} -> {'enabled' if enabled else 'disabled'}")
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error saving driver state: {e}")
+        finally:
+            session.close()
 
     def load_plugins(self):
         """Load all device driver plugins"""
@@ -90,6 +138,14 @@ class DeviceDriverManager:
         Returns:
             Dict: Dictionary containing operation results
         """
+        # Check if driver is enabled
+        if not self.is_driver_enabled(driver_name):
+            logger.warning(f"Attempted to execute command on disabled driver: {driver_name}")
+            return {
+                "status": "error", 
+                "message": f"Driver {driver_name} is disabled"
+            }
+            
         return self._manage_device_lifecycle(
             driver_name=driver_name,
             action='command',
@@ -100,6 +156,13 @@ class DeviceDriverManager:
 
     def scan_devices(self, driver_name: str) -> Dict:
         """Scan devices"""
+        # Check if driver is enabled
+        if not self.is_driver_enabled(driver_name):
+            return {
+                "status": "error",
+                "message": f"Driver {driver_name} is disabled"
+            }
+            
         return self._manage_device_lifecycle(
             driver_name=driver_name,
             action='scan'
@@ -107,6 +170,13 @@ class DeviceDriverManager:
 
     def initialize_device(self, driver_name: str, device: Device) -> Dict:
         """Initialize device"""
+        # Check if driver is enabled
+        if not self.is_driver_enabled(driver_name):
+            return {
+                "status": "error",
+                "message": f"Driver {driver_name} is disabled"
+            }
+            
         return self._manage_device_lifecycle(
             driver_name=driver_name,
             action='initialize',
@@ -115,6 +185,13 @@ class DeviceDriverManager:
 
     def connect_device(self, driver_name: str, device: Device) -> Dict:
         """Connect device"""
+        # Check if driver is enabled
+        if not self.is_driver_enabled(driver_name):
+            return {
+                "status": "error",
+                "message": f"Driver {driver_name} is disabled"
+            }
+            
         return self._manage_device_lifecycle(
             driver_name=driver_name,
             action='connect',
@@ -123,6 +200,13 @@ class DeviceDriverManager:
 
     def reset_device(self, driver_name: str, device: Device) -> Dict:
         """Reset device"""
+        # Check if driver is enabled
+        if not self.is_driver_enabled(driver_name):
+            return {
+                "status": "error",
+                "message": f"Driver {driver_name} is disabled"
+            }
+            
         return self._manage_device_lifecycle(
             driver_name=driver_name,
             action='reset',
@@ -523,6 +607,15 @@ class DeviceDriverManager:
         results = {}
         for driver_name in available_drivers:
             try:
+                # Check if driver is enabled before proceeding
+                if not self.is_driver_enabled(driver_name):
+                    logger.info(f"Skipping disabled driver: {driver_name}")
+                    results[driver_name] = {
+                        "status": "skipped",
+                        "message": "Driver is disabled"
+                    }
+                    continue
+                    
                 logger.info(f"Initializing {driver_name}...")
                 
                 # Scan devices using _manage_device_lifecycle
@@ -603,4 +696,144 @@ class DeviceDriverManager:
                 }
 
         return results
+
+    # Driver enable/disable methods
+    def enable_driver(self, driver_name: str, description=None) -> Dict:
+        """Enable a device driver
+        
+        Args:
+            driver_name: Name of driver to enable
+            description: Optional description of why the driver was enabled
+            
+        Returns:
+            Dict: Operation result
+        """
+        if driver_name not in self.drivers:
+            return {
+                "status": "error",
+                "message": f"Driver {driver_name} not found"
+            }
+            
+        self.driver_states[driver_name] = True
+        self._save_driver_state(driver_name, True, description)
+        
+        return {
+            "status": "success",
+            "message": f"Driver {driver_name} enabled",
+            "driver_name": driver_name,
+            "enabled": True
+        }
+        
+    def disable_driver(self, driver_name: str, description=None) -> Dict:
+        """Disable a device driver
+        
+        Args:
+            driver_name: Name of driver to disable
+            description: Optional description of why the driver was disabled
+            
+        Returns:
+            Dict: Operation result
+        """
+        if driver_name not in self.drivers:
+            return {
+                "status": "error",
+                "message": f"Driver {driver_name} not found"
+            }
+            
+        # Close all connected devices for this driver
+        closed_devices = self._close_all_driver_devices(driver_name)
+        
+        self.driver_states[driver_name] = False
+        self._save_driver_state(driver_name, False, description)
+        
+        return {
+            "status": "success",
+            "message": f"Driver {driver_name} disabled",
+            "driver_name": driver_name,
+            "enabled": False,
+            "closed_devices": closed_devices
+        }
+    
+    def _close_all_driver_devices(self, driver_name: str) -> List[str]:
+        """Close all devices for a specific driver
+        
+        Args:
+            driver_name: Driver name
+            
+        Returns:
+            List[str]: List of closed device IDs
+        """
+        closed_devices = []
+        
+        # Find all connected devices for this driver
+        for device_key in list(self.device_states.keys()):
+            key_driver_name, device_id = self._parse_device_key(device_key)
+            
+            if key_driver_name == driver_name:
+                try:
+                    driver = self.get_driver_instance(driver_name)
+                    if driver:
+                        device = driver.get_device(device_id)
+                        if device:
+                            self._manage_device_lifecycle(
+                                driver_name=driver_name,
+                                action='close',
+                                device=device
+                            )
+                            closed_devices.append(device_id)
+                            logger.info(f"Closed device {device_id} for disabled driver {driver_name}")
+                except Exception as e:
+                    logger.error(f"Error closing device {device_id} for driver {driver_name}: {e}")
+        
+        return closed_devices
+    
+    def is_driver_enabled(self, driver_name: str) -> bool:
+        """Check if a driver is enabled
+        
+        Args:
+            driver_name: Driver name to check
+            
+        Returns:
+            bool: True if driver is enabled, False otherwise
+        """
+        if driver_name not in self.drivers:
+            return False
+            
+        return self.driver_states.get(driver_name, True)
+    
+    def get_driver_states(self) -> Dict[str, Dict]:
+        """Get states of all drivers
+        
+        Returns:
+            Dict[str, Dict]: Dictionary of driver states
+        """
+        from sqlalchemy.orm import sessionmaker
+        from sat_toolkit.models.database import SessionLocal
+        
+        session = SessionLocal()
+        try:
+            result = {}
+            driver_states = session.query(DeviceDriverState).all()
+            
+            for driver_name in self.drivers.keys():
+                # Find state in DB or default to enabled
+                state = next((s for s in driver_states if s.driver_name == driver_name), None)
+                
+                if state:
+                    result[driver_name] = state.to_dict()
+                else:
+                    # Driver exists but no state record
+                    result[driver_name] = {
+                        "driver_name": driver_name,
+                        "enabled": True,
+                        "description": None,
+                        "last_updated": None
+                    }
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error getting driver states: {e}")
+            return {}
+        finally:
+            session.close()
 

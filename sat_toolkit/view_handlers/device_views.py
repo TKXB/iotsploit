@@ -196,6 +196,12 @@ def initialize_devices(request):
     try:
         # 直接使用 DeviceDriverManager 的单例
         device_manager = DeviceDriverManager()
+        
+        # Log driver states before initialization
+        logger.info("Driver states before initialization:")
+        for driver_name, enabled in device_manager.driver_states.items():
+            logger.info(f"  Driver {driver_name}: {'enabled' if enabled else 'disabled'}")
+        
         results = device_manager.initialize_all_devices()
         
         return JsonResponse({

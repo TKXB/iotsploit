@@ -2,13 +2,14 @@ from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from enum import Enum
 from typing import Dict, Any, List, Optional, Type
-from sqlalchemy import create_engine, Column, String, JSON, Enum as SQLAlchemyEnum
+from sqlalchemy import create_engine, Column, String, JSON, Enum as SQLAlchemyEnum, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 import json
 from .database import Base, engine, SessionLocal
 from sat_toolkit.tools.xlogger import xlog
+import datetime
 
 class DeviceType(Enum):
     USB = "USB"
@@ -255,6 +256,28 @@ class DeviceManager:
 
     def set_current_device(self, device: Device):
         self.current_device = device
+
+class DeviceDriverState(Base):
+    __tablename__ = 'device_driver_states'
+
+    driver_name = Column(String, primary_key=True)
+    enabled = Column(Boolean, default=True)
+    description = Column(String, nullable=True)
+    last_updated = Column(DateTime, default=lambda: datetime.datetime.now())
+
+    def __init__(self, driver_name, enabled=True, description=None):
+        self.driver_name = driver_name
+        self.enabled = enabled
+        self.description = description
+        self.last_updated = datetime.datetime.now()
+
+    def to_dict(self):
+        return {
+            "driver_name": self.driver_name,
+            "enabled": self.enabled,
+            "description": self.description,
+            "last_updated": str(self.last_updated)
+        }
 
 if __name__ == "__main__":
     # Example usage

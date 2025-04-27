@@ -1466,3 +1466,119 @@ def file_download(request, file_path=''):
             'message': f'Error downloading file: {str(e)}'
         }, status=500)
 
+@csrf_exempt
+def get_driver_states(request):
+    """
+    GET
+    Get the enabled/disabled state of all device drivers
+    
+    Returns:
+        JSON response with all driver states
+    """
+    try:
+        device_manager = DeviceDriverManager()
+        driver_states = device_manager.get_driver_states()
+        
+        # Format response to include more useful information
+        response = {
+            "status": "success",
+            "driver_count": len(driver_states),
+            "enabled_count": sum(1 for state in driver_states.values() if state["enabled"]),
+            "disabled_count": sum(1 for state in driver_states.values() if not state["enabled"]),
+            "drivers": driver_states
+        }
+        
+        return JsonResponse(response)
+    except Exception as e:
+        logger.error(f"Error getting driver states: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to get driver states: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+def enable_driver(request):
+    """
+    POST
+    Enable a device driver
+    
+    Expected JSON body:
+    {
+        "driver_name": "name_of_driver",
+        "description": "optional reason for enabling"
+    }
+    
+    Returns:
+        JSON response with operation result
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        driver_name = data.get('driver_name')
+        description = data.get('description')
+        
+        if not driver_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Driver name is required"
+            }, status=400)
+            
+        device_manager = DeviceDriverManager()
+        result = device_manager.enable_driver(driver_name, description)
+        
+        return JsonResponse(result)
+    except Exception as e:
+        logger.error(f"Error enabling driver: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to enable driver: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+def disable_driver(request):
+    """
+    POST
+    Disable a device driver
+    
+    Expected JSON body:
+    {
+        "driver_name": "name_of_driver",
+        "description": "optional reason for disabling"
+    }
+    
+    Returns:
+        JSON response with operation result
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        driver_name = data.get('driver_name')
+        description = data.get('description')
+        
+        if not driver_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Driver name is required"
+            }, status=400)
+            
+        device_manager = DeviceDriverManager()
+        result = device_manager.disable_driver(driver_name, description)
+        
+        return JsonResponse(result)
+    except Exception as e:
+        logger.error(f"Error disabling driver: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to disable driver: {str(e)}"
+        }, status=500)
+

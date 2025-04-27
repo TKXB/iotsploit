@@ -1632,6 +1632,187 @@ class SAT_Shell(cmd2.Cmd):
     # Add alias for initialize_devices
     do_initdev = do_initialize_devices
 
+    @cmd2.with_category('Device Commands')
+    def do_get_driver_states(self, arg):
+        'Show enabled/disabled state of all device drivers'
+        try:
+            driver_states = self.device_driver_manager.get_driver_states()
+            
+            if not driver_states:
+                logger.info(ansi.style("No device drivers found.", fg=ansi.Fg.YELLOW))
+                return
+                
+            logger.info(ansi.style("\nDevice Driver States:", fg=ansi.Fg.CYAN))
+            
+            # Calculate column widths for alignment
+            max_name_len = max(len(name) for name in driver_states.keys())
+            
+            # Display stats
+            enabled_count = sum(1 for state in driver_states.values() if state.get("enabled", True))
+            disabled_count = len(driver_states) - enabled_count
+            
+            logger.info(ansi.style(f"Total: {len(driver_states)} | Enabled: {enabled_count} | Disabled: {disabled_count}\n", fg=ansi.Fg.BLUE))
+            
+            # Display detailed info for each driver
+            for driver_name, state in driver_states.items():
+                enabled = state.get("enabled", True)
+                status_color = ansi.Fg.GREEN if enabled else ansi.Fg.RED
+                status_text = "Enabled" if enabled else "Disabled"
+                
+                logger.info(ansi.style(f"{driver_name:<{max_name_len}} : ", fg=ansi.Fg.CYAN) + 
+                            ansi.style(f"{status_text}", fg=status_color))
+                
+                # Show description if available
+                description = state.get("description")
+                if description:
+                    logger.info(f"  Description: {description}")
+                
+                # Show last update time if available
+                last_updated = state.get("last_updated")
+                if last_updated:
+                    logger.info(f"  Last updated: {last_updated}")
+                
+                logger.info("")  # Empty line between drivers
+            
+        except Exception as e:
+            logger.error(ansi.style(f"Error getting driver states: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+    
+    # Add alias for get_driver_states
+    do_gds = do_get_driver_states
+    
+    @cmd2.with_category('Device Commands')
+    def do_enable_driver(self, arg):
+        'Enable a device driver. Usage: enable_driver [driver_name]'
+        try:
+            # Get list of all drivers
+            all_drivers = self.device_driver_manager.list_drivers()
+            
+            if not all_drivers:
+                logger.warning(ansi.style("No device drivers available.", fg=ansi.Fg.YELLOW))
+                return
+            
+            # If driver name is provided as an argument, use it
+            # Otherwise, let user select from available drivers
+            driver_name = arg.strip() if arg else None
+            
+            if not driver_name:
+                # Get current states to show which are disabled
+                states = self.device_driver_manager.get_driver_states()
+                
+                # Create list with status indicators
+                driver_choices = []
+                for drv in all_drivers:
+                    status = states.get(drv, {}).get("enabled", True)
+                    status_text = "Enabled" if status else "Disabled"
+                    driver_choices.append(f"{drv} [{status_text}]")
+                
+                # Let user select a driver
+                selected = Input_Mgr.Instance().single_choice(
+                    "Select driver to enable",
+                    driver_choices
+                )
+                
+                # Extract driver name from selection
+                driver_name = selected.split()[0]
+            
+            # Ask for optional description
+            description = Input_Mgr.Instance().string_input(
+                "Enter reason for enabling (optional)"
+            )
+            
+            # Enable the driver - only pass description if it's not empty
+            if description.strip():
+                result = self.device_driver_manager.enable_driver(driver_name, description)
+            else:
+                result = self.device_driver_manager.enable_driver(driver_name)
+            
+            if result.get("status") == "success":
+                logger.info(ansi.style(f"Successfully enabled driver: {driver_name}", fg=ansi.Fg.GREEN))
+            else:
+                logger.error(ansi.style(f"Failed to enable driver: {result.get('message', 'Unknown error')}", fg=ansi.Fg.RED))
+            
+        except Exception as e:
+            logger.error(ansi.style(f"Error enabling driver: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+    
+    # Add alias for enable_driver
+    do_ed = do_enable_driver
+    
+    @cmd2.with_category('Device Commands')
+    def do_disable_driver(self, arg):
+        'Disable a device driver. Usage: disable_driver [driver_name]'
+        try:
+            # Get list of all drivers
+            all_drivers = self.device_driver_manager.list_drivers()
+            
+            if not all_drivers:
+                logger.warning(ansi.style("No device drivers available.", fg=ansi.Fg.YELLOW))
+                return
+            
+            # If driver name is provided as an argument, use it
+            # Otherwise, let user select from available drivers
+            driver_name = arg.strip() if arg else None
+            
+            if not driver_name:
+                # Get current states to show which are enabled
+                states = self.device_driver_manager.get_driver_states()
+                
+                # Create list with status indicators
+                driver_choices = []
+                for drv in all_drivers:
+                    status = states.get(drv, {}).get("enabled", True)
+                    status_text = "Enabled" if status else "Disabled"
+                    driver_choices.append(f"{drv} [{status_text}]")
+                
+                # Let user select a driver
+                selected = Input_Mgr.Instance().single_choice(
+                    "Select driver to disable",
+                    driver_choices
+                )
+                
+                # Extract driver name from selection
+                driver_name = selected.split()[0]
+            
+            # Warning and confirmation before disabling
+            logger.warning(ansi.style("Warning: Disabling a driver will close all connected devices for that driver!", fg=ansi.Fg.YELLOW))
+            
+            confirm = Input_Mgr.Instance().yes_no_input(
+                f"Are you sure you want to disable driver '{driver_name}'?",
+                default=False
+            )
+            
+            if not confirm:
+                logger.info("Operation cancelled.")
+                return
+            
+            # Ask for optional description
+            description = Input_Mgr.Instance().string_input("Enter reason for disabling (optional)")
+            
+            # Disable the driver
+            result = self.device_driver_manager.disable_driver(driver_name, description or None)
+            
+            if result.get("status") == "success":
+                logger.info(ansi.style(f"Successfully disabled driver: {driver_name}", fg=ansi.Fg.GREEN))
+                
+                # Report on closed devices
+                closed_devices = result.get("closed_devices", [])
+                if closed_devices:
+                    logger.info(f"Closed {len(closed_devices)} device(s): {', '.join(closed_devices)}")
+                
+                # Remove from connected_devices if needed
+                if driver_name in self.connected_devices:
+                    del self.connected_devices[driver_name]
+            else:
+                logger.error(ansi.style(f"Failed to disable driver: {result.get('message', 'Unknown error')}", fg=ansi.Fg.RED))
+            
+        except Exception as e:
+            logger.error(ansi.style(f"Error disabling driver: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+    
+    # Add alias for disable_driver
+    do_dd = do_disable_driver
+
 if __name__ == '__main__':
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()

@@ -96,6 +96,11 @@ urlpatterns = [
     path('list_groups/', views.list_groups, name='list_groups'),
     path('stop_plugin_async/', views.stop_plugin_async, name='stop_plugin_async'),
 
+    # Add new endpoints for driver management
+    path('get_driver_states/', views.get_driver_states, name='get_driver_states'),
+    path('enable_driver/', views.enable_driver, name='enable_driver'),
+    path('disable_driver/', views.disable_driver, name='disable_driver'),
+    
     # Additional endpoints
     path('active_channels/', views.active_channels, name='active_channels'),
     path('list_device_commands/<str:device_name>/', views.list_device_commands, name='list_device_commands'),
