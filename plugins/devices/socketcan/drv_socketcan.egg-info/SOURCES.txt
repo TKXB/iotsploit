@@ -1,0 +1,6 @@
+drv_socketcan.py
+pyproject.toml
+drv_socketcan.egg-info/PKG-INFO
+drv_socketcan.egg-info/SOURCES.txt
+drv_socketcan.egg-info/dependency_links.txt
+drv_socketcan.egg-info/top_level.txt

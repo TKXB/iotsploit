@@ -1,0 +1,58 @@
+2025-01-04 21:23:56 | INFO | sat_toolkit.core.exploit_manager | Updated plugin in database: Hydra SSH Attack
+2025-01-04 21:23:56 | INFO | sat_toolkit.core.exploit_manager | Updated plugin in database: TCAM ADB Check
+2025-01-04 21:23:56 | ERROR | sat_toolkit.core.exploit_manager | Error processing plugin file /home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/exploits/plugin_exploit_usb.py: 'USBAbility' object has no attribute 'info'
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Updated plugin in database: SYN Flood Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Updated plugin in database: Async Sleep Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Updated plugin in database: Stream Data Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Updated plugin in database: IP Network Scanner
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Plugin auto-discovery completed
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Found and registered plugin: IP Network Scanner
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Found and registered plugin: TCAM ADB Check
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Found and registered plugin: SYN Flood Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Found and registered plugin: Hydra SSH Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Found and registered plugin: Async Sleep Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.exploit_manager | Found and registered plugin: Stream Data Attack
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Target_Model | Target with target_id 'benz_001' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Target_Model | Target with target_id 'byd_001' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Device_Model | Device with device_id 'usb_001' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Device_Model | Device with device_id 'serial_001' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Device_Model | Device with device_id 'can_001' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Device_Model | Device with device_id 'can_002' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.models.Device_Model | Device with device_id 'vcan_001' already exists. Skipping insertion.
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_socketcan (SocketCANDriver)
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_greatfet (GreatFETDriver)
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_jlink (JLinkAbility)
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_ft2232 (FT2232Driver)
+2025-01-04 21:23:57 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_esp32 (ESP32Driver)
+2025-01-04 21:24:14 | INFO | sat_toolkit.core.stream_manager | Registered stream for channel vcan_001
+2025-01-04 21:24:21 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_socketcan (SocketCANDriver)
+2025-01-04 21:24:21 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_greatfet (GreatFETDriver)
+2025-01-04 21:24:21 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_jlink (JLinkAbility)
+2025-01-04 21:24:21 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_ft2232 (FT2232Driver)
+2025-01-04 21:24:21 | INFO | sat_toolkit.core.device_manager | Loaded device plugin: drv_esp32 (ESP32Driver)
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Scanning for devices with plugin: drv_socketcan
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Found 1 devices: ['vcan_001']
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Attempting to find device with device_id: vcan_001
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Found matching device: vcan_001
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Initializing driver for device: vcan_001
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Connecting to device: vcan_001
+2025-01-04 21:24:22 | INFO | sat_toolkit.views | Successfully connected to device: vcan_001
+2025-01-04 21:24:22 | INFO | sat_toolkit.core.base_plugin | Stopped message monitoring
+2025-01-04 21:24:22 | INFO | sat_toolkit.core.stream_manager | Registered stream for channel vcan_001
+2025-01-04 21:24:22 | INFO | sat_toolkit.core.base_plugin | Started message monitoring
+2025-01-04 21:24:24 | INFO | sat_toolkit.core.stream_manager | Unregistered stream for channel vcan_001
+2025-01-04 21:24:24 | INFO | sat_toolkit.core.stream_manager | Stopped broadcasting on channel vcan_001
+2025-01-04 21:24:24 | INFO | sat_toolkit.core.base_plugin | Stopped message monitoring
+2025-01-04 21:24:34 | INFO | sat_toolkit.core.base_plugin | Stopped message monitoring
+2025-01-04 21:24:34 | INFO | sat_toolkit.core.stream_manager | Registered stream for channel vcan_001
+2025-01-04 21:24:34 | INFO | sat_toolkit.core.base_plugin | Started message monitoring
+2025-01-04 21:24:37 | INFO | sat_toolkit.core.stream_manager | Unregistered stream for channel vcan_001
+2025-01-04 21:24:37 | INFO | sat_toolkit.core.stream_manager | Registered stream for channel vcan_001
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | Scanning devices using driver: SocketCANDriver
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | Scanning devices using driver: GreatFETDriver
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | No devices found
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | Scanning devices using driver: JLinkAbility
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | No devices found
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | Scanning devices using driver: FT2232Driver
+2025-01-04 21:25:05 | INFO | sat_toolkit.core.device_scanner | Scanning devices using driver: ESP32Driver
+2025-01-04 21:27:01 | INFO | sat_toolkit.tools.toolkit_main | No Audit Thread is Running. Need Not Stop.
