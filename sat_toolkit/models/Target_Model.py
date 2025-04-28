@@ -32,6 +32,21 @@ class Component(BaseModel):
     def get_info(self) -> Dict[str, Any]:
         return self.model_dump()
 
+# ADBDevice class for components that can be accessed via ADB
+class ADBDevice(Component):
+    adb_serial_id: Optional[str] = None
+    usb_vendor_id: Optional[str] = None
+    usb_product_id: Optional[str] = None
+    
+    def get_info(self) -> Dict[str, Any]:
+        info = super().get_info()
+        info.update({
+            "adb_serial_id": self.adb_serial_id,
+            "usb_vendor_id": self.usb_vendor_id,
+            "usb_product_id": self.usb_product_id
+        })
+        return info
+
 class Interface(BaseModel):
     interface_id: str
     name: str
@@ -58,6 +73,28 @@ class Vehicle(Target):
             "interfaces": [intf.model_dump() for intf in self.interfaces],
         })
         return info
+    
+    def get_adb_devices(self) -> Dict[str, ADBDevice]:
+        """Returns a dictionary of ADB devices keyed by their names"""
+        adb_devices = {}
+        for component in self.components:
+            if isinstance(component, ADBDevice):
+                adb_devices[component.name] = component
+        return adb_devices
+    
+    def get_adb_device_by_name(self, name: str) -> Optional[ADBDevice]:
+        """Get an ADB device component by name"""
+        for component in self.components:
+            if isinstance(component, ADBDevice) and component.name == name:
+                return component
+        return None
+
+    def get_adb_device_by_type(self, device_type: str) -> Optional[ADBDevice]:
+        """Get an ADB device component by its type"""
+        for component in self.components:
+            if isinstance(component, ADBDevice) and component.type == device_type:
+                return component
+        return None
 
 # SQLAlchemy database model using Single Table Inheritance
 class TargetDBModel(Base):
@@ -211,6 +248,39 @@ class TargetManager:
                 xlog.error(f"No target type registered for: {target_type}", name="target_model")
                 continue
 
+            # Process components
+            components = []
+            if 'components' in target:
+                for comp in target.get('components', []):
+                    comp_type = comp.get('type', '')
+                    
+                    # Handle ADBDevice components
+                    if comp_type in ['dhu', 'tcam', 'adb_device']:
+                        adb_device = ADBDevice(
+                            component_id=comp.get('component_id'),
+                            name=comp.get('name'),
+                            type=comp.get('type'),
+                            status=comp.get('status', 'active'),
+                            properties=comp.get('properties', {}),
+                            adb_serial_id=comp.get('adb_serial_id') or comp.get('properties', {}).get('adb_serial_id'),
+                            usb_vendor_id=comp.get('usb_vendor_id') or comp.get('properties', {}).get('usb_vendor_id'),
+                            usb_product_id=comp.get('usb_product_id') or comp.get('properties', {}).get('usb_product_id')
+                        )
+                        components.append(adb_device)
+                    else:
+                        # Regular component
+                        component = Component(
+                            component_id=comp.get('component_id'),
+                            name=comp.get('name'),
+                            type=comp.get('type'),
+                            status=comp.get('status', 'active'),
+                            properties=comp.get('properties', {})
+                        )
+                        components.append(component)
+                
+                # Replace components list in target data with processed components
+                target['components'] = components
+
             # Get the fields of the target class
             model_fields = target_class.model_fields.keys()
 
@@ -293,14 +363,40 @@ class TargetManager:
             'location': target_dict.get('location'),
         }
 
-        # Handle components if present
+        # Process components
+        components = []
         if 'components' in target_dict:
-            vehicle_data['components'] = [
-                Component(**comp) if isinstance(comp, dict) else comp 
-                for comp in target_dict['components']
-            ]
-        else:
-            vehicle_data['components'] = []
+            for comp in target_dict['components']:
+                if isinstance(comp, Component):
+                    components.append(comp)
+                elif isinstance(comp, dict):
+                    comp_type = comp.get('type', '')
+                    
+                    # Handle ADBDevice components
+                    if comp_type in ['dhu', 'tcam', 'adb_device']:
+                        adb_device = ADBDevice(
+                            component_id=comp.get('component_id'),
+                            name=comp.get('name'),
+                            type=comp.get('type'),
+                            status=comp.get('status', 'active'),
+                            properties=comp.get('properties', {}),
+                            adb_serial_id=comp.get('adb_serial_id') or comp.get('properties', {}).get('adb_serial_id'),
+                            usb_vendor_id=comp.get('usb_vendor_id') or comp.get('properties', {}).get('usb_vendor_id'),
+                            usb_product_id=comp.get('usb_product_id') or comp.get('properties', {}).get('usb_product_id')
+                        )
+                        components.append(adb_device)
+                    else:
+                        # Regular component
+                        component = Component(
+                            component_id=comp.get('component_id'),
+                            name=comp.get('name'),
+                            type=comp.get('type'),
+                            status=comp.get('status', 'active'),
+                            properties=comp.get('properties', {})
+                        )
+                        components.append(component)
+        
+        vehicle_data['components'] = components
 
         # Handle interfaces if present
         if 'interfaces' in target_dict:
