@@ -25,25 +25,27 @@
         {
           "component_id": "comp_dhu_001",
           "name": "DHU",
-          "type": "dhu",
+          "type": "adb_device",
           "status": "active",
           "adb_serial_id": "MB2023DHU123456",
           "usb_vendor_id": "0x18d1",
           "usb_product_id": "0x4ee7",
           "properties": {
-            "software_version": "1.2.3"
+            "software_version": "1.2.3",
+            "device_role": "dhu"
           }
         },
         {
           "component_id": "comp_tcam_001",
           "name": "TCAM",
-          "type": "tcam",
+          "type": "adb_device",
           "status": "active",
           "adb_serial_id": "MB2023TCAM654321",
           "usb_vendor_id": "0x18d1",
           "usb_product_id": "0x4ee8",
           "properties": {
-            "camera_resolution": "1080p"
+            "camera_resolution": "1080p",
+            "device_role": "tcam"
           }
         }
       ],
@@ -86,25 +88,27 @@
         {
           "component_id": "comp_dhu_002",
           "name": "DHU",
-          "type": "dhu",
+          "type": "adb_device",
           "status": "active",
           "adb_serial_id": "BYD2024DHU123456",
           "usb_vendor_id": "0x2717",
           "usb_product_id": "0xff48",
           "properties": {
-            "software_version": "2.1.5"
+            "software_version": "2.1.5",
+            "device_role": "dhu"
           }
         },
         {
           "component_id": "comp_tcam_002",
           "name": "TCAM",
-          "type": "tcam",
+          "type": "adb_device",
           "status": "active",
           "adb_serial_id": "BYD2024TCAM654321",
           "usb_vendor_id": "0x2717", 
           "usb_product_id": "0xff49",
           "properties": {
-            "camera_resolution": "4K"
+            "camera_resolution": "4K",
+            "device_role": "tcam"
           }
         }
       ],
@@ -116,6 +120,45 @@
           "status": "active",
           "properties": {
             "protocol": "CAN"
+          }
+        }
+      ]
+    },
+    {
+      "target_id": "smartphone_001",
+      "name": "Xiaomi Redmi K30 Pro (Test Device)",
+      "type": "vehicle", 
+      "ip_address": "192.168.50.10",
+      "location": "Test Lab",
+      "status": "active",
+      "properties": {
+        "model_year": 2023,
+        "os_version": "Android 11"
+      },
+      "components": [
+        {
+          "component_id": "comp_adb_001",
+          "name": "Android Debug Bridge",
+          "type": "adb_device",
+          "status": "active",
+          "adb_serial_id": "2fd1f89",
+          "usb_vendor_id": "0x2a70",
+          "usb_product_id": "0x9011",
+          "properties": {
+            "software_version": "11.0",
+            "device_model": "Redmi K30 Pro",
+            "device_role": "test_device"
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "interface_id": "intf_usb_001",
+          "name": "USB Debug",
+          "type": "usb",
+          "status": "active",
+          "properties": {
+            "protocol": "USB"
           }
         }
       ]

@@ -255,7 +255,7 @@ class TargetManager:
                     comp_type = comp.get('type', '')
                     
                     # Handle ADBDevice components
-                    if comp_type in ['dhu', 'tcam', 'adb_device']:
+                    if comp_type in ['adb_device']:
                         adb_device = ADBDevice(
                             component_id=comp.get('component_id'),
                             name=comp.get('name'),
@@ -373,7 +373,7 @@ class TargetManager:
                     comp_type = comp.get('type', '')
                     
                     # Handle ADBDevice components
-                    if comp_type in ['dhu', 'tcam', 'adb_device']:
+                    if comp_type in ['adb_device']:
                         adb_device = ADBDevice(
                             component_id=comp.get('component_id'),
                             name=comp.get('name'),

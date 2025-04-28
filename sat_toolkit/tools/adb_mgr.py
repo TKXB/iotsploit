@@ -21,13 +21,13 @@ class ADB_Mgr:
     
     Usage with target model:
     1. Define ADB devices in the target JSON:
-       - Use 'dhu', 'tcam', or 'adb_device' as the component type
+       - Use 'adb_device' as the component type
        - Specify adb_serial_id, usb_vendor_id, and usb_product_id fields
        - Example:
          {
-           "component_id": "comp_dhu_001",
-           "name": "DHU",
-           "type": "dhu",
+           "component_id": "comp_001",
+           "name": "My Device",
+           "type": "adb_device",
            "status": "active",
            "adb_serial_id": "DEVICE_SERIAL_ID",
            "usb_vendor_id": "0x18d1",
@@ -35,22 +35,9 @@ class ADB_Mgr:
          }
     
     2. Access devices by name or type:
-       - Use the device name (e.g., "DHU", "TCAM")
-       - Or device type (e.g., "dhu", "tcam", "custom_adb_device")
+       - Use the device name (e.g., "DHU", "TCAM", "MyDevice")
        - Or direct serial id if known
     """
-    
-    # Device type identifiers - use these as names in the target json
-    DHU_NAME = "DHU"
-    TCAM_NAME = "TCAM"
-    
-    # Target property keys
-    TARGET_DHU_SERIAL = "DHU_ADB_SERIAL_ID"
-    TARGET_DHU_VENDOR_ID = "DHU_USB_VendorID"
-    TARGET_DHU_PRODUCT_ID = "DHU_USB_ProductID"
-    TARGET_TCAM_SERIAL = "TCAM_ADB_SERIAL_ID"
-    TARGET_TCAM_VENDOR_ID = "TCAM_USB_VendorID"
-    TARGET_TCAM_PRODUCT_ID = "TCAM_USB_ProductID"
     
     # File paths
     __temp_script_file_path = "/data/local/tmp/iotsploit/tmp_bash_script.sh"
@@ -163,7 +150,7 @@ class ADB_Mgr:
             raise_err("No current target set. Cannot query DHU ADB serial ID.")
         
         # Get DHU from components
-        dhu_device = current_target.get_adb_device_by_name(self.DHU_NAME)
+        dhu_device = current_target.get_adb_device_by_name("DHU")
         
         if dhu_device and dhu_device.adb_serial_id:
             logger.info(f"DHU ADB SERIAL ID Found: {dhu_device.adb_serial_id}")
@@ -184,7 +171,7 @@ class ADB_Mgr:
             raise_err("No current target set. Cannot query TCAM ADB serial ID.")
         
         # Get TCAM from components
-        tcam_device = current_target.get_adb_device_by_name(self.TCAM_NAME)
+        tcam_device = current_target.get_adb_device_by_name("TCAM")
         
         if tcam_device and tcam_device.adb_serial_id:
             logger.info(f"TCAM ADB SERIAL ID Found: {tcam_device.adb_serial_id}")
@@ -210,9 +197,9 @@ class ADB_Mgr:
     def __recheck_device_serial(self, device_serial):
         """Resolve special device serial placeholders to actual values"""
         # For backwards compatibility
-        if device_serial == self.DHU_NAME:
+        if device_serial == "DHU":
             device_serial = self.query_dhu_adb_serial_id()
-        elif device_serial == self.TCAM_NAME:
+        elif device_serial == "TCAM":
             device_serial = self.query_tcam_adb_serial_id()
         # Try to resolve as an ADB device from the target model
         elif not (device_serial and re.match(r'[A-Za-z0-9.:]+$', device_serial)):
@@ -236,13 +223,13 @@ class ADB_Mgr:
         device_serial_checked = None
         
         # For backwards compatibility
-        if device_serial == self.DHU_NAME:
+        if device_serial == "DHU":
             try:
                 device_serial_checked = self.query_dhu_adb_serial_id()
             except Exception:
                 logger.info("DHU ADB device not found")
                 return False
-        elif device_serial == self.TCAM_NAME:
+        elif device_serial == "TCAM":
             try:
                 device_serial_checked = self.query_tcam_adb_serial_id()
             except Exception:
@@ -634,7 +621,7 @@ class ADB_Mgr:
             results = self.shell_cmd(device_serial, cmd)
             
             # Parse and filter results
-            hasSelinux = self.query_android_selinux_status(self.DHU_NAME)
+            hasSelinux = self.query_android_selinux_status(device_serial)
             allowdirs = self.query_writable_mount_dirs(device_serial)
             items = self._parse_permission_listings(results)
             dirs = self._filter_file_items(items, passdirs, passsids, hasSelinux, allowdirs, True)
@@ -674,7 +661,7 @@ class ADB_Mgr:
             results = self.shell_cmd(device_serial, cmd)
             
             # Parse and filter results
-            hasSelinux = self.query_android_selinux_status(self.DHU_NAME)
+            hasSelinux = self.query_android_selinux_status(device_serial)
             items = self._parse_permission_listings(results)
             files = self._filter_file_items(items, passdirs, passsids, hasSelinux)
             
@@ -712,7 +699,7 @@ class ADB_Mgr:
             results = self.shell_cmd(device_serial, cmd)
             
             # Parse and filter results
-            hasSelinux = self.query_android_selinux_status(self.DHU_NAME)
+            hasSelinux = self.query_android_selinux_status(device_serial)
             allowdirs = self.query_writable_mount_dirs(device_serial)
             items = self._parse_permission_listings(results)
             files = self._filter_file_items(items, passdirs, passsids, hasSelinux, allowdirs)
