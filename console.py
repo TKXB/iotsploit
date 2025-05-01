@@ -22,7 +22,6 @@ from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice, SocketCANDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
-from sat_toolkit.tools.toolkit_main import Toolkit_Main
 from sat_toolkit.tools.monitor_mgr import SystemMonitor
 from sat_toolkit.tools.ota_mgr import OTA_Mgr
 from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
@@ -35,6 +34,8 @@ from sat_toolkit.models.Device_Model import Device
 from sat_toolkit.tools.firmware_mgr import FirmwareManager
 from sat_toolkit.core.device_registry import DeviceRegistry
 from sat_toolkit.tools.xlogger import xlog as logger
+from pwnlib import term
+term.term_mode = True
 
 def global_exception_handler(exctype, value, traceback):
     logger.error("Unhandled exception", exc_info=(exctype, value, traceback))
@@ -118,19 +119,15 @@ class SAT_Shell(cmd2.Cmd):
             'lst': 'Shell Commands',
             'lsusb': 'Shell Commands',
             'macro': 'Shell Commands',
-            'quick_test': 'Shell Commands',
             'quit': 'Shell Commands',
             'run_pyscript': 'Shell Commands',
             'run_script': 'Shell Commands',
-            'run_test': 'Shell Commands',
             'runserver': 'Shell Commands',
             'set': 'Shell Commands',
             'set_log_level': 'Shell Commands',
             'shell': 'Shell Commands',
             'shortcuts': 'Shell Commands',
             'stop_server': 'Shell Commands',
-            'test_select': 'Shell Commands',
-            'vehicle_select': 'Shell Commands'
         })
 
     def emptyline(self):
@@ -177,68 +174,12 @@ class SAT_Shell(cmd2.Cmd):
             else:
                 logger.info(ansi.style(f"  {key}: {value}", fg=ansi.Fg.CYAN))
 
-    @cmd2.with_category('Vehicle Commands')
-    def do_vehicle_select(self, arg):
-        'Select Vehicle Profile'
-        select_vehicle_profile = Input_Mgr.Instance().single_choice(
-            "Please Select Existing Vehicle Profile",
-            Toolkit_Main.Instance().list_vehicle_profiles_to_select()
-        )
-        logger.info(ansi.style("Vehicle Profile Select Success.", fg=ansi.Fg.GREEN))
-        Toolkit_Main.Instance().select_vehicle_profile(select_vehicle_profile)
-
-    @cmd2.with_category('Test Commands')
-    def do_test_select(self, arg):
-        'Select Test Project'
-        choice = Input_Mgr.Instance().single_choice(
-            "Please Select TestLevel",
-            Toolkit_Main.Instance().list_test_levels_to_select()
-        )
-        logger.info(ansi.style("Test Level Select Success.", fg=ansi.Fg.GREEN))
-        Toolkit_Main.Instance().select_test_level(choice)
-
-        choice = Input_Mgr.Instance().single_choice(
-            "Please Select TestProject",
-            Toolkit_Main.Instance().list_test_projects_to_select()
-        )
-        logger.info(ansi.style("Test Project Select Success.", fg=ansi.Fg.GREEN))
-        Toolkit_Main.Instance().select_test_project(choice)
-        Report_Mgr.Instance().reset_audit_result()
-
-    @cmd2.with_category('Test Commands')
-    def do_run_test(self, arg):
-        'Start Test Project'
-        desc = Input_Mgr.Instance().string_input(
-            "Please Enter A Description Of This Test",
-            None
-        )
-        Toolkit_Main.Instance().start_audit(desc)
-
-    @cmd2.with_category('Test Commands')
-    def do_quick_test(self, arg):
-        'Run Test Project In Quick.'
-        choice = Input_Mgr.Instance().single_choice(
-            "Please Select TestLevel",
-            Toolkit_Main.Instance().list_test_levels_to_select()
-        )
-        logger.info(ansi.style("Test Level Select Success.", fg=ansi.Fg.GREEN))
-        Toolkit_Main.Instance().select_test_level(choice)
-
-        choice = Input_Mgr.Instance().single_choice(
-            "Please Select TestProject",
-            Toolkit_Main.Instance().list_test_projects_to_select()
-        )
-        logger.info(ansi.style("Test Project Select Success.", fg=ansi.Fg.GREEN))
-        Toolkit_Main.Instance().quick_test(choice)
-
     @cmd2.with_category('System Commands')
     def do_exit(self, arg):
         'Exit Console'
         if self.django_server_process:
             self.do_stop_server(arg)
-        Toolkit_Main.Instance().exit_quick_test()
-        Toolkit_Main.Instance().stop_audit()
-        self._cleanup_devices()  # Add device cleanup
+        self._cleanup_devices()
         logger.info("IotSploit Shell Quit. ByeBye~")
         return True
 

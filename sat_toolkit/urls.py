@@ -9,11 +9,7 @@ from .view_handlers.device_views import (
     initialize_devices,
     cleanup_devices
 )
-from .view_handlers.vehicle_views import (
-    ota_info,
-    vehicle_info,
-    select_vehicle_profile
-)
+from .view_handlers.vehicle_views import ota_info
 from .view_handlers.file_views import (
     upload_file,
     list_files,
@@ -61,25 +57,6 @@ urlpatterns = [
 
     # OTA and vehicle information (from vehicle_views.py)
     path('ota_info/', ota_info, name='ota_info'),
-    path('vehicle_info/', vehicle_info, name='vehicle_info'),
-    path('select_vehicle_profile/', select_vehicle_profile, name='select_vehicle_profile'),
-
-    # Test page requests
-    path('request_enter_test_page/', views.request_enter_test_page, name='request_enter_test_page'),
-    path('request_exit_test_page/', views.request_exit_test_page, name='request_exit_test_page'),
-    path('request_test_status/', views.request_test_status, name='request_test_status'),
-
-    # Test selection
-    path('select_test_level/', views.select_test_level, name='select_test_level'),
-    path('select_test_project/', views.select_test_project, name='select_test_project'),
-
-    # User input
-    path('user_input/', views.user_input, name='user_input'),
-    path('record_user_input/', views.record_user_input, name='record_user_input'),
-
-    # Test control
-    path('start_test/', views.start_test, name='start_test'),
-    path('stop_test/', views.stop_test, name='stop_test'),
 
     # Plugin and device management
     path('list_plugins/', views.list_plugins, name='list_plugins'),
