@@ -33,6 +33,7 @@ from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.models.Target_Model import TargetManager
 from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
+from sat_toolkit.models.PluginSequence_Model import PluginSequence
 from sat_toolkit.models.Device_Model import DeviceManager
 from asgiref.sync import async_to_sync
 
@@ -652,23 +653,31 @@ def list_groups(request):
             parent_relations = PluginGroupTree.objects.filter(child=group)
             child_relations = PluginGroupTree.objects.filter(parent=group)
             
-            # Format plugins in this group
-            plugins = [{
-                "name": plugin.name,
-                "enabled": plugin.enabled,
-                "description": plugin.description
-            } for plugin in group.plugins.all()]
+            # Format plugins in this group with sequence information
+            plugins = []
+            for seq in group.plugin_sequences():
+                plugins.append({
+                    "name": seq.plugin.name,
+                    "enabled": seq.plugin.enabled,
+                    "description": seq.plugin.description,
+                    "sequence": seq.sequence,
+                    "ignore_fail": seq.ignore_fail
+                })
             
-            # Format parent groups
+            # Format parent groups with sequence and ignore_fail
             parent_groups = [{
                 "name": relation.parent.name,
-                "force_exec": relation.force_exec
+                "force_exec": relation.force_exec,
+                "sequence": relation.sequence,
+                "ignore_fail": relation.ignore_fail
             } for relation in parent_relations]
             
-            # Format child groups
+            # Format child groups with sequence and ignore_fail
             child_groups = [{
                 "name": relation.child.name,
-                "force_exec": relation.force_exec
+                "force_exec": relation.force_exec,
+                "sequence": relation.sequence,
+                "ignore_fail": relation.ignore_fail
             } for relation in child_relations]
             
             # Create group entry
@@ -695,6 +704,106 @@ def list_groups(request):
             "status": "error",
             "message": f"Failed to list plugin groups: {str(e)}",
             "groups": []
+        }, status=500)
+
+@csrf_exempt
+def execute_group(request):
+    """
+    POST
+    Execute plugins in a selected group with proper sequence and failure handling
+    
+    Expected JSON body:
+    {
+        "group_name": "name_of_group",
+        "force_exec": true/false (optional, default: true),
+        "target": {...} (optional target data),
+        "parameters": {...} (optional parameters for plugins)
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        group_name = data.get('group_name')
+        force_exec = data.get('force_exec', True)
+        target_data = data.get('target')
+        parameters = data.get('parameters')
+        
+        if not group_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Group name is required"
+            }, status=400)
+            
+        # Get the plugin group
+        try:
+            group = PluginGroup.objects.get(name=group_name)
+        except PluginGroup.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Group '{group_name}' not found"
+            }, status=404)
+            
+        # Check if group is enabled
+        if not group.enabled and not force_exec:
+            return JsonResponse({
+                "status": "warning",
+                "message": f"Group '{group_name}' is disabled"
+            })
+            
+        # Set up target if provided
+        target = None
+        if target_data:
+            # Create a target instance from the provided data
+            target_manager = TargetManager.get_instance()
+            try:
+                target = target_manager.create_target_instance(target_data)
+            except Exception as e:
+                logger.warning(f"Could not create target from provided data: {str(e)}")
+                # Fall back to current target
+                target = target_manager.get_current_target()
+        else:
+            # Use current target
+            target_manager = TargetManager.get_instance()
+            target = target_manager.get_current_target()
+            
+        # Get plugin manager
+        plugin_manager = ExploitPluginManager()
+            
+        # Execute the group
+        logger.info(f"Executing plugin group: {group_name}")
+        result = plugin_manager.execute_plugin_group(
+            group_name=group_name,
+            target=target,
+            parameters=parameters,
+            force_exec=force_exec
+        )
+        
+        # Build response based on execution result
+        if result:
+            response = {
+                "status": "success",
+                "message": f"Plugin group '{group_name}' executed successfully",
+                "result": result
+            }
+        else:
+            response = {
+                "status": "warning",
+                "message": f"Plugin group '{group_name}' execution completed with failures",
+                "result": result
+            }
+            
+        return JsonResponse(response)
+            
+    except Exception as e:
+        logger.error(f"Error executing plugin group: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to execute plugin group: {str(e)}"
         }, status=500)
 
 @csrf_exempt

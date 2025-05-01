@@ -907,17 +907,91 @@ class SAT_Shell(cmd2.Cmd):
                 available_plugins
             )
             
-            # Add selected plugins to the group
-            for plugin_name in selected_plugins:
-                plugin, created = Plugin.objects.get_or_create(
-                    name=plugin_name,
-                    defaults={
-                        'description': f'Plugin {plugin_name}',
-                        'enabled': True,
-                        'module_path': f'plugins.exploits.{plugin_name}'
-                    }
+            # Add selected plugins to the group with sequence information
+            if selected_plugins:
+                # Clear existing plugin sequences if updating
+                if not created:
+                    from sat_toolkit.models.PluginSequence_Model import PluginSequence
+                    PluginSequence.objects.filter(plugingroup=group).delete()
+                
+                logger.info(ansi.style("\nConfiguring execution order and failure handling:", fg=ansi.Fg.CYAN))
+                
+                # Get starting sequence number
+                start_sequence = Input_Mgr.Instance().int_input(
+                    "Enter starting sequence number (smaller numbers execute first)",
+                    default=10,
+                    min_val=1
                 )
-                group.plugins.add(plugin)
+                
+                sequence_step = Input_Mgr.Instance().int_input(
+                    "Enter sequence step between plugins",
+                    default=10,
+                    min_val=1
+                )
+                
+                # Set default for all plugins
+                default_ignore_fail = Input_Mgr.Instance().yes_no_input(
+                    "Set default ignore_fail flag for all plugins? (continue on failure)",
+                    default=False
+                )
+                
+                # Add each plugin with sequence information
+                current_sequence = start_sequence
+                for plugin_name in selected_plugins:
+                    plugin, _ = Plugin.objects.get_or_create(
+                        name=plugin_name,
+                        defaults={
+                            'description': f'Plugin {plugin_name}',
+                            'enabled': True,
+                            'module_path': f'plugins.exploits.{plugin_name}'
+                        }
+                    )
+                    
+                    # Ask for custom settings for each plugin
+                    logger.info(ansi.style(f"\nPlugin: {plugin_name}", fg=ansi.Fg.GREEN))
+                    
+                    # Ask for custom sequence if wanted
+                    use_custom_sequence = Input_Mgr.Instance().yes_no_input(
+                        f"Use custom sequence? (default: {current_sequence})",
+                        default=False
+                    )
+                    
+                    if use_custom_sequence:
+                        sequence = Input_Mgr.Instance().int_input(
+                            "Enter sequence number",
+                            default=current_sequence,
+                            min_val=1
+                        )
+                    else:
+                        sequence = current_sequence
+                    
+                    # Ask for ignore_fail flag if wanted
+                    use_custom_ignore = Input_Mgr.Instance().yes_no_input(
+                        f"Set custom ignore_fail flag? (default: {default_ignore_fail})",
+                        default=False
+                    )
+                    
+                    if use_custom_ignore:
+                        ignore_fail = Input_Mgr.Instance().yes_no_input(
+                            "Ignore failures for this plugin?",
+                            default=default_ignore_fail
+                        )
+                    else:
+                        ignore_fail = default_ignore_fail
+                    
+                    # Create the sequence entry
+                    from sat_toolkit.models.PluginSequence_Model import PluginSequence
+                    PluginSequence.objects.create(
+                        plugingroup=group,
+                        plugin=plugin,
+                        sequence=sequence,
+                        ignore_fail=ignore_fail
+                    )
+                    
+                    logger.info(f"Added plugin {plugin_name} with sequence={sequence}, ignore_fail={ignore_fail}")
+                    
+                    # Increment sequence for next plugin
+                    current_sequence += sequence_step
             
             # Optionally nest this group under another group
             nest_group = Input_Mgr.Instance().yes_no_input("Do you want to nest this group under another group?", False)
@@ -930,12 +1004,33 @@ class SAT_Shell(cmd2.Cmd):
                         available_groups
                     )
                     parent_group = PluginGroup.objects.get(name=parent_group_name)
-                    force_exec = Input_Mgr.Instance().yes_no_input("Force execution of this group?", True)
                     
-                    PluginGroupTree.objects.get_or_create(
+                    # Configure the group tree relationship
+                    force_exec = Input_Mgr.Instance().yes_no_input(
+                        "Force execution of this group even if parent fails?", 
+                        default=False
+                    )
+                    
+                    sequence = Input_Mgr.Instance().int_input(
+                        "Enter sequence number for this group in parent",
+                        default=100,
+                        min_val=1
+                    )
+                    
+                    ignore_fail = Input_Mgr.Instance().yes_no_input(
+                        "Ignore failures of this group in parent?",
+                        default=False
+                    )
+                    
+                    # Create or update the tree relationship
+                    tree, _ = PluginGroupTree.objects.update_or_create(
                         parent=parent_group,
                         child=group,
-                        defaults={'force_exec': force_exec}
+                        defaults={
+                            'force_exec': force_exec,
+                            'sequence': sequence,
+                            'ignore_fail': ignore_fail
+                        }
                     )
             
             logger.info(ansi.style(f"Successfully created group '{group_name}' with {len(selected_plugins)} plugins", fg=ansi.Fg.GREEN))
@@ -981,7 +1076,7 @@ class SAT_Shell(cmd2.Cmd):
                 logger.info(ansi.style(f"Executing plugin group: {group_name}", fg=ansi.Fg.CYAN))
                 
                 # Execute the group
-                result = self.plugin_manager.execute_plugin_group(group_name)
+                result = self.plugin_manager.execute_plugin_group(group_name, target=None, parameters=None, force_exec=True)
                 
                 if result:
                     logger.info(ansi.style("Plugin group execution completed successfully", fg=ansi.Fg.GREEN))

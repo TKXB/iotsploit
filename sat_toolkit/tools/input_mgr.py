@@ -143,7 +143,7 @@ class Input_Mgr:
                 logger.info("User Select:{}\n".format(ui_result))
                 return ui_result
 
-    def int_input(self, title:str, min_val:int=None, max_val:int=None):
+    def int_input(self, title:str, default:int=None, min_val:int=None, max_val:int=None):
         def verify_int(input_str):
             try:
                 val = int(input_str)
@@ -166,7 +166,15 @@ class Input_Mgr:
                 range_str = ""
                 if min_val is not None and max_val is not None:
                     range_str = f" ({min_val}-{max_val})"
-                user_input = self.__shell_color_input(f"Please Input Integer{range_str}:")
+                
+                default_str = f" [default: {default}]" if default is not None else ""
+                user_input = self.__shell_color_input(f"Please Input Integer{range_str}{default_str}:")
+                
+                # Use default if user just hits enter
+                if user_input == "" and default is not None:
+                    logger.info(f"Using default value: {default}\n")
+                    return default
+                
                 if verify_int(user_input):
                     logger.info("User Input:{}\n".format(user_input))
                     return int(user_input)
@@ -176,6 +184,7 @@ class Input_Mgr:
                 {
                     "type":"int_input", 
                     "title":title,
+                    "default": default,
                     "min": min_val,
                     "max": max_val,
                     'buttonlist': [{'name': '确认', 'color': 'active', 'action': 'POST record_user_input'}]                
@@ -187,6 +196,11 @@ class Input_Mgr:
                 if ui_result == None:
                     continue
                 Env_Mgr.Instance().unset("SAT_UI_RESULT")
+                
+                # Use default if UI result is empty
+                if ui_result == "" and default is not None:
+                    logger.info(f"Using default value: {default}\n")
+                    return default
                 
                 if verify_int(ui_result):
                     logger.info("User Input:{}\n".format(ui_result))
