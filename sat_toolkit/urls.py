@@ -94,6 +94,7 @@ urlpatterns = [
     # Plugin info and groups
     path('list_plugin_info/', views.list_plugin_info, name='list_plugin_info'),
     path('list_groups/', views.list_groups, name='list_groups'),
+    path('execute_group/', views.execute_group, name='execute_group'),
     path('stop_plugin_async/', views.stop_plugin_async, name='stop_plugin_async'),
 
     # Add new endpoints for driver management

@@ -1048,10 +1048,17 @@ def create_group(request):
     {
         "group_name": "name_of_group",
         "group_description": "optional description",
-        "selected_plugins": ["plugin1", "plugin2", ...],
+        "selected_plugins": [
+            {"name": "plugin1", "sequence": 10, "ignore_fail": false},
+            {"name": "plugin2", "sequence": 20, "ignore_fail": true}
+        ],
         "nest_group": true/false,
         "parent_group_name": "optional_parent_name",  # Required if nest_group is true
-        "force_exec": true/false  # Required if nest_group is true
+        "parent_options": {                          # Optional settings for parent relation
+            "sequence": 100,
+            "ignore_fail": false,
+            "force_exec": true
+        }
     }
     """
     if request.method != 'POST':
@@ -1086,11 +1093,26 @@ def create_group(request):
             # Update existing group
             group.description = group_description
             group.save()
-            # Clear existing plugins to avoid duplicates
-            group.plugins.clear()
+            # Clear existing plugin sequences to avoid duplicates
+            from sat_toolkit.models.PluginSequence_Model import PluginSequence
+            PluginSequence.objects.filter(plugingroup=group).delete()
         
-        # Add selected plugins to the group
-        for plugin_name in selected_plugins:
+        # Add selected plugins to the group with sequence information
+        added_plugins = []
+        for plugin_item in selected_plugins:
+            # Handle both simple string format and detailed object format
+            if isinstance(plugin_item, str):
+                plugin_name = plugin_item
+                sequence = 100  # Default sequence
+                ignore_fail = False  # Default ignore_fail
+            else:
+                plugin_name = plugin_item.get('name')
+                sequence = plugin_item.get('sequence', 100)
+                ignore_fail = plugin_item.get('ignore_fail', False)
+            
+            if not plugin_name:
+                continue
+                
             plugin, _ = Plugin.objects.get_or_create(
                 name=plugin_name,
                 defaults={
@@ -1099,12 +1121,26 @@ def create_group(request):
                     'module_path': f'plugins.exploits.{plugin_name}'
                 }
             )
-            group.plugins.add(plugin)
+            
+            # Create the sequence entry
+            from sat_toolkit.models.PluginSequence_Model import PluginSequence
+            plugin_seq = PluginSequence.objects.create(
+                plugingroup=group,
+                plugin=plugin,
+                sequence=sequence,
+                ignore_fail=ignore_fail
+            )
+            
+            added_plugins.append({
+                'name': plugin_name,
+                'sequence': sequence,
+                'ignore_fail': ignore_fail
+            })
         
         # Handle nesting under another group if requested
         if nest_group:
             parent_group_name = data.get('parent_group_name')
-            force_exec = data.get('force_exec', True)
+            parent_options = data.get('parent_options', {})
             
             if not parent_group_name:
                 return JsonResponse({
@@ -1114,10 +1150,21 @@ def create_group(request):
             
             try:
                 parent_group = PluginGroup.objects.get(name=parent_group_name)
-                PluginGroupTree.objects.get_or_create(
+                
+                # Get options for the parent-child relationship
+                force_exec = parent_options.get('force_exec', True)
+                sequence = parent_options.get('sequence', 100)
+                ignore_fail = parent_options.get('ignore_fail', False)
+                
+                # Create or update the tree relationship
+                tree, _ = PluginGroupTree.objects.update_or_create(
                     parent=parent_group,
                     child=group,
-                    defaults={'force_exec': force_exec}
+                    defaults={
+                        'force_exec': force_exec,
+                        'sequence': sequence,
+                        'ignore_fail': ignore_fail
+                    }
                 )
             except PluginGroup.DoesNotExist:
                 return JsonResponse({
@@ -1126,7 +1173,7 @@ def create_group(request):
                     "group": {
                         "name": group.name,
                         "description": group.description,
-                        "plugins": list(group.plugins.values_list('name', flat=True))
+                        "plugins": added_plugins
                     }
                 })
         
@@ -1138,14 +1185,19 @@ def create_group(request):
                 "name": group.name,
                 "description": group.description,
                 "enabled": group.enabled,
-                "plugins": list(group.plugins.values_list('name', flat=True)),
+                "plugins": added_plugins,
                 "plugins_count": group.plugins_count()
             }
         }
         
         if nest_group:
+            parent_options = data.get('parent_options', {})
             response_data["group"]["parent_group"] = parent_group_name
-            response_data["group"]["force_exec"] = force_exec
+            response_data["group"]["parent_options"] = {
+                "force_exec": parent_options.get('force_exec', True),
+                "sequence": parent_options.get('sequence', 100),
+                "ignore_fail": parent_options.get('ignore_fail', False)
+            }
             
         return JsonResponse(response_data)
         
