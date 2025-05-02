@@ -16,6 +16,11 @@ from .view_handlers.file_views import (
     download_file,
     delete_file
 )
+from .view_handlers.console_logs_views import (
+    get_console_logs,
+    clear_console_logs,
+    control_console_reader
+)
 
 def get_url_patterns():
     """Helper function to get all URL patterns with their names"""
@@ -44,6 +49,11 @@ urlpatterns = [
 
     # Logging configuration
     path('set_log_level/', views.set_log_level, name='set_log_level'),
+    
+    # Console logs endpoints
+    path('console_logs/', get_console_logs, name='get_console_logs'),
+    path('console_logs/clear/', clear_console_logs, name='clear_console_logs'),
+    path('console_logs/control/', control_console_reader, name='control_console_reader'),
 
     # Device-related endpoints (from device_views.py)
     path('device_info/', device_info, name='device_info'),

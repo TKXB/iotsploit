@@ -9,8 +9,15 @@ from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamTyp
 from sat_toolkit.core.device_manager import DeviceDriverManager
 import time
 from sat_toolkit.core.device_spec import DeviceState
+from collections import deque
+import threading
 
 logger = logging.getLogger(__name__)
+
+# Configure the log buffer for console logs
+MAX_LOG_ENTRIES = 1000
+console_log_buffer = deque(maxlen=MAX_LOG_ENTRIES)
+log_buffer_lock = threading.Lock()
 
 class SystemUsageConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -336,3 +343,53 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 metadata={'error': str(e)}
             )
             await self.send(text_data=json.dumps(error_data.to_dict()))
+
+class ConsoleLogsConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for streaming console log output"""
+    
+    async def connect(self):
+        """Connect to the WebSocket and join the logs group"""
+        await self.accept()
+        
+        # Join the logs group
+        self.group_name = "console_logs"
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+        
+        # Send any existing logs from the buffer
+        try:
+            with log_buffer_lock:
+                existing_logs = list(console_log_buffer)
+            
+            if existing_logs:
+                for log in existing_logs[-50:]:  # Send the most recent 50 logs
+                    await self.send(text_data=log)
+            
+            # Send a connection confirmation message
+            await self.send(text_data=json.dumps({
+                'type': 'connection_established',
+                'message': 'Connected to console log stream'
+            }))
+            
+        except Exception as e:
+            logger.error(f"Error sending existing logs: {e}")
+    
+    async def disconnect(self, close_code):
+        """Disconnect from the WebSocket and leave the logs group"""
+        # Leave the logs group
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+    
+    async def console_log(self, event):
+        """Send a console log message to the WebSocket"""
+        try:
+            # Extract the message from the event
+            message = event['message']
+            # Send the message to the WebSocket
+            await self.send(text_data=message)
+        except Exception as e:
+            logger.error(f"Error sending console log: {e}")
