@@ -2,6 +2,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 import os
+import tempfile
+from pathlib import Path
 from sat_toolkit.tools.bash_script_engine import Bash_Script_Mgr
 from sat_toolkit.tools.sat_utils import *
 import xml.etree.ElementTree as ET
@@ -36,18 +38,18 @@ class _DUPFloodThread(threading.Thread):
 
 class NetAudit_Mgr:
     #TODO  flood攻击的脚本 改为多进程同时攻击，使用pkill或者killall直接一次性杀掉
-    __nmap_output_file_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/nmap_output/nmap_audit_result.xml"
+    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __nmap_output_file_path = str(__temp_dir / "nmap_output/nmap_audit_result.xml")
 
     @staticmethod
     def Instance():
         return _instance
         
     def __init__(self):
+        # Ensure temp directory exists
         os.makedirs(os.path.dirname(NetAudit_Mgr.__nmap_output_file_path), exist_ok=True)
 
         self.__pid_dict = {}
-
-        pass
 
     def ip_detect(self, host_list):
         """

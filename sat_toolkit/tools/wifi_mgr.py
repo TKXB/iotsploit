@@ -7,6 +7,8 @@ import pywifi
 
 import os
 import subprocess
+import tempfile
+from pathlib import Path
 
 from sat_toolkit.tools.input_mgr import Input_Mgr
 from sat_toolkit.tools.env_mgr import Env_Mgr
@@ -41,9 +43,10 @@ wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 '''
     
-    __ap_hostapd_config_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/hostapd.config"
-    __dhclient_pid_path =      "/dev/shm/__Zeekr_SAT_TMP_FILES/dhclient.wlan0.pid"
-    __dns_backup_file_path =   "/dev/shm/__Zeekr_SAT_TMP_FILES/dns_resolv_conf_bak"
+    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __ap_hostapd_config_path = str(__temp_dir / "hostapd.config")
+    __dhclient_pid_path = str(__temp_dir / "dhclient.wlan0.pid")
+    __dns_backup_file_path = str(__temp_dir / "dns_resolv_conf_bak")
 
     @staticmethod
     def Instance():
@@ -77,7 +80,8 @@ rsn_pairwise=CCMP
     def __init__(self):
         self.__wifi_mode = "IDLE"
         self.__wifi_proxy_inited = False
-        pass
+        # Ensure temp directory exists
+        os.makedirs(WiFi_Mgr.__temp_dir, exist_ok=True)
 
     def __init_wifi_proxy(self):
         if self.__wifi_proxy_inited == True:
@@ -87,13 +91,13 @@ rsn_pairwise=CCMP
         logger.info("WiFi STA Proxy Init Start.")
         self.__sta_conn_wifi_ssid = ""
         self.__sta_conn_wifi_passwd = ""
-        os.makedirs(os.path.dirname(WiFi_Mgr.__dhclient_pid_path), exist_ok=True)
+        # Directory is already created in __init__
         # self.__exec_shell("sudo cp -rf /etc/resolv.conf {0}; cat {0}".format(WiFi_Mgr.__dns_backup_file_path))
 
         logger.info("WiFi STA Proxy Init Finish.")
         
         logger.info("WiFi AP Proxy Init Start.")
-        os.makedirs(os.path.dirname(WiFi_Mgr.__ap_hostapd_config_path), exist_ok=True)
+        # Directory is already created in __init__
         self.__ap_ssid = "" 
         self.__ap_passwd = ""
         self.__ap_wpa_mode = 2

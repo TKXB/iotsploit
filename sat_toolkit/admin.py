@@ -14,7 +14,7 @@ from django.contrib import admin
 
 
 
-# admin.site.site_title = "Zeekr SAT Admin"
+# admin.site.site_title = "SAT Admin"
 
 # admin.site.register(models.WifiInfo, models.WifiInfo_Admin)
 

@@ -1,11 +1,16 @@
 import logging
 logger = logging.getLogger(__name__)
 
+import os
+from pathlib import Path
+
 from sat_toolkit.tools.bash_script_engine import Bash_Script_Mgr
 
 class OTA_Mgr:
     __system_version = "v20231101"
     __testsuite_version = "0000001"
+    # Default UI directory name, can be changed via set_ui_dir
+    __ui_dir = "sat_ui"
 
     @staticmethod
     def Instance():
@@ -13,12 +18,17 @@ class OTA_Mgr:
         
     def __init__(self):
         pass
+    
+    def set_ui_dir(self, ui_dir):
+        """Set the UI directory path"""
+        self.__ui_dir = ui_dir
+        logger.info(f"UI directory set to: {self.__ui_dir}")
 
     def __ui_version(self):
         logger.info("Curr UI Version:")
         result_code, version = Bash_Script_Mgr.Instance().exec_cmd(
-"""
-cd zeekr_sat_ui; git log -1 --pretty="%cd_%h" --date=short
+f"""
+cd {self.__ui_dir}; git log -1 --pretty="%cd_%h" --date=short
 """)
         logger.info("UI Version Query Result: {} {}".format(result_code, version))
         if result_code < 0:

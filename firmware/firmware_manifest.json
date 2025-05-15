@@ -1,6 +1,6 @@
 {
   "esp32_blink": {
-    "path": "/home/tkxb/HDD/Projects/esp32-wifi-penetration-tool/build/esp32-wifi-penetration-tool.bin",
+    "path": "firmware/esp32/esp32-wifi-penetration-tool.bin",
     "device_type": "esp32",
     "version": "1.0.0"
   },
@@ -34,7 +34,7 @@
     }
   },
   "esp32_bootloader": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/bootloader.bin",
+    "path": "plugins/devices/esp32/firmware/bootloader.bin",
     "device_type": "esp32",
     "version": "1.0.0",
     "flash_options": {
@@ -45,7 +45,7 @@
     }
   },
   "esp32_partition_table": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/partition-table.bin",
+    "path": "plugins/devices/esp32/firmware/partition-table.bin",
     "device_type": "esp32",
     "version": "1.0.0",
     "flash_options": {
@@ -56,7 +56,7 @@
     }
   },
   "esp32_app": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/esp32-wifi-penetration-tool.bin",
+    "path": "plugins/devices/esp32/firmware/esp32-wifi-penetration-tool.bin",
     "device_type": "esp32",
     "version": "1.0.0",
     "flash_options": {
@@ -67,7 +67,7 @@
     }
   },
   "esp32s3-wifi-penetration-tool": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/esp32-wifi-penetration-tool.bin",
+    "path": "plugins/devices/esp32/firmware/esp32-wifi-penetration-tool.bin",
     "device_type": "esp32s3",
     "version": "1.0.0",
     "flash_options": {
@@ -81,7 +81,7 @@
     }
   },
   "esp32s3-bootloader": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/bootloader.bin",
+    "path": "plugins/devices/esp32/firmware/bootloader.bin",
     "device_type": "esp32s3",
     "version": "1.0.0",
     "flash_options": {
@@ -95,7 +95,7 @@
     }
   },
   "esp32s3-partition-table": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/esp32/firmware/partition-table.bin",
+    "path": "plugins/devices/esp32/firmware/partition-table.bin",
     "device_type": "esp32s3",
     "version": "1.0.0",
     "flash_options": {
@@ -109,7 +109,7 @@
     }
   },
   "greatfet_usb_origin_sram": {
-    "path": "/home/tkxb/HDD/Projects/zeekr_sat_main-master/plugins/devices/greatfet/firmware/greatfet_usb_origin.bin",
+    "path": "plugins/devices/greatfet/firmware/greatfet_usb_origin.bin",
     "device_type": "greatfet",
     "version": "1.0.0",
     "flash_options": {

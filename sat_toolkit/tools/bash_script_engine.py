@@ -6,6 +6,8 @@ import os
 import importlib.util
 import sys
 import subprocess
+import tempfile
+from pathlib import Path
 
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.env_mgr import Env_Mgr
@@ -13,14 +15,16 @@ from sat_toolkit.tools.env_mgr import Env_Mgr
 
 class Bash_Script_Mgr:
     __script_dir = "scripts/bash"
-    __temp_script_file_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/tmp_bash_script.sh"
+    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __temp_script_file_path = str(__temp_dir / "tmp_bash_script.sh")
 
     @staticmethod
     def Instance():
         return _instance
     
     def __init__(self):
-        pass
+        # Ensure temp directory exists
+        os.makedirs(self.__temp_dir, exist_ok=True)
         
     def __check_result(self, test_step, exec_result):
         if test_step.pass_check() == 0: #record

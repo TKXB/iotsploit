@@ -4,6 +4,8 @@ logger = logging.getLogger(__name__)
 import os
 import importlib.util
 import sys
+import tempfile
+from pathlib import Path
 
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.env_mgr import Env_Mgr
@@ -11,14 +13,16 @@ from sat_toolkit.tools.sat_utils import *
 
 class Python_SubModule_Mgr:
     __script_dir = "scripts/python"
-    __temp_submodule_file_path = "/dev/shm/__Zeekr_SAT_TMP_FILES/tmp_python_submodule.py"
+    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __temp_submodule_file_path = str(__temp_dir / "tmp_python_submodule.py")
 
     @staticmethod
     def Instance():
         return _instance
     
     def __init__(self):
-        pass
+        # Ensure temp directory exists
+        os.makedirs(self.__temp_dir, exist_ok=True)
         
     def __check_result(self, test_step, exec_result):
         if test_step.pass_check() == 0: #record
