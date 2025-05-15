@@ -1,2 +1,0 @@
-psutil
-pyOpenSSL>=0.13
