@@ -46,8 +46,6 @@ class Report_Mgr:
         self.__root_log_console_handler = logging.StreamHandler()
         self.__root_log_console_handler.setFormatter(Report_Mgr.__console_log_formatter)
         logging.getLogger().addHandler(self.__root_log_console_handler)
-        logging.getLogger().setLevel("DEBUG")
-
 
         self.__report_toc_file = None
         self.__report_detail_file = None
