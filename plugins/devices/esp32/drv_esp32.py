@@ -1,16 +1,12 @@
 import logging
 from typing import Optional, Dict, List
-from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, SerialDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.scpi_client.transport import ScpiSerialTransport
 from sat_toolkit.scpi_client.client import ScpiClient
-from sat_toolkit.tools.firmware_mgr import FirmwareManager
+from sat_toolkit.core.tool_service import get_firmware_service
 import time
-import glob
 import serial.tools.list_ports
-import subprocess
-import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -20,8 +16,8 @@ class ESP32Driver(BaseDeviceDriver):
         super().__init__()
         self.transport = None
         self.client = None
-        # Initialize firmware manager
-        self.firmware_mgr = FirmwareManager.Instance()
+        # Initialize firmware tool service
+        self.firmware_service = get_firmware_service()
         # Define supported commands
         self.supported_commands = {
             "scan_wifi": "Scan for available WiFi networks",
@@ -30,7 +26,9 @@ class ESP32Driver(BaseDeviceDriver):
             "reset": "Reset the ESP32 device",
             "start_wifi_monitor": "Start continuous WiFi monitoring",
             "stop_wifi_monitor": "Stop continuous WiFi monitoring",
-            "flash_firmware": "Flash firmware to ESP32-S3 device"
+            "flash_firmware": "Flash firmware to ESP32-S3 device",
+            "erase_flash": "Erase ESP32-S3 flash memory",
+            "get_chip_info": "Get ESP32-S3 chip information"
         }
 
     def get_auth_mode_str(self, auth_mode):
@@ -205,111 +203,196 @@ class ESP32Driver(BaseDeviceDriver):
         
     def _handle_flash_firmware(self, device: SerialDevice, args: Optional[Dict] = None) -> Dict:
         """
-        Flash firmware to ESP32-S3 device using FirmwareManager with custom esptool path
+        Flash firmware to ESP32-S3 device using ESP32Programmer
         """
         try:
-            # Get the firmware directory path
-            current_dir = Path(__file__).parent
-            firmware_dir = current_dir / "firmware"
-            
-            # Check if firmware files exist
-            bootloader_path = firmware_dir / "bootloader.bin"
-            app_path = firmware_dir / "esp32-wifi-penetration-tool.bin"
-            partition_path = firmware_dir / "partition-table.bin"
-            
-            if not bootloader_path.exists() or not app_path.exists() or not partition_path.exists():
-                error_msg = "Firmware files not found in firmware directory"
+            # Check if esptool is available
+            if not self.firmware_service.esp32.is_tool_available('esptool'):
+                error_msg = "esptool is not available. Please install it: pip install esptool"
                 logger.error(error_msg)
                 return {"status": "error", "message": error_msg}
             
-            # Custom esptool.py path
-            esptool_path = "/home/tkxb/.espressif/python_env/idf5.4_py3.10_env/bin/esptool.py"
+            # Get firmware name from args or use default
+            firmware_name = args.get('firmware_name', 'esp32s3_wifi_penetration_tool') if args else 'esp32s3_wifi_penetration_tool'
             
-            if not os.path.exists(esptool_path):
-                error_msg = f"Esptool not found at {esptool_path}"
+            # Try to get firmware from the centralized manifest
+            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
+            
+            if not firmware_info:
+                error_msg = f"Firmware '{firmware_name}' not found in manifest"
                 logger.error(error_msg)
                 return {"status": "error", "message": error_msg}
             
-            # Common flash options for all components
-            common_flash_options = {
-                "port": "/dev/ttyACM2",
-                "baud": "460800",
-                "flash_mode": "dio",
-                "flash_freq": "80m",
-                "flash_size": "2MB",
-                "chip": "esp32s3",
-                "tool_path": esptool_path
-            }
+            # Get flash options from firmware config
+            flash_options = firmware_info.get('flash_options', {})
             
-            # Register firmware files with the firmware manager if not already registered
-            firmware_name = "esp32s3-wifi-penetration-tool"
-            bootloader_name = "esp32s3-bootloader"
-            partition_name = "esp32s3-partition-table"
+            # Get port, chip, and baud from args or flash options or defaults
+            port = args.get('port') if args else None
+            port = port or flash_options.get('port', '/dev/ttyACM2')
             
-            # Register main application firmware
-            if not self.firmware_mgr.get_firmware_info(firmware_name):
-                logger.info(f"Registering main firmware: {firmware_name}")
-                app_options = common_flash_options.copy()
-                app_options["address"] = "0x10000"
-                self.firmware_mgr.add_firmware(
-                    name=firmware_name,
-                    path=str(app_path),
-                    device_type="esp32s3",
-                    version="1.0.0",
-                    flash_options=app_options
+            chip = args.get('chip') if args else None
+            chip = chip or flash_options.get('chip', 'esp32s3')
+            
+            baud = args.get('baud') if args else None
+            baud = baud or flash_options.get('baud', '460800')
+            
+            # Check if this firmware has a files array for multi-file flashing
+            if 'files' in flash_options:
+                # Use the files from the firmware configuration
+                files = flash_options['files']
+                logger.info(f"Using multi-file configuration from manifest: {len(files)} files")
+                
+                # Verify all files exist
+                for file_entry in files:
+                    file_path = file_entry['path']
+                    if not Path(file_path).exists():
+                        error_msg = f"Firmware file not found: {file_path}"
+                        logger.error(error_msg)
+                        return {"status": "error", "message": error_msg}
+                
+                logger.info(f"Flashing ESP32-S3 firmware '{firmware_name}' to {port}...")
+                logger.info(f"Files to flash: {len(files)} files")
+                
+                # Flash all files in one operation using the ESP32 programmer
+                result = self.firmware_service.esp32.flash_multi(
+                    port=port,
+                    files=files,
+                    chip=chip,
+                    baud=baud,
+                    flash_mode=flash_options.get('flash_mode', 'dio'),
+                    flash_freq=flash_options.get('flash_freq', '80m'),
+                    flash_size=flash_options.get('flash_size', '2MB')
+                )
+            else:
+                # Single file flashing
+                firmware_path = firmware_info['path']
+                if not Path(firmware_path).exists():
+                    error_msg = f"Firmware file not found: {firmware_path}"
+                    logger.error(error_msg)
+                    return {"status": "error", "message": error_msg}
+                
+                logger.info(f"Flashing ESP32-S3 single firmware '{firmware_name}' to {port}...")
+                
+                result = self.firmware_service.esp32.flash_single(
+                    port=port,
+                    firmware_path=firmware_path,
+                    address=flash_options.get('address', '0x10000'),
+                    chip=chip,
+                    baud=baud
                 )
             
-            # Register bootloader firmware
-            if not self.firmware_mgr.get_firmware_info(bootloader_name):
-                logger.info(f"Registering bootloader: {bootloader_name}")
-                bootloader_options = common_flash_options.copy()
-                bootloader_options["address"] = "0x0"
-                self.firmware_mgr.add_firmware(
-                    name=bootloader_name,
-                    path=str(bootloader_path),
-                    device_type="esp32s3",
-                    version="1.0.0",
-                    flash_options=bootloader_options
-                )
-            
-            # Register partition table firmware
-            if not self.firmware_mgr.get_firmware_info(partition_name):
-                logger.info(f"Registering partition table: {partition_name}")
-                partition_options = common_flash_options.copy()
-                partition_options["address"] = "0x8000"
-                self.firmware_mgr.add_firmware(
-                    name=partition_name,
-                    path=str(partition_path),
-                    device_type="esp32s3",
-                    version="1.0.0",
-                    flash_options=partition_options
-                )
-            
-            # Flash bootloader
-            logger.info("Flashing bootloader...")
-            flash_options = {"tool_path": esptool_path}
-            bootloader_result = self.firmware_mgr.flash_firmware(bootloader_name, flash_options)
-            if not bootloader_result:
-                return {"status": "error", "message": "Failed to flash bootloader"}
-            
-            # Flash partition table
-            logger.info("Flashing partition table...")
-            partition_result = self.firmware_mgr.flash_firmware(partition_name, flash_options)
-            if not partition_result:
-                return {"status": "error", "message": "Failed to flash partition table"}
-            
-            # Flash main application
-            logger.info("Flashing main application...")
-            app_result = self.firmware_mgr.flash_firmware(firmware_name, flash_options)
-            if not app_result:
-                return {"status": "error", "message": "Failed to flash main application"}
-            
-            success_msg = "ESP32-S3 firmware flashed successfully"
-            logger.info(success_msg)
-            return {"status": "success", "message": success_msg}
+            if result.success:
+                success_msg = f"ESP32-S3 firmware '{firmware_name}' flashed successfully in {result.execution_time:.2f}s"
+                logger.info(success_msg)
+                return {
+                    "status": "success", 
+                    "message": success_msg,
+                    "execution_time": result.execution_time,
+                    "firmware_name": firmware_name
+                }
+            else:
+                error_msg = f"Failed to flash firmware '{firmware_name}': {result.stderr or 'Unknown error'}"
+                logger.error(error_msg)
+                return {
+                    "status": "error", 
+                    "message": error_msg,
+                    "return_code": result.return_code,
+                    "stderr": result.stderr
+                }
                 
         except Exception as e:
             error_msg = f"Error flashing ESP32-S3 firmware: {str(e)}"
+            logger.error(error_msg)
+            return {"status": "error", "message": error_msg}
+    
+    def _handle_erase_flash(self, device: SerialDevice, args: Optional[Dict] = None) -> Dict:
+        """
+        Erase ESP32-S3 flash memory using ESP32Programmer
+        """
+        try:
+            if not self.firmware_service.esp32.is_tool_available('esptool'):
+                error_msg = "esptool is not available. Please install it: pip install esptool"
+                logger.error(error_msg)
+                return {"status": "error", "message": error_msg}
+            
+            # Get port from args or use default
+            port = args.get('port', '/dev/ttyACM2') if args else '/dev/ttyACM2'
+            chip = args.get('chip', 'esp32s3') if args else 'esp32s3'
+            baud = args.get('baud', '460800') if args else '460800'
+            
+            logger.info(f"Erasing ESP32-S3 flash on {port}...")
+            
+            result = self.firmware_service.esp32.erase_flash(
+                port=port,
+                chip=chip,
+                baud=baud
+            )
+            
+            if result.success:
+                success_msg = f"ESP32-S3 flash erased successfully in {result.execution_time:.2f}s"
+                logger.info(success_msg)
+                return {
+                    "status": "success", 
+                    "message": success_msg,
+                    "execution_time": result.execution_time
+                }
+            else:
+                error_msg = f"Failed to erase flash: {result.stderr or 'Unknown error'}"
+                logger.error(error_msg)
+                return {
+                    "status": "error", 
+                    "message": error_msg,
+                    "return_code": result.return_code,
+                    "stderr": result.stderr
+                }
+                
+        except Exception as e:
+            error_msg = f"Error erasing ESP32-S3 flash: {str(e)}"
+            logger.error(error_msg)
+            return {"status": "error", "message": error_msg}
+    
+    def _handle_get_chip_info(self, device: SerialDevice, args: Optional[Dict] = None) -> Dict:
+        """
+        Get ESP32-S3 chip information using ESP32Programmer
+        """
+        try:
+            if not self.firmware_service.esp32.is_tool_available('esptool'):
+                error_msg = "esptool is not available. Please install it: pip install esptool"
+                logger.error(error_msg)
+                return {"status": "error", "message": error_msg}
+            
+            # Get port from args or use default
+            port = args.get('port', '/dev/ttyACM2') if args else '/dev/ttyACM2'
+            baud = args.get('baud', '460800') if args else '460800'
+            
+            logger.info(f"Getting ESP32-S3 chip info from {port}...")
+            
+            result = self.firmware_service.esp32.get_chip_info(
+                port=port,
+                baud=baud
+            )
+            
+            if result.success:
+                success_msg = f"ESP32-S3 chip info retrieved successfully"
+                logger.info(success_msg)
+                return {
+                    "status": "success", 
+                    "message": success_msg,
+                    "chip_info": result.stdout,
+                    "execution_time": result.execution_time
+                }
+            else:
+                error_msg = f"Failed to get chip info: {result.stderr or 'Unknown error'}"
+                logger.error(error_msg)
+                return {
+                    "status": "error", 
+                    "message": error_msg,
+                    "return_code": result.return_code,
+                    "stderr": result.stderr
+                }
+                
+        except Exception as e:
+            error_msg = f"Error getting ESP32-S3 chip info: {str(e)}"
             logger.error(error_msg)
             return {"status": "error", "message": error_msg}
 
@@ -329,7 +412,9 @@ class ESP32Driver(BaseDeviceDriver):
             "get_version": self._handle_get_version,
             "get_status": self._handle_get_status,
             "reset": self._handle_reset,
-            "flash_firmware": self._handle_flash_firmware
+            "flash_firmware": self._handle_flash_firmware,
+            "erase_flash": self._handle_erase_flash,
+            "get_chip_info": self._handle_get_chip_info
         }
 
         try:

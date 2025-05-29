@@ -1,0 +1,89 @@
+{
+  "tools": {
+    "esptool": {
+      "name": "esptool",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "openocd": {
+      "name": "openocd",
+      "path": "/home/tkxb/ssd/Tools/openocd/src/openocd",
+      "version": "0.12.0",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1748523616.2502284,
+      "metadata": {}
+    },
+    "dfu-util": {
+      "name": "dfu-util",
+      "path": "/usr/bin/dfu-util",
+      "version": "0.9",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1748523616.2548645,
+      "metadata": {}
+    },
+    "openFPGALoader": {
+      "name": "openFPGALoader",
+      "path": "/usr/bin/openFPGALoader",
+      "version": "0.13.1",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1748523616.2748575,
+      "metadata": {}
+    },
+    "greatfet_firmware": {
+      "name": "greatfet_firmware",
+      "path": "/home/tkxb/.cache/pypoetry/virtualenvs/sat-toolkit-_orGuYYj-py3.9/bin/greatfet_firmware",
+      "version": null,
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1748523616.7243946,
+      "metadata": {}
+    }
+  }
+}

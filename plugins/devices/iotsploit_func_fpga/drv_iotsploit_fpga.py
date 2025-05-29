@@ -8,7 +8,7 @@ from pathlib import Path
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceType, SerialDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.tools.firmware_mgr import FirmwareManager
+from sat_toolkit.core.tool_service import get_firmware_service
 
 logger = logging.getLogger(__name__)
 
@@ -23,42 +23,11 @@ class ECP5FPGADriver(BaseDeviceDriver):
             "get_device_info": "Get FPGA device information"
         }
         
-        # Initialize firmware manager
-        self.firmware_mgr = FirmwareManager.Instance()
+        # Initialize firmware service
+        self.firmware_service = get_firmware_service()
         
         # Store device information
         self.device_info = {}
-        
-        # Register default bitstream
-        self._register_default_bitstream()
-
-    def _register_default_bitstream(self):
-        """Register the default iotsploit_func.bit bitstream with the firmware manager"""
-        try:
-            # Get the path to the gateware directory
-            current_dir = Path(__file__).parent
-            gateware_dir = current_dir / "gateware"
-            bitstream_path = gateware_dir / "iotsploit_func.bit"
-            
-            if bitstream_path.exists():
-                logger.info(f"Found default bitstream at {bitstream_path}")
-                
-                # Register with firmware manager
-                self.firmware_mgr.add_firmware(
-                    name="iotsploit_func",
-                    path=str(bitstream_path),
-                    device_type="fpga",
-                    version="1.0.0",
-                    flash_options={
-                        "cable": "ft2232_b",  # Using ft2232_b as specified in the command
-                        "target": "flash"     # Default to flash target
-                    }
-                )
-                logger.info("Default bitstream registered with firmware manager")
-            else:
-                logger.warning(f"Default bitstream not found at {bitstream_path}")
-        except Exception as e:
-            logger.error(f"Error registering default bitstream: {str(e)}")
 
     def _scan_impl(self) -> List[Device]:
         """
@@ -104,11 +73,7 @@ class ECP5FPGADriver(BaseDeviceDriver):
             'product_id': device.attributes.get('product_id', '6010')  # Added product ID
         }
         
-        # Check if openFPGALoader is available
-        if not shutil.which('openFPGALoader'):
-            logger.warning("openFPGALoader not found in PATH. Please install it")
-            return False
-            
+        # The firmware service will handle tool availability checking with fallback
         logger.info(f"ECP5 FPGA device {device.device_id} initialized successfully")
         return True
 
@@ -171,24 +136,39 @@ class ECP5FPGADriver(BaseDeviceDriver):
         target = options.get('target', 'flash').lower()  # Default to flash
         
         try:
+            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
+            if not firmware_info:
+                return {"status": "error", "message": f"Firmware {firmware_name} not found"}
+            
             if target == 'sram':
                 # Load to SRAM (temporary)
-                result = self.firmware_mgr.load_fpga_bitstream(firmware_name, flash_options)
+                result = self.firmware_service.fpga.load_sram(
+                    bitstream_path=firmware_info['path'],
+                    cable=flash_options.get('cable'),
+                    board=flash_options.get('board')
+                )
                 action = "loaded to SRAM"
             else:
                 # Flash to configuration memory (permanent)
-                result = self.firmware_mgr.flash_fpga_bitstream(firmware_name, flash_options)
+                result = self.firmware_service.fpga.flash_bitstream(
+                    bitstream_path=firmware_info['path'],
+                    cable=flash_options.get('cable'),
+                    board=flash_options.get('board'),
+                    external_flash=flash_options.get('external_flash', False)
+                )
                 action = "flashed to configuration memory"
                 
-            if result:
+            if result.success:
                 return {
                     "status": "success", 
-                    "message": f"Firmware {firmware_name} successfully {action}"
+                    "message": f"Firmware {firmware_name} successfully {action}",
+                    "execution_time": result.execution_time
                 }
             else:
                 return {
                     "status": "error", 
-                    "message": f"Failed to {action.split()[0]} firmware {firmware_name}"
+                    "message": f"Failed to {action.split()[0]} firmware {firmware_name}: {result.stderr or 'Unknown error'}",
+                    "return_code": result.return_code
                 }
         except Exception as e:
             logger.error(f"Error flashing firmware: {str(e)}")
@@ -205,21 +185,31 @@ class ECP5FPGADriver(BaseDeviceDriver):
         # Merge device attributes with provided options
         load_options = {
             'cable': device_attrs.get('cable', 'ft2232_b'),  # Updated default
-            'target': 'sram'  # Ensure target is set to SRAM
         }
         load_options.update(options)
         
         try:
-            result = self.firmware_mgr.load_fpga_bitstream(firmware_name, load_options)
-            if result:
+            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
+            if not firmware_info:
+                return {"status": "error", "message": f"Firmware {firmware_name} not found"}
+            
+            result = self.firmware_service.fpga.load_sram(
+                bitstream_path=firmware_info['path'],
+                cable=load_options.get('cable'),
+                board=load_options.get('board')
+            )
+            
+            if result.success:
                 return {
                     "status": "success", 
-                    "message": f"Bitstream {firmware_name} successfully loaded to SRAM"
+                    "message": f"Bitstream {firmware_name} successfully loaded to SRAM",
+                    "execution_time": result.execution_time
                 }
             else:
                 return {
                     "status": "error", 
-                    "message": f"Failed to load bitstream {firmware_name} to SRAM"
+                    "message": f"Failed to load bitstream {firmware_name} to SRAM: {result.stderr or 'Unknown error'}",
+                    "return_code": result.return_code
                 }
         except Exception as e:
             logger.error(f"Error loading bitstream: {str(e)}")
@@ -236,22 +226,32 @@ class ECP5FPGADriver(BaseDeviceDriver):
         # Merge device attributes with provided options
         flash_options = {
             'cable': device_attrs.get('cable', 'ft2232_b'),  # Updated default
-            'target': 'flash',  # Ensure target is set to flash
-            'verify': args.get('verify', True)  # Default to verify
         }
         flash_options.update(options)
         
         try:
-            result = self.firmware_mgr.flash_fpga_bitstream(firmware_name, flash_options)
-            if result:
+            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
+            if not firmware_info:
+                return {"status": "error", "message": f"Firmware {firmware_name} not found"}
+            
+            result = self.firmware_service.fpga.flash_bitstream(
+                bitstream_path=firmware_info['path'],
+                cable=flash_options.get('cable'),
+                board=flash_options.get('board'),
+                external_flash=flash_options.get('external_flash', False)
+            )
+            
+            if result.success:
                 return {
                     "status": "success", 
-                    "message": f"Bitstream {firmware_name} successfully flashed to configuration memory"
+                    "message": f"Bitstream {firmware_name} successfully flashed to configuration memory",
+                    "execution_time": result.execution_time
                 }
             else:
                 return {
                     "status": "error", 
-                    "message": f"Failed to flash bitstream {firmware_name} to configuration memory"
+                    "message": f"Failed to flash bitstream {firmware_name} to configuration memory: {result.stderr or 'Unknown error'}",
+                    "return_code": result.return_code
                 }
         except Exception as e:
             logger.error(f"Error flashing bitstream: {str(e)}")

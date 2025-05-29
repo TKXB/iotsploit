@@ -31,7 +31,7 @@ from sat_toolkit.models.PluginGroup_Model import PluginGroup
 from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.models.Device_Model import Device
-from sat_toolkit.tools.firmware_mgr import FirmwareManager
+from sat_toolkit.core.tool_service import get_firmware_service
 from sat_toolkit.core.device_registry import DeviceRegistry
 from sat_toolkit.tools.xlogger import xlog as logger
 from pwnlib import term
@@ -1340,7 +1340,7 @@ class SAT_Shell(cmd2.Cmd):
     def do_list_firmware(self, arg):
         'List all available firmware'
         try:
-            firmware_list = FirmwareManager.Instance().list_firmware()
+            firmware_list = get_firmware_service().list_firmware()
             
             if not firmware_list:
                 logger.info(ansi.style("No firmware available.", fg=ansi.Fg.YELLOW))
@@ -1366,7 +1366,7 @@ class SAT_Shell(cmd2.Cmd):
             device_type = Input_Mgr.Instance().string_input("Enter device type")
             version = Input_Mgr.Instance().string_input("Enter firmware version")
 
-            success = FirmwareManager.Instance().add_firmware(
+            success = get_firmware_service().add_firmware(
                 name=name,
                 path=path,
                 device_type=device_type,
@@ -1386,7 +1386,7 @@ class SAT_Shell(cmd2.Cmd):
         'Flash firmware to a device'
         try:
             # Get available firmware
-            firmware_list = FirmwareManager.Instance().list_firmware()
+            firmware_list = get_firmware_service().list_firmware()
             if not firmware_list:
                 logger.error(ansi.style("No firmware available to flash", fg=ansi.Fg.RED))
                 return
@@ -1409,9 +1409,13 @@ class SAT_Shell(cmd2.Cmd):
                 f"Are you sure you want to flash {selected_firmware}?",
                 False
             ):
-                success = FirmwareManager.Instance().flash_firmware(
+                options = {}
+                if port:
+                    options['port'] = port
+                
+                success = get_firmware_service().flash_registered_firmware(
                     name=selected_firmware,
-                    port=port
+                    options=options
                 )
 
                 if success:
@@ -1427,7 +1431,7 @@ class SAT_Shell(cmd2.Cmd):
         'Remove firmware from the system'
         try:
             # Get available firmware
-            firmware_list = FirmwareManager.Instance().list_firmware()
+            firmware_list = get_firmware_service().list_firmware()
             if not firmware_list:
                 logger.error(ansi.style("No firmware available to remove", fg=ansi.Fg.RED))
                 return
@@ -1444,7 +1448,7 @@ class SAT_Shell(cmd2.Cmd):
                 f"Are you sure you want to remove {selected_firmware}?",
                 False
             ):
-                success = FirmwareManager.Instance().remove_firmware(selected_firmware)
+                success = get_firmware_service().remove_firmware(selected_firmware)
 
                 if success:
                     logger.info(ansi.style(f"Successfully removed firmware: {selected_firmware}", fg=ansi.Fg.GREEN))
