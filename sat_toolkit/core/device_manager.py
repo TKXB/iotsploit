@@ -578,13 +578,8 @@ class DeviceDriverManager:
         self.device_states.clear()
         self._connection_locks.clear()
         
-        # Reset all drivers
-        for driver_name, driver in self.drivers.items():
-            try:
-                if hasattr(driver, 'reset'):
-                    driver.reset()
-            except Exception as e:
-                logger.warning(f"Failed to reset driver {driver_name}: {e}")
+        # Note: Drivers don't have a global reset method - only individual devices can be reset
+        # The device reset is handled above in the device closing loop
 
         return results
 
