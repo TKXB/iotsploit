@@ -53,11 +53,19 @@ class ToolCategoryManager:
                     tools_data = json.load(f)
                 
                 tools_added = 0
-                for tool_data in tools_data.get('tools', []):
+                # 支持 tools 字段为 dict 或 list
+                tools_section = tools_data.get('tools', [])
+                if isinstance(tools_section, dict):
+                    items = tools_section.items()
+                else:
+                    items = [(td.get('name', 'unknown'), td) for td in tools_section if isinstance(td, dict)]
+                for tool_name, tool_data in items:
                     try:
-                        tool_config = ToolConfig.from_dict(tool_data)
-                        tool_config.category = "tools"  # Set category
-                        
+                        # 构建 tool_data 字典并保证包含 name
+                        data = tool_data.copy() if isinstance(tool_data, dict) else {}
+                        data.setdefault('name', tool_name)
+                        tool_config = ToolConfig.from_dict(data)
+                        tool_config.category = "tools"
                         # Add tool to manager (don't save config for each tool)
                         success = self.tool_manager.add_tool(
                             name=tool_config.name,
@@ -65,17 +73,15 @@ class ToolCategoryManager:
                             min_version=tool_config.min_version,
                             platforms=tool_config.platforms,
                             path=tool_config.path,
-                            save_config=False  # Don't save for each tool
+                            save_config=False
                         )
-                        
                         if success:
                             tools_added += 1
                             self.logger.debug(f"Added tool: {tool_config.name}")
                         else:
                             self.logger.warning(f"Failed to add tool: {tool_config.name}")
-                            
                     except Exception as e:
-                        self.logger.error(f"Error adding tool {tool_data.get('name', 'unknown')}: {e}")
+                        self.logger.error(f"Error adding tool {tool_name}: {e}")
                 
                 # Save config once at the end
                 if tools_added > 0:
