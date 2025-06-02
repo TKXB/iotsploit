@@ -128,7 +128,16 @@ class ToolCategoryManager:
                 with open(tools_file, 'r', encoding='utf-8') as f:
                     tools_data = json.load(f)
                 
-                all_tools = [tool['name'] for tool in tools_data.get('tools', [])]
+                # 处理 tools 字段，支持字典或列表格式
+                tools_section = tools_data.get('tools', [])
+                all_tools = []
+                
+                if isinstance(tools_section, dict):
+                    # tools 字段是字典格式：{"tool_name": {...}, ...}
+                    all_tools = list(tools_section.keys())
+                elif isinstance(tools_section, list):
+                    # tools 字段是列表格式：[{"name": "tool_name", ...}, ...]
+                    all_tools = [tool.get('name', 'unknown') for tool in tools_section if isinstance(tool, dict)]
                 
                 return CategoryInfo(
                     name=tools_data.get('name', 'IoTSploit Tools'),

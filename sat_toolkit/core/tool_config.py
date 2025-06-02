@@ -37,7 +37,17 @@ class ToolConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ToolConfig':
         """Create from dictionary loaded from JSON"""
-        return cls(**data)
+        # Filter out fields that are not part of ToolConfig constructor
+        # These fields are runtime fields that should not be passed to constructor
+        excluded_fields = {
+            'version', 'status', 'last_checked', 'metadata', 'dependencies',
+            'max_version'
+        }
+        
+        # Create a filtered copy of the data
+        filtered_data = {k: v for k, v in data.items() if k not in excluded_fields}
+        
+        return cls(**filtered_data)
 
 class ToolConfigManager:
     """Manages tool configurations from JSON files"""
