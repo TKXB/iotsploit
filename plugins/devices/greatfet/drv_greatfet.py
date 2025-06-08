@@ -234,6 +234,7 @@ class GreatFETDriver(BaseDeviceDriver):
                 try:
                     # Use centralized tool manager for OpenOCD availability check
                     from sat_toolkit.core.centralized_tool_manager import get_centralized_tool_manager
+                    from pathlib import Path
                     centralized_manager = get_centralized_tool_manager()
                     
                     if not centralized_manager.is_tool_available('openocd'):
@@ -243,13 +244,35 @@ class GreatFETDriver(BaseDeviceDriver):
                             "execution_time": time.time() - start_time
                         }
                     
-                    # Build OpenOCD command arguments for GreatFET (LPC4350)
-                    openocd_args = [
-                        '-f', '/home/tkxb/ssd/Tools/openocd/tcl/interface/jlink_swd.cfg',
-                        '-f', '/home/tkxb/ssd/Tools/openocd/tcl/target/lpc4350.cfg'
-                    ]
+                    # Get OpenOCD tool info to determine script directory
+                    tool_info = centralized_manager.tool_manager.registry.get_tool('openocd')
+                    if not tool_info or not tool_info.path:
+                        return {
+                            "status": "error",
+                            "message": "OpenOCD tool path not found.",
+                            "execution_time": time.time() - start_time
+                        }
                     
-                    logger.info("Starting OpenOCD for GreatFET debugging")
+                    # Dynamic path resolution for OpenOCD tcl directory
+                    openocd_path = Path(tool_info.path)
+                    tcl_dir = openocd_path.parent.parent / "tcl"  # For /path/to/openocd/src/openocd -> /path/to/openocd/tcl
+                    
+                    # Build OpenOCD command arguments for GreatFET (LPC4350)
+                    if tcl_dir.exists():
+                        # Use -s parameter to specify script search directory
+                        openocd_args = [
+                            '-s', str(tcl_dir),
+                            '-f', 'interface/jlink_swd.cfg',
+                            '-f', 'target/lpc4350.cfg'
+                        ]
+                    else:
+                        # Fallback to system default paths
+                        openocd_args = [
+                            '-f', 'interface/jlink_swd.cfg',
+                            '-f', 'target/lpc4350.cfg'
+                        ]
+                    
+                    logger.info(f"Starting OpenOCD for GreatFET debugging with tcl dir: {tcl_dir if tcl_dir.exists() else 'system default'}")
                     
                     # Execute OpenOCD using centralized tool manager
                     result = centralized_manager.execute_tool(
