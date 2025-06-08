@@ -311,6 +311,63 @@ class ECP5FPGADriver(BaseDeviceDriver):
         """Cleanup after data acquisition - not used for this driver."""
         pass
 
+    def _recovery_impl(self, device: Device, recovery_type: str, **kwargs) -> dict:
+        """
+        Implementation of ECP5 FPGA recovery operations
+        
+        Supported recovery types:
+        - flash_bitstream: Flash bitstream to configuration memory (permanent)
+        - load_sram: Load bitstream to SRAM (temporary)
+        - openocd_attach: Attach OpenOCD for debugging (future implementation)
+        """
+        import time
+        start_time = time.time()
+        
+        try:
+            if recovery_type == "flash_bitstream":
+                result = self._handle_flash_bitstream(device, kwargs)
+                
+            elif recovery_type == "load_sram":
+                result = self._handle_load_bitstream(device, kwargs)
+                
+            elif recovery_type == "openocd_attach":
+                # Future implementation for OpenOCD debugging
+                return {
+                    "status": "error",
+                    "message": "OpenOCD attach functionality not yet implemented for ECP5 FPGA",
+                    "execution_time": time.time() - start_time
+                }
+                
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Unsupported recovery operation: {recovery_type}",
+                    "execution_time": time.time() - start_time
+                }
+            
+            # Add execution time to result if not already present
+            if isinstance(result, dict) and "execution_time" not in result:
+                result["execution_time"] = time.time() - start_time
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"ECP5 FPGA recovery operation '{recovery_type}' failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Recovery operation failed: {str(e)}",
+                "execution_time": time.time() - start_time
+            }
+
+    def _get_supported_recovery_operations_impl(self) -> list:
+        """
+        Get list of supported recovery operations for ECP5 FPGA
+        """
+        return [
+            "flash_bitstream",
+            "load_sram",
+            "openocd_attach"  # Future implementation
+        ]
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

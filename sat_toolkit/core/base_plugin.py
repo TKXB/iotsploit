@@ -96,6 +96,62 @@ class BaseDeviceDriver(BasePlugin):
             logger.error(f"Close failed: {str(e)}")
             raise
 
+    def recovery(self, device: Device, recovery_type: str, **kwargs) -> dict:
+        """
+        Execute recovery operations on device
+        
+        Args:
+            device: Device to perform recovery on
+            recovery_type: Type of recovery operation (e.g., 'flash_firmware', 'openocd_attach')
+            **kwargs: Additional parameters for recovery operation
+            
+        Returns:
+            dict: Recovery operation result with standardized format
+        """
+        try:
+            logger.info(f"Starting recovery operation '{recovery_type}' on device {device.device_id}")
+            result = self._recovery_impl(device, recovery_type, **kwargs)
+            
+            # Ensure standardized response format
+            if not isinstance(result, dict):
+                result = {"status": "error", "message": "Invalid response format from recovery implementation"}
+            
+            # Add standard fields if missing
+            if "status" not in result:
+                result["status"] = "unknown"
+            if "message" not in result:
+                result["message"] = f"Recovery operation '{recovery_type}' completed"
+                
+            logger.info(f"Recovery operation '{recovery_type}' completed with status: {result.get('status')}")
+            return result
+            
+        except NotImplementedError:
+            return {
+                "status": "error",
+                "message": f"Recovery operation '{recovery_type}' not supported by this driver"
+            }
+        except Exception as e:
+            logger.error(f"Recovery operation failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Recovery operation failed: {str(e)}"
+            }
+
+    def get_supported_recovery_operations(self) -> list:
+        """
+        Get list of supported recovery operations for this driver
+        
+        Returns:
+            list: List of supported recovery operation names
+        """
+        try:
+            return self._get_supported_recovery_operations_impl()
+        except NotImplementedError:
+            return []
+        except Exception as e:
+            logger.error(f"Error getting supported recovery operations: {str(e)}")
+            return []
+
     # Streaming and acquisition control
     def start_streaming(self, device: Device):
         """启动设备数据流（包括数据采集和WebSocket分发）"""
@@ -173,6 +229,35 @@ class BaseDeviceDriver(BasePlugin):
 
     def _close_impl(self, device: Device) -> bool:
         """Implementation of device closure"""
+        raise NotImplementedError
+
+    def _recovery_impl(self, device: Device, recovery_type: str, **kwargs) -> dict:
+        """
+        Implementation of recovery operations
+        
+        Args:
+            device: Device to perform recovery on
+            recovery_type: Type of recovery operation
+            **kwargs: Additional parameters
+            
+        Returns:
+            dict: Recovery result with format:
+                {
+                    "status": "success|error|warning",
+                    "message": "Human readable message",
+                    "execution_time": float,  # optional
+                    "details": dict  # optional additional details
+                }
+        """
+        raise NotImplementedError
+
+    def _get_supported_recovery_operations_impl(self) -> list:
+        """
+        Implementation of supported recovery operations listing
+        
+        Returns:
+            list: List of supported recovery operation names
+        """
         raise NotImplementedError
 
     def _setup_acquisition(self, device: Device):

@@ -121,4 +121,8 @@ urlpatterns = [
     path('tools/refresh/', views.refresh_tools, name='refresh_tools'),
     path('tools/<str:tool_name>/', views.get_tool_details, name='get_tool_details'),
     path('system_health/', views.get_system_health, name='get_system_health'),
+    
+    # Recovery operation endpoints
+    path('recovery/drivers/', views.list_recovery_drivers, name='list_recovery_drivers'),
+    path('recovery/<str:driver_name>/', views.execute_recovery, name='execute_recovery'),
 ]

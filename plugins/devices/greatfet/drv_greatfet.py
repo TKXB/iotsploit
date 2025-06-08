@@ -210,6 +210,64 @@ class GreatFETDriver(BaseDeviceDriver):
             logger.error(f"Failed to close GreatFET device {device.name}: {e}")
             return False
 
+    def _recovery_impl(self, device: USBDevice, recovery_type: str, **kwargs) -> dict:
+        """
+        Implementation of GreatFET recovery operations
+        
+        Supported recovery types:
+        - flash_firmware_sram: Flash firmware to SRAM (temporary)
+        - flash_firmware_spiflash: Flash firmware to SPI flash (permanent)
+        - openocd_attach: Attach OpenOCD for debugging (future implementation)
+        """
+        import time
+        start_time = time.time()
+        
+        try:
+            if recovery_type == "flash_firmware_sram":
+                result = self._handle_flash_firmware(device, kwargs, target="sram")
+                
+            elif recovery_type == "flash_firmware_spiflash":
+                result = self._handle_flash_firmware(device, kwargs, target="spi")
+                
+            elif recovery_type == "openocd_attach":
+                # Future implementation for OpenOCD debugging
+                return {
+                    "status": "error",
+                    "message": "OpenOCD attach functionality not yet implemented for GreatFET",
+                    "execution_time": time.time() - start_time
+                }
+                
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Unsupported recovery operation: {recovery_type}",
+                    "execution_time": time.time() - start_time
+                }
+            
+            # Add execution time to result
+            if isinstance(result, dict):
+                result["execution_time"] = time.time() - start_time
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"GreatFET recovery operation '{recovery_type}' failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Recovery operation failed: {str(e)}",
+                "execution_time": time.time() - start_time
+            }
+
+    def _get_supported_recovery_operations_impl(self) -> list:
+        """
+        Get list of supported recovery operations for GreatFET
+        """
+        return [
+            "flash_firmware_sram",
+            "flash_firmware_spiflash",
+            "openocd_attach"  # Future implementation
+        ]
+
 if __name__ == "__main__":
     from sat_toolkit.models.Device_Model import USBDevice
     driver = GreatFETDriver()
