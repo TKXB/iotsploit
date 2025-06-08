@@ -230,12 +230,60 @@ class GreatFETDriver(BaseDeviceDriver):
                 result = self._handle_flash_firmware(device, kwargs, target="spi")
                 
             elif recovery_type == "openocd_attach":
-                # Future implementation for OpenOCD debugging
-                return {
-                    "status": "error",
-                    "message": "OpenOCD attach functionality not yet implemented for GreatFET",
-                    "execution_time": time.time() - start_time
-                }
+                # OpenOCD attach functionality for GreatFET debugging
+                try:
+                    # Use centralized tool manager for OpenOCD availability check
+                    from sat_toolkit.core.centralized_tool_manager import get_centralized_tool_manager
+                    centralized_manager = get_centralized_tool_manager()
+                    
+                    if not centralized_manager.is_tool_available('openocd'):
+                        return {
+                            "status": "error",
+                            "message": "OpenOCD tool is not available. Please install OpenOCD first.",
+                            "execution_time": time.time() - start_time
+                        }
+                    
+                    # Build OpenOCD command arguments for GreatFET (LPC4350)
+                    openocd_args = [
+                        '-f', '/home/tkxb/ssd/Tools/openocd/tcl/interface/jlink_swd.cfg',
+                        '-f', '/home/tkxb/ssd/Tools/openocd/tcl/target/lpc4350.cfg'
+                    ]
+                    
+                    logger.info("Starting OpenOCD for GreatFET debugging")
+                    
+                    # Execute OpenOCD using centralized tool manager
+                    result = centralized_manager.execute_tool(
+                        'openocd', 
+                        openocd_args,
+                        timeout=10  # Short timeout to check if it starts
+                    )
+                    
+                    # Check if OpenOCD started successfully
+                    if result.success or "Listening on port" in result.stdout:
+                        success_msg = "OpenOCD started successfully for GreatFET debugging"
+                        logger.info(success_msg)
+                        return {
+                            "status": "success",
+                            "message": success_msg,
+                            "execution_time": time.time() - start_time
+                        }
+                    else:
+                        error_msg = f"Failed to start OpenOCD: {result.stderr or 'Unknown error'}"
+                        logger.error(error_msg)
+                        return {
+                            "status": "error",
+                            "message": error_msg,
+                            "execution_time": time.time() - start_time
+                        }
+                        
+                except Exception as e:
+                    error_msg = f"Error starting OpenOCD for GreatFET: {str(e)}"
+                    logger.error(error_msg)
+                    return {
+                        "status": "error",
+                        "message": error_msg,
+                        "execution_time": time.time() - start_time
+                    }
                 
             else:
                 return {
