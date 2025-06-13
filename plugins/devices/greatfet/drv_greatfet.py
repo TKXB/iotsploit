@@ -257,19 +257,17 @@ class GreatFETDriver(BaseDeviceDriver):
                     openocd_path = Path(tool_info.path)
                     tcl_dir = openocd_path.parent.parent / "tcl"  # For /path/to/openocd/src/openocd -> /path/to/openocd/tcl
                     
-                    # Build OpenOCD command arguments for GreatFET (LPC4350)
+                    # Build OpenOCD command arguments for GreatFET using NuttX configuration
                     if tcl_dir.exists():
                         # Use -s parameter to specify script search directory
                         openocd_args = [
                             '-s', str(tcl_dir),
-                            '-f', 'interface/jlink_swd.cfg',
-                            '-f', 'target/lpc4350.cfg'
+                            '-f', 'flash_nuttx.cfg'
                         ]
                     else:
                         # Fallback to system default paths
                         openocd_args = [
-                            '-f', 'interface/jlink_swd.cfg',
-                            '-f', 'target/lpc4350.cfg'
+                            '-f', 'flash_nuttx.cfg'
                         ]
                     
                     logger.info(f"Starting OpenOCD for GreatFET debugging with tcl dir: {tcl_dir if tcl_dir.exists() else 'system default'}")
