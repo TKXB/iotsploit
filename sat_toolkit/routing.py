@@ -1,9 +1,11 @@
 from django.urls import re_path
 from . import consumers
+from .websocket.ai_assistant_consumer import AIAssistantConsumer
 
 websocket_urlpatterns = [
     re_path(r'ws/system_usage/$', consumers.SystemUsageConsumer.as_asgi()),
     re_path(r'ws/exploit/(?P<task_id>[^/]+)/$', consumers.ExploitWebsocketConsumer.as_asgi()),
     re_path(r'ws/device/stream/(?P<channel>[^/]+)/$', consumers.DeviceStreamConsumer.as_asgi()),
     re_path(r'ws/console_logs/$', consumers.ConsoleLogsConsumer.as_asgi()),
+    re_path(r'ws/ai-assistant/(?P<session_id>\w+)/$', AIAssistantConsumer.as_asgi()),
 ]
