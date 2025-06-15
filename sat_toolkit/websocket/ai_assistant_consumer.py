@@ -14,6 +14,7 @@ import os
 from ..models.AIModel_Model import AIModelConfig
 from ..mcp.tools import ToolHandler
 from ..tools.xlogger import xlog
+from sat_toolkit.core.device_manager import DeviceDriverManager
 
 class AIAssistantConsumer(AsyncWebsocketConsumer):
     """AI助手WebSocket消费者，处理智能终端会话"""
@@ -297,8 +298,28 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                     "parameters": {}
                 }
             elif command_name in ["list_devices", "scan_devices"]:
-                # 默认使用通用驱动扫描
-                mcp_args = {"driver_name": "generic"}
+                # 扫描所有可用的启用驱动，而不是只扫描第一个
+                device_manager = DeviceDriverManager()
+                enabled_drivers = [
+                    driver for driver in device_manager.list_drivers() 
+                    if device_manager.is_driver_enabled(driver)
+                ]
+                
+                if enabled_drivers:
+                    # 扫描所有启用的驱动
+                    all_results = []
+                    for driver_name in enabled_drivers:
+                        try:
+                            result = await database_sync_to_async(self.mcp_tool_handler.execute_tool)("scan_devices", {"driver_name": driver_name})
+                            if result and len(result) > 0:
+                                all_results.append(f"Driver '{driver_name}': {result[0].text}")
+                        except Exception as e:
+                            all_results.append(f"Driver '{driver_name}': Error - {str(e)}")
+                    
+                    return "\n".join(all_results) if all_results else "No devices found across all drivers"
+                else:
+                    # 如果没有启用的驱动，返回错误信息
+                    return "No enabled device drivers available. Please enable at least one driver."
             
             # 通过MCP工具处理器执行（在线程中调用以避免在异步上下文中进行同步数据库操作）
             result = await database_sync_to_async(self.mcp_tool_handler.execute_tool)(mcp_tool_name, mcp_args)
@@ -439,10 +460,14 @@ For example, when asked about "available exploits", you should use the list_plug
                 # 处理工具调用
                 if response.choices[0].message.tool_calls:
                     xlog.info(f"Processing {len(response.choices[0].message.tool_calls)} tool calls", "ai_assistant")
-                    return await self.handle_tool_calls(response.choices[0].message, ai_config)
+                    tool_result = await self.handle_tool_calls(response.choices[0].message, ai_config)
+                    xlog.info(f"OpenAI API tool call result: {tool_result[:200]}...", "ai_assistant")
+                    return tool_result
                 else:
                     xlog.debug("No tool calls in response, returning content", "ai_assistant")
-                    return response.choices[0].message.content
+                    ai_response = response.choices[0].message.content
+                    xlog.info(f"OpenAI API response: {ai_response[:200]}...", "ai_assistant")
+                    return ai_response
             else:
                 xlog.debug("Making OpenAI API call without tools", "ai_assistant")
                 # 普通对话
@@ -454,7 +479,9 @@ For example, when asked about "available exploits", you should use the list_plug
                 )
                 
                 xlog.info("OpenAI API response received (no tools)", "ai_assistant")
-                return response.choices[0].message.content
+                ai_response = response.choices[0].message.content
+                xlog.info(f"OpenAI API response (no tools): {ai_response[:200]}...", "ai_assistant")
+                return ai_response
                 
         except ImportError:
             xlog.error("OpenAI library not available", "ai_assistant")
@@ -504,7 +531,9 @@ When users ask about exploits, devices, or security testing, provide helpful exp
                 generation_config=generation_config
             )
             
-            return response.text if response.text else "No response from Gemini"
+            ai_response = response.text if response.text else "No response from Gemini"
+            xlog.info(f"Google Gemini API response: {ai_response[:200]}...", "ai_assistant")
+            return ai_response
                 
         except ImportError:
             return "Google Generative AI library not available. Please install it: pip install google-generativeai"
@@ -553,9 +582,13 @@ When users ask about exploits, devices, or security testing, provide helpful exp
                 
                 # 处理工具调用
                 if response.content and any(block.type == "tool_use" for block in response.content):
-                    return await self.handle_claude_tool_calls(response, ai_config)
+                    tool_result = await self.handle_claude_tool_calls(response, ai_config)
+                    xlog.info(f"Claude API tool call result: {tool_result[:200]}...", "ai_assistant")
+                    return tool_result
                 else:
-                    return response.content[0].text if response.content else "No response"
+                    ai_response = response.content[0].text if response.content else "No response"
+                    xlog.info(f"Claude API response: {ai_response[:200]}...", "ai_assistant")
+                    return ai_response
             else:
                 # 普通对话
                 response = await client.messages.create(
@@ -566,7 +599,9 @@ When users ask about exploits, devices, or security testing, provide helpful exp
                     messages=[{"role": "user", "content": query}]
                 )
                 
-                return response.content[0].text if response.content else "No response"
+                ai_response = response.content[0].text if response.content else "No response"
+                xlog.info(f"Claude API response (no tools): {ai_response[:200]}...", "ai_assistant")
+                return ai_response
                 
         except ImportError:
             return "Anthropic library not available. Please install it: pip install anthropic"

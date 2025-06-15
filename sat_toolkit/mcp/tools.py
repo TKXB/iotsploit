@@ -290,36 +290,81 @@ class ToolHandler:
             )]
     
     def _scan_devices(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Scan for devices using a specific driver"""
-        driver_name = arguments["driver_name"]
+        """Scan for devices using a specific driver or all available drivers"""
+        driver_name = arguments.get("driver_name", "")
         
         try:
-            result = self.device_adapter.scan_devices(driver_name)
+            # If no driver specified or driver doesn't exist, scan all enabled drivers
+            from sat_toolkit.core.device_manager import DeviceDriverManager
+            device_manager = DeviceDriverManager()
+            available_drivers = device_manager.list_drivers()
+            enabled_drivers = [d for d in available_drivers if device_manager.is_driver_enabled(d)]
             
-            if result.get("status") == "success":
-                devices = result.get("devices", [])
-                response = f"Device scan completed for driver '{driver_name}':\n\n"
-                response += f"Found {len(devices)} devices:\n"
+            if not driver_name or driver_name not in available_drivers:
+                # Scan all enabled drivers
+                response = "Device scan completed for all enabled drivers:\n\n"
+                total_devices = 0
                 
-                for device in devices:
-                    response += f"- Device ID: {device.device_id}\n"
-                    response += f"  Name: {device.name}\n"
-                    response += f"  Type: {device.device_type}\n"
-                    if hasattr(device, 'attributes') and device.attributes:
-                        response += f"  Attributes: {device.attributes}\n"
-                    response += "\n"
+                for driver in enabled_drivers:
+                    try:
+                        result = self.device_adapter.scan_devices(driver)
+                        if result.get("status") == "success":
+                            devices = result.get("devices", [])
+                            response += f"Driver '{driver}': Found {len(devices)} devices\n"
+                            
+                            for device in devices:
+                                response += f"  - Device ID: {device.device_id}\n"
+                                response += f"    Name: {device.name}\n"
+                                response += f"    Type: {device.device_type}\n"
+                                if hasattr(device, 'attributes') and device.attributes:
+                                    # Show key attributes only
+                                    key_attrs = {k: v for k, v in device.attributes.items() 
+                                               if k in ['port', 'serial_number', 'vendor_id', 'product_id']}
+                                    if key_attrs:
+                                        response += f"    Key Attributes: {key_attrs}\n"
+                                response += "\n"
+                            total_devices += len(devices)
+                        else:
+                            response += f"Driver '{driver}': {result.get('message', 'Scan failed')}\n"
+                    except Exception as e:
+                        response += f"Driver '{driver}': Error - {str(e)}\n"
+                
+                response += f"\nTotal devices found: {total_devices}\n"
+                response += f"Enabled drivers: {len(enabled_drivers)} ({', '.join(enabled_drivers)})\n"
+                
+                if not enabled_drivers:
+                    response += "\nNo enabled drivers found. Use 'enable_driver' command to enable drivers.\n"
                 
                 return [TextContent(type="text", text=response)]
+            
             else:
-                return [TextContent(
-                    type="text",
-                    text=f"Device scan failed: {result.get('message', 'Unknown error')}"
-                )]
+                # Scan specific driver
+                result = self.device_adapter.scan_devices(driver_name)
+                
+                if result.get("status") == "success":
+                    devices = result.get("devices", [])
+                    response = f"Device scan completed for driver '{driver_name}':\n\n"
+                    response += f"Found {len(devices)} devices:\n"
+                    
+                    for device in devices:
+                        response += f"- Device ID: {device.device_id}\n"
+                        response += f"  Name: {device.name}\n"
+                        response += f"  Type: {device.device_type}\n"
+                        if hasattr(device, 'attributes') and device.attributes:
+                            response += f"  Attributes: {device.attributes}\n"
+                        response += "\n"
+                    
+                    return [TextContent(type="text", text=response)]
+                else:
+                    return [TextContent(
+                        type="text",
+                        text=f"Device scan failed for '{driver_name}': {result.get('message', 'Unknown error')}"
+                    )]
                 
         except Exception as e:
             return [TextContent(
                 type="text",
-                text=f"Error scanning devices with {driver_name}: {str(e)}"
+                text=f"Error scanning devices: {str(e)}"
             )]
     
     def _execute_safe_exploit(self, arguments: Dict[str, Any]) -> List[TextContent]:
