@@ -13,21 +13,162 @@ class TargetCommands(BaseCommands):
     @cmd2.with_category('Target Commands')
     def do_list_targets(self, arg):
         'List all targets stored in the database'
-        # Target listing logic would go here - moved from console.py
-        pass
+        try:
+            targets = self.target_manager.get_all_targets()
+            
+            if not targets:
+                logger.info(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
+                return
+
+            logger.info(ansi.style("Targets in the database:", fg=ansi.Fg.CYAN))
+            for target in targets:
+                logger.info(ansi.style(f"  - ID: {target['target_id']}", fg=ansi.Fg.GREEN))
+                logger.info(f"    Name: {target['name']}")
+                logger.info(f"    Type: {target['type']}")
+                logger.info(f"    Status: {target['status']}")
+                
+                if target['type'] == 'vehicle':
+                    logger.info(f"    IP Address: {target.get('ip_address', 'N/A')}")
+                    logger.info(f"    Location: {target.get('location', 'N/A')}")
+                
+                logger.info(f"    Properties: {target['properties']}")
+                logger.info("    ---")
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error listing targets: {str(e)}", fg=ansi.Fg.RED))
 
     do_lst = do_list_targets
 
     @cmd2.with_category('Target Commands')
     def do_target_select(self, arg):
         'Select a target from available targets'
-        # Target selection logic would go here - moved from console.py
-        pass
+        try:
+            targets = self.target_manager.get_all_targets()
+            
+            if not targets:
+                logger.info(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
+                return
+
+            # Create list of target choices for display
+            target_choices = [f"{t['name']} ({t['ip_address']})" for t in targets if t.get('ip_address')]
+            
+            # Use Input_Mgr for target selection
+            selected_choice = Input_Mgr.Instance().single_choice(
+                "Select target for operation:",
+                target_choices
+            )
+            
+            # Find the index of the selected choice
+            selected_index = target_choices.index(selected_choice)
+            
+            # Convert the selected target dictionary to a Vehicle instance using create_target_instance
+            selected_target_dict = targets[selected_index]
+            selected_target = self.target_manager.create_target_instance(selected_target_dict)
+            
+            # Set the selected target as current
+            self.target_manager.set_current_target(selected_target)
+            
+            logger.info(ansi.style(f"Selected target: {selected_target.name}", fg=ansi.Fg.GREEN))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error selecting target: {str(e)}", fg=ansi.Fg.RED))
 
     @cmd2.with_category('Target Commands')
     def do_edit_target(self, arg):
         'Edit an existing target in the database'
-        # Target editing logic would go here - moved from console.py
-        pass
+        try:
+            # Get all targets
+            targets = self.target_manager.get_all_targets()
+            if not targets:
+                logger.warning(ansi.style("No targets available to edit.", fg=ansi.Fg.YELLOW))
+                return
+
+            # Create list of target choices
+            target_choices = [f"{t['name']} ({t['target_id']})" for t in targets]
+            
+            # Let user select a target
+            selected = Input_Mgr.Instance().single_choice(
+                "Select target to edit",
+                target_choices
+            )
+            
+            # Get target ID from selection (take the last parentheses group)
+            target_id = selected.split('(')[-1].split(')')[0]
+            target = next(t for t in targets if t['target_id'] == target_id)
+            
+            # Fields that can be edited
+            editable_fields = {
+                'name': str,
+                'status': str,
+                'ip_address': str,
+                'location': str
+            }
+            
+            # Let user select which field to edit
+            field_choices = list(editable_fields.keys()) + ['properties']
+            field = Input_Mgr.Instance().single_choice(
+                "Select field to edit",
+                field_choices
+            )
+            
+            if field == 'properties':
+                # Handle properties editing
+                print("\nCurrent properties:")
+                for key, value in target['properties'].items():
+                    print(f"{key}: {value}")
+                
+                # Let user choose to add/edit/delete property
+                action = Input_Mgr.Instance().single_choice(
+                    "Select action",
+                    ['Add property', 'Edit property', 'Delete property']
+                )
+                
+                if action == 'Add property':
+                    key = Input_Mgr.Instance().string_input("Enter property name")
+                    value = Input_Mgr.Instance().string_input("Enter property value")
+                    target['properties'][key] = value
+                
+                elif action == 'Edit property':
+                    if not target['properties']:
+                        logger.warning(ansi.style("No properties to edit.", fg=ansi.Fg.YELLOW))
+                        return
+                    prop_key = Input_Mgr.Instance().single_choice(
+                        "Select property to edit",
+                        list(target['properties'].keys())
+                    )
+                    new_value = Input_Mgr.Instance().string_input(
+                        f"Enter new value for {prop_key}"
+                    )
+                    target['properties'][prop_key] = new_value
+                
+                elif action == 'Delete property':
+                    if not target['properties']:
+                        logger.warning(ansi.style("No properties to delete.", fg=ansi.Fg.YELLOW))
+                        return
+                    prop_key = Input_Mgr.Instance().single_choice(
+                        "Select property to delete",
+                        list(target['properties'].keys())
+                    )
+                    del target['properties'][prop_key]
+            
+            else:
+                # Handle regular field editing
+                current_value = target.get(field, '')
+                new_value = Input_Mgr.Instance().string_input(
+                    f"Enter new value for {field}"
+                )
+                target[field] = new_value
+            
+            # Update the target in the database
+            success = self.target_manager.update_target(target)
+            
+            if success:
+                logger.info(ansi.style(f"Successfully updated target {target_id}", fg=ansi.Fg.GREEN))
+            else:
+                logger.error(ansi.style(f"Failed to update target {target_id}", fg=ansi.Fg.RED))
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error editing target: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
 
     do_et = do_edit_target
