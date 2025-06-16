@@ -47,6 +47,142 @@ class ADBDevice(Component):
         })
         return info
 
+# Camera component for camera devices
+class CameraComponent(Component):
+    resolution: Optional[str] = None
+    fps: Optional[int] = None
+    codec: Optional[str] = None
+    rtsp_url: Optional[str] = None
+    
+    def get_info(self) -> Dict[str, Any]:
+        info = super().get_info()
+        info.update({
+            "resolution": self.resolution,
+            "fps": self.fps,
+            "codec": self.codec,
+            "rtsp_url": self.rtsp_url
+        })
+        return info
+
+# Sensor component for various sensors
+class SensorComponent(Component):
+    sensor_type: Optional[str] = None  # temperature, pressure, accelerometer, etc.
+    unit: Optional[str] = None
+    range_min: Optional[float] = None
+    range_max: Optional[float] = None
+    accuracy: Optional[float] = None
+    
+    def get_info(self) -> Dict[str, Any]:
+        info = super().get_info()
+        info.update({
+            "sensor_type": self.sensor_type,
+            "unit": self.unit,
+            "range_min": self.range_min,
+            "range_max": self.range_max,
+            "accuracy": self.accuracy
+        })
+        return info
+
+# Network component for network interfaces
+class NetworkComponent(Component):
+    ip_address: Optional[str] = None
+    mac_address: Optional[str] = None
+    interface_type: Optional[str] = None  # ethernet, wifi, cellular
+    bandwidth: Optional[str] = None
+    
+    def get_info(self) -> Dict[str, Any]:
+        info = super().get_info()
+        info.update({
+            "ip_address": self.ip_address,
+            "mac_address": self.mac_address,
+            "interface_type": self.interface_type,
+            "bandwidth": self.bandwidth
+        })
+        return info
+
+# ECU component for automotive electronic control units
+class ECUComponent(Component):
+    ecu_type: Optional[str] = None  # engine, transmission, brake, etc.
+    protocol: Optional[str] = None  # CAN, LIN, FlexRay
+    address: Optional[str] = None
+    firmware_version: Optional[str] = None
+    
+    def get_info(self) -> Dict[str, Any]:
+        info = super().get_info()
+        info.update({
+            "ecu_type": self.ecu_type,
+            "protocol": self.protocol,
+            "address": self.address,
+            "firmware_version": self.firmware_version
+        })
+        return info
+
+# Component Factory for creating components based on type
+class ComponentFactory:
+    """Factory class for creating different types of components"""
+    
+    _component_types = {
+        'adb_device': ADBDevice,
+        'camera': CameraComponent,
+        'sensor': SensorComponent,
+        'network': NetworkComponent,
+        'ecu': ECUComponent,
+        'infotainment': ADBDevice,  # Infotainment systems often use ADB
+        'generic': Component,  # Fallback for unknown types
+    }
+    
+    @classmethod
+    def register_component_type(cls, type_name: str, component_class: Type[Component]):
+        """Register a new component type"""
+        cls._component_types[type_name] = component_class
+        xlog.info(f"Registered component type: {type_name}", name="component_factory")
+    
+    @classmethod
+    def create_component(cls, comp_data: Dict[str, Any]) -> Component:
+        """Create a component instance based on the component data"""
+        comp_type = comp_data.get('type', 'generic')
+        component_class = cls._component_types.get(comp_type, Component)
+        
+        try:
+            # Extract fields that are specific to the component class
+            component_fields = component_class.model_fields.keys()
+            filtered_data = {}
+            
+            for key, value in comp_data.items():
+                if key in component_fields:
+                    filtered_data[key] = value
+                else:
+                    # Put unknown fields into properties
+                    filtered_data.setdefault('properties', {})[key] = value
+            
+            # Ensure required fields have defaults
+            filtered_data.setdefault('component_id', comp_data.get('component_id', ''))
+            filtered_data.setdefault('name', comp_data.get('name', ''))
+            filtered_data.setdefault('type', comp_type)
+            filtered_data.setdefault('status', 'active')
+            filtered_data.setdefault('properties', {})
+            
+            component = component_class(**filtered_data)
+            xlog.debug(f"Created {comp_type} component: {component.name}", name="component_factory")
+            return component
+            
+        except Exception as e:
+            xlog.error(f"Error creating component of type {comp_type}: {str(e)}", name="component_factory")
+            xlog.debug(f"Component data: {comp_data}", name="component_factory")
+            # Fallback to generic component
+            return Component(
+                component_id=comp_data.get('component_id', ''),
+                name=comp_data.get('name', ''),
+                type=comp_type,
+                status=comp_data.get('status', 'active'),
+                properties=comp_data.get('properties', {})
+            )
+    
+    @classmethod
+    def get_supported_types(cls) -> List[str]:
+        """Get list of supported component types"""
+        return list(cls._component_types.keys())
+
 class Interface(BaseModel):
     interface_id: str
     name: str
@@ -95,6 +231,49 @@ class Vehicle(Target):
             if isinstance(component, ADBDevice) and component.type == device_type:
                 return component
         return None
+    
+    def get_components_by_type(self, component_type: str) -> List[Component]:
+        """Get all components of a specific type"""
+        return [comp for comp in self.components if comp.type == component_type]
+    
+    def get_component_by_id(self, component_id: str) -> Optional[Component]:
+        """Get a component by its ID"""
+        for component in self.components:
+            if component.component_id == component_id:
+                return component
+        return None
+    
+    def get_cameras(self) -> List[CameraComponent]:
+        """Get all camera components"""
+        return [comp for comp in self.components if isinstance(comp, CameraComponent)]
+    
+    def get_sensors(self) -> List[SensorComponent]:
+        """Get all sensor components"""
+        return [comp for comp in self.components if isinstance(comp, SensorComponent)]
+    
+    def get_network_components(self) -> List[NetworkComponent]:
+        """Get all network components"""
+        return [comp for comp in self.components if isinstance(comp, NetworkComponent)]
+    
+    def get_ecus(self) -> List[ECUComponent]:
+        """Get all ECU components"""
+        return [comp for comp in self.components if isinstance(comp, ECUComponent)]
+    
+    def add_component(self, component: Component):
+        """Add a component to the vehicle"""
+        # Check if component with same ID already exists
+        existing = self.get_component_by_id(component.component_id)
+        if existing:
+            raise ValueError(f"Component with ID {component.component_id} already exists")
+        self.components.append(component)
+    
+    def remove_component(self, component_id: str) -> bool:
+        """Remove a component by ID"""
+        for i, comp in enumerate(self.components):
+            if comp.component_id == component_id:
+                del self.components[i]
+                return True
+        return False
 
 # SQLAlchemy database model using Single Table Inheritance
 class TargetDBModel(Base):
@@ -252,31 +431,8 @@ class TargetManager:
             components = []
             if 'components' in target:
                 for comp in target.get('components', []):
-                    comp_type = comp.get('type', '')
-                    
-                    # Handle ADBDevice components
-                    if comp_type in ['adb_device']:
-                        adb_device = ADBDevice(
-                            component_id=comp.get('component_id'),
-                            name=comp.get('name'),
-                            type=comp.get('type'),
-                            status=comp.get('status', 'active'),
-                            properties=comp.get('properties', {}),
-                            adb_serial_id=comp.get('adb_serial_id') or comp.get('properties', {}).get('adb_serial_id'),
-                            usb_vendor_id=comp.get('usb_vendor_id') or comp.get('properties', {}).get('usb_vendor_id'),
-                            usb_product_id=comp.get('usb_product_id') or comp.get('properties', {}).get('usb_product_id')
-                        )
-                        components.append(adb_device)
-                    else:
-                        # Regular component
-                        component = Component(
-                            component_id=comp.get('component_id'),
-                            name=comp.get('name'),
-                            type=comp.get('type'),
-                            status=comp.get('status', 'active'),
-                            properties=comp.get('properties', {})
-                        )
-                        components.append(component)
+                    component = ComponentFactory.create_component(comp)
+                    components.append(component)
                 
                 # Replace components list in target data with processed components
                 target['components'] = components
@@ -325,10 +481,15 @@ class TargetManager:
                 xlog.error(f"No target found with target_id: {target_id}", name="target_model")
                 return False
             
-            # Update the fields
+            # Update the fields (skip target_id as it's the primary key)
             for key, value in target_data.items():
+                if key == 'target_id':
+                    continue  # Skip target_id as it shouldn't be updated
                 if hasattr(existing_target, key):
+                    xlog.debug(f"Updating {key} to {value}", name="target_model")
                     setattr(existing_target, key, value)
+                else:
+                    xlog.warning(f"Target does not have attribute: {key}", name="target_model")
             
             session.commit()
             xlog.info(f"Successfully updated target {target_id}", name="target_model")
@@ -370,31 +531,8 @@ class TargetManager:
                 if isinstance(comp, Component):
                     components.append(comp)
                 elif isinstance(comp, dict):
-                    comp_type = comp.get('type', '')
-                    
-                    # Handle ADBDevice components
-                    if comp_type in ['adb_device']:
-                        adb_device = ADBDevice(
-                            component_id=comp.get('component_id'),
-                            name=comp.get('name'),
-                            type=comp.get('type'),
-                            status=comp.get('status', 'active'),
-                            properties=comp.get('properties', {}),
-                            adb_serial_id=comp.get('adb_serial_id') or comp.get('properties', {}).get('adb_serial_id'),
-                            usb_vendor_id=comp.get('usb_vendor_id') or comp.get('properties', {}).get('usb_vendor_id'),
-                            usb_product_id=comp.get('usb_product_id') or comp.get('properties', {}).get('usb_product_id')
-                        )
-                        components.append(adb_device)
-                    else:
-                        # Regular component
-                        component = Component(
-                            component_id=comp.get('component_id'),
-                            name=comp.get('name'),
-                            type=comp.get('type'),
-                            status=comp.get('status', 'active'),
-                            properties=comp.get('properties', {})
-                        )
-                        components.append(component)
+                    component = ComponentFactory.create_component(comp)
+                    components.append(component)
         
         vehicle_data['components'] = components
 

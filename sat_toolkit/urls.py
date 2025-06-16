@@ -38,7 +38,8 @@ from .view_handlers.target_views import (
     edit_target,
     create_target,
     delete_target,
-    get_current_target
+    get_current_target,
+    get_component_types
 )
 
 def get_url_patterns():
@@ -109,6 +110,7 @@ urlpatterns = [
     path('create_target/', create_target, name='create_target'),
     path('delete_target/', delete_target, name='delete_target'),
     path('get_current_target/', get_current_target, name='get_current_target'),
+    path('get_component_types/', get_component_types, name='get_component_types'),
 
     # Exploit
     # path('exploit/', views.exploit, name='exploit'),
