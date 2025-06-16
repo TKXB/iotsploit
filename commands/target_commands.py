@@ -172,3 +172,69 @@ class TargetCommands(BaseCommands):
             logger.debug("Detailed error:", exc_info=True)
 
     do_et = do_edit_target
+
+    @cmd2.with_category('Target Commands')
+    def do_target_import(self, arg):
+        'Import targets from JSON file (optional, only when needed)'
+        try:
+            if not arg:
+                json_file = Input_Mgr.Instance().string_input(
+                    "Enter JSON file path (default: conf/target.json)"
+                ) or "conf/target.json"
+            else:
+                json_file = arg.strip()
+            
+            # Check if file exists
+            import os
+            if not os.path.exists(json_file):
+                logger.error(ansi.style(f"File not found: {json_file}", fg=ansi.Fg.RED))
+                return
+            
+            # Check existing targets
+            existing_targets = self.target_manager.get_all_targets()
+            if existing_targets:
+                logger.warning(ansi.style(f"Database already contains {len(existing_targets)} targets:", fg=ansi.Fg.YELLOW))
+                for target in existing_targets:
+                    logger.info(f"  - {target['name']} ({target['target_id']})")
+                
+                overwrite = Input_Mgr.Instance().single_choice(
+                    "How to handle existing targets?",
+                    ["Skip existing (recommended)", "Overwrite existing", "Cancel import"]
+                )
+                
+                if overwrite == "Cancel import":
+                    logger.info("Import cancelled")
+                    return
+                
+                force_overwrite = (overwrite == "Overwrite existing")
+            else:
+                force_overwrite = False
+            
+            # Import targets
+            self.target_manager.parse_and_set_target_from_json(json_file, force_overwrite)
+            logger.info(ansi.style(f"Import completed from {json_file}", fg=ansi.Fg.GREEN))
+            
+        except Exception as e:
+            logger.error(ansi.style(f"Error importing targets: {str(e)}", fg=ansi.Fg.RED))
+
+    @cmd2.with_category('Target Commands')
+    def do_target_export(self, arg):
+        'Export current database targets to JSON file'
+        try:
+            if not arg:
+                json_file = Input_Mgr.Instance().string_input(
+                    "Enter export file path (default: conf/target_export.json)"
+                ) or "conf/target_export.json"
+            else:
+                json_file = arg.strip()
+            
+            # Export targets
+            success = self.target_manager.export_targets_to_json(json_file, backup_original=True)
+            
+            if success:
+                logger.info(ansi.style(f"Successfully exported targets to {json_file}", fg=ansi.Fg.GREEN))
+            else:
+                logger.error(ansi.style("Failed to export targets", fg=ansi.Fg.RED))
+                
+        except Exception as e:
+            logger.error(ansi.style(f"Error exporting targets: {str(e)}", fg=ansi.Fg.RED))

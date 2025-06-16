@@ -126,7 +126,19 @@ class SAT_Shell(SAT_Shell_Base):
         # Initialize target manager
         self.target_manager = TargetManager.get_instance()
         self.target_manager.register_target("vehicle", Vehicle)
-        self.target_manager.parse_and_set_target_from_json('conf/target.json')
+        
+        # Check if database has any targets, if not, optionally load from JSON as initial setup
+        existing_targets = self.target_manager.get_all_targets()
+        if not existing_targets:
+            logger.info("No targets found in database. You can:")
+            logger.info("1. Use Flutter UI to create targets")
+            logger.info("2. Use 'target_import' command to import from JSON file")
+            logger.info("3. Use target management commands to create targets manually")
+        else:
+            logger.info(f"Found {len(existing_targets)} targets in database")
+        
+        # Note: Removed automatic JSON loading to prevent overwriting user changes
+        # Use 'target_import conf/target.json' command if you need to import from JSON
 
         # Initialize device manager
         self.device_manager = DeviceManager.get_instance()
