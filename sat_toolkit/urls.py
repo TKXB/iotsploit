@@ -32,6 +32,14 @@ from .view_handlers.ai_model_views import (
     ai_template_list,
     ai_provider_list
 )
+from .view_handlers.target_views import (
+    list_targets,
+    select_target,
+    edit_target,
+    create_target,
+    delete_target,
+    get_current_target
+)
 
 def get_url_patterns():
     """Helper function to get all URL patterns with their names"""
@@ -93,8 +101,14 @@ urlpatterns = [
     # Plugin and device management
     path('list_plugins/', views.list_plugins, name='list_plugins'),
     path('list_device_drivers/', views.list_device_drivers, name='list_device_drivers'),
-    path('list_targets/', views.list_targets, name='list_targets'),
-    path('select_target/', views.select_target, name='select_target'),
+    
+    # Target management
+    path('list_targets/', list_targets, name='list_targets'),
+    path('select_target/', select_target, name='select_target'),
+    path('edit_target/', edit_target, name='edit_target'),
+    path('create_target/', create_target, name='create_target'),
+    path('delete_target/', delete_target, name='delete_target'),
+    path('get_current_target/', get_current_target, name='get_current_target'),
 
     # Exploit
     # path('exploit/', views.exploit, name='exploit'),

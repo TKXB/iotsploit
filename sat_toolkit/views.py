@@ -243,27 +243,7 @@ def execute_plugin(request):
             "message": f"Error executing plugin: {str(e)}"
         }, status=500)
 
-def list_targets(request):
-    """
-    GET
-    Returns a list of all targets
-    """
-    target_manager = TargetManager.get_instance()
-    all_targets = target_manager.get_all_targets()
-    
-    if all_targets:
-        result = {
-            "status": "success",
-            "targets": all_targets
-        }
-    else:
-        result = {
-            "status": "success",
-            "targets": [],
-            "message": "No targets available."
-        }
-    
-    return JsonResponse(result)
+
 
 def list_plugin_info(request):
     """
@@ -500,38 +480,7 @@ def execute_group(request):
             "message": f"Failed to execute plugin group: {str(e)}"
         }, status=500)
 
-@csrf_exempt
-def select_target(request):
-    """
-    Select a target for testing
-    """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
-        
-    try:
-        data = json.loads(request.body)
-        target_id = data.get('target_id')
-        if not target_id:
-            return JsonResponse({'error': 'target_id is required'}, status=400)
 
-        target_manager = TargetManager.get_instance()
-        targets = target_manager.get_all_targets()
-        
-        # Find the target with the matching ID
-        selected_target = next((t for t in targets if t['target_id'] == target_id), None)
-        if not selected_target:
-            return JsonResponse({'error': 'Target not found'}, status=404)
-        
-        # Create a target instance and set it as current
-        target_instance = target_manager.create_target_instance(selected_target)
-        target_manager.set_current_target(target_instance)
-        
-        return JsonResponse({
-            'message': 'Target selected successfully',
-            'target': selected_target
-        })
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 def execute_plugin_async(request):
