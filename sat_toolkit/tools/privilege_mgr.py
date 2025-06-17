@@ -108,3 +108,143 @@ class PrivilegeManager:
             logger.error(f"Error dropping privileges: {str(e)}")
             raise RuntimeError("Failed to drop privileges") from e
 
+    # ------------------------------------------------------------------
+    # Django-friendly helper: execute plugin in a separate sudo process
+    # ------------------------------------------------------------------
+    def run_plugin_with_sudo(self, plugin_name: str, target: dict | None = None,
+                             parameters: dict | None = None, python_executable: str = None) -> tuple[bool, str]:
+        """Run a SAT exploit plugin with root privileges via *sudo*.
+
+        This helper is designed for web servers (e.g. Django) where in-process
+        privilege escalation is undesired or impossible.  It launches a new
+        subprocess under *sudo* that imports the SAT toolkit, executes the
+        requested plugin, stores the result in Redis, and exits.
+
+        Args:
+            plugin_name:  Name of the plugin (e.g. ``syn_flood_attack``)
+            target:       Target dict to pass to the plugin (optional)
+            parameters:   Parameter dict for the plugin (optional)
+            python_executable: Path to the Python interpreter (defaults to
+                              ``sys.executable`` - the same Python running Django).
+                              Override if you need a specific Python path.
+
+        Returns:
+            (success, result_json) where *result_json* is the JSON result from Redis.
+            *success* is *True* when the subprocess exited with return-code 0 and
+            the result was successfully retrieved from Redis.
+        """
+
+        import subprocess, json, shlex, os, sys, uuid, time
+        import redis
+        from django.conf import settings
+
+        # Generate a unique task ID for this execution
+        task_id = str(uuid.uuid4())
+        logger.info(f"Generated task ID: {task_id}")
+        
+        # Connect to Redis using Django settings
+        redis_client = redis.Redis(
+            host=getattr(settings, 'REDIS_HOST', 'localhost'),
+            port=getattr(settings, 'REDIS_PORT', 6379),
+            db=getattr(settings, 'REDIS_DB', 0)
+        )
+        
+        # Check if task ID already exists in Redis (should not happen)
+        result_key = f"plugin_result:{task_id}"
+        existing_data = redis_client.get(result_key)
+        if existing_data:
+            logger.warning(f"Task ID collision! Key {result_key} already exists with data: {existing_data.decode('utf-8')[:100]}...")
+        else:
+            logger.debug(f"Task ID is unique, no existing data for key: {result_key}")
+
+        target_json = json.dumps(target or {})
+        params_json = json.dumps(parameters or {})
+        
+        logger.debug(f"Serialized target_json: {target_json}")
+        logger.debug(f"Serialized params_json: {params_json}")
+
+        # The helper runner lives inside sat_toolkit.tools
+        runner_module = "sat_toolkit.tools.plugin_sudo_runner"
+
+        # Auto-detect the correct Python executable if not provided
+        if python_executable is None:
+            # Use the same Python executable that's currently running Django
+            python_executable = sys.executable
+            logger.info(f"Using Python executable: {python_executable}")
+
+        logger.debug(f"Environment variables being passed:")
+        logger.debug(f"  TASK_ID={task_id}")
+        logger.debug(f"  TARGET_JSON={target_json[:100]}{'...' if len(target_json) > 100 else ''}")
+        logger.debug(f"  PARAMS_JSON={params_json[:100]}{'...' if len(params_json) > 100 else ''}")
+
+        # Create environment dict for subprocess
+        env = os.environ.copy()
+        env['TASK_ID'] = task_id
+        env['TARGET_JSON'] = target_json
+        env['PARAMS_JSON'] = params_json
+
+        sudo_cmd = [
+            "sudo", "-E",  # preserve environment so DJANGO_SETTINGS_MODULE etc. are inherited
+            python_executable, "-m", runner_module, plugin_name
+        ]
+
+        logger.info("Executing plugin with sudo (task_id=%s): %s", task_id, " ".join(sudo_cmd))
+
+        try:
+            # Start the subprocess
+            start_time = time.time()
+            logger.debug(f"Starting subprocess at {start_time}")
+            
+            proc = subprocess.run(
+                sudo_cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env  # Pass the environment variables
+            )
+            
+            end_time = time.time()
+            execution_time = end_time - start_time
+            logger.info(f"Subprocess completed in {execution_time:.2f} seconds (task_id={task_id})")
+            
+            # Log subprocess output for debugging
+            if proc.stdout:
+                logger.info(f"Subprocess stdout (task_id={task_id}): {proc.stdout[:500]}{'...' if len(proc.stdout) > 500 else ''}")
+            else:
+                logger.debug(f"Subprocess stdout is empty (task_id={task_id})")
+                
+            if proc.stderr:
+                logger.info(f"Subprocess stderr (task_id={task_id}): {proc.stderr[:500]}{'...' if len(proc.stderr) > 500 else ''}")
+            else:
+                logger.debug(f"Subprocess stderr is empty (task_id={task_id})")
+
+            if proc.returncode != 0:
+                logger.error("sudo subprocess failed (rc=%s): stderr='%s', stdout='%s'", 
+                           proc.returncode, proc.stderr.strip(), proc.stdout.strip())
+                return False, proc.stderr.strip() or proc.stdout.strip()
+
+            # Subprocess completed successfully, retrieve result from Redis
+            result_key = f"plugin_result:{task_id}"
+            logger.info(f"Subprocess completed successfully, retrieving result from Redis key: {result_key}")
+            
+            result_data = redis_client.get(result_key)
+            if result_data:
+                # Clean up the Redis key
+                redis_client.delete(result_key)
+                decoded_result = result_data.decode('utf-8')
+                logger.info(f"Retrieved result from Redis (task_id={task_id}): {decoded_result[:200]}...")
+                return True, decoded_result
+            else:
+                logger.error("No result found in Redis for task_id=%s", task_id)
+                return False, f"No result found in Redis (task_id: {task_id})"
+
+        except subprocess.TimeoutExpired:
+            logger.error("sudo subprocess timed out")
+            return False, "Plugin execution timed out"
+        except FileNotFoundError as e:
+            logger.error("Failed to execute sudo or python: %s", e)
+            return False, str(e)
+        except Exception as e:
+            logger.exception("Unexpected error running plugin with sudo")
+            return False, str(e)
+

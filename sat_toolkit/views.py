@@ -204,8 +204,80 @@ def execute_plugin(request):
         plugin_manager = ExploitPluginManager()
         plugin_manager.initialize()
 
-        # Let ExploitPluginManager handle the execution mode
-        result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
+        # Check if plugin requires root privileges
+        plugin_info = plugin_manager.get_plugin_info(plugin_name)
+        requires_root = plugin_info and plugin_info.get('RequiresRoot', False)
+        
+        if requires_root:
+            # Use sudo runner for root-required plugins
+            logger.info(f"Plugin '{plugin_name}' requires root privileges, using sudo runner")
+            from sat_toolkit.tools.privilege_mgr import PrivilegeManager
+            
+            priv_mgr = PrivilegeManager()
+            
+            # Convert target to dict for JSON serialization
+            target_dict = None
+            if current_target:
+                if hasattr(current_target, '__dict__'):
+                    target_dict = {
+                        'name': getattr(current_target, 'name', ''),
+                        'ip_address': getattr(current_target, 'ip_address', ''),
+                        'type': getattr(current_target, 'type', 'vehicle'),
+                        'description': getattr(current_target, 'description', ''),
+                        'id': getattr(current_target, 'id', None)
+                    }
+                elif isinstance(current_target, dict):
+                    target_dict = current_target
+            
+            logger.debug(f"Calling sudo runner with target_dict: {target_dict}, parameters: {parameters}")
+            
+            # Track timing of the sudo execution
+            import time
+            start_time = time.time()
+            
+            # Log the exact plugin name being passed
+            logger.info(f"Passing plugin_name to sudo runner: '{plugin_name}'")
+            
+            success, output = priv_mgr.run_plugin_with_sudo(
+                plugin_name=plugin_name,
+                target=target_dict,
+                parameters=parameters
+            )
+            
+            end_time = time.time()
+            execution_time = end_time - start_time
+            
+            logger.info(f"Django sudo execution completed in {execution_time:.2f} seconds")
+            logger.debug(f"Sudo runner returned: success={success}, output length={len(output) if output else 0}")
+            logger.debug(f"Raw sudo output: {repr(output[:500])}")  # First 500 chars with escape sequences visible
+            
+            if success:
+                try:
+                    # Parse JSON result from Redis
+                    import json as json_module
+                    logger.debug(f"Attempting to parse JSON: {output[:200]}...")
+                    result = json_module.loads(output)
+                    logger.debug(f"Successfully parsed JSON result: {result}")
+                        
+                except json_module.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON from Redis result: {e}")
+                    logger.error(f"Full Redis result was: {repr(output)}")
+                    # Fallback if output is not valid JSON
+                    result = {
+                        "success": False,
+                        "message": f"Plugin executed but result parsing failed: {str(e)}",
+                        "data": {"raw_output": output[:200]}
+                    }
+            else:
+                logger.error(f"Sudo execution failed with output: {repr(output)}")
+                result = {
+                    "success": False,
+                    "message": f"Sudo execution failed: {output}",
+                    "data": {}
+                }
+        else:
+            # Use normal execution for non-root plugins
+            result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
         
         if isinstance(result, dict) and result.get('execution_type') == 'async':
             # For async execution, return task information
