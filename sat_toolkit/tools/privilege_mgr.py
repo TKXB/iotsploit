@@ -74,39 +74,7 @@ class PrivilegeManager:
             logger.error(f"Error running privileged command: {str(e)}")
             raise
 
-    def drop_privileges(self):
-        """Drop root privileges and return to normal user"""
-        try:
-            # Get SUDO_USER from environment, fall back to LOGNAME or USER if not running with sudo
-            username = os.environ.get('SUDO_USER') or os.environ.get('LOGNAME') or os.environ.get('USER')
-            logger.info(f"Username: {username}")
-            if not username:
-                raise RuntimeError("Could not determine the original user")
 
-            # Get the uid/gid from the name
-            pw_record = pwd.getpwnam(username)
-            uid = pw_record.pw_uid
-            gid = pw_record.pw_gid
-
-            # Init group access list
-            os.initgroups(username, gid)
-
-            # Drop privileges
-            os.setgid(gid)
-            os.setuid(uid)
-
-            # Ensure a very conservative umask
-            os.umask(0o077)
-
-            # Verify privileges were dropped
-            if os.getuid() != uid or os.geteuid() != uid:
-                raise RuntimeError("Failed to drop privileges")
-
-            logger.info(f"Successfully dropped root privileges to user: {username}")
-
-        except Exception as e:
-            logger.error(f"Error dropping privileges: {str(e)}")
-            raise RuntimeError("Failed to drop privileges") from e
 
     # ------------------------------------------------------------------
     # Django-friendly helper: execute plugin in a separate sudo process
