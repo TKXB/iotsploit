@@ -31,7 +31,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1749897759.8333747,
+      "last_checked": 1750215364.3165457,
       "metadata": {}
     },
     "dfu-util": {
@@ -48,7 +48,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1749897759.8346753,
+      "last_checked": 1750215364.3181796,
       "metadata": {}
     },
     "openFPGALoader": {
@@ -65,7 +65,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1749897759.8548644,
+      "last_checked": 1750215364.3348985,
       "metadata": {}
     },
     "greatfet_firmware": {
@@ -82,7 +82,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1749893930.8778772,
+      "last_checked": null,
       "metadata": {}
     }
   }

@@ -14,13 +14,13 @@ class DjangoCommands(BaseCommands):
 
     @cmd2.with_category('Django Commands')
     def do_runserver(self, arg):
-        'Start Django development server, Daphne WebSocket server, and Celery worker in the background'
+        'Start Django development server, Daphne WebSocket server, MCP WebSocket bridge, and Celery worker in the background'
         if self.django_server_process or self.daphne_server_process:
             self.poutput("Servers are already running.")
             return
 
         try:
-            logger.info("Attempting to start Django, Daphne, and Celery servers in background...")
+            logger.info("Attempting to start Django, Daphne, MCP WebSocket bridge, and Celery servers in background...")
             
             # Prepare the commands
             django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
@@ -34,6 +34,10 @@ class DjangoCommands(BaseCommands):
                 '9999', 
                 'sat_django_entry.asgi:application'
             ]
+            mcp_bridge_cmd = [
+                sys.executable,
+                'sat_mcp_server/websocket_bridge_simple.py'
+            ]
             celery_cmd = [
                 sys.executable,
                 '-m',
@@ -46,6 +50,7 @@ class DjangoCommands(BaseCommands):
             
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
+            logger.info(f"Running MCP WebSocket Bridge command: {' '.join(mcp_bridge_cmd)}")
             logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
             
             # Start the processes with direct output to stdout/stderr
@@ -63,6 +68,13 @@ class DjangoCommands(BaseCommands):
                 universal_newlines=True
             )
             
+            self.mcp_bridge_process = subprocess.Popen(
+                mcp_bridge_cmd,
+                stdout=sys.stdout,  # 直接输出到控制台
+                stderr=sys.stderr,
+                universal_newlines=True
+            )
+            
             self.celery_worker_process = subprocess.Popen(
                 celery_cmd,
                 stdout=sys.stdout,  # 直接输出到控制台
@@ -71,6 +83,11 @@ class DjangoCommands(BaseCommands):
             )
             
             logger.info("All servers started successfully in the background.")
+            logger.info("Services running on:")
+            logger.info("  - Django HTTP API: http://localhost:8888")
+            logger.info("  - Daphne WebSocket: ws://localhost:9999")
+            logger.info("  - MCP WebSocket Bridge: ws://localhost:9998")
+            logger.info("  - Celery Worker: background task processing")
             
             # Wait for HTTP server to be available and initialize devices
             import requests
@@ -104,7 +121,7 @@ class DjangoCommands(BaseCommands):
 
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
-        'Stop Django development server, Daphne WebSocket server, and Celery worker'
+        'Stop Django development server, Daphne WebSocket server, MCP WebSocket bridge, and Celery worker'
         try:
             # Cleanup devices using HTTP endpoint (GET method)
             import requests
@@ -128,11 +145,16 @@ class DjangoCommands(BaseCommands):
                 self.daphne_server_process.terminate()
                 self.daphne_server_process = None
             
+            if hasattr(self, 'mcp_bridge_process') and self.mcp_bridge_process:
+                self.mcp_bridge_process.terminate()
+                self.mcp_bridge_process = None
+            
             if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
                 self.celery_worker_process.terminate()
                 self.celery_worker_process = None
             
             if not any([self.django_server_process, self.daphne_server_process, 
+                        getattr(self, 'mcp_bridge_process', None),
                         getattr(self, 'celery_worker_process', None)]):
                 logger.info("All servers stopped.")
             else:

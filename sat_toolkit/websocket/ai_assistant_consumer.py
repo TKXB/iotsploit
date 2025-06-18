@@ -11,8 +11,8 @@ import subprocess
 from threading import Thread
 import signal
 import os
+import aiohttp
 from ..models.AIModel_Model import AIModelConfig
-from ..mcp.tools import ToolHandler
 from ..tools.xlogger import xlog
 from sat_toolkit.core.device_manager import DeviceDriverManager
 
@@ -26,8 +26,8 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         self.input_queue = queue.Queue()
         self.session_id = None
         self.shell_thread = None
-        # MCP 工具处理器将在 connect 中延迟初始化，避免在异步上下文中执行同步数据库操作
-        self.mcp_tool_handler = None
+        # Use direct WebSocket connection to MCP bridge instead of local ToolHandler
+        self.mcp_websocket_url = "ws://localhost:9998"
         xlog.info("AIAssistantConsumer initialized", "ai_assistant")
         
     async def connect(self):
@@ -36,19 +36,8 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         await self.accept()
         self.session_id = self.scope['url_route']['kwargs'].get('session_id', 'default')
         xlog.info(f"WebSocket connection accepted for session: {self.session_id}", "ai_assistant")
-
-        # 延迟初始化 MCP 工具处理器，使用线程安全的同步到异步包装器
-        if self.mcp_tool_handler is None:
-            try:
-                xlog.info("Initializing MCP ToolHandler...", "ai_assistant")
-                self.mcp_tool_handler = await database_sync_to_async(ToolHandler)()
-                xlog.info("MCP ToolHandler initialized successfully", "ai_assistant")
-            except Exception as e:
-                xlog.error(f"Failed to initialize ToolHandler: {str(e)}", "ai_assistant")
-                await self.send_error(f"Failed to initialize ToolHandler: {str(e)}")
-                return
         
-        # 启动AI助手会话
+        # Start AI assistant session
         await self.start_assistant_session()
         
     async def disconnect(self, close_code):
@@ -123,21 +112,26 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             xlog.info("No AI config found, using fallback command mapping", "ai_assistant")
             # 回退到简单的命令映射
             command_mapping = {
-                "list devices": "list_devices",
-                "show devices": "list_devices", 
+                "list devices": "scan_devices",
+                "show devices": "scan_devices", 
                 "scan for devices": "scan_devices",
-                "list plugins": "list_plugins",
-                "show exploits": "list_plugins",
-                "help": "help",
-                "start server": "runserver",
-                "hello": "help",
-                "hi": "help"
+                "list plugins": "get_system_status",
+                "show exploits": "get_system_status",
+                "help": "get_system_status",
+                "status": "get_system_status",
+                "hello": "get_system_status",
+                "hi": "get_system_status"
             }
             
             suggested_command = command_mapping.get(query.lower())
             if suggested_command:
                 xlog.info(f"Suggested command for '{query}': {suggested_command}", "ai_assistant")
-                await self.send_ai_response(f"AI: Suggested command: {suggested_command}")
+                # Execute the MCP tool directly
+                try:
+                    result = await self.execute_mcp_tool(suggested_command, {})
+                    await self.send_ai_response(f"AI: {result}")
+                except Exception as e:
+                    await self.send_ai_response(f"AI: Error executing command: {str(e)}")
             else:
                 xlog.info(f"No command mapping found for: '{query}'", "ai_assistant")
                 await self.send_ai_response("AI: I'm not sure how to help with that. Try 'help' for available commands.")
@@ -167,6 +161,74 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             xlog.error(f"Error updating AI usage: {str(e)}", "ai_assistant")
             pass
     
+    async def execute_mcp_tool(self, tool_name, arguments):
+        """通过WebSocket连接到MCP桥接器执行工具"""
+        try:
+            xlog.info(f"=== MCP TOOL CALL START ===", "ai_assistant")
+            xlog.info(f"Tool Name: {tool_name}", "ai_assistant")
+            xlog.info(f"Arguments Type: {type(arguments)}", "ai_assistant")
+            xlog.info(f"Arguments Content: {arguments}", "ai_assistant")
+            xlog.info(f"Arguments JSON: {json.dumps(arguments)}", "ai_assistant")
+            
+            async with aiohttp.ClientSession() as session:
+                xlog.info(f"Connecting to MCP WebSocket: {self.mcp_websocket_url}", "ai_assistant")
+                async with session.ws_connect(self.mcp_websocket_url) as ws:
+                    # Send tool call request
+                    request = {
+                        "type": "mcp_call_tool",
+                        "tool_name": tool_name,
+                        "arguments": arguments
+                    }
+                    
+                    xlog.info(f"Sending MCP request: {json.dumps(request, indent=2)}", "ai_assistant")
+                    await ws.send_str(json.dumps(request))
+                    xlog.info(f"MCP request sent successfully", "ai_assistant")
+                    
+                    # Wait for response
+                    xlog.info(f"Waiting for MCP response...", "ai_assistant")
+                    response = await ws.receive()
+                    xlog.info(f"MCP response received - Type: {response.type}", "ai_assistant")
+                    
+                    if response.type == aiohttp.WSMsgType.TEXT:
+                        xlog.info(f"MCP response data: {response.data}", "ai_assistant")
+                        data = json.loads(response.data)
+                        xlog.info(f"MCP response parsed: {json.dumps(data, indent=2)}", "ai_assistant")
+                        
+                        if data.get("type") == "tool_result":
+                            result = data.get("result", "")
+                            xlog.info(f"Tool result type: {type(result)}", "ai_assistant")
+                            xlog.info(f"Tool result content: {result}", "ai_assistant")
+                            
+                            if isinstance(result, list) and len(result) > 0:
+                                # Extract text from MCP result format
+                                extracted = result[0].get("text", str(result))
+                                xlog.info(f"Extracted result: {extracted}", "ai_assistant")
+                                xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
+                                return extracted
+                            
+                            xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
+                            return str(result)
+                        elif data.get("type") == "tool_error":
+                            error_msg = data.get('error', 'Unknown error')
+                            xlog.error(f"MCP tool error: {error_msg}", "ai_assistant")
+                            xlog.info(f"=== MCP TOOL CALL ERROR ===", "ai_assistant")
+                            return f"Tool error: {error_msg}"
+                        else:
+                            xlog.warning(f"Unexpected MCP response type: {data.get('type')}", "ai_assistant")
+                            xlog.info(f"=== MCP TOOL CALL UNEXPECTED ===", "ai_assistant")
+                            return f"Unexpected response: {data}"
+                    else:
+                        xlog.error(f"Invalid MCP response type: {response.type}", "ai_assistant")
+                        xlog.info(f"=== MCP TOOL CALL FAILED ===", "ai_assistant")
+                        return "Failed to get response from MCP bridge"
+                        
+        except Exception as e:
+            xlog.error(f"Error executing MCP tool: {str(e)}", "ai_assistant")
+            xlog.error(f"Exception type: {type(e)}", "ai_assistant")
+            xlog.error(f"Exception details: {repr(e)}", "ai_assistant")
+            xlog.info(f"=== MCP TOOL CALL EXCEPTION ===", "ai_assistant")
+            return f"Error executing MCP tool: {str(e)}"
+    
     async def get_mcp_tools(self):
         """获取MCP工具定义"""
         # 定义SAT工具的MCP工具规范
@@ -174,65 +236,28 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             {
                 "type": "function",
                 "function": {
-                    "name": "list_plugins",
-                    "description": "List all available exploit plugins in the SAT framework",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function", 
-                "function": {
-                    "name": "list_devices",
-                    "description": "List all connected devices",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "scan_devices", 
-                    "description": "Scan for new devices",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_targets",
-                    "description": "List all available targets",
-                    "parameters": {
-                        "type": "object", 
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "execute_plugin",
-                    "description": "Execute a specific exploit plugin",
+                    "name": "scan_devices",
+                    "description": "Scan for available devices",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "plugin_name": {
+                            "driver_name": {
                                 "type": "string",
-                                "description": "Name of the plugin to execute"
+                                "description": "Device driver name or 'all' for all drivers"
                             }
-                        },
-                        "required": ["plugin_name"]
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_system_status",
+                    "description": "Get overall system status",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
                     }
                 }
             }
@@ -247,8 +272,8 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
             
-            # 执行SAT命令
-            result = await self.execute_sat_command(function_name, function_args)
+            # 执行MCP工具
+            result = await self.execute_mcp_tool(function_name, function_args)
             results.append(f"Executed {function_name}: {result}")
         
         # 更新使用统计
@@ -265,8 +290,8 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                 function_name = block.name
                 function_args = block.input
                 
-                # 执行SAT命令
-                result = await self.execute_sat_command(function_name, function_args)
+                # 执行MCP工具
+                result = await self.execute_mcp_tool(function_name, function_args)
                 results.append(f"Executed {function_name}: {result}")
         
         # 更新使用统计
@@ -274,113 +299,10 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         
         return "\n".join(results)
     
-    async def execute_sat_command(self, command_name, args):
-        """执行SAT命令 - 通过MCP工具处理器"""
-        try:
-            # 映射命令名称到MCP工具名称
-            tool_mapping = {
-                "list_plugins": "get_system_status",  # 系统状态包含插件信息
-                "list_devices": "scan_devices", 
-                "scan_devices": "scan_devices",
-                "list_targets": "get_system_status",  # 系统状态包含目标信息
-                "execute_plugin": "execute_safe_exploit"
-            }
-            
-            mcp_tool_name = tool_mapping.get(command_name)
-            if not mcp_tool_name:
-                return f"Unknown command: {command_name}"
-            
-            # 准备MCP工具参数
-            mcp_args = {}
-            if command_name == "execute_plugin":
-                mcp_args = {
-                    "exploit_name": args.get("plugin_name", ""),
-                    "parameters": {}
-                }
-            elif command_name in ["list_devices", "scan_devices"]:
-                # 扫描所有可用的启用驱动，而不是只扫描第一个
-                device_manager = DeviceDriverManager()
-                enabled_drivers = [
-                    driver for driver in device_manager.list_drivers() 
-                    if device_manager.is_driver_enabled(driver)
-                ]
-                
-                if enabled_drivers:
-                    # 扫描所有启用的驱动
-                    all_results = []
-                    for driver_name in enabled_drivers:
-                        try:
-                            result = await database_sync_to_async(self.mcp_tool_handler.execute_tool)("scan_devices", {"driver_name": driver_name})
-                            if result and len(result) > 0:
-                                all_results.append(f"Driver '{driver_name}': {result[0].text}")
-                        except Exception as e:
-                            all_results.append(f"Driver '{driver_name}': Error - {str(e)}")
-                    
-                    return "\n".join(all_results) if all_results else "No devices found across all drivers"
-                else:
-                    # 如果没有启用的驱动，返回错误信息
-                    return "No enabled device drivers available. Please enable at least one driver."
-            
-            # 通过MCP工具处理器执行（在线程中调用以避免在异步上下文中进行同步数据库操作）
-            result = await database_sync_to_async(self.mcp_tool_handler.execute_tool)(mcp_tool_name, mcp_args)
-            
-            # 提取文本结果
-            if result and len(result) > 0:
-                return result[0].text
-            else:
-                return "No result returned from MCP tool"
-                
-        except Exception as e:
-            # 如果MCP工具失败，回退到直接API调用
-            return await self.fallback_to_api(command_name, args, str(e))
-    
-    async def fallback_to_api(self, command_name, args, mcp_error):
-        """MCP工具失败时的API回退机制"""
-        try:
-            if command_name == "list_plugins":
-                return await self.call_sat_api("/api/list_plugins/")
-            elif command_name == "list_devices":
-                return await self.call_sat_api("/api/list_devices/")
-            elif command_name == "scan_devices":
-                return await self.call_sat_api("/api/scan_devices/")
-            elif command_name == "list_targets":
-                return await self.call_sat_api("/api/list_targets/")
-            elif command_name == "execute_plugin":
-                plugin_name = args.get("plugin_name")
-                if plugin_name:
-                    return await self.call_sat_api("/api/execute_plugin/", {"plugin_name": plugin_name})
-                else:
-                    return "Error: plugin_name is required"
-            else:
-                return f"Unknown command: {command_name} (MCP error: {mcp_error})"
-        except Exception as e:
-            return f"Both MCP and API failed - MCP: {mcp_error}, API: {str(e)}"
-    
-    async def call_sat_api(self, endpoint, data=None):
-        """调用SAT API"""
-        try:
-            import aiohttp
-            
-            url = f"http://localhost:8888{endpoint}"
-            
-            async with aiohttp.ClientSession() as session:
-                if data:
-                    async with session.post(url, json=data) as response:
-                        result = await response.json()
-                else:
-                    async with session.get(url) as response:
-                        result = await response.json()
-                
-                return json.dumps(result, indent=2)
-        except Exception as e:
-            return f"API call failed: {str(e)}"
-    
     async def process_with_ai_model(self, query, ai_config):
         """使用AI模型处理查询"""
         try:
             xlog.info(f"Starting AI model processing for provider: {ai_config.provider}", "ai_assistant")
-            # 这里可以实现实际的AI模型调用
-            # 根据不同的provider调用不同的API
             
             if ai_config.provider == 'openai':
                 xlog.debug("Calling OpenAI API", "ai_assistant")
@@ -417,20 +339,16 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
 Available SAT commands include:
-- list_devices: List all connected devices
-- scan_devices: Scan for new devices  
-- list_plugins: List available exploit plugins
-- list_targets: List available targets
-- execute_plugin <plugin_name>: Execute a specific plugin
-- help: Show help information
+- scan_devices: Scan for connected devices
+- get_system_status: Get overall system status
 
 You have access to MCP (Model Context Protocol) tools that can directly execute SAT commands.
-When users ask about exploits, devices, or security testing, you can:
+When users ask about devices, status, or security testing, you can:
 1. Provide helpful explanations
 2. Suggest relevant SAT commands
 3. Use MCP tools to execute commands directly when appropriate
 
-For example, when asked about "available exploits", you should use the list_plugins MCP tool."""
+For example, when asked about "available devices", you should use the scan_devices MCP tool."""
 
             # 构建消息
             messages = [
@@ -503,14 +421,10 @@ For example, when asked about "available exploits", you should use the list_plug
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
 Available SAT commands include:
-- list_devices: List all connected devices
-- scan_devices: Scan for new devices  
-- list_plugins: List available exploit plugins
-- list_targets: List available targets
-- execute_plugin <plugin_name>: Execute a specific plugin
-- help: Show help information
+- scan_devices: Scan for connected devices
+- get_system_status: Get overall system status
 
-When users ask about exploits, devices, or security testing, provide helpful explanations and suggest relevant SAT commands."""
+When users ask about devices or system status, provide helpful explanations and suggest relevant SAT commands."""
 
             # 初始化模型
             model = genai.GenerativeModel(
@@ -555,15 +469,11 @@ When users ask about exploits, devices, or security testing, provide helpful exp
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
 Available SAT commands include:
-- list_devices: List all connected devices
-- scan_devices: Scan for new devices  
-- list_plugins: List available exploit plugins
-- list_targets: List available targets
-- execute_plugin <plugin_name>: Execute a specific plugin
-- help: Show help information
+- scan_devices: Scan for connected devices
+- get_system_status: Get overall system status
 
 You have access to MCP (Model Context Protocol) tools that can directly execute SAT commands.
-When users ask about exploits, devices, or security testing, provide helpful explanations and suggest relevant commands."""
+When users ask about devices or system status, provide helpful explanations and suggest relevant commands."""
 
             # 检查是否有MCP工具可用
             tools = await self.get_mcp_tools()
