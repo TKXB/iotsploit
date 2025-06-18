@@ -853,6 +853,7 @@ class NetworkToolService(ToolService):
         self.register_tool('curl', required=False)
         self.register_tool('wget', required=False)
         self.register_tool('ping', required=False)
+        self.register_tool('hydra', required=False)
     
     def port_scan(self, target: str, ports: str = "1-1000", 
                  scan_type: str = "syn") -> ExecutionResult:
@@ -881,6 +882,8 @@ class NetworkToolService(ToolService):
         args.extend(['-p', ports, target])
         
         return self.execute_tool('nmap', args, timeout=300)
+    
+
 
 class BinaryToolService(ToolService):
     """Tool service specialized for binary analysis"""

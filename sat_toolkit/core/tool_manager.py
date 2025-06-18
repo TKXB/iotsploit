@@ -90,6 +90,13 @@ class ToolRegistry:
                 with open(self.config_path, 'r') as f:
                     config = json.load(f)
                     for tool_name, tool_data in config.get('tools', {}).items():
+                        # Convert status string back to enum if needed
+                        if 'status' in tool_data and isinstance(tool_data['status'], str):
+                            try:
+                                tool_data['status'] = ToolStatus(tool_data['status'])
+                            except ValueError:
+                                # If status string is invalid, default to MISSING
+                                tool_data['status'] = ToolStatus.MISSING
                         self.tools[tool_name] = ToolInfo(**tool_data)
                 logger.info(f"Loaded {len(self.tools)} tools from config")
             except Exception as e:
