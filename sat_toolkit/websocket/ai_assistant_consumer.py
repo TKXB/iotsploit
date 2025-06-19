@@ -120,7 +120,16 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                 "help": "get_system_status",
                 "status": "get_system_status",
                 "hello": "get_system_status",
-                "hi": "get_system_status"
+                "hi": "get_system_status",
+                "list serial ports": "list_serial_ports",
+                "show serial ports": "list_serial_ports",
+                "serial ports": "list_serial_ports",
+                "list serial": "list_serial_ports",
+                "read serial": "read_serial_port",
+                "serial read": "read_serial_port",
+                "analyze serial": "read_serial_port",
+                "picocom": "read_serial_port",
+                "connect serial": "read_serial_port"
             }
             
             suggested_command = command_mapping.get(query.lower())
@@ -258,6 +267,51 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                         "type": "object",
                         "properties": {},
                         "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_serial_ports",
+                    "description": "List available serial ports on the system",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_serial_port",
+                    "description": "Read and analyze serial port output with AI-powered pattern detection. Can detect login shells, device types, and firmware information.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "port": {
+                                "type": "string",
+                                "description": "Serial port path (e.g., /dev/ttyUSB0, COM1)",
+                                "default": "/dev/ttyUSB0"
+                            },
+                            "baudrate": {
+                                "type": "integer",
+                                "description": "Baud rate for serial communication",
+                                "default": 115200
+                            },
+                            "timeout": {
+                                "type": "integer",
+                                "description": "Maximum time to wait for output (seconds)",
+                                "default": 30
+                            },
+                            "auto_interact": {
+                                "type": "boolean",
+                                "description": "Automatically send Enter and common inputs to trigger responses",
+                                "default": True
+                            }
+                        },
+                        "required": ["port"]
                     }
                 }
             }

@@ -7,6 +7,8 @@ import subprocess
 import time
 from .base_commands import BaseCommands
 from sat_toolkit.tools.xlogger import xlog as logger
+import os
+import signal
 
 
 class DjangoCommands(BaseCommands):
@@ -68,11 +70,14 @@ class DjangoCommands(BaseCommands):
                 universal_newlines=True
             )
             
+            # Start the WebSocket bridge in its own process group so that we can
+            # later terminate the entire group (bridge + sat_fastmcp child)
             self.mcp_bridge_process = subprocess.Popen(
                 mcp_bridge_cmd,
                 stdout=sys.stdout,  # 直接输出到控制台
                 stderr=sys.stderr,
-                universal_newlines=True
+                universal_newlines=True,
+                start_new_session=True  # create new session = new PGID on POSIX
             )
             
             self.celery_worker_process = subprocess.Popen(
@@ -146,8 +151,17 @@ class DjangoCommands(BaseCommands):
                 self.daphne_server_process = None
             
             if hasattr(self, 'mcp_bridge_process') and self.mcp_bridge_process:
-                self.mcp_bridge_process.terminate()
-                self.mcp_bridge_process = None
+                try:
+                    # Terminate the entire process group so that child processes
+                    # such as sat_fastmcp are also stopped.
+                    os.killpg(os.getpgid(self.mcp_bridge_process.pid), signal.SIGTERM)
+                except ProcessLookupError:
+                    # Process already gone
+                    pass
+                except Exception as e:
+                    logger.error(f"Failed to terminate MCP bridge process group: {e}")
+                finally:
+                    self.mcp_bridge_process = None
             
             if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
                 self.celery_worker_process.terminate()
