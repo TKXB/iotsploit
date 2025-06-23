@@ -4,12 +4,11 @@ version = "0.1.0"
 description = "ESP32 Driver Plugin for SAT Toolkit"
 authors = ["Your Name <your.email@example.com>"]
 packages = [
-    { include = "drv_esp32.py" },
-    { include = "generated" }
+    { include = "drv_esp32.py" }
 ]
 
 [tool.poetry.dependencies]
-erpc = "1.12.0"
+# No additional dependencies needed - uses sat_toolkit components
 
 [build-system]
 requires = ["setuptools>=61.0"]
