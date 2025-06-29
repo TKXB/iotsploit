@@ -12,6 +12,61 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
 import django
 django.setup()
 
+# Auto-initialize database on first run
+def ensure_database_initialized():
+    """Automatically initialize database tables if they don't exist"""
+    try:
+        # Check if Django tables exist by trying to access a model
+        from sat_toolkit.models.Plugin_Model import Plugin
+        Plugin.objects.exists()  # This will fail if tables don't exist
+        
+        # Check if SQLAlchemy tables exist
+        from sqlalchemy.exc import OperationalError
+        from sat_toolkit.models.database import SessionLocal
+        from sat_toolkit.models.Device_Model import DeviceDriverState
+        
+        session = SessionLocal()
+        try:
+            session.query(DeviceDriverState).first()
+            session.close()
+        except OperationalError as e:
+            session.close()
+            if "no such table: device_driver_states" in str(e):
+                print("🔧 Setting up SQLAlchemy database tables...")
+                from sat_toolkit.models.database import Base, engine
+                Base.metadata.create_all(engine)
+                print("✅ SQLAlchemy tables created successfully!")
+            else:
+                raise e
+                
+    except Exception as e:
+        if "no such table" in str(e) or "no such column" in str(e):
+            print("🔧 Database not initialized. Setting up database...")
+            try:
+                # Run Django migrations
+                print("📋 Running Django migrations...")
+                from django.core.management import execute_from_command_line
+                execute_from_command_line(['manage.py', 'migrate'])
+                print("✅ Django migrations completed!")
+                
+                # Create SQLAlchemy tables
+                print("📋 Creating SQLAlchemy tables...")
+                from sat_toolkit.models.database import Base, engine
+                Base.metadata.create_all(engine)
+                print("✅ SQLAlchemy tables created!")
+                
+                print("🎉 Database initialization completed successfully!")
+                
+            except Exception as init_error:
+                print(f"❌ Error initializing database: {init_error}")
+                print("💡 You may need to run: python manage.py migrate")
+                raise init_error
+        else:
+            raise e
+
+# Initialize database before proceeding
+ensure_database_initialized()
+
 # Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
