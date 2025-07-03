@@ -1,0 +1,173 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# Documentation
+README.md
+CONTRIBUTING.md
+*.md
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.cursor/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+env3.8/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+
+# Poetry
+dist/
+*.egg-info/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Flutter
+ui/.dart_tool/
+ui/.packages
+ui/.pub-cache/
+ui/.pub/
+ui/build/
+ui/ios/Flutter/Generated.xcconfig
+ui/ios/Flutter/flutter_export_environment.sh
+ui/ios/Runner/GeneratedPluginRegistrant.*
+ui/android/app/debug
+ui/android/app/profile
+ui/android/app/release
+ui/android/.gradle
+ui/android/captures/
+ui/android/gradle-wrapper.jar
+ui/android/.gradle
+ui/android/gradlew
+ui/android/gradlew.bat
+ui/android/local.properties
+ui/android/app/outputs/
+ui/linux/flutter/generated_plugin_registrant.cc
+ui/linux/flutter/generated_plugin_registrant.h
+ui/linux/flutter/generated_plugins.cmake
+ui/macos/Flutter/GeneratedPluginRegistrant.swift
+ui/macos/Flutter/ephemeral/
+ui/windows/flutter/generated_plugin_registrant.cc
+ui/windows/flutter/generated_plugin_registrant.h
+ui/windows/flutter/generated_plugins.cmake
+
+# Node.js (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Large binary files
+*.bin
+*.exe
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Test files
+test/
+tests/
+*_test.py
+*_test.dart
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Development files
+dev/
+development/
+.development/ 

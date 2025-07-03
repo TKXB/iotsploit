@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  sat-toolkit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sat-toolkit
+    ports:
+      - "80:80"          # Web UI (Nginx)
+      - "8888:8888"      # Python API (direct access)
+      - "9999:9999"      # WebSocket (direct access)
+      # Redis is only accessible internally - no external port needed
+    volumes:
+      # Persistent data
+      - sat_data:/app/data
+      - sat_logs:/app/logs
+      - sat_uploads:/app/uploads
+      # Development mode (uncomment for development)
+      # - ./:/app
+      # - /app/ui/build
+    environment:
+      - DJANGO_SETTINGS_MODULE=sat_django_entry.settings
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://localhost:6379
+      - DEBUG=False
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - sat-network
+
+  # Optional: Separate Redis container (alternative to built-in Redis)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: sat-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #     - ./docker/redis.conf:/usr/local/etc/redis/redis.conf
+  #   command: redis-server /usr/local/etc/redis/redis.conf
+  #   restart: unless-stopped
+  #   networks:
+  #     - sat-network
+
+  # Optional: Database container (if you want external database)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: sat-postgres
+  #   environment:
+  #     POSTGRES_DB: sat_toolkit
+  #     POSTGRES_USER: sat_user
+  #     POSTGRES_PASSWORD: sat_password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+  #   networks:
+  #     - sat-network
+
+volumes:
+  sat_data:
+    driver: local
+  sat_logs:
+    driver: local
+  sat_uploads:
+    driver: local
+  # redis_data:
+  #   driver: local
+  # postgres_data:
+  #   driver: local
+
+networks:
+  sat-network:
+    driver: bridge 
