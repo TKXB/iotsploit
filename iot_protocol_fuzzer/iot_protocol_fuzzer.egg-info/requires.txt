@@ -1,0 +1,15 @@
+typing_extensions
+
+[all]
+python-can
+pyserial
+spidev
+
+[can]
+python-can
+
+[spi]
+spidev
+
+[uart]
+pyserial

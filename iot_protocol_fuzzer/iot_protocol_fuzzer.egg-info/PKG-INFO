@@ -1,0 +1,33 @@
+Metadata-Version: 2.4
+Name: iot-protocol-fuzzer
+Version: 0.1.0
+Summary: A modular fuzzing framework for IoT communication protocols
+Author: IoT Security Research
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.7
+Requires-Dist: typing_extensions
+Provides-Extra: can
+Requires-Dist: python-can; extra == "can"
+Provides-Extra: uart
+Requires-Dist: pyserial; extra == "uart"
+Provides-Extra: spi
+Requires-Dist: spidev; extra == "spi"
+Provides-Extra: all
+Requires-Dist: python-can; extra == "all"
+Requires-Dist: pyserial; extra == "all"
+Requires-Dist: spidev; extra == "all"
+Dynamic: author
+Dynamic: classifier
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
