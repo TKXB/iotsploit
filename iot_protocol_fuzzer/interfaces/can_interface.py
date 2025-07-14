@@ -25,7 +25,7 @@ class SocketCANInterface(HWInterface):
         # Split data into 8-byte CAN frames (standard data frame)
         from can import Message
 
-        logger.debug(f"Sending CAN data: {data.hex()} ({len(data)} bytes)")
+        logger.info(f"Sending CAN data: {data.hex()} ({len(data)} bytes)")
         
         for idx in range(0, len(data), 8):
             chunk = data[idx : idx + 8]

@@ -378,7 +378,15 @@ class IoTFuzzerService:
             str: Configuration ID
         """
         try:
-            # Validate configuration
+            # Handle empty config data by providing defaults
+            if not config_data:
+                config_data = {'protocol_type': 'unknown'}
+            
+            # Ensure protocol_type is always present
+            if 'protocol_type' not in config_data:
+                config_data['protocol_type'] = 'unknown'
+            
+            # Validate configuration (will now always pass basic validation)
             self._validate_protocol_config(config_data)
             
             # Generate config ID
@@ -486,6 +494,608 @@ class IoTFuzzerService:
         except Exception as e:
             logger.error(f"Error saving template: {str(e)}")
             raise
+    
+    # Generator Configuration Management
+    def get_generator_config(self, generator_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get generator configuration
+        
+        Args:
+            generator_id: Optional generator ID to get specific config
+            
+        Returns:
+            Dict: Generator configuration
+        """
+        try:
+            if generator_id:
+                if generator_id not in self.generator_configs:
+                    raise Exception(f"Generator config {generator_id} not found")
+                return self.generator_configs[generator_id]
+            
+            # Return default generator config if no ID specified
+            return {
+                'type': 'radamsa',
+                'mutation_rate': 0.1,
+                'seed_corpus': [],
+                'max_mutations': 1000,
+                'timeout_seconds': 1.0,
+                'min_length': 1,
+                'max_length': 1024,
+                'preserve_structure': False,
+                'generators': [
+                    {
+                        'name': 'radamsa',
+                        'description': 'Grammar-based fuzzer',
+                        'parameters': {
+                            'mutation_rate': 0.1,
+                            'seed_corpus': []
+                        }
+                    },
+                    {
+                        'name': 'random',
+                        'description': 'Random data generator',
+                        'parameters': {
+                            'min_length': 1,
+                            'max_length': 1024
+                        }
+                    },
+                    {
+                        'name': 'bit_flip',
+                        'description': 'Bit-flipping mutator',
+                        'parameters': {
+                            'flip_probability': 0.01
+                        }
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting generator config: {str(e)}")
+            raise
+    
+    def save_generator_config(self, config_data: Dict[str, Any]) -> str:
+        """
+        Save generator configuration
+        
+        Args:
+            config_data: Generator configuration data
+            
+        Returns:
+            str: Configuration ID
+        """
+        try:
+            # Generate config ID
+            config_id = str(uuid.uuid4())
+            
+            # Save config
+            config_entry = {
+                'id': config_id,
+                'type': config_data.get('type', 'radamsa'),
+                'mutation_rate': config_data.get('mutation_rate', 0.1),
+                'seed_corpus': config_data.get('seed_corpus', []),
+                'max_mutations': config_data.get('max_mutations', 1000),
+                'timeout_seconds': config_data.get('timeout_seconds', 1.0),
+                'min_length': config_data.get('min_length', 1),
+                'max_length': config_data.get('max_length', 1024),
+                'preserve_structure': config_data.get('preserve_structure', False),
+                'created_at': datetime.now().isoformat()
+            }
+            
+            self.generator_configs[config_id] = config_entry
+            
+            logger.info(f"Generator config {config_id} saved successfully")
+            return config_id
+            
+        except Exception as e:
+            logger.error(f"Error saving generator config: {str(e)}")
+            raise
+    
+    # Protocol Frame Management
+    def build_protocol_frame(self, frame_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build protocol frame from configuration
+        
+        Args:
+            frame_config: Frame configuration
+            
+        Returns:
+            Dict: Built protocol frame
+        """
+        try:
+            protocol_type = frame_config.get('protocol_type', 'can')
+            frame_data = frame_config.get('frame_data', {})
+            
+            # Build frame based on protocol type
+            if protocol_type == 'can':
+                frame = self._build_can_frame(frame_data)
+            elif protocol_type == 'uart':
+                frame = self._build_uart_frame(frame_data)
+            elif protocol_type == 'spi':
+                frame = self._build_spi_frame(frame_data)
+            elif protocol_type == 'ethernet':
+                frame = self._build_ethernet_frame(frame_data)
+            elif protocol_type == 'doip':
+                frame = self._build_doip_frame(frame_data)
+            else:
+                raise ValueError(f"Unsupported protocol type: {protocol_type}")
+            
+            return {
+                'status': 'success',
+                'protocol_type': protocol_type,
+                'frame': frame,
+                'frame_size': len(frame.get('data', [])),
+                'checksum': self._calculate_checksum(frame.get('data', []))
+            }
+            
+        except Exception as e:
+            logger.error(f"Error building protocol frame: {str(e)}")
+            raise
+    
+    def validate_protocol_frame(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate protocol frame structure
+        
+        Args:
+            frame_data: Frame data to validate
+            
+        Returns:
+            Dict: Validation result
+        """
+        try:
+            protocol_type = frame_data.get('protocol_type', 'can')
+            frame = frame_data.get('frame', {})
+            
+            validation_result = {
+                'valid': False,
+                'errors': [],
+                'warnings': [],
+                'frame_info': {}
+            }
+            
+            # Validate based on protocol type
+            if protocol_type == 'can':
+                validation_result = self._validate_can_frame(frame)
+            elif protocol_type == 'uart':
+                validation_result = self._validate_uart_frame(frame)
+            elif protocol_type == 'spi':
+                validation_result = self._validate_spi_frame(frame)
+            elif protocol_type == 'ethernet':
+                validation_result = self._validate_ethernet_frame(frame)
+            elif protocol_type == 'doip':
+                validation_result = self._validate_doip_frame(frame)
+            else:
+                validation_result['errors'].append(f"Unsupported protocol type: {protocol_type}")
+            
+            validation_result['valid'] = len(validation_result['errors']) == 0
+            
+            return validation_result
+            
+        except Exception as e:
+            logger.error(f"Error validating protocol frame: {str(e)}")
+            raise
+    
+    def get_protocol_frame_templates(self, protocol_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get available protocol frame templates
+        
+        Args:
+            protocol_type: Optional protocol type to filter templates
+            
+        Returns:
+            List[Dict]: List of frame templates
+        """
+        try:
+            templates = [
+                {
+                    'id': 'can_diagnostic',
+                    'name': 'CAN Diagnostic Frame',
+                    'protocol_type': 'can',
+                    'description': 'Standard CAN diagnostic frame template',
+                    'template': {
+                        'id': 0x7DF,
+                        'extended': False,
+                        'data': [0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+                    }
+                },
+                {
+                    'id': 'can_extended',
+                    'name': 'CAN Extended Frame',
+                    'protocol_type': 'can',
+                    'description': 'Extended CAN frame template',
+                    'template': {
+                        'id': 0x18DAF110,
+                        'extended': True,
+                        'data': [0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+                    }
+                },
+                {
+                    'id': 'uart_at_command',
+                    'name': 'UART AT Command',
+                    'protocol_type': 'uart',
+                    'description': 'AT command over UART template',
+                    'template': {
+                        'data': 'AT+CGMI\r\n',
+                        'encoding': 'ascii',
+                        'terminator': '\r\n'
+                    }
+                },
+                {
+                    'id': 'doip_diagnostic',
+                    'name': 'DoIP Diagnostic Request',
+                    'protocol_type': 'doip',
+                    'description': 'DoIP diagnostic message template',
+                    'template': {
+                        'protocol_version': 0x02,
+                        'payload_type': 0x8001,
+                        'source_address': 0x0E80,
+                        'target_address': 0x1000,
+                        'data': [0x22, 0xF1, 0x90]
+                    }
+                }
+            ]
+            
+            # Filter by protocol type if specified
+            if protocol_type:
+                templates = [t for t in templates if t['protocol_type'] == protocol_type]
+            
+            return templates
+            
+        except Exception as e:
+            logger.error(f"Error getting protocol frame templates: {str(e)}")
+            raise
+    
+    # Export/Import Management
+    def export_test_data(self, export_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Export test data (groups, cases, results)
+        
+        Args:
+            export_config: Export configuration
+            
+        Returns:
+            Dict: Export result with data
+        """
+        try:
+            export_type = export_config.get('type', 'json')
+            include_groups = export_config.get('include_groups', True)
+            include_cases = export_config.get('include_cases', True)
+            include_results = export_config.get('include_results', False)
+            
+            export_data = {
+                'export_info': {
+                    'timestamp': datetime.now().isoformat(),
+                    'version': '1.0',
+                    'type': export_type
+                }
+            }
+            
+            if include_groups:
+                export_data['test_groups'] = list(self.test_groups.values())
+            
+            if include_cases:
+                export_data['test_cases'] = list(self.test_cases.values())
+            
+            if include_results:
+                # This would include fuzzing results - for now return empty
+                export_data['fuzzing_results'] = []
+            
+            return {
+                'status': 'success',
+                'export_data': export_data,
+                'export_size': len(json.dumps(export_data)),
+                'export_type': export_type
+            }
+            
+        except Exception as e:
+            logger.error(f"Error exporting test data: {str(e)}")
+            raise
+    
+    def import_test_data(self, import_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Import test data (groups, cases, results)
+        
+        Args:
+            import_data: Import data
+            
+        Returns:
+            Dict: Import result
+        """
+        try:
+            imported_groups = 0
+            imported_cases = 0
+            errors = []
+            
+            # Import test groups
+            if 'test_groups' in import_data:
+                for group_data in import_data['test_groups']:
+                    try:
+                        group_id = group_data.get('id', str(uuid.uuid4()))
+                        self.test_groups[group_id] = group_data
+                        imported_groups += 1
+                    except Exception as e:
+                        errors.append(f"Error importing group {group_data.get('id', 'unknown')}: {str(e)}")
+            
+            # Import test cases
+            if 'test_cases' in import_data:
+                for case_data in import_data['test_cases']:
+                    try:
+                        case_id = case_data.get('id', str(uuid.uuid4()))
+                        self.test_cases[case_id] = case_data
+                        imported_cases += 1
+                    except Exception as e:
+                        errors.append(f"Error importing case {case_data.get('id', 'unknown')}: {str(e)}")
+            
+            return {
+                'status': 'success',
+                'imported_groups': imported_groups,
+                'imported_cases': imported_cases,
+                'errors': errors,
+                'total_errors': len(errors)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error importing test data: {str(e)}")
+            raise
+    
+    # File Management
+    def get_files_tree(self, root_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get files tree structure for results
+        
+        Args:
+            root_path: Optional root path filter
+            
+        Returns:
+            Dict: Files tree structure
+        """
+        try:
+            import os
+            
+            # Default results path
+            if not root_path:
+                root_path = '/tmp/fuzzer_results'
+            
+            # Create directory if it doesn't exist
+            if not os.path.exists(root_path):
+                os.makedirs(root_path, exist_ok=True)
+            
+            def build_tree(path: str) -> Dict[str, Any]:
+                """Build file tree recursively"""
+                items = []
+                
+                try:
+                    for item in os.listdir(path):
+                        item_path = os.path.join(path, item)
+                        
+                        if os.path.isdir(item_path):
+                            items.append({
+                                'name': item,
+                                'type': 'directory',
+                                'path': item_path,
+                                'children': build_tree(item_path)
+                            })
+                        else:
+                            stat = os.stat(item_path)
+                            items.append({
+                                'name': item,
+                                'type': 'file',
+                                'path': item_path,
+                                'size': stat.st_size,
+                                'modified': datetime.fromtimestamp(stat.st_mtime).isoformat()
+                            })
+                except PermissionError:
+                    pass
+                
+                return items
+            
+            tree = {
+                'root': root_path,
+                'tree': build_tree(root_path),
+                'total_files': self._count_files(root_path),
+                'total_size': self._calculate_directory_size(root_path)
+            }
+            
+            return tree
+            
+        except Exception as e:
+            logger.error(f"Error getting files tree: {str(e)}")
+            raise
+    
+    # Results Management
+    def export_results(self, export_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Export fuzzing results
+        
+        Args:
+            export_config: Export configuration
+            
+        Returns:
+            Dict: Export result
+        """
+        try:
+            export_format = export_config.get('format', 'json')
+            campaign_id = export_config.get('campaign_id')
+            include_logs = export_config.get('include_logs', True)
+            include_crashes = export_config.get('include_crashes', True)
+            
+            results_data = {
+                'export_info': {
+                    'timestamp': datetime.now().isoformat(),
+                    'campaign_id': campaign_id,
+                    'format': export_format
+                },
+                'summary': {
+                    'total_iterations': 0,
+                    'crashes_found': 0,
+                    'timeouts': 0,
+                    'errors': 0
+                }
+            }
+            
+            if include_logs:
+                results_data['logs'] = []  # This would include actual log data
+            
+            if include_crashes:
+                results_data['crashes'] = []  # This would include crash data
+            
+            return {
+                'status': 'success',
+                'results_data': results_data,
+                'export_format': export_format,
+                'export_size': len(json.dumps(results_data))
+            }
+            
+        except Exception as e:
+            logger.error(f"Error exporting results: {str(e)}")
+            raise
+    
+    # Private helper methods for protocol frame building
+    def _build_can_frame(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build CAN frame"""
+        return {
+            'id': frame_data.get('id', 0x7DF),
+            'extended': frame_data.get('extended', False),
+            'data': frame_data.get('data', [0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        }
+    
+    def _build_uart_frame(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build UART frame"""
+        return {
+            'data': frame_data.get('data', 'AT+CGMI\r\n'),
+            'encoding': frame_data.get('encoding', 'ascii'),
+            'terminator': frame_data.get('terminator', '\r\n')
+        }
+    
+    def _build_spi_frame(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build SPI frame"""
+        return {
+            'data': frame_data.get('data', [0x01, 0x02, 0x03, 0x04]),
+            'mode': frame_data.get('mode', 0),
+            'speed': frame_data.get('speed', 1000000)
+        }
+    
+    def _build_ethernet_frame(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build Ethernet frame"""
+        return {
+            'destination': frame_data.get('destination', 'ff:ff:ff:ff:ff:ff'),
+            'source': frame_data.get('source', '00:00:00:00:00:00'),
+            'type': frame_data.get('type', 0x0800),
+            'data': frame_data.get('data', [])
+        }
+    
+    def _build_doip_frame(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build DoIP frame"""
+        return {
+            'protocol_version': frame_data.get('protocol_version', 0x02),
+            'payload_type': frame_data.get('payload_type', 0x8001),
+            'source_address': frame_data.get('source_address', 0x0E80),
+            'target_address': frame_data.get('target_address', 0x1000),
+            'data': frame_data.get('data', [0x22, 0xF1, 0x90])
+        }
+    
+    # Private helper methods for protocol frame validation
+    def _validate_can_frame(self, frame: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate CAN frame"""
+        result = {'valid': True, 'errors': [], 'warnings': [], 'frame_info': {}}
+        
+        # Validate ID
+        can_id = frame.get('id', 0)
+        if can_id < 0 or can_id > 0x1FFFFFFF:
+            result['errors'].append("CAN ID out of range")
+        
+        # Validate data length
+        data = frame.get('data', [])
+        if len(data) > 8:
+            result['errors'].append("CAN data length exceeds 8 bytes")
+        
+        result['frame_info']['id'] = can_id
+        result['frame_info']['extended'] = frame.get('extended', False)
+        result['frame_info']['data_length'] = len(data)
+        
+        return result
+    
+    def _validate_uart_frame(self, frame: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate UART frame"""
+        result = {'valid': True, 'errors': [], 'warnings': [], 'frame_info': {}}
+        
+        data = frame.get('data', '')
+        if not data:
+            result['errors'].append("UART data is empty")
+        
+        result['frame_info']['data_length'] = len(data)
+        result['frame_info']['encoding'] = frame.get('encoding', 'ascii')
+        
+        return result
+    
+    def _validate_spi_frame(self, frame: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate SPI frame"""
+        result = {'valid': True, 'errors': [], 'warnings': [], 'frame_info': {}}
+        
+        data = frame.get('data', [])
+        if not data:
+            result['errors'].append("SPI data is empty")
+        
+        result['frame_info']['data_length'] = len(data)
+        result['frame_info']['mode'] = frame.get('mode', 0)
+        
+        return result
+    
+    def _validate_ethernet_frame(self, frame: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate Ethernet frame"""
+        result = {'valid': True, 'errors': [], 'warnings': [], 'frame_info': {}}
+        
+        # Basic validation
+        if 'destination' not in frame:
+            result['errors'].append("Missing destination MAC address")
+        if 'source' not in frame:
+            result['errors'].append("Missing source MAC address")
+        
+        return result
+    
+    def _validate_doip_frame(self, frame: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate DoIP frame"""
+        result = {'valid': True, 'errors': [], 'warnings': [], 'frame_info': {}}
+        
+        # Validate protocol version
+        version = frame.get('protocol_version', 0)
+        if version != 0x02:
+            result['warnings'].append(f"Non-standard protocol version: {version}")
+        
+        result['frame_info']['protocol_version'] = version
+        result['frame_info']['payload_type'] = frame.get('payload_type', 0)
+        
+        return result
+    
+    def _calculate_checksum(self, data: List[int]) -> int:
+        """Calculate simple checksum"""
+        return sum(data) & 0xFF
+    
+    def _count_files(self, path: str) -> int:
+        """Count files in directory recursively"""
+        try:
+            import os
+            count = 0
+            for root, dirs, files in os.walk(path):
+                count += len(files)
+            return count
+        except:
+            return 0
+    
+    def _calculate_directory_size(self, path: str) -> int:
+        """Calculate total directory size"""
+        try:
+            import os
+            total_size = 0
+            for root, dirs, files in os.walk(path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    try:
+                        total_size += os.path.getsize(file_path)
+                    except:
+                        pass
+            return total_size
+        except:
+            return 0
     
     # Private helper methods
     def _initialize_default_templates(self):

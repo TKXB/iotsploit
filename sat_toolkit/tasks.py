@@ -8,6 +8,7 @@ from sat_toolkit.models.Target_Model import TargetManager
 import asyncio
 import json
 import time
+from datetime import datetime
 
 logger = get_task_logger(__name__)
 
@@ -77,6 +78,7 @@ def send_task_status(task_id, data):
 def run_fuzzing_campaign(self, campaign_id, campaign_config):
     """
     Background task for running an IoT fuzzing campaign
+    Uses Redis for cross-process state sharing
     
     Args:
         campaign_id: Campaign ID
@@ -89,53 +91,82 @@ def run_fuzzing_campaign(self, campaign_id, campaign_config):
         from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
         fuzzer_manager = IoTFuzzerManager.get_instance()
         
-        # Get campaign state
-        if campaign_id not in fuzzer_manager.active_campaigns:
-            raise Exception(f"Campaign {campaign_id} not found")
+        # Get campaign state from Redis
+        campaign_state = fuzzer_manager._get_campaign_state(campaign_id)
+        if not campaign_state:
+            raise Exception(f"Campaign {campaign_id} not found in Redis")
         
-        campaign_state = fuzzer_manager.active_campaigns[campaign_id]
+        # Create/initialize adapters for this worker process
+        protocol_adapter = fuzzer_manager._get_protocol_adapter()
+        orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config)
+        monitor_adapter = protocol_adapter.create_monitor_adapter(campaign_config, orchestrator_adapter)
         
-        # Get adapters
-        orchestrator_adapter = fuzzer_manager.orchestrator_adapters.get(campaign_id)
-        monitor_adapter = fuzzer_manager.monitor_adapters.get(campaign_id)
-        
-        if not orchestrator_adapter or not monitor_adapter:
-            raise Exception(f"Adapters not found for campaign {campaign_id}")
+        # Store adapters in this worker process
+        fuzzer_manager.orchestrator_adapters[campaign_id] = orchestrator_adapter
+        fuzzer_manager.monitor_adapters[campaign_id] = monitor_adapter
         
         # Start the actual fuzzing process
         orchestrator_adapter.start()
         
-        # Main fuzzing loop
+        # Update campaign to running status in Redis
+        fuzzer_manager._update_campaign_state(campaign_id, {
+            'status': 'running'
+        })
+        
+        # Main fuzzing loop - monitor the real fuzzer progress
         iterations_total = campaign_config.get('iterations_total', 1000)
         iterations_completed = 0
+        last_reported_iterations = 0
         
-        while iterations_completed < iterations_total and campaign_state.get('status') == 'running':
-            # Simulate fuzzing iteration
-            time.sleep(0.1)  # Simulate work
-            iterations_completed += 1
+        while orchestrator_adapter.is_running and iterations_completed < iterations_total:
+            # Get current campaign state from Redis to check for status changes
+            current_state = fuzzer_manager._get_campaign_state(campaign_id)
+            if not current_state or current_state.get('status') != 'running':
+                logger.info(f"Campaign {campaign_id} status changed to {current_state.get('status') if current_state else 'not found'}, stopping")
+                orchestrator_adapter.stop()
+                break
             
-            # Update campaign state
-            campaign_state['iterations_completed'] = iterations_completed
+            # Get real fuzzer progress from monitor
+            monitor_stats = monitor_adapter.get_status()
+            current_iterations = monitor_stats.get('current_iteration', 0)
             
-            # Send progress update every 10 iterations
-            if iterations_completed % 10 == 0:
+            # Use the real fuzzer's progress
+            if current_iterations > iterations_completed:
+                iterations_completed = current_iterations
+            
+            # Update Redis state if progress changed significantly
+            if iterations_completed - last_reported_iterations >= 10:
+                fuzzer_manager._update_campaign_state(campaign_id, {
+                    'iterations_completed': iterations_completed
+                })
+                
                 send_campaign_progress_update(campaign_id, {
                     'iterations_completed': iterations_completed,
                     'iterations_total': iterations_total,
                     'progress_percentage': (iterations_completed / iterations_total) * 100
                 })
+                
+                last_reported_iterations = iterations_completed
             
-            # Check if campaign was stopped/paused
-            if campaign_state.get('status') != 'running':
-                break
+            # Check every 100ms
+            time.sleep(0.1)
         
-        # Update final state
-        if campaign_state.get('status') == 'running':
-            campaign_state['status'] = 'completed'
-            campaign_state['completed_at'] = time.time()
+        # Ensure orchestrator is stopped
+        orchestrator_adapter.stop()
+        
+        # Update final state in Redis
+        final_status = 'completed' if iterations_completed >= iterations_total else 'stopped'
+        fuzzer_manager._update_campaign_state(campaign_id, {
+            'status': final_status,
+            'completed_at': datetime.now().isoformat(),
+            'iterations_completed': iterations_completed
+        })
+        
+        # Get final state for response
+        final_state = fuzzer_manager._get_campaign_state(campaign_id)
         
         # Send final status update
-        send_campaign_status_update(campaign_id, campaign_state)
+        send_campaign_status_update(campaign_id, final_state)
         
         logger.info(f"Fuzzing campaign task completed: {campaign_id}")
         
@@ -143,23 +174,27 @@ def run_fuzzing_campaign(self, campaign_id, campaign_config):
             'status': 'success',
             'campaign_id': campaign_id,
             'iterations_completed': iterations_completed,
-            'final_status': campaign_state.get('status')
+            'final_status': final_status
         }
         
     except Exception as e:
         logger.error(f"Error in fuzzing campaign task: {str(e)}")
         
-        # Update campaign state on error
+        # Update campaign state on error in Redis
         try:
             from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
             fuzzer_manager = IoTFuzzerManager.get_instance()
-            if campaign_id in fuzzer_manager.active_campaigns:
-                campaign_state = fuzzer_manager.active_campaigns[campaign_id]
-                campaign_state['status'] = 'error'
-                campaign_state['error_message'] = str(e)
-                
-                # Send error status update
-                send_campaign_status_update(campaign_id, campaign_state)
+            
+            fuzzer_manager._update_campaign_state(campaign_id, {
+                'status': 'failed',
+                'error_message': str(e),
+                'failed_at': datetime.now().isoformat()
+            })
+            
+            # Get error state for WebSocket update
+            error_state = fuzzer_manager._get_campaign_state(campaign_id)
+            send_campaign_status_update(campaign_id, error_state)
+            
         except Exception as cleanup_error:
             logger.error(f"Error during cleanup: {str(cleanup_error)}")
         
