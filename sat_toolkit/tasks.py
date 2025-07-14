@@ -4,8 +4,10 @@ from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from sat_toolkit.models.Target_Model import TargetManager
+# from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager  # Import locally to avoid circular imports
 import asyncio
 import json
+import time
 
 logger = get_task_logger(__name__)
 
@@ -69,3 +71,281 @@ def send_task_status(task_id, data):
             consumer.send_update(data)
     except Exception as e:
         logger.error(f"Error sending task status: {str(e)}")
+
+
+@shared_task(bind=True, max_retries=3)
+def run_fuzzing_campaign(self, campaign_id, campaign_config):
+    """
+    Background task for running an IoT fuzzing campaign
+    
+    Args:
+        campaign_id: Campaign ID
+        campaign_config: Campaign configuration
+    """
+    try:
+        logger.info(f"Starting fuzzing campaign task: {campaign_id}")
+        
+        # Get fuzzer manager instance
+        from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
+        fuzzer_manager = IoTFuzzerManager.get_instance()
+        
+        # Get campaign state
+        if campaign_id not in fuzzer_manager.active_campaigns:
+            raise Exception(f"Campaign {campaign_id} not found")
+        
+        campaign_state = fuzzer_manager.active_campaigns[campaign_id]
+        
+        # Get adapters
+        orchestrator_adapter = fuzzer_manager.orchestrator_adapters.get(campaign_id)
+        monitor_adapter = fuzzer_manager.monitor_adapters.get(campaign_id)
+        
+        if not orchestrator_adapter or not monitor_adapter:
+            raise Exception(f"Adapters not found for campaign {campaign_id}")
+        
+        # Start the actual fuzzing process
+        orchestrator_adapter.start()
+        
+        # Main fuzzing loop
+        iterations_total = campaign_config.get('iterations_total', 1000)
+        iterations_completed = 0
+        
+        while iterations_completed < iterations_total and campaign_state.get('status') == 'running':
+            # Simulate fuzzing iteration
+            time.sleep(0.1)  # Simulate work
+            iterations_completed += 1
+            
+            # Update campaign state
+            campaign_state['iterations_completed'] = iterations_completed
+            
+            # Send progress update every 10 iterations
+            if iterations_completed % 10 == 0:
+                send_campaign_progress_update(campaign_id, {
+                    'iterations_completed': iterations_completed,
+                    'iterations_total': iterations_total,
+                    'progress_percentage': (iterations_completed / iterations_total) * 100
+                })
+            
+            # Check if campaign was stopped/paused
+            if campaign_state.get('status') != 'running':
+                break
+        
+        # Update final state
+        if campaign_state.get('status') == 'running':
+            campaign_state['status'] = 'completed'
+            campaign_state['completed_at'] = time.time()
+        
+        # Send final status update
+        send_campaign_status_update(campaign_id, campaign_state)
+        
+        logger.info(f"Fuzzing campaign task completed: {campaign_id}")
+        
+        return {
+            'status': 'success',
+            'campaign_id': campaign_id,
+            'iterations_completed': iterations_completed,
+            'final_status': campaign_state.get('status')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in fuzzing campaign task: {str(e)}")
+        
+        # Update campaign state on error
+        try:
+            from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
+            fuzzer_manager = IoTFuzzerManager.get_instance()
+            if campaign_id in fuzzer_manager.active_campaigns:
+                campaign_state = fuzzer_manager.active_campaigns[campaign_id]
+                campaign_state['status'] = 'error'
+                campaign_state['error_message'] = str(e)
+                
+                # Send error status update
+                send_campaign_status_update(campaign_id, campaign_state)
+        except Exception as cleanup_error:
+            logger.error(f"Error during cleanup: {str(cleanup_error)}")
+        
+        return {
+            'status': 'error',
+            'campaign_id': campaign_id,
+            'error_message': str(e)
+        }
+
+
+@shared_task(bind=True)
+def process_fuzzing_results(self, campaign_id, results_data):
+    """
+    Background task for processing fuzzing results
+    
+    Args:
+        campaign_id: Campaign ID
+        results_data: Results data to process
+    """
+    try:
+        logger.info(f"Processing fuzzing results for campaign: {campaign_id}")
+        
+        # Process the results (e.g., save to database, analyze crashes, etc.)
+        processed_results = []
+        
+        for result in results_data:
+            # Process each result
+            processed_result = {
+                'campaign_id': campaign_id,
+                'test_case_id': result.get('test_case_id'),
+                'status': result.get('status'),
+                'payload': result.get('payload'),
+                'response': result.get('response'),
+                'crashed': result.get('crashed', False),
+                'processed_at': time.time()
+            }
+            
+            processed_results.append(processed_result)
+        
+        # Send results update
+        send_results_update(campaign_id, processed_results)
+        
+        logger.info(f"Processed {len(processed_results)} results for campaign {campaign_id}")
+        
+        return {
+            'status': 'success',
+            'campaign_id': campaign_id,
+            'processed_count': len(processed_results)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing fuzzing results: {str(e)}")
+        return {
+            'status': 'error',
+            'campaign_id': campaign_id,
+            'error_message': str(e)
+        }
+
+
+@shared_task(bind=True)
+def generate_fuzzing_report(self, campaign_id, report_config):
+    """
+    Background task for generating fuzzing reports
+    
+    Args:
+        campaign_id: Campaign ID
+        report_config: Report configuration
+    """
+    try:
+        logger.info(f"Generating fuzzing report for campaign: {campaign_id}")
+        
+        # Get fuzzer manager instance
+        from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
+        fuzzer_manager = IoTFuzzerManager.get_instance()
+        
+        # Get campaign statistics
+        statistics = fuzzer_manager.get_campaign_statistics(campaign_id)
+        
+        # Generate report
+        report = {
+            'campaign_id': campaign_id,
+            'generated_at': time.time(),
+            'statistics': statistics,
+            'report_format': report_config.get('format', 'json'),
+            'report_sections': report_config.get('sections', ['summary', 'statistics', 'crashes'])
+        }
+        
+        # Send report ready notification
+        send_report_ready_notification(campaign_id, report)
+        
+        logger.info(f"Report generated for campaign {campaign_id}")
+        
+        return {
+            'status': 'success',
+            'campaign_id': campaign_id,
+            'report': report
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating fuzzing report: {str(e)}")
+        return {
+            'status': 'error',
+            'campaign_id': campaign_id,
+            'error_message': str(e)
+        }
+
+
+def send_campaign_progress_update(campaign_id, progress_data):
+    """Helper function to send campaign progress updates"""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            # Send to campaign-specific group
+            group_name = f"iot_fuzzer_campaign_{campaign_id}"
+            message = {
+                'type': 'fuzzer_event',
+                'event_type': 'campaign_progress',
+                'data': {
+                    'campaign_id': campaign_id,
+                    **progress_data
+                }
+            }
+            
+            async_to_sync(channel_layer.group_send)(group_name, message)
+    except Exception as e:
+        logger.error(f"Error sending campaign progress update: {str(e)}")
+
+
+def send_campaign_status_update(campaign_id, status_data):
+    """Helper function to send campaign status updates"""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            # Send to campaign-specific group
+            group_name = f"iot_fuzzer_campaign_{campaign_id}"
+            message = {
+                'type': 'fuzzer_event',
+                'event_type': 'campaign_status',
+                'data': {
+                    'campaign_id': campaign_id,
+                    'status': status_data
+                }
+            }
+            
+            async_to_sync(channel_layer.group_send)(group_name, message)
+    except Exception as e:
+        logger.error(f"Error sending campaign status update: {str(e)}")
+
+
+def send_results_update(campaign_id, results_data):
+    """Helper function to send results updates"""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            # Send to campaign-specific group
+            group_name = f"iot_fuzzer_campaign_{campaign_id}"
+            message = {
+                'type': 'fuzzer_event',
+                'event_type': 'results_update',
+                'data': {
+                    'campaign_id': campaign_id,
+                    'results': results_data
+                }
+            }
+            
+            async_to_sync(channel_layer.group_send)(group_name, message)
+    except Exception as e:
+        logger.error(f"Error sending results update: {str(e)}")
+
+
+def send_report_ready_notification(campaign_id, report_data):
+    """Helper function to send report ready notifications"""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            # Send to campaign-specific group
+            group_name = f"iot_fuzzer_campaign_{campaign_id}"
+            message = {
+                'type': 'fuzzer_event',
+                'event_type': 'report_ready',
+                'data': {
+                    'campaign_id': campaign_id,
+                    'report': report_data
+                }
+            }
+            
+            async_to_sync(channel_layer.group_send)(group_name, message)
+    except Exception as e:
+        logger.error(f"Error sending report ready notification: {str(e)}")

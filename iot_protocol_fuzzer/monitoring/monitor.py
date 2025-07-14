@@ -39,6 +39,27 @@ class Monitor:
             self.crash_count += 1
             logger.warning(f"[Case {idx}] CRASH detected with payload length {len(payload)}")
             
+            # Print detailed hex data for crash analysis
+            hex_data = payload.hex()
+            logger.warning(f"[Case {idx}] Malformed CAN data (hex): {hex_data}")
+            
+            # Show how data would be split into CAN frames (8 bytes each)
+            frames = []
+            for i in range(0, len(payload), 8):
+                chunk = payload[i:i+8]
+                frames.append(chunk.hex())
+            
+            logger.warning(f"[Case {idx}] CAN frames ({len(frames)} total):")
+            for frame_idx, frame_hex in enumerate(frames):
+                logger.warning(f"  Frame {frame_idx}: {frame_hex} ({len(payload[frame_idx*8:frame_idx*8+8])} bytes)")
+            
+            # Show printable characters if any
+            try:
+                printable = ''.join(chr(b) if 32 <= b <= 126 else '.' for b in payload)
+                logger.warning(f"[Case {idx}] Printable chars: {printable}")
+            except:
+                logger.warning(f"[Case {idx}] No printable characters")
+                
         elif result.timeout:
             self.timeout_count += 1
             logger.debug(f"[Case {idx}] Timeout occurred")

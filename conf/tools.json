@@ -31,7 +31,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1750215364.3165457,
+      "last_checked": 1751175703.546325,
       "metadata": {}
     },
     "dfu-util": {
@@ -48,7 +48,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1750215364.3181796,
+      "last_checked": 1751175703.5480988,
       "metadata": {}
     },
     "openFPGALoader": {
@@ -65,7 +65,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1750215364.3348985,
+      "last_checked": 1751175703.567806,
       "metadata": {}
     },
     "greatfet_firmware": {
@@ -83,6 +83,108 @@
       "min_version": null,
       "max_version": null,
       "last_checked": null,
+      "metadata": {}
+    },
+    "nmap": {
+      "name": "nmap",
+      "path": "/usr/bin/nmap",
+      "version": "7.80",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": "7.0",
+      "max_version": null,
+      "last_checked": 1751175703.5940776,
+      "metadata": {}
+    },
+    "masscan": {
+      "name": "masscan",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "curl": {
+      "name": "curl",
+      "path": "/usr/bin/curl",
+      "version": "7.81.0",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1751175703.6049225,
+      "metadata": {}
+    },
+    "wget": {
+      "name": "wget",
+      "path": "/usr/bin/wget",
+      "version": "1.21.2",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1751175703.608217,
+      "metadata": {}
+    },
+    "ping": {
+      "name": "ping",
+      "path": "/usr/bin/ping",
+      "version": null,
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1751175703.6213007,
+      "metadata": {}
+    },
+    "hydra": {
+      "name": "hydra",
+      "path": "/usr/bin/hydra",
+      "version": "9.2",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": 1751175703.6375165,
       "metadata": {}
     }
   }

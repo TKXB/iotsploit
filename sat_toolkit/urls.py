@@ -41,6 +41,19 @@ from .view_handlers.target_views import (
     get_current_target,
     get_component_types
 )
+from .view_handlers.iot_fuzzer_views import (
+    start_campaign,
+    stop_campaign,
+    pause_campaign,
+    reset_campaign,
+    get_campaign_status,
+    get_campaign_statistics,
+    get_test_groups,
+    get_protocol_types,
+    get_protocol_config,
+    save_protocol_config,
+    test_protocol_connection
+)
 
 def get_url_patterns():
     """Helper function to get all URL patterns with their names"""
@@ -163,4 +176,22 @@ urlpatterns = [
     # Recovery operation endpoints
     path('recovery/drivers/', views.list_recovery_drivers, name='list_recovery_drivers'),
     path('recovery/<str:driver_name>/', views.execute_recovery, name='execute_recovery'),
+    
+    # IoT Fuzzer endpoints
+    # Campaign Control
+    path('iot-fuzzer/testing/campaign/start/', start_campaign, name='iot_fuzzer_start_campaign'),
+    path('iot-fuzzer/testing/campaign/stop/', stop_campaign, name='iot_fuzzer_stop_campaign'),
+    path('iot-fuzzer/testing/campaign/pause/', pause_campaign, name='iot_fuzzer_pause_campaign'),
+    path('iot-fuzzer/testing/campaign/reset/', reset_campaign, name='iot_fuzzer_reset_campaign'),
+    
+    # Campaign Status and Statistics
+    path('iot-fuzzer/testing/campaign/status/', get_campaign_status, name='iot_fuzzer_campaign_status'),
+    path('iot-fuzzer/testing/statistics/', get_campaign_statistics, name='iot_fuzzer_campaign_statistics'),
+    path('iot-fuzzer/testing/test-groups/', get_test_groups, name='iot_fuzzer_test_groups'),
+    
+    # Protocol Configuration
+    path('iot-fuzzer/configuration/protocols/types/', get_protocol_types, name='iot_fuzzer_protocol_types'),
+    path('iot-fuzzer/configuration/protocols/config/', get_protocol_config, name='iot_fuzzer_protocol_config'),
+    path('iot-fuzzer/configuration/protocols/config/save/', save_protocol_config, name='iot_fuzzer_save_protocol_config'),
+    path('iot-fuzzer/configuration/protocols/test-connection/', test_protocol_connection, name='iot_fuzzer_test_protocol_connection'),
 ]
