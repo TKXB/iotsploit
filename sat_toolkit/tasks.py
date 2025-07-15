@@ -98,8 +98,13 @@ def run_fuzzing_campaign(self, campaign_id, campaign_config):
         
         # Create/initialize adapters for this worker process
         protocol_adapter = fuzzer_manager._get_protocol_adapter()
-        orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config)
-        monitor_adapter = protocol_adapter.create_monitor_adapter(campaign_config, orchestrator_adapter)
+        
+        # Add campaign_id to config for event emission
+        campaign_config_with_id = campaign_config.copy()
+        campaign_config_with_id['campaign_id'] = campaign_id
+        
+        orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config_with_id)
+        monitor_adapter = protocol_adapter.create_monitor_adapter(campaign_config_with_id, orchestrator_adapter)
         
         # Store adapters in this worker process
         fuzzer_manager.orchestrator_adapters[campaign_id] = orchestrator_adapter

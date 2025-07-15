@@ -3,6 +3,7 @@ import threading
 import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -561,10 +562,10 @@ class OrchestratorAdapter:
             logger.warning("iot_protocol_fuzzer not available, using mock implementation")
             self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
             return
-        
+
         try:
             # Import real fuzzer components
-            from iot_protocol_fuzzer.core.orchestrator import Orchestrator, CampaignConfig
+            from iot_protocol_fuzzer.core.orchestrator import Orchestrator, CampaignConfig, EventType
             from iot_protocol_fuzzer.generators.radamsa_generator import RadamsaGenerator
             from iot_protocol_fuzzer.harnesses.can_harness import CANHarness
             from iot_protocol_fuzzer.harnesses.uart_harness import UARTHarness
@@ -659,11 +660,12 @@ class OrchestratorAdapter:
             self.monitor = Monitor()
             logger_backend = TestLogger()
             
-            # Create campaign config
+            # Create campaign config with event callback
             campaign_config = CampaignConfig(
                 iterations=self.campaign_config.get('iterations_total', 1000),
                 delay=self.campaign_config.get('delay', 0.1),
-                save_crashes=True
+                save_crashes=True,
+                event_callback=self._handle_fuzzer_event
             )
             
             # Create orchestrator
@@ -711,10 +713,9 @@ class OrchestratorAdapter:
     def stop(self):
         """Stop fuzzing campaign"""
         if self.orchestrator:
+            self.orchestrator.stop()
             self.is_running = False
-            # Note: The real orchestrator doesn't have a stop method,
-            # so we just set the flag. The campaign will finish naturally.
-            logger.info("Real orchestrator stop requested")
+            logger.info("Real orchestrator stopped")
         elif self.fuzzer_instance:
             self.fuzzer_instance.stop()
             self.is_running = False
@@ -723,19 +724,37 @@ class OrchestratorAdapter:
     def pause(self):
         """Pause fuzzing campaign"""
         if self.orchestrator:
-            # Real orchestrator doesn't have pause/resume
-            logger.info("Real orchestrator pause requested (not implemented)")
+            self.orchestrator.pause()
+            logger.info("Real orchestrator paused")
         elif self.fuzzer_instance:
             self.fuzzer_instance.pause()
             logger.info("Mock orchestrator paused")
     
+    def resume(self):
+        """Resume fuzzing campaign"""
+        if self.orchestrator:
+            self.orchestrator.resume()
+            logger.info("Real orchestrator resumed")
+        elif self.fuzzer_instance:
+            self.fuzzer_instance.resume()
+            logger.info("Mock orchestrator resumed")
+    
     def reset(self):
         """Reset fuzzing campaign"""
         if self.orchestrator:
-            logger.info("Real orchestrator reset requested (not implemented)")
+            self.orchestrator.stop()  # Stop first, then can restart
+            logger.info("Real orchestrator reset (stopped)")
         elif self.fuzzer_instance:
             self.fuzzer_instance.reset()
             logger.info("Mock orchestrator reset")
+    
+    def get_status(self):
+        """Get current campaign status"""
+        if self.orchestrator:
+            return self.orchestrator.get_current_stats()
+        elif self.fuzzer_instance:
+            return self.fuzzer_instance.get_status()
+        return {}
     
     def get_monitor(self):
         """Get the monitor instance used by the orchestrator"""
@@ -751,6 +770,70 @@ class OrchestratorAdapter:
         elif self.fuzzer_instance:
             self.fuzzer_instance.cleanup()
             logger.info("Mock orchestrator cleaned up")
+
+    def _handle_fuzzer_event(self, event_type, event_data):
+        """Handle events from the fuzzer and forward to Django WebSocket system"""
+        try:
+            campaign_id = self.campaign_config.get('campaign_id')
+            if not campaign_id:
+                logger.warning("No campaign_id in config, cannot emit WebSocket events")
+                return
+            
+            # Import Django bridge components
+            from sat_toolkit.tools.iot_fuzzer_bridge import IoTFuzzerBridge
+            
+            # Get bridge instance and emit event
+            bridge = IoTFuzzerBridge.get_instance()
+            
+            # Map fuzzer event types to Django event types
+            event_mapping = {
+                'campaign_started': 'campaign_status',
+                'campaign_paused': 'campaign_status',
+                'campaign_resumed': 'campaign_status',
+                'campaign_stopped': 'campaign_status',
+                'campaign_completed': 'campaign_status',
+                'test_case_started': 'test_case_update',
+                'test_case_completed': 'test_case_update',
+                'crash_detected': 'crash_alert',
+                'statistics_update': 'statistics_update',
+                'progress_update': 'progress_update',
+            }
+            
+            django_event_type = event_mapping.get(event_type.value if hasattr(event_type, 'value') else event_type, 'unknown')
+            
+            # Enhance event data with campaign info
+            enhanced_data = {
+                'campaign_id': campaign_id,
+                'timestamp': event_data.get('timestamp', time.time()),
+                'event_type': event_type.value if hasattr(event_type, 'value') else event_type,
+                **event_data
+            }
+            
+            # Special handling for different event types
+            if django_event_type == 'campaign_status':
+                enhanced_data.update({
+                    'is_running': self.orchestrator.is_running() if self.orchestrator else False,
+                    'is_paused': self.orchestrator.is_paused() if self.orchestrator else False,
+                    'status': self._get_campaign_status()
+                })
+            
+            # Emit event to Django WebSocket system
+            bridge.emit_event(django_event_type, enhanced_data)
+            
+        except Exception as e:
+            logger.error(f"Error handling fuzzer event: {e}")
+    
+    def _get_campaign_status(self):
+        """Get current campaign status string"""
+        if not self.orchestrator:
+            return 'idle'
+        
+        if self.orchestrator.is_paused():
+            return 'paused'
+        elif self.orchestrator.is_running():
+            return 'running'
+        else:
+            return 'idle'
 
 
 class MonitorAdapter:
@@ -1039,6 +1122,9 @@ class MockOrchestratorInstance:
     
     def pause(self):
         logger.info("Mock orchestrator paused")
+    
+    def resume(self):
+        logger.info("Mock orchestrator resumed")
     
     def reset(self):
         logger.info("Mock orchestrator reset")
