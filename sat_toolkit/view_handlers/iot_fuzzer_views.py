@@ -961,6 +961,8 @@ def get_test_cases_list(request: HttpRequest):
                 'protocol_frame': case.protocol_frame,
                 'expected_response': case.expected_response,
                 'timeout_seconds': case.timeout_seconds,
+                'timeout': int(case.timeout_seconds * 1000),  # Convert to milliseconds for Flutter
+                'iterations': 100,  # Default value since this field isn't in the model yet
                 'execution_count': case.execution_count,
                 'last_executed': case.last_executed.isoformat() if case.last_executed else None,
                 'last_result': case.last_result,
@@ -993,9 +995,65 @@ def create_test_case(request: HttpRequest):
     
     try:
         data = json.loads(request.body)
-        case_data = data.get('case', {})
+        # Support both nested (case: {}) and flat data formats
+        case_data = data.get('case', data)
+
+        print(f"test_case_data: {case_data}")
         
-        group = TestGroup.objects.get(id=case_data.get('group_id'))
+        group_id = case_data.get('group_id')
+        if not group_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Group ID is required"
+            }, status=400)
+        
+        # Handle both string and integer group IDs
+        try:
+            # Try to find by integer ID first
+            if isinstance(group_id, str) and group_id.isdigit():
+                group = TestGroup.objects.get(id=int(group_id))
+            elif isinstance(group_id, int):
+                group = TestGroup.objects.get(id=group_id)
+            else:
+                # If it's a string ID like 'offline-group-1', create a default group first
+                if group_id.startswith('offline-'):
+                    # Create or get default campaign if none exists
+                    campaign, created = FuzzingCampaign.objects.get_or_create(
+                        name='Default Campaign',
+                        defaults={
+                            'description': 'Default campaign for test cases',
+                            'protocol_type': 'can',
+                            'status': 'idle'
+                        }
+                    )
+                    
+                    # Create the group if it doesn't exist
+                    group, created = TestGroup.objects.get_or_create(
+                        name=case_data.get('name', 'Default Group'),
+                        campaign=campaign,
+                        defaults={
+                            'description': 'Default test group',
+                            'protocol_type': 'can',
+                            'priority': 'normal',
+                            'enabled': True,
+                            'mutation_strategy': 'random'
+                        }
+                    )
+                else:
+                    return JsonResponse({
+                        "status": "error",
+                        "message": f"Invalid group ID format: {group_id}"
+                    }, status=400)
+        except (TestGroup.DoesNotExist, ValueError):
+            return JsonResponse({
+                "status": "error",
+                "message": f"Test group with ID {group_id} not found"
+            }, status=404)
+        
+        # Convert timeout from milliseconds to seconds if needed
+        timeout_value = case_data.get('timeout', case_data.get('timeout_seconds', 1.0))
+        if timeout_value > 100:  # Assume it's in milliseconds if > 100
+            timeout_value = timeout_value / 1000.0
         
         test_case = TestCase.objects.create(
             name=case_data.get('name', ''),
@@ -1005,7 +1063,7 @@ def create_test_case(request: HttpRequest):
             enabled=case_data.get('enabled', True),
             protocol_frame=case_data.get('protocol_frame', {}),
             expected_response=case_data.get('expected_response'),
-            timeout_seconds=case_data.get('timeout_seconds', 1.0)
+            timeout_seconds=timeout_value
         )
         
         # Update group statistics
@@ -1017,11 +1075,6 @@ def create_test_case(request: HttpRequest):
             "message": "Test case created successfully"
         })
         
-    except TestGroup.DoesNotExist:
-        return JsonResponse({
-            "status": "error",
-            "message": "Test group not found"
-        }, status=404)
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -1143,12 +1196,48 @@ def move_test_case(request: HttpRequest):
     
     try:
         data = json.loads(request.body)
-        case_id = data.get('case_id')
+        # Support both case_id and test_case_id field names
+        case_id = data.get('case_id') or data.get('test_case_id')
         target_group_id = data.get('target_group_id')
         
-        test_case = TestCase.objects.get(id=case_id)
+        if not case_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Test case ID is required"
+            }, status=400)
+        
+        if not target_group_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Target group ID is required"
+            }, status=400)
+        
+        try:
+            test_case = TestCase.objects.get(id=case_id)
+        except TestCase.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": "Test case not found"
+            }, status=404)
+        
+        try:
+            # Handle both string and integer group IDs
+            if isinstance(target_group_id, str) and target_group_id.isdigit():
+                new_group = TestGroup.objects.get(id=int(target_group_id))
+            elif isinstance(target_group_id, int):
+                new_group = TestGroup.objects.get(id=target_group_id)
+            else:
+                return JsonResponse({
+                    "status": "error",
+                    "message": f"Invalid target group ID format: {target_group_id}"
+                }, status=400)
+        except TestGroup.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": "Target group not found"
+            }, status=404)
+        
         old_group = test_case.group
-        new_group = TestGroup.objects.get(id=target_group_id)
         
         # Validate group compatibility
         if old_group.campaign != new_group.campaign:
@@ -1169,16 +1258,6 @@ def move_test_case(request: HttpRequest):
             "message": "Test case moved successfully"
         })
         
-    except TestCase.DoesNotExist:
-        return JsonResponse({
-            "status": "error",
-            "message": "Test case not found"
-        }, status=404)
-    except TestGroup.DoesNotExist:
-        return JsonResponse({
-            "status": "error",
-            "message": "Target group not found"
-        }, status=404)
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
