@@ -1102,6 +1102,8 @@ def update_test_case(request: HttpRequest, case_id):
     try:
         data = json.loads(request.body)
         case_data = data.get('case', {})
+
+        print(f"update test_case_data: {case_data}")
         
         test_case = TestCase.objects.get(id=case_id)
         
