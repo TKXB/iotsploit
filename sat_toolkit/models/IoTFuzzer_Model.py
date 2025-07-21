@@ -9,39 +9,30 @@ logger = logging.getLogger(__name__)
 
 class FuzzingCampaign(models.Model):
     """
-    Fuzzing Campaign Model - Pure Django
-    Manages fuzzing campaign lifecycle and configuration
+    Fuzzing Campaign Model - Manages overall fuzzing campaigns
     """
     
     STATUS_CHOICES = [
         ('idle', 'Idle'),
-        ('preparing', 'Preparing'),
         ('running', 'Running'),
         ('paused', 'Paused'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
-        ('cancelled', 'Cancelled'),
     ]
     
-    PROTOCOL_CHOICES = [
-        ('can', 'CAN'),
-        ('uart', 'UART'),
-        ('spi', 'SPI'),
-        ('ethernet', 'Ethernet'),
-        ('doip', 'DoIP'),
-    ]
-    
-    # Campaign identification
     name = models.CharField(max_length=255, help_text="Campaign name")
     description = models.TextField(blank=True, help_text="Campaign description")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES,
+        default='idle',
+        help_text="Campaign status"
+    )
     
-    # Campaign configuration (JSON - no fuzzer coupling)
+    # Configuration
     protocol_type = models.CharField(
-        max_length=50, 
-        choices=PROTOCOL_CHOICES,
-        help_text="Protocol type for fuzzing"
+        max_length=50,
+        help_text="Primary protocol type for this campaign"
     )
     protocol_config = models.JSONField(
         default=dict,
@@ -49,64 +40,33 @@ class FuzzingCampaign(models.Model):
     )
     generator_config = models.JSONField(
         default=dict,
-        help_text="Generator configuration parameters"
+        help_text="Test generation configuration"
     )
     monitoring_config = models.JSONField(
         default=dict,
-        help_text="Monitoring configuration parameters"
+        help_text="Monitoring and logging configuration"
     )
     
-    # Campaign state (Django-managed)
-    status = models.CharField(
-        max_length=20, 
-        choices=STATUS_CHOICES,
-        default='idle',
-        help_text="Current campaign status"
-    )
-    iterations_total = models.IntegerField(
-        default=0,
-        help_text="Total iterations planned"
-    )
-    iterations_completed = models.IntegerField(
-        default=0,
-        help_text="Iterations completed"
-    )
+    # Timing
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.FloatField(default=0.0)
     
-    # Results summary (Django-calculated)
-    crashes_found = models.IntegerField(
-        default=0,
-        help_text="Number of crashes found"
-    )
-    timeouts_occurred = models.IntegerField(
-        default=0,
-        help_text="Number of timeouts occurred"
-    )
-    errors_encountered = models.IntegerField(
-        default=0,
-        help_text="Number of errors encountered"
-    )
+    # Statistics
+    total_iterations = models.IntegerField(default=0)
+    total_cases = models.IntegerField(default=0)
+    passed_cases = models.IntegerField(default=0)
+    failed_cases = models.IntegerField(default=0)
     
-    # Timing information (Django-managed)
-    started_at = models.DateTimeField(
-        null=True, 
-        blank=True,
-        help_text="Campaign start time"
-    )
-    completed_at = models.DateTimeField(
-        null=True, 
-        blank=True,
-        help_text="Campaign completion time"
-    )
-    duration_seconds = models.IntegerField(
-        default=0,
-        help_text="Campaign duration in seconds"
-    )
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
     
-    # Adapter instance tracking (Django-internal)
+    # Fuzzer integration
     fuzzer_instance_id = models.CharField(
         max_length=100, 
+        null=True, 
         blank=True,
-        help_text="Fuzzer instance identifier"
+        help_text="Reference to fuzzer instance"
     )
     
     class Meta:
@@ -118,54 +78,29 @@ class FuzzingCampaign(models.Model):
     def __str__(self):
         return f"[Campaign:{self.pk} {self.name}]"
     
-    def clean(self):
-        """Validate model data"""
-        if self.iterations_completed > self.iterations_total:
-            raise ValidationError("Completed iterations cannot exceed total iterations")
-    
     def get_progress_percentage(self):
-        """Calculate completion percentage"""
-        if self.iterations_total == 0:
+        """Calculate campaign progress percentage"""
+        if self.total_cases == 0:
             return 0
-        return (self.iterations_completed / self.iterations_total) * 100
-    
-    def get_duration_formatted(self):
-        """Get formatted duration"""
-        if self.duration_seconds == 0:
-            return "0s"
-        
-        hours = self.duration_seconds // 3600
-        minutes = (self.duration_seconds % 3600) // 60
-        seconds = self.duration_seconds % 60
-        
-        if hours > 0:
-            return f"{hours}h {minutes}m {seconds}s"
-        elif minutes > 0:
-            return f"{minutes}m {seconds}s"
-        else:
-            return f"{seconds}s"
-    
-    def is_active(self):
-        """Check if campaign is currently active"""
-        return self.status in ['preparing', 'running']
+        completed = self.passed_cases + self.failed_cases
+        return (completed / self.total_cases) * 100
     
     def can_start(self):
         """Check if campaign can be started"""
-        return self.status in ['idle', 'failed', 'cancelled']
+        return self.status in ['idle', 'paused']
     
     def can_pause(self):
         """Check if campaign can be paused"""
         return self.status == 'running'
     
-    def can_resume(self):
-        """Check if campaign can be resumed"""
-        return self.status == 'paused'
+    def can_stop(self):
+        """Check if campaign can be stopped"""
+        return self.status in ['running', 'paused']
 
 
 class TestGroup(models.Model):
     """
-    Test Group Model - Pure Django
-    Organizes test cases into logical groups
+    Test Group Model - Organizes test cases into logical groups
     """
     
     PRIORITY_CHOICES = [
@@ -173,14 +108,6 @@ class TestGroup(models.Model):
         ('normal', 'Normal'),
         ('high', 'High'),
         ('critical', 'Critical'),
-    ]
-    
-    MUTATION_STRATEGY_CHOICES = [
-        ('random', 'Random'),
-        ('radamsa', 'Radamsa'),
-        ('genetic', 'Genetic'),
-        ('structured', 'Structured'),
-        ('custom', 'Custom'),
     ]
     
     name = models.CharField(max_length=255, help_text="Test group name")
@@ -203,19 +130,13 @@ class TestGroup(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Group properties (Django-managed)
+    # Group properties
     protocol_type = models.CharField(
         max_length=50,
         help_text="Protocol type for this group"
     )
-    mutation_strategy = models.CharField(
-        max_length=50,
-        choices=MUTATION_STRATEGY_CHOICES,
-        default='random',
-        help_text="Mutation strategy to use"
-    )
     
-    # Statistics (Django-calculated)
+    # Statistics (calculated from test cases)
     total_cases = models.IntegerField(
         default=0,
         help_text="Total test cases in group"
@@ -253,10 +174,189 @@ class TestGroup(models.Model):
         self.save()
 
 
+class ProtocolConfiguration(models.Model):
+    """
+    Protocol Configuration Model - Stores protocol-specific settings
+    """
+    
+    PROTOCOL_TYPE_CHOICES = [
+        ('can', 'CAN Bus'),
+        ('uart', 'UART/Serial'),
+        ('spi', 'SPI'),
+        ('i2c', 'I2C'),
+        ('ethernet', 'Ethernet'),
+        ('doip', 'DoIP'),
+    ]
+    
+    protocol_type = models.CharField(
+        max_length=20,
+        choices=PROTOCOL_TYPE_CHOICES,
+        help_text="Protocol type"
+    )
+    
+    # Protocol-specific settings (JSON)
+    settings = models.JSONField(
+        default=dict,
+        help_text="Protocol-specific configuration settings"
+    )
+    
+    # Examples of what settings might contain:
+    # For CAN: {"baud_rate": 500000, "bit_timing": {...}, "arbitration_id": "0x7DF"}
+    # For UART: {"baud_rate": 115200, "data_bits": 8, "stop_bits": 1, "parity": "none"}
+    # For SPI: {"clock_speed": 1000000, "mode": 0, "bit_order": "MSB"}
+    
+    class Meta:
+        db_table = 'iot_protocol_configurations'
+        verbose_name = 'Protocol Configuration'
+        verbose_name_plural = 'Protocol Configurations'
+    
+    def __str__(self):
+        return f"[ProtocolConfig:{self.pk} {self.protocol_type}]"
+
+
+class FrameField(models.Model):
+    """
+    Frame Field Model - Individual fields within a protocol frame
+    """
+    
+    FIELD_TYPE_CHOICES = [
+        ('hex', 'Hexadecimal'),
+        ('dec', 'Decimal'),
+        ('auto', 'Auto-generated'),
+        ('binary', 'Binary'),
+        ('string', 'String'),
+    ]
+    
+    test_case = models.ForeignKey(
+        'TestCase',
+        on_delete=models.CASCADE,
+        related_name='frame_fields',
+        help_text="Associated test case"
+    )
+    
+    # Field definition
+    field_name = models.CharField(max_length=100, help_text="Field name (user-editable)")
+    field_id = models.CharField(max_length=100, help_text="Field identifier")
+    field_type = models.CharField(
+        max_length=20,
+        choices=FIELD_TYPE_CHOICES,
+        default='hex',
+        help_text="Field data type"
+    )
+    
+    # Field value and properties
+    value = models.TextField(help_text="Field value")
+    default_value = models.TextField(blank=True, help_text="Default field value")
+    placeholder = models.CharField(max_length=255, blank=True, help_text="Placeholder text")
+    is_required = models.BooleanField(default=False, help_text="Whether field is required")
+    
+    # Positioning and ordering
+    field_order = models.IntegerField(default=0, help_text="Field order within frame")
+    bit_offset = models.IntegerField(null=True, blank=True, help_text="Bit offset within frame")
+    bit_length = models.IntegerField(null=True, blank=True, help_text="Field length in bits")
+    
+    class Meta:
+        db_table = 'iot_frame_fields'
+        verbose_name = 'Frame Field'
+        verbose_name_plural = 'Frame Fields'
+        ordering = ['test_case', 'field_order']
+        unique_together = ['test_case', 'field_id']
+    
+    def __str__(self):
+        return f"[FrameField:{self.pk} {self.field_name}]"
+
+
+class FuzzingRule(models.Model):
+    """
+    Fuzzing Rule Model - Defines how specific fields or bits should be fuzzed
+    """
+    
+    FUZZING_STRATEGY_CHOICES = [
+        ('random', 'Random'),
+        ('sequential', 'Sequential'),
+        ('pattern_based', 'Pattern-based'),
+        ('boundary', 'Boundary Testing'),
+        ('bit_flip', 'Bit Flipping'),
+        ('injection', 'Injection'),
+    ]
+    
+    TARGET_TYPE_CHOICES = [
+        ('field', 'Field-level'),
+        ('bit', 'Bit-level'),
+        ('byte', 'Byte-level'),
+        ('frame', 'Frame-level'),
+    ]
+    
+    test_case = models.ForeignKey(
+        'TestCase',
+        on_delete=models.CASCADE,
+        related_name='fuzzing_rules',
+        help_text="Associated test case"
+    )
+    
+    # Rule identification
+    rule_name = models.CharField(max_length=100, help_text="Rule name")
+    description = models.TextField(blank=True, help_text="Rule description")
+    enabled = models.BooleanField(default=True, help_text="Whether rule is enabled")
+    
+    # Fuzzing target
+    target_type = models.CharField(
+        max_length=20,
+        choices=TARGET_TYPE_CHOICES,
+        help_text="Type of fuzzing target"
+    )
+    target_field = models.ForeignKey(
+        FrameField,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Target field (for field-level fuzzing)"
+    )
+    
+    # Bit-level targeting
+    target_bits = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Bit positions to fuzz (e.g., '0,1,7' or '0-7')"
+    )
+    
+    # Fuzzing strategy
+    strategy = models.CharField(
+        max_length=20,
+        choices=FUZZING_STRATEGY_CHOICES,
+        default='random',
+        help_text="Fuzzing strategy to use"
+    )
+    
+    # Strategy-specific configuration
+    strategy_config = models.JSONField(
+        default=dict,
+        help_text="Strategy-specific configuration parameters"
+    )
+    
+    # Execution settings
+    iterations_per_rule = models.IntegerField(
+        default=100,
+        help_text="Number of iterations for this rule"
+    )
+    priority = models.IntegerField(
+        default=50,
+        help_text="Rule execution priority (0-100)"
+    )
+    
+    class Meta:
+        db_table = 'iot_fuzzing_rules'
+        verbose_name = 'Fuzzing Rule'
+        verbose_name_plural = 'Fuzzing Rules'
+        ordering = ['test_case', '-priority', 'rule_name']
+    
+    def __str__(self):
+        return f"[FuzzingRule:{self.pk} {self.rule_name}]"
+
+
 class TestCase(models.Model):
     """
-    Test Case Model - Pure Django
-    Individual test cases with protocol frames
+    Redesigned Test Case Model - Comprehensive test case with fuzzing support
     """
     
     PRIORITY_CHOICES = [
@@ -274,31 +374,9 @@ class TestCase(models.Model):
         ('crash', 'Crash'),
     ]
     
+    # Basic Information
     name = models.CharField(max_length=255, help_text="Test case name")
     description = models.TextField(blank=True, help_text="Test case description")
-    group = models.ForeignKey(
-        TestGroup, 
-        on_delete=models.CASCADE,
-        related_name='test_cases',
-        help_text="Associated test group"
-    )
-    
-    # Test case configuration (JSON format - no fuzzer coupling)
-    protocol_frame = models.JSONField(
-        default=dict,
-        help_text="Protocol frame configuration"
-    )
-    expected_response = models.JSONField(
-        null=True, 
-        blank=True,
-        help_text="Expected response pattern"
-    )
-    timeout_seconds = models.FloatField(
-        default=1.0,
-        help_text="Test timeout in seconds"
-    )
-    
-    # Test case properties (Django-managed)
     priority = models.CharField(
         max_length=20, 
         choices=PRIORITY_CHOICES,
@@ -309,14 +387,53 @@ class TestCase(models.Model):
         default=True,
         help_text="Whether this test case is enabled"
     )
-    
-    # Metadata
     created_at = models.DateTimeField(
         default=timezone.now,
         help_text="Test case creation time"
     )
     
-    # Execution tracking (Django-managed)
+    # Group Association
+    group = models.ForeignKey(
+        TestGroup, 
+        on_delete=models.CASCADE,
+        related_name='test_cases',
+        help_text="Associated test group"
+    )
+    
+    # Protocol Configuration
+    protocol_config = models.ForeignKey(
+        ProtocolConfiguration,
+        on_delete=models.CASCADE,
+        help_text="Protocol configuration for this test case"
+    )
+    
+    # Frame Definition (basic metadata - fields stored separately)
+    frame_name = models.CharField(
+        max_length=255,
+        default="Protocol Frame",
+        help_text="Name of the protocol frame"
+    )
+    frame_description = models.TextField(
+        blank=True,
+        help_text="Description of the protocol frame"
+    )
+    
+    # Execution Settings
+    timeout_seconds = models.FloatField(
+        default=5.0,
+        help_text="Test timeout in seconds"
+    )
+    iterations = models.IntegerField(
+        default=100,
+        help_text="Number of test iterations"
+    )
+    expected_response = models.JSONField(
+        null=True, 
+        blank=True,
+        help_text="Expected response pattern"
+    )
+    
+    # Execution tracking
     execution_count = models.IntegerField(
         default=0,
         help_text="Number of times executed"
@@ -338,7 +455,7 @@ class TestCase(models.Model):
         db_table = 'iot_test_cases'
         verbose_name = 'IoT Test Case'
         verbose_name_plural = 'IoT Test Cases'
-        ordering = ['priority', 'name']
+        ordering = ['group', 'priority', 'name']
     
     def __str__(self):
         return f"[TestCase:{self.pk} {self.name}]"
@@ -347,6 +464,8 @@ class TestCase(models.Model):
         """Validate test case data"""
         if self.timeout_seconds <= 0:
             raise ValidationError("Timeout must be positive")
+        if self.iterations <= 0:
+            raise ValidationError("Iterations must be positive")
     
     def record_execution(self, result):
         """Record test execution"""
@@ -355,18 +474,49 @@ class TestCase(models.Model):
         self.last_result = result
         self.save()
     
-    def get_protocol_frame_hex(self):
-        """Get protocol frame as hex string"""
-        frame_data = self.protocol_frame.get('data', [])
-        if isinstance(frame_data, list):
-            return ''.join(f'{b:02x}' for b in frame_data)
-        return str(frame_data)
+    def get_frame_hex_output(self):
+        """Get protocol frame as hex string from fields"""
+        fields = self.frame_fields.filter(
+            field_type__in=['hex', 'dec']
+        ).order_by('field_order')
+        
+        hex_parts = []
+        for field in fields:
+            if field.value and field.value != 'auto':
+                # Convert field value to hex
+                if field.field_type == 'hex':
+                    # Clean hex value
+                    clean_hex = field.value.replace('0x', '').replace(' ', '')
+                    if len(clean_hex) % 2 != 0:
+                        clean_hex = '0' + clean_hex
+                    hex_parts.append(clean_hex.upper())
+                elif field.field_type == 'dec':
+                    # Convert decimal to hex
+                    try:
+                        dec_val = int(field.value)
+                        hex_val = f"{dec_val:02X}"
+                        hex_parts.append(hex_val)
+                    except ValueError:
+                        continue
+        
+        return ' '.join(hex_parts)
+    
+    def get_fuzzing_targets(self):
+        """Get summary of fuzzing targets"""
+        rules = self.fuzzing_rules.filter(enabled=True)
+        field_targets = rules.filter(target_type='field').count()
+        bit_targets = rules.filter(target_type='bit').count()
+        
+        return {
+            'field_level': field_targets,
+            'bit_level': bit_targets,
+            'total_rules': rules.count()
+        }
 
 
 class FuzzingResult(models.Model):
     """
-    Fuzzing Result Model - Pure Django
-    Records results from fuzzing execution
+    Fuzzing Result Model - Records results from fuzzing execution
     """
     
     STATUS_CHOICES = [
@@ -392,18 +542,18 @@ class FuzzingResult(models.Model):
         help_text="Associated test case"
     )
     
-    # Execution details (Django-captured)
+    # Execution details
     iteration_number = models.IntegerField(help_text="Iteration number")
     executed_at = models.DateTimeField(
         auto_now_add=True,
         help_text="Execution timestamp"
     )
     
-    # Test payload (from fuzzer via adapter)
+    # Test payload
     payload_hex = models.TextField(help_text="Test payload in hex format")
     payload_size = models.IntegerField(help_text="Payload size in bytes")
     
-    # Result details (from fuzzer via adapter)
+    # Result details
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -419,7 +569,7 @@ class FuzzingResult(models.Model):
         help_text="Response time in milliseconds"
     )
     
-    # Crash information (from fuzzer via adapter)
+    # Crash information
     crashed = models.BooleanField(
         default=False,
         help_text="Whether execution crashed"
@@ -429,7 +579,7 @@ class FuzzingResult(models.Model):
         help_text="Crash details and stack trace"
     )
     
-    # Artifact storage (Django-managed)
+    # Artifact storage
     artifact_path = models.CharField(
         max_length=500, 
         blank=True,
@@ -442,66 +592,63 @@ class FuzzingResult(models.Model):
         verbose_name_plural = 'IoT Fuzzing Results'
         ordering = ['-executed_at']
         indexes = [
-            models.Index(fields=['campaign', 'iteration_number']),
+            models.Index(fields=['campaign', 'test_case']),
             models.Index(fields=['status']),
-            models.Index(fields=['crashed']),
+            models.Index(fields=['executed_at']),
         ]
     
     def __str__(self):
-        return f"[Result:{self.pk} Campaign:{self.campaign.name} Iter:{self.iteration_number}]"
+        return f"[Result:{self.pk} {self.status}]"
     
-    def get_payload_preview(self, length=32):
+    def get_payload_preview(self, max_length=32):
         """Get truncated payload preview"""
-        if len(self.payload_hex) <= length:
+        if len(self.payload_hex) <= max_length:
             return self.payload_hex
-        return self.payload_hex[:length] + '...'
-    
-    def has_response(self):
-        """Check if result has response data"""
-        return bool(self.response_hex)
+        return f"{self.payload_hex[:max_length]}..."
     
     def is_interesting(self):
-        """Check if result is interesting (crash or anomaly)"""
-        return self.status in ['crash', 'anomaly'] or self.crashed
+        """Check if result is potentially interesting"""
+        return self.status in ['crash', 'anomaly', 'timeout']
 
 
 class ConfigTemplate(models.Model):
     """
-    Configuration Template Model - Pure Django
-    Reusable configuration templates
+    Configuration Template Model - Stores reusable configurations
     """
     
     CATEGORY_CHOICES = [
-        ('automotive', 'Automotive'),
-        ('iot', 'IoT'),
-        ('industrial', 'Industrial'),
-        ('custom', 'Custom'),
+        ('protocol', 'Protocol Configuration'),
+        ('generator', 'Test Generator Configuration'),
+        ('monitoring', 'Monitoring Configuration'),
+        ('complete', 'Complete Campaign Configuration'),
     ]
     
     name = models.CharField(max_length=255, help_text="Template name")
     description = models.TextField(blank=True, help_text="Template description")
     category = models.CharField(
-        max_length=50,
+        max_length=20,
         choices=CATEGORY_CHOICES,
-        default='custom',
         help_text="Template category"
     )
     
-    # Template configuration (JSON format - adapter will convert)
+    # Configuration data
     protocol_config = models.JSONField(
-        default=dict,
-        help_text="Protocol configuration template"
+        null=True, 
+        blank=True,
+        help_text="Protocol configuration"
     )
     generator_config = models.JSONField(
-        default=dict,
-        help_text="Generator configuration template"
+        null=True, 
+        blank=True,
+        help_text="Generator configuration"
     )
     monitoring_config = models.JSONField(
-        default=dict,
-        help_text="Monitoring configuration template"
+        null=True, 
+        blank=True,
+        help_text="Monitoring configuration"
     )
     
-    # Template metadata (Django-managed)
+    # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     is_default = models.BooleanField(
         default=False,
@@ -516,7 +663,7 @@ class ConfigTemplate(models.Model):
         db_table = 'iot_config_templates'
         verbose_name = 'IoT Config Template'
         verbose_name_plural = 'IoT Config Templates'
-        ordering = ['-is_default', 'category', 'name']
+        ordering = ['-is_default', '-usage_count', 'name']
     
     def __str__(self):
         return f"[Template:{self.pk} {self.name}]"
@@ -524,21 +671,20 @@ class ConfigTemplate(models.Model):
     def increment_usage(self):
         """Increment usage counter"""
         self.usage_count += 1
-        self.save()
+        self.save(update_fields=['usage_count'])
     
     def get_full_config(self):
-        """Get complete configuration"""
+        """Get complete configuration dictionary"""
         return {
-            'protocol_config': self.protocol_config,
-            'generator_config': self.generator_config,
-            'monitoring_config': self.monitoring_config
+            'protocol': self.protocol_config or {},
+            'generator': self.generator_config or {},
+            'monitoring': self.monitoring_config or {},
         }
 
 
 class LiveLog(models.Model):
     """
-    Live Log Model - Pure Django
-    Real-time logging during fuzzing
+    Live Log Model - Stores real-time log entries
     """
     
     LEVEL_CHOICES = [
@@ -550,50 +696,45 @@ class LiveLog(models.Model):
     ]
     
     CATEGORY_CHOICES = [
+        ('system', 'System'),
         ('fuzzer', 'Fuzzer'),
         ('protocol', 'Protocol'),
-        ('system', 'System'),
-        ('adapter', 'Adapter'),
-        ('campaign', 'Campaign'),
+        ('test', 'Test Execution'),
+        ('result', 'Result Processing'),
     ]
     
     campaign = models.ForeignKey(
-        FuzzingCampaign, 
+        FuzzingCampaign,
         on_delete=models.CASCADE,
         related_name='logs',
+        null=True,
+        blank=True,
         help_text="Associated campaign"
     )
     
-    # Log entry details (Django-managed)
-    timestamp = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Log entry timestamp"
-    )
-    log_level = models.CharField(
+    # Log details
+    timestamp = models.DateTimeField(auto_now_add=True)
+    level = models.CharField(
         max_length=20,
         choices=LEVEL_CHOICES,
-        default='info',
         help_text="Log level"
     )
-    message = models.TextField(help_text="Log message")
-    
-    # Log categorization (Django-assigned)
     category = models.CharField(
-        max_length=50,
+        max_length=20,
         choices=CATEGORY_CHOICES,
-        default='fuzzer',
         help_text="Log category"
     )
     source = models.CharField(
         max_length=100,
         help_text="Log source component"
     )
+    message = models.TextField(help_text="Log message")
     
-    # Additional data (from fuzzer via adapter)
+    # Additional data
     extra_data = models.JSONField(
         null=True, 
         blank=True,
-        help_text="Additional log data"
+        help_text="Additional structured data"
     )
     
     class Meta:
@@ -603,65 +744,78 @@ class LiveLog(models.Model):
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['campaign', 'timestamp']),
-            models.Index(fields=['log_level']),
+            models.Index(fields=['level']),
             models.Index(fields=['category']),
         ]
     
     def __str__(self):
-        return f"[Log:{self.pk} {self.log_level.upper()}] {self.message[:50]}..."
+        return f"[Log:{self.pk} {self.level} {self.source}]"
     
     def get_formatted_timestamp(self):
-        """Get formatted timestamp"""
-        return self.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        """Get formatted timestamp string"""
+        return self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     
     def is_error(self):
-        """Check if log entry is error level"""
-        return self.log_level in ['error', 'critical']
+        """Check if log entry is an error"""
+        return self.level in ['error', 'critical']
 
 
-# Admin Configuration
+# Admin configurations
 class FuzzingCampaignAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'protocol_type', 'status', 'progress', 'created_at']
-    list_filter = ['status', 'protocol_type', 'created_at']
+    list_display = ['id', 'name', 'status', 'protocol_type', 'total_cases', 'created_at']
+    list_filter = ['status', 'protocol_type']
     search_fields = ['name', 'description']
-    readonly_fields = ['created_at', 'updated_at', 'fuzzer_instance_id']
-    
-    def progress(self, obj):
-        return f"{obj.get_progress_percentage():.1f}%"
-    progress.short_description = 'Progress'
+    readonly_fields = ['created_at', 'started_at', 'completed_at']
 
 
 class TestGroupAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'campaign', 'priority', 'enabled', 'total_cases']
-    list_filter = ['priority', 'enabled', 'protocol_type', 'mutation_strategy']
+    list_filter = ['priority', 'enabled', 'protocol_type']
     search_fields = ['name', 'description']
+
+
+class ProtocolConfigurationAdmin(admin.ModelAdmin):
+    list_display = ['id', 'protocol_type']
+    list_filter = ['protocol_type']
+
+
+class FrameFieldAdmin(admin.ModelAdmin):
+    list_display = ['id', 'field_name', 'test_case', 'field_type', 'field_order']
+    list_filter = ['field_type', 'is_required']
+    search_fields = ['field_name', 'field_id']
+    ordering = ['test_case', 'field_order']
+
+
+class FuzzingRuleAdmin(admin.ModelAdmin):
+    list_display = ['id', 'rule_name', 'test_case', 'target_type', 'strategy', 'enabled']
+    list_filter = ['target_type', 'strategy', 'enabled']
+    search_fields = ['rule_name', 'description']
+    ordering = ['test_case', '-priority']
 
 
 class TestCaseAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'group', 'priority', 'enabled', 'execution_count', 'last_result']
     list_filter = ['priority', 'enabled', 'last_result']
     search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'last_executed', 'execution_count']
 
 
 class FuzzingResultAdmin(admin.ModelAdmin):
-    list_display = ['id', 'campaign', 'iteration_number', 'status', 'crashed', 'executed_at']
-    list_filter = ['status', 'crashed', 'executed_at']
-    search_fields = ['campaign__name']
+    list_display = ['id', 'campaign', 'test_case', 'status', 'executed_at']
+    list_filter = ['status', 'crashed']
+    search_fields = ['payload_hex', 'response_hex']
     readonly_fields = ['executed_at']
 
 
 class ConfigTemplateAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'category', 'is_default', 'usage_count', 'created_at']
-    list_filter = ['category', 'is_default', 'created_at']
+    list_filter = ['category', 'is_default']
     search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'usage_count']
 
 
 class LiveLogAdmin(admin.ModelAdmin):
-    list_display = ['id', 'campaign', 'log_level', 'category', 'message_preview', 'timestamp']
-    list_filter = ['log_level', 'category', 'timestamp']
+    list_display = ['id', 'timestamp', 'level', 'category', 'source', 'message']
+    list_filter = ['level', 'category', 'source']
     search_fields = ['message', 'source']
-    readonly_fields = ['timestamp']
-    
-    def message_preview(self, obj):
-        return obj.message[:100] + '...' if len(obj.message) > 100 else obj.message
-    message_preview.short_description = 'Message' 
+    readonly_fields = ['timestamp'] 

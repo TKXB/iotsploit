@@ -19,7 +19,8 @@ from sat_toolkit.tools.iot_fuzzer_bridge import IoTFuzzerBridge
 
 # Import Django models
 from sat_toolkit.models.IoTFuzzer_Model import (
-    FuzzingCampaign, TestGroup, TestCase, FuzzingResult, ConfigTemplate, LiveLog
+    FuzzingCampaign, TestGroup, TestCase, FuzzingResult, ConfigTemplate, LiveLog,
+    ProtocolConfiguration, FrameField, FuzzingRule
 )
 
 logger = logging.getLogger(__name__)
@@ -737,7 +738,6 @@ def get_test_groups_list(request: HttpRequest):
                 'priority': group.priority,
                 'enabled': group.enabled,
                 'protocol_type': group.protocol_type,
-                'mutation_strategy': group.mutation_strategy,
                 'total_cases': group.total_cases,
                 'completed_cases': group.completed_cases,
                 'failed_cases': group.failed_cases,
@@ -809,8 +809,7 @@ def create_test_group(request: HttpRequest):
             campaign=campaign,
             priority=group_data.get('priority', 'normal'),
             enabled=group_data.get('enabled', True),
-            protocol_type=group_data.get('protocol_type', campaign.protocol_type),
-            mutation_strategy=group_data.get('mutation_strategy', 'random')
+            protocol_type=group_data.get('protocol_type', campaign.protocol_type)
         )
         
         return JsonResponse({
@@ -863,8 +862,6 @@ def update_test_group(request: HttpRequest, group_id):
             test_group.priority = group_data['priority']
         if 'enabled' in group_data:
             test_group.enabled = group_data['enabled']
-        if 'mutation_strategy' in group_data:
-            test_group.mutation_strategy = group_data['mutation_strategy']
         
         test_group.save()
         
@@ -939,7 +936,7 @@ def get_test_cases_list(request: HttpRequest):
         group_id = request.GET.get('group_id')
         campaign_id = request.GET.get('campaign_id')
         
-        test_cases = TestCase.objects.select_related('group', 'group__campaign')
+        test_cases = TestCase.objects.select_related('group', 'group__campaign', 'protocol_config').prefetch_related('frame_fields', 'fuzzing_rules')
         
         if group_id:
             test_cases = test_cases.filter(group_id=group_id)
@@ -948,6 +945,14 @@ def get_test_cases_list(request: HttpRequest):
         
         cases_data = []
         for case in test_cases:
+            # Build protocol frame from frame fields for backward compatibility
+            protocol_frame = {}
+            for field in case.frame_fields.order_by('field_order'):
+                protocol_frame[field.field_id] = field.value
+            
+            # Get fuzzing rules summary
+            fuzzing_targets = case.get_fuzzing_targets()
+            
             cases_data.append({
                 'id': case.id,
                 'name': case.name,
@@ -958,11 +963,16 @@ def get_test_cases_list(request: HttpRequest):
                 'campaign_name': case.group.campaign.name,
                 'priority': case.priority,
                 'enabled': case.enabled,
-                'protocol_frame': case.protocol_frame,
+                'protocol_frame': protocol_frame,  # Reconstructed from frame fields
+                'frame_name': case.frame_name,
+                'frame_description': case.frame_description,
+                'protocol_type': case.protocol_config.protocol_type,
+                'protocol_settings': case.protocol_config.settings,
+                'fuzzing_targets': fuzzing_targets,
                 'expected_response': case.expected_response,
                 'timeout_seconds': case.timeout_seconds,
                 'timeout': int(case.timeout_seconds * 1000),  # Convert to milliseconds for Flutter
-                'iterations': 100,  # Default value since this field isn't in the model yet
+                'iterations': case.iterations,  # Now an actual field in the model
                 'execution_count': case.execution_count,
                 'last_executed': case.last_executed.isoformat() if case.last_executed else None,
                 'last_result': case.last_result,
@@ -1035,8 +1045,7 @@ def create_test_case(request: HttpRequest):
                             'description': 'Default test group',
                             'protocol_type': 'can',
                             'priority': 'normal',
-                            'enabled': True,
-                            'mutation_strategy': 'random'
+                            'enabled': True
                         }
                     )
                 else:
@@ -1055,16 +1064,47 @@ def create_test_case(request: HttpRequest):
         if timeout_value > 100:  # Assume it's in milliseconds if > 100
             timeout_value = timeout_value / 1000.0
         
+        # Get or create a default protocol configuration
+        protocol_type = case_data.get('protocol_type', group.protocol_type)
+        protocol_config, created = ProtocolConfiguration.objects.get_or_create(
+            protocol_type=protocol_type,
+            defaults={
+                'settings': {
+                    'baud_rate': 500000 if protocol_type == 'can' else 115200,
+                    'default': True
+                }
+            }
+        )
+        
         test_case = TestCase.objects.create(
             name=case_data.get('name', ''),
             description=case_data.get('description', ''),
             group=group,
+            protocol_config=protocol_config,
+            frame_name=case_data.get('frame_name', 'Protocol Frame'),
+            frame_description=case_data.get('frame_description', ''),
             priority=case_data.get('priority', 'normal'),
             enabled=case_data.get('enabled', True),
-            protocol_frame=case_data.get('protocol_frame', {}),
             expected_response=case_data.get('expected_response'),
-            timeout_seconds=timeout_value
+            timeout_seconds=timeout_value,
+            iterations=case_data.get('iterations', 100)
         )
+        
+        # Create frame fields from protocol_frame data (for backward compatibility)
+        protocol_frame = case_data.get('protocol_frame', {})
+        if protocol_frame:
+            field_order = 1
+            for field_id, value in protocol_frame.items():
+                FrameField.objects.create(
+                    test_case=test_case,
+                    field_name=field_id.replace('_', ' ').title(),
+                    field_id=field_id,
+                    field_type='hex' if isinstance(value, str) and value.startswith('0x') else 'dec',
+                    value=str(value),
+                    field_order=field_order,
+                    is_required=(field_id in ['service_id', 'sid', 'id'])
+                )
+                field_order += 1
         
         # Update group statistics
         group.update_statistics()
@@ -1112,16 +1152,57 @@ def update_test_case(request: HttpRequest, case_id):
             test_case.name = case_data['name']
         if 'description' in case_data:
             test_case.description = case_data['description']
+        if 'frame_name' in case_data:
+            test_case.frame_name = case_data['frame_name']
+        if 'frame_description' in case_data:
+            test_case.frame_description = case_data['frame_description']
         if 'priority' in case_data:
             test_case.priority = case_data['priority']
         if 'enabled' in case_data:
             test_case.enabled = case_data['enabled']
-        if 'protocol_frame' in case_data:
-            test_case.protocol_frame = case_data['protocol_frame']
         if 'expected_response' in case_data:
             test_case.expected_response = case_data['expected_response']
         if 'timeout_seconds' in case_data:
             test_case.timeout_seconds = case_data['timeout_seconds']
+        if 'iterations' in case_data:
+            test_case.iterations = case_data['iterations']
+        
+        # Handle protocol_type updates
+        if 'protocol_type' in case_data:
+            protocol_type = case_data['protocol_type']
+            # Find or create ProtocolConfiguration for this protocol type
+            protocol_config, created = ProtocolConfiguration.objects.get_or_create(
+                protocol_type=protocol_type,
+                defaults={'settings': {}}
+            )
+            test_case.protocol_config = protocol_config
+        
+        # Handle protocol_frame updates by updating frame fields
+        if 'protocol_frame' in case_data:
+            protocol_frame = case_data['protocol_frame']
+            
+            # Update existing frame fields or create new ones
+            existing_fields = {f.field_id: f for f in test_case.frame_fields.all()}
+            
+            field_order = 1
+            for field_id, value in protocol_frame.items():
+                if field_id in existing_fields:
+                    # Update existing field
+                    field = existing_fields[field_id]
+                    field.value = str(value)
+                    field.save()
+                else:
+                    # Create new field
+                    FrameField.objects.create(
+                        test_case=test_case,
+                        field_name=field_id.replace('_', ' ').title(),
+                        field_id=field_id,
+                        field_type='hex' if isinstance(value, str) and value.startswith('0x') else 'dec',
+                        value=str(value),
+                        field_order=field_order,
+                        is_required=(field_id in ['service_id', 'sid', 'id'])
+                    )
+                field_order += 1
         
         test_case.save()
         

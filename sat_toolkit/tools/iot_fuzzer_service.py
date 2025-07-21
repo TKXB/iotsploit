@@ -67,7 +67,6 @@ class IoTFuzzerService:
                     'name': group_data.get('name', 'Unnamed Group'),
                     'description': group_data.get('description', ''),
                     'protocol_type': group_data.get('protocol_type', 'unknown'),
-                    'mutation_strategy': group_data.get('mutation_strategy', 'random'),
                     'priority': group_data.get('priority', 'normal'),
                     'enabled': group_data.get('enabled', True),
                     'created_at': group_data.get('created_at', ''),
@@ -108,7 +107,6 @@ class IoTFuzzerService:
                 'name': group_config.get('name', 'Unnamed Group'),
                 'description': group_config.get('description', ''),
                 'protocol_type': group_config.get('protocol_type', 'unknown'),
-                'mutation_strategy': group_config.get('mutation_strategy', 'random'),
                 'priority': group_config.get('priority', 'normal'),
                 'enabled': group_config.get('enabled', True),
                 'created_at': datetime.now().isoformat(),
@@ -144,7 +142,7 @@ class IoTFuzzerService:
             group_data = self.test_groups[group_id]
             
             # Update allowed fields
-            allowed_fields = ['name', 'description', 'priority', 'enabled', 'mutation_strategy']
+            allowed_fields = ['name', 'description', 'priority', 'enabled']
             for field in allowed_fields:
                 if field in updates:
                     group_data[field] = updates[field]

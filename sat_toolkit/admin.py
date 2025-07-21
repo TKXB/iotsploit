@@ -77,12 +77,18 @@ from .models.IoTFuzzer_Model import (
     FuzzingResult,
     ConfigTemplate,
     LiveLog,
+    ProtocolConfiguration,
+    FrameField,
+    FuzzingRule,
     FuzzingCampaignAdmin,
     TestGroupAdmin,
     TestCaseAdmin,
     FuzzingResultAdmin,
     ConfigTemplateAdmin,
     LiveLogAdmin,
+    ProtocolConfigurationAdmin,
+    FrameFieldAdmin,
+    FuzzingRuleAdmin,
 )
 
 # Register IoT Fuzzer models with custom admin classes
@@ -92,3 +98,6 @@ admin.site.register(TestCase, TestCaseAdmin)
 admin.site.register(FuzzingResult, FuzzingResultAdmin)
 admin.site.register(ConfigTemplate, ConfigTemplateAdmin)
 admin.site.register(LiveLog, LiveLogAdmin)
+admin.site.register(ProtocolConfiguration, ProtocolConfigurationAdmin)
+admin.site.register(FrameField, FrameFieldAdmin)
+admin.site.register(FuzzingRule, FuzzingRuleAdmin)
