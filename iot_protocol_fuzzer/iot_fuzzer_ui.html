@@ -1,0 +1,4418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Protocol Fuzzer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f0f0; overflow: hidden; }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+            gap: 1px;
+            background: #ccc;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            margin-left: 30px;
+            gap: 2px;
+        }
+        
+        .nav-tab {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-tab:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .nav-tab.active {
+            background: white;
+            color: #333;
+        }
+        
+        .page {
+            display: none;
+            grid-column: 1 / -1;
+            background: white;
+            overflow: hidden;
+        }
+        
+        .page.active {
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            height: 100%;
+        }
+
+        #config-page.active {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            height: 100%;
+        }
+        
+        .left-panel, .main-panel, .right-panel {
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .control-section {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .btn-start { background: #28a745; color: white; }
+        .btn-pause { background: #ffc107; color: #212529; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        .time-display {
+            font-family: 'Courier New', monospace;
+            margin: 8px 0;
+        }
+        
+        .time-label { font-size: 11px; color: #666; margin-bottom: 3px; }
+        .time-value { font-size: 14px; color: #333; }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .stat-label { font-size: 10px; color: #666; margin-top: 3px; }
+        .stat-pass .stat-value { color: #28a745; }
+        .stat-fail .stat-value { color: #dc3545; }
+        .stat-check .stat-value { color: #ffc107; }
+        .stat-speed .stat-value { color: #17a2b8; }
+        
+        .test-groups {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .test-group {
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .test-group-header {
+            padding: 8px 12px;
+            background: #f1f3f4;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+        
+        .test-group-header:hover { background: #e8eaed; }
+        
+        .test-group-content {
+            display: none;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .test-group.expanded .test-group-content { display: block; }
+        
+        .group-icon {
+            font-size: 14px;
+            margin-right: 8px;
+        }
+
+        .group-name {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .group-stats {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .group-progress {
+            font-size: 10px;
+            color: #667eea;
+            font-weight: 600;
+            background: rgba(102, 126, 234, 0.1);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .group-count {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .test-case-item {
+            padding: 6px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+
+        .test-case-item:hover {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+        }
+
+        .test-case-item:last-child {
+            border-bottom: none;
+        }
+
+        .case-icon {
+            font-size: 12px;
+            color: #667eea;
+        }
+
+        .case-name {
+            flex: 1;
+            font-weight: 400;
+            color: #333;
+        }
+
+        .case-status {
+            font-size: 10px;
+            margin-right: 8px;
+        }
+
+        .status-pending {
+            color: #666;
+        }
+
+        .status-success {
+            color: #28a745;
+        }
+
+        .status-failed {
+            color: #dc3545;
+        }
+
+        .case-progress-bar {
+            width: 30px;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .case-progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-bar {
+            width: 40px;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+        
+        .main-stats {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        
+        .main-stat {
+            text-align: center;
+        }
+        
+        .main-stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .main-stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .test-table-container {
+            flex: 1;
+            overflow: auto;
+            padding: 10px;
+        }
+        
+        .test-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .test-table th {
+            background: #f8f9fa;
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .test-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 11px;
+        }
+        
+        .test-table tr:hover { background: #f8f9fa; }
+
+        .table-row-group {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .table-row-case {
+            background: white;
+        }
+
+        .table-row-case td:first-child {
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .table-row-case td:first-child::before {
+            content: "└";
+            position: absolute;
+            left: 12px;
+            color: #ccc;
+            font-size: 10px;
+        }
+        
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+        }
+        
+        .status-idle { background: #e9ecef; color: #6c757d; }
+        .status-running { background: #fff3cd; color: #856404; }
+        .status-pass { background: #d4edda; color: #155724; }
+        .status-fail { background: #f8d7da; color: #721c24; }
+        
+        .right-section {
+            padding: 10px;
+        }
+        
+        .testcase-info {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .chart-container {
+            height: 120px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .config-form {
+            margin-top: 15px;
+        }
+        
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .anomaly-list {
+            margin-top: 15px;
+        }
+        
+        .anomaly-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 11px;
+        }
+        
+        .anomaly-item:last-child { border-bottom: none; }
+        
+        .anomaly-count {
+            background: #f1f3f4;
+            color: #5f6368;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            margin-right: 8px;
+        }
+        
+        .anomaly-progress {
+            width: 50px;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .anomaly-progress-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+        
+        .progress-green { background: #28a745; }
+        .progress-yellow { background: #ffc107; }
+        .progress-red { background: #dc3545; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+        /* Test Management Page Styles */
+        .management-left {
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            padding: 15px;
+            overflow-y: auto;
+            height: 100%;
+            width: 300px;
+        }
+
+        .management-center {
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            padding: 15px;
+            overflow-y: auto;
+            height: 100%;
+            flex: 1;
+        }
+
+        .management-right {
+            background: #f8f9fa;
+            padding: 15px;
+            overflow-y: auto;
+            height: 100%;
+            width: 350px;
+        }
+
+        .groups-list {
+            margin-bottom: 15px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .group-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .group-item:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+        }
+
+        .group-item.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .group-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .group-icon {
+            font-size: 18px;
+        }
+
+        .group-details {
+            flex: 1;
+        }
+
+        .group-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .group-count {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .group-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .cases-header {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 15px;
+        }
+
+        .cases-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .cases-controls select {
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .cases-list {
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+
+        .case-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .case-item:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+        }
+
+        .case-item.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .case-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .case-icon {
+            font-size: 16px;
+            color: #667eea;
+        }
+
+        .case-item.selected .case-icon {
+            color: white;
+        }
+
+        .case-details {
+            flex: 1;
+        }
+
+        .case-name {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .case-group {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .case-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .case-action-btn {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .case-action-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .properties-form {
+            margin-bottom: 20px;
+            min-height: calc(100vh - 250px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .form-section {
+            background: white;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .form-section-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+
+        .properties-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            border-color: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            border-color: #c82333;
+        }
+
+        .drag-drop-zone {
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .drag-drop-zone.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .case-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+
+        .group-item.drop-target {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+            border-style: dashed;
+        }
+
+        /* Protocol Frame Builder Styles */
+        .protocol-frame-builder {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+
+        .frame-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .frame-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .frame-fields {
+            margin-bottom: 15px;
+        }
+
+        .frame-field {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .field-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .field-controls label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #555;
+            min-width: 100px;
+        }
+
+        .field-input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .field-type {
+            background: #667eea;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .frame-preview {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .frame-hex-display {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .hex-output {
+            font-size: 14px;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
+        }
+
+        .frame-breakdown {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .byte-label {
+            background: rgba(102, 126, 234, 0.2);
+            color: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: help;
+        }
+
+        .response-definition {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .fuzzing-config {
+            background: #fff8f0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .mutation-checkboxes {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 5px;
+        }
+
+        .mutation-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .mutation-checkboxes input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .protocol-tree {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .tree-node {
+            margin-left: 20px;
+            margin-bottom: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .tree-node.root {
+            margin-left: 0;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .field-validation {
+            margin-top: 5px;
+            font-size: 11px;
+        }
+
+        .validation-error {
+            color: #dc3545;
+        }
+
+        .validation-success {
+            color: #28a745;
+        }
+
+        .frame-templates {
+            margin-top: 10px;
+        }
+
+        .template-btn {
+            background: #e9ecef;
+            border: 1px solid #ddd;
+            color: #495057;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-right: 8px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .template-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* Resize Handle Styles */
+        .resize-handle {
+            background: #e0e0e0;
+            cursor: ew-resize;
+            position: relative;
+            transition: background-color 0.2s ease;
+            width: 4px;
+            min-width: 4px;
+            user-select: none;
+        }
+
+        .resize-handle:hover {
+            background: #667eea;
+        }
+
+        .resize-handle:active {
+            background: #5a6fd8;
+        }
+
+        .resize-handle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 1px;
+            transition: all 0.2s ease;
+        }
+
+        .resize-handle::after {
+            content: '⋮⋮';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            line-height: 1;
+            font-weight: bold;
+            letter-spacing: -2px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .resize-handle:hover::after {
+            opacity: 1;
+        }
+
+        .resize-handle.dragging {
+            background: #5a6fd8;
+        }
+
+        .resize-handle.dragging::before {
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Management page specific resize handling */
+        #management-page.active {
+            display: grid !important;
+            grid-template-columns: 300px 1fr 4px auto !important;
+            height: 100%;
+        }
+
+        #management-page .management-right {
+            min-width: 250px;
+            max-width: 600px;
+            /* Use CSS variable for width, overridden via JS */
+            width: var(--properties-width, 350px);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* Cursor styles during resize */
+        body.resizing {
+            cursor: ew-resize !important;
+            user-select: none !important;
+        }
+
+        body.resizing * {
+            cursor: ew-resize !important;
+            user-select: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <span>IoT Protocol Fuzzer</span>
+                            <nav class="nav-tabs">
+                    <button class="nav-tab active" data-page="testing">Testing</button>
+                    <button class="nav-tab" data-page="config">Configuration</button>
+                    <button class="nav-tab" data-page="management">Test Management</button>
+                    <button class="nav-tab" data-page="results">Results</button>
+                </nav>
+            <div style="margin-left: auto; font-size: 14px; opacity: 0.9;">
+                <span id="current-time"></span>
+            </div>
+        </div>
+
+        <!-- Testing Page -->
+        <div class="page active" id="testing-page">
+            <!-- Left Panel -->
+            <div class="left-panel">
+            <div class="panel-header">IDLE</div>
+            
+            <div class="control-section">
+                <div class="control-buttons">
+                    <button class="btn btn-start" id="start-btn">▶ Start</button>
+                    <button class="btn btn-stop" id="stop-btn">⏹ Stop</button>
+                    <button class="btn btn-pause" id="pause-btn">⏸ Pause</button>
+                    <button class="btn btn-reset" id="reset-btn">🔄 Reset</button>
+                </div>
+                
+                <div class="time-display">
+                    <div class="time-label">Test Time</div>
+                    <div class="time-value" id="test-time">00:00:00</div>
+                </div>
+                
+                <div class="time-display">
+                    <div class="time-label">Estimated Running Time</div>
+                    <div class="time-value" id="est-time">00:00:00</div>
+                </div>
+                
+                <div class="time-display">
+                    <div class="time-label">Running Time</div>
+                    <div class="time-value" id="run-time">00:00:00</div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-box stat-pass">
+                        <div class="stat-value" id="pass-count">0</div>
+                        <div class="stat-label">Pass</div>
+                    </div>
+                    <div class="stat-box stat-fail">
+                        <div class="stat-value" id="fail-count">0</div>
+                        <div class="stat-label">Fail</div>
+                    </div>
+                    <div class="stat-box stat-check">
+                        <div class="stat-value" id="check-count">0</div>
+                        <div class="stat-label">Check</div>
+                    </div>
+                    <div class="stat-box stat-speed">
+                        <div class="stat-value" id="speed-count">0.00</div>
+                        <div class="stat-label">Speed (TC/Sec)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-header">Test Group</div>
+            <div class="test-groups">
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">📋</span>
+                        <span class="group-name">0x10 Diagnostic Session</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/8</span>
+                            <span class="group-count">1,810</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Default Session</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Programming Session</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Extended Session</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">EOL Session</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid Session</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Boundary Values</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Malformed Request</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Session Transition</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">🔄</span>
+                        <span class="group-name">0x11 ECU Reset</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/5</span>
+                            <span class="group-count">1,907</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Hard Reset</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Key Off On Reset</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Soft Reset</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Enable Rapid Power Shutdown</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid Reset Type</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">🔐</span>
+                        <span class="group-name">0x27 Security Access</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/6</span>
+                            <span class="group-count">2,101</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Request Seed Level 1</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Send Key Level 1</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Request Seed Level 2</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Send Key Level 2</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid Security Level</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Brute Force Attack</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">📡</span>
+                        <span class="group-name">0x28 Communication Control</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/4</span>
+                            <span class="group-count">15,846</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Enable Rx and Tx</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Enable Rx, Disable Tx</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Disable Rx and Tx</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid Control Type</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">🔑</span>
+                        <span class="group-name">0x29 Authentication</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/3</span>
+                            <span class="group-count">2,004</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Certificate Verification</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Challenge Response</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid Authentication</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">💓</span>
+                        <span class="group-name">0x3E Tester Present</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/2</span>
+                            <span class="group-count">937</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Zero Sub-function</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Suppress Response</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">⚙️</span>
+                        <span class="group-name">0x85 Control DTC Setting</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/3</span>
+                            <span class="group-count">1,616</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">DTC Setting On</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">DTC Setting Off</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid DTC Control</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-group">
+                    <div class="test-group-header">
+                        <span class="group-icon">📖</span>
+                        <span class="group-name">0x22 Read Data By Identifier</span>
+                        <span class="group-stats">
+                            <span class="group-progress">0/7</span>
+                            <span class="group-count">1,349</span>
+                        </span>
+                    </div>
+                    <div class="test-group-content">
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">VIN Number (F190)</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">ECU Serial Number (F18C)</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Software Version (F189)</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Hardware Version (F191)</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Active Diagnostic Session (F186)</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Invalid Data Identifier</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                        <div class="test-case-item">
+                            <span class="case-icon">🔹</span>
+                            <span class="case-name">Multiple Data Identifiers</span>
+                            <span class="case-status status-pending">⏳</span>
+                            <div class="case-progress-bar"><div class="case-progress-fill" style="width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Panel -->
+        <div class="main-panel">
+            <div class="main-stats">
+                <div class="main-stat">
+                    <div class="main-stat-value" id="tc-count">35,044</div>
+                    <div class="main-stat-label">TC Count</div>
+                </div>
+                <div class="main-stat">
+                    <div class="main-stat-value" id="main-pass">0</div>
+                    <div class="main-stat-label">Pass</div>
+                </div>
+                <div class="main-stat">
+                    <div class="main-stat-value" id="main-fail">0</div>
+                    <div class="main-stat-label">Fail</div>
+                </div>
+                <div class="main-stat">
+                    <div class="main-stat-value" id="main-check">0</div>
+                    <div class="main-stat-label">Check</div>
+                </div>
+                <div class="main-stat">
+                    <div class="main-stat-value" id="main-speed">0.00</div>
+                    <div class="main-stat-label">Speed (TC/Sec)</div>
+                </div>
+            </div>
+
+            <div class="test-table-container">
+                <table class="test-table">
+                    <thead>
+                        <tr>
+                            <th>SID</th>
+                            <th>Protocol Frame</th>
+                            <th>Iterations</th>
+                            <th>Progress</th>
+                            <th>Exec</th>
+                            <th>Pass</th>
+                            <th>Fail</th>
+                            <th>Check</th>
+                            <th>Frame_ID</th>
+                            <th>Response</th>
+                            <th>NRC</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="test-table-body">
+                        <!-- Test cases will be dynamically populated -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="panel-header">Test Statistics</div>
+            <div class="right-section">
+                <div class="testcase-info">
+                    Testcase Qty: <span id="testcase-current">135</span> of <span id="testcase-total">135</span>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="right-exec">135</div>
+                        <div class="stat-label">Exec</div>
+                    </div>
+                    <div class="stat-box stat-pass">
+                        <div class="stat-value" id="right-pass">131</div>
+                        <div class="stat-label">Pass</div>
+                    </div>
+                    <div class="stat-box stat-fail">
+                        <div class="stat-value" id="right-fail">4</div>
+                        <div class="stat-label">Fail</div>
+                    </div>
+                    <div class="stat-box stat-check">
+                        <div class="stat-value" id="right-check">0</div>
+                        <div class="stat-label">Check</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-header">Test Performance</div>
+            <div class="right-section">
+                <div class="chart-container">
+                    <canvas id="performance-chart" width="300" height="100"></canvas>
+                </div>
+            </div>
+
+            <div class="panel-header">Test Configuration</div>
+            <div class="right-section">
+                <div class="config-form">
+                    <div class="form-group">
+                        <label class="form-label">Request ID</label>
+                        <input type="text" class="form-control" value="0x702 (1794)">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Response ID</label>
+                        <input type="text" class="form-control" value="0x70A (1802)">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Test No.</label>
+                        <input type="text" class="form-control" value="0 Preset">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Channel</label>
+                        <select class="form-control">
+                            <option>0 Vector SPEED_CAN</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">bitrate</label>
+                        <input type="text" class="form-control" value="500000">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Response Pending</label>
+                        <input type="text" class="form-control" value="78">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Test4</label>
+                        <input type="text" class="form-control" value="4">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">test1</label>
+                        <input type="text" class="form-control" value="11">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">test2</label>
+                        <input type="text" class="form-control" value="4">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-header">Accumulated Anomaly Data</div>
+            <div class="right-section">
+                <div class="anomaly-list">
+                    <div class="anomaly-item">
+                        <span>TIMEOUT_FRAME</span>
+                        <div style="display: flex; align-items: center;">
+                            <span class="anomaly-count">5</span>
+                            <div class="anomaly-progress">
+                                <div class="anomaly-progress-fill progress-yellow" style="width: 20%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anomaly-item">
+                        <span>DTC</span>
+                        <div style="display: flex; align-items: center;">
+                            <span class="anomaly-count">3</span>
+                            <div class="anomaly-progress">
+                                <div class="anomaly-progress-fill progress-red" style="width: 15%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anomaly-item">
+                        <span>FLAG</span>
+                        <div style="display: flex; align-items: center;">
+                            <span class="anomaly-count">8</span>
+                            <div class="anomaly-progress">
+                                <div class="anomaly-progress-fill progress-green" style="width: 40%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anomaly-item">
+                        <span>LENGTH</span>
+                        <div style="display: flex; align-items: center;">
+                            <span class="anomaly-count">117</span>
+                            <div class="anomaly-progress">
+                                <div class="anomaly-progress-fill progress-red" style="width: 90%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anomaly-item">
+                        <span>STRESS</span>
+                        <div style="display: flex; align-items: center;">
+                            <span class="anomaly-count">6</span>
+                            <div class="anomaly-progress">
+                                <div class="anomaly-progress-fill progress-yellow" style="width: 25%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anomaly-item">
+                        <span>NONE</span>
+                        <div style="display: flex; align-items: center;">
+                            <span class="anomaly-count">11</span>
+                            <div class="anomaly-progress">
+                                <div class="anomaly-progress-fill progress-green" style="width: 55%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Configuration Page -->
+        <div class="page" id="config-page">
+            <div class="config-left">
+                <h2>Configuration Settings</h2>
+                
+                <div class="config-section">
+                    <h3>Protocol Configuration</h3>
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label>Protocol Type</label>
+                            <select class="config-control">
+                                <option value="uart">UART/Serial</option>
+                                <option value="can">CAN Bus</option>
+                                <option value="spi">SPI</option>
+                                <option value="i2c">I2C</option>
+                                <option value="ethernet">Ethernet</option>
+                                <option value="doip">DoIP</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Device Path</label>
+                            <input type="text" class="config-control" value="/dev/ttyUSB0" placeholder="Device path">
+                        </div>
+                        <div class="config-group">
+                            <label>Baud Rate</label>
+                            <select class="config-control">
+                                <option value="9600">9600</option>
+                                <option value="38400">38400</option>
+                                <option value="115200" selected>115200</option>
+                                <option value="230400">230400</option>
+                                <option value="460800">460800</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Timeout (ms)</label>
+                            <input type="number" class="config-control" value="1000" min="100">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h3>Fuzzing Engine</h3>
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label>Generator Type</label>
+                            <select class="config-control" id="generator-select">
+                                <option value="radamsa">Radamsa</option>
+                                <option value="custom">Custom Generator</option>
+                                <option value="genetic">Genetic Algorithm</option>
+                                <option value="random">Random Generator</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Radamsa Path</label>
+                            <input type="text" class="config-control" value="/home/tkxb/Projects/radamsa/bin/radamsa">
+                        </div>
+                        <div class="config-group">
+                            <label>Mutation Rate</label>
+                            <input type="range" class="config-control" min="0.1" max="1.0" step="0.1" value="0.5">
+                            <span class="range-value">0.5</span>
+                        </div>
+                        <div class="config-group">
+                            <label>Coverage Feedback</label>
+                            <input type="checkbox" class="config-control" checked>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h3>Data Generation Strategy</h3>
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label>Seed Corpus</label>
+                            <select class="config-control">
+                                <option value="at_commands">AT Commands</option>
+                                <option value="binary_protocols">Binary Protocols</option>
+                                <option value="text_protocols">Text Protocols</option>
+                                <option value="custom">Custom Seeds</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Max Payload Size</label>
+                            <input type="number" class="config-control" value="1024" min="1">
+                        </div>
+                        <div class="config-group">
+                            <label>Generation Strategy</label>
+                            <select class="config-control">
+                                <option value="random">Random Mutation</option>
+                                <option value="targeted">Targeted Fuzzing</option>
+                                <option value="grammar">Grammar-based</option>
+                                <option value="evolutionary">Evolutionary</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Smart Mutations</label>
+                            <input type="checkbox" class="config-control" checked>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h3>Test Campaign</h3>
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label>Total Iterations</label>
+                            <input type="number" class="config-control" value="10000" min="1">
+                        </div>
+                        <div class="config-group">
+                            <label>Delay Between Tests (ms)</label>
+                            <input type="number" class="config-control" value="50" min="0">
+                        </div>
+                        <div class="config-group">
+                            <label>Crash Detection</label>
+                            <input type="checkbox" class="config-control" checked>
+                        </div>
+                        <div class="config-group">
+                            <label>Save Artifacts</label>
+                            <input type="checkbox" class="config-control" checked>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h3>Monitoring & Logging</h3>
+                    <div class="config-grid">
+                        <div class="config-group">
+                            <label>Log Level</label>
+                            <select class="config-control">
+                                <option value="DEBUG">DEBUG</option>
+                                <option value="INFO" selected>INFO</option>
+                                <option value="WARNING">WARNING</option>
+                                <option value="ERROR">ERROR</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Output Directory</label>
+                            <input type="text" class="config-control" value="./artifacts" placeholder="Output path">
+                        </div>
+                        <div class="config-group">
+                            <label>Real-time Monitoring</label>
+                            <input type="checkbox" class="config-control" checked>
+                        </div>
+                        <div class="config-group">
+                            <label>Performance Metrics</label>
+                            <input type="checkbox" class="config-control" checked>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-actions">
+                    <button class="btn btn-primary">Save Configuration</button>
+                    <button class="btn btn-secondary">Load Configuration</button>
+                    <button class="btn btn-secondary">Reset to Defaults</button>
+                </div>
+            </div>
+
+            <div class="config-right">
+                <div class="config-preview">
+                    <h3>Configuration Preview</h3>
+                    <div class="preview-content">
+                        <div class="preview-section">
+                            <h4>Current Settings</h4>
+                            <div class="preview-item">
+                                <span class="preview-label">Protocol:</span>
+                                <span class="preview-value" id="preview-protocol">UART/Serial</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">Device:</span>
+                                <span class="preview-value" id="preview-device">/dev/ttyUSB0</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">Baud Rate:</span>
+                                <span class="preview-value" id="preview-baud">115200</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">Generator:</span>
+                                <span class="preview-value" id="preview-generator">Radamsa</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-label">Iterations:</span>
+                                <span class="preview-value" id="preview-iterations">10000</span>
+                            </div>
+                        </div>
+
+                        <div class="preview-section">
+                            <h4>Estimated Campaign</h4>
+                            <div class="campaign-stats">
+                                <div class="stat-card">
+                                    <div class="stat-number">~2.8h</div>
+                                    <div class="stat-desc">Estimated Duration</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number">~50MB</div>
+                                    <div class="stat-desc">Expected Data</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number">~85%</div>
+                                    <div class="stat-desc">Success Rate</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="preview-section">
+                            <h4>Fuzzing Strategy</h4>
+                            <div class="strategy-visual">
+                                <div class="strategy-step">
+                                    <div class="step-number">1</div>
+                                    <div class="step-desc">Load Seed Corpus</div>
+                                </div>
+                                <div class="strategy-arrow">→</div>
+                                <div class="strategy-step">
+                                    <div class="step-number">2</div>
+                                    <div class="step-desc">Generate Mutations</div>
+                                </div>
+                                <div class="strategy-arrow">→</div>
+                                <div class="strategy-step">
+                                    <div class="step-number">3</div>
+                                    <div class="step-desc">Execute & Monitor</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="preview-section">
+                            <h4>Quick Actions</h4>
+                            <div class="quick-actions">
+                                <button class="quick-btn" onclick="validateConfig()">
+                                    <span class="quick-icon">✓</span>
+                                    Validate Config
+                                </button>
+                                <button class="quick-btn" onclick="testConnection()">
+                                    <span class="quick-icon">🔗</span>
+                                    Test Connection
+                                </button>
+                                <button class="quick-btn" onclick="exportConfig()">
+                                    <span class="quick-icon">📤</span>
+                                    Export Config
+                                </button>
+                                <button class="quick-btn" onclick="importConfig()">
+                                    <span class="quick-icon">📥</span>
+                                    Import Config
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="preview-section">
+                            <h4>Configuration Templates</h4>
+                            <div class="template-list">
+                                <div class="template-item" onclick="loadTemplate('automotive')">
+                                    <div class="template-icon">🚗</div>
+                                    <div class="template-info">
+                                        <div class="template-name">Automotive ECU</div>
+                                        <div class="template-desc">CAN bus + UDS protocols</div>
+                                    </div>
+                                </div>
+                                <div class="template-item" onclick="loadTemplate('iot')">
+                                    <div class="template-icon">📱</div>
+                                    <div class="template-info">
+                                        <div class="template-name">IoT Device</div>
+                                        <div class="template-desc">UART + AT commands</div>
+                                    </div>
+                                </div>
+                                <div class="template-item" onclick="loadTemplate('industrial')">
+                                    <div class="template-icon">🏭</div>
+                                    <div class="template-info">
+                                        <div class="template-name">Industrial Control</div>
+                                        <div class="template-desc">Modbus + Ethernet</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Page -->
+        <div class="page" id="results-page">
+            <div class="results-left">
+                <div class="panel-header">Result File</div>
+                <div class="file-tree">
+                    <div class="file-item project-root">
+                        <span class="file-icon">📁</span>
+                        <span>project_sample_name.project</span>
+                    </div>
+                    <div class="file-item result-file selected">
+                        <span class="file-icon">✅</span>
+                        <span>Check_Availability_220301.result</span>
+                    </div>
+                    <div class="file-item result-file">
+                        <span class="file-icon">📄</span>
+                        <span>Test_set_result_220301.result</span>
+                    </div>
+                    <div class="file-item result-file">
+                        <span class="file-icon">📄</span>
+                        <span>test_set_result_220301_111.result</span>
+                    </div>
+                    <div class="file-item log-file">
+                        <span class="file-icon">📋</span>
+                        <span>result_20220304_004.log</span>
+                    </div>
+                </div>
+
+                <div class="panel-header">Logs</div>
+                <div class="logs-container">
+                    <div class="log-filters">
+                        <label><input type="checkbox" checked> Passed Test Case</label>
+                        <label><input type="checkbox" checked> Failed Test Case</label>
+                        <label><input type="checkbox" checked> Other Test Case</label>
+                    </div>
+                    <div class="logs-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>no.</th>
+                                    <th>status</th>
+                                    <th>Test group</th>
+                                    <th>Sub Test group</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="log-row selected">
+                                    <td>1</td>
+                                    <td><span class="status-other">other</span></td>
+                                    <td>Test group 1</td>
+                                    <td>Sub Test group 1</td>
+                                </tr>
+                                <tr class="log-row">
+                                    <td>2</td>
+                                    <td><span class="status-pass">pass</span></td>
+                                    <td>Test group 1</td>
+                                    <td>Sub Test group 1</td>
+                                </tr>
+                                <tr class="log-row">
+                                    <td>3</td>
+                                    <td><span class="status-fail">fail</span></td>
+                                    <td>Test group 1</td>
+                                    <td>Sub Test group 1</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-main">
+                <div class="panel-header">Result Summaries</div>
+                <div class="result-summary">
+                    <div class="summary-header">
+                        <span class="summary-icon">📊</span>
+                        <span>Test_set_result_220301.Result</span>
+                    </div>
+                    <div class="summary-content">
+                        <div class="summary-row">
+                            <span class="summary-label">Test State:</span>
+                            <span class="summary-value">complete</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Test run date:</span>
+                            <span class="summary-value">2022/03/04</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Test time:</span>
+                            <span class="summary-value">1:11:23:13520</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Total test cases:</span>
+                            <span class="summary-value">50</span>
+                        </div>
+                        <div class="summary-row indent">
+                            <span class="summary-label">passed cases:</span>
+                            <span class="summary-value">45</span>
+                        </div>
+                        <div class="summary-row indent">
+                            <span class="summary-label">Failed cases:</span>
+                            <span class="summary-value">4</span>
+                        </div>
+                        <div class="summary-row indent">
+                            <span class="summary-label">Other cases:</span>
+                            <span class="summary-value">1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-right">
+                <div class="live-log">
+                    <div class="log-entry">11:07:56 TEST CASE #1</div>
+                    <div class="log-entry">11:07:56 can.can-uds-ecureset valid</div>
+                    <div class="log-entry">11:07:56 CAN-ISOTP payload --> remote 2 Message</div>
+                    <div class="log-entry">11:07:56 udp 45459 --> 127.0.1:9999 16 ecu-reset</div>
+                    <div class="log-entry">11:07:56 udp 45459 <-- 127.0.1:9999 16 uds-response</div>
+                    <div class="log-entry">11:07:56 Traceback (most recent call last):</div>
+                    <div class="log-entry">11:07:56 Test case #1 pass</div>
+                    <div class="log-entry">11:07:06 Test case #1 completed</div>
+                </div>
+                <div class="report-button">
+                    <button class="btn btn-report">Report</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Management Page -->
+        <div class="page" id="management-page">
+            <div class="management-left">
+                <div class="panel-header">Test Groups</div>
+                <div class="groups-list" id="groups-list">
+                    <!-- Groups will be populated here -->
+                </div>
+                <div class="group-actions">
+                    <button class="btn btn-primary" id="add-group-btn">+ Add Group</button>
+                    <button class="btn btn-secondary" id="import-groups-btn">Import Groups</button>
+                </div>
+            </div>
+
+            <div class="management-center">
+                <div class="panel-header">Test Cases</div>
+                <div class="cases-header">
+                    <div class="cases-controls">
+                        <select id="group-filter" class="form-control">
+                            <option value="">All Groups</option>
+                        </select>
+                        <!-- Protocol selector for new test cases -->
+                        <select id="protocol-select" class="form-control" style="max-width: 150px; margin-left: 10px;">
+                            <option value="uart">UART/Serial</option>
+                            <option value="can">CAN Bus</option>
+                            <option value="spi">SPI</option>
+                            <option value="i2c">I2C</option>
+                            <option value="ethernet">Ethernet</option>
+                            <option value="doip">DoIP</option>
+                        </select>
+                        <button class="btn btn-primary" id="add-case-btn">+ Add Case</button>
+                    </div>
+                </div>
+                <div class="cases-list" id="cases-list">
+                    <!-- Cases will be populated here -->
+                </div>
+            </div>
+
+            <div class="resize-handle" id="properties-resize-handle" title="Drag to resize Properties panel"></div>
+
+            <div class="management-right" id="management-right-panel">
+                <div class="panel-header">Properties</div>
+                <div class="properties-form" id="properties-form">
+                    <div class="empty-state">
+                        <p>Select a group or test case to edit properties</p>
+                    </div>
+                </div>
+                <div class="properties-actions">
+                    <button class="btn btn-primary" id="save-properties-btn" disabled>Save Changes</button>
+                    <button class="btn btn-secondary" id="cancel-properties-btn" disabled>Cancel</button>
+                    <button class="btn btn-danger" id="delete-item-btn" disabled>Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Configuration Page Styles */
+        .config-left {
+            background: white;
+            padding: 20px;
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        .config-right {
+            background: #f8f9fa;
+            border-left: 1px solid #e0e0e0;
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        .config-preview {
+            padding: 20px;
+        }
+
+        .config-preview h3 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .preview-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .preview-section {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .preview-section h4 {
+            color: #555;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .preview-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .preview-item:last-child {
+            border-bottom: none;
+        }
+
+        .preview-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .preview-value {
+            font-size: 12px;
+            color: #333;
+            font-weight: 600;
+            background: #f8f9fa;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .campaign-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-card {
+            background: #667eea;
+            color: white;
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 6px;
+        }
+
+        .stat-number {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .stat-desc {
+            font-size: 10px;
+            opacity: 0.9;
+        }
+
+        .strategy-visual {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+
+        .strategy-step {
+            text-align: center;
+            flex: 1;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .step-desc {
+            font-size: 11px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .strategy-arrow {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 0 10px;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .quick-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .quick-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .quick-icon {
+            font-size: 14px;
+        }
+
+        .template-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .template-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .template-item:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .template-icon {
+            font-size: 20px;
+            width: 40px;
+            height: 40px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .template-info {
+            flex: 1;
+        }
+
+        .template-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .template-desc {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .config-left h2 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .config-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .config-section h3 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .config-group label {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .config-control {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .config-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        .range-value {
+            margin-left: 10px;
+            font-weight: 500;
+            color: #667eea;
+        }
+
+        .config-actions {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            margin: 0 10px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            margin: 0 10px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        /* Results Page Styles */
+        .results-left {
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .results-main {
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .results-right {
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .file-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .file-item:hover {
+            background: #f8f9fa;
+        }
+
+        .file-item.selected {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .file-icon {
+            font-size: 14px;
+        }
+
+        .logs-container {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-filters {
+            padding: 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .log-filters label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+
+        .logs-table {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .logs-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .logs-table th {
+            background: #f8f9fa;
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .logs-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .log-row:hover {
+            background: #f8f9fa;
+        }
+
+        .log-row.selected {
+            background: #e3f2fd;
+        }
+
+        .status-pass {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .status-fail {
+            color: #dc3545;
+            font-weight: 500;
+        }
+
+        .status-other {
+            color: #ffc107;
+            font-weight: 500;
+        }
+
+        .result-summary {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .summary-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .summary-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 14px;
+        }
+
+        .summary-row.indent {
+            padding-left: 20px;
+        }
+
+        .summary-label {
+            color: #666;
+        }
+
+        .summary-value {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .live-log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: #1e1e1e;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+
+        .log-entry {
+            margin-bottom: 2px;
+        }
+
+        .report-button {
+            padding: 10px;
+            background: #2c3e50;
+            text-align: center;
+        }
+
+        .btn-report {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+    </style>
+
+    <script>
+        let isRunning = false;
+        let startTime = null;
+        let testData = {
+            tcCount: 35044,
+            pass: 0,
+            fail: 0,
+            check: 0,
+            speed: 0.00,
+            currentTest: 0
+        };
+
+        // Test groups and cases data structure
+        let testGroups = [
+            {
+                id: 'group-0x10',
+                sid: '0x10',
+                name: 'Diagnostic Session Control',
+                icon: '📋',
+                count: 1810,
+                progress: 0,
+                exec: 0,
+                pass: 0,
+                fail: 0,
+                check: 0,
+                tc_id: 1,
+                result: 0,
+                status: 'pending',
+                cases: [
+                    {id: 'case-0x10-1', name: 'Default Session', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending', 
+                     subFunction: '0x01', payload: '', responseSid: '0x50', responsePattern: '50 01', nrcCodes: '10,11,12,13', 
+                     priority: 'high', expected: 'pass', timeout: 3000, iterations: 100, description: 'Test default diagnostic session control'},
+                    {id: 'case-0x10-2', name: 'Programming Session', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '0x02', payload: '', responseSid: '0x50', responsePattern: '50 02', nrcCodes: '10,11,12,13,22',
+                     priority: 'high', expected: 'pass', timeout: 3000, iterations: 100, description: 'Test programming diagnostic session'},
+                    {id: 'case-0x10-3', name: 'Extended Session', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '0x03', payload: '', responseSid: '0x50', responsePattern: '50 03', nrcCodes: '10,11,12,13',
+                     priority: 'medium', expected: 'pass', timeout: 3000, iterations: 100, description: 'Test extended diagnostic session'},
+                    {id: 'case-0x10-4', name: 'EOL Session', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '0x04', payload: '', responseSid: '0x50', responsePattern: '50 04', nrcCodes: '10,11,12,13,31',
+                     priority: 'medium', expected: 'pass', timeout: 3000, iterations: 100, description: 'Test end-of-line diagnostic session'},
+                    {id: 'case-0x10-5', name: 'Invalid Session', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '0xFF', payload: '', responseSid: '0x7F', responsePattern: '7F 10 12', nrcCodes: '12',
+                     priority: 'low', expected: 'fail', timeout: 1000, iterations: 50, description: 'Test invalid session type for negative response'},
+                    {id: 'case-0x10-6', name: 'Boundary Values', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '0x00', payload: '', responseSid: '0x7F', responsePattern: '7F 10 12', nrcCodes: '10,12,13',
+                     priority: 'medium', expected: 'check', timeout: 2000, iterations: 200, description: 'Test boundary session values'},
+                    {id: 'case-0x10-7', name: 'Malformed Request', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '', payload: 'FF FF FF', responseSid: '0x7F', responsePattern: '7F 10 13', nrcCodes: '13',
+                     priority: 'high', expected: 'check', timeout: 1000, iterations: 300, description: 'Test malformed diagnostic session requests'},
+                    {id: 'case-0x10-8', name: 'Session Transition', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending',
+                     subFunction: '0x01', payload: '', responseSid: '0x50', responsePattern: '50 01', nrcCodes: '10,22',
+                     priority: 'high', expected: 'pass', timeout: 5000, iterations: 150, description: 'Test session state transitions'}
+                ]
+            },
+            {
+                id: 'group-0x11',
+                sid: '0x11',
+                name: 'ECU Reset',
+                icon: '🔄',
+                count: 1907,
+                progress: 0,
+                exec: 0,
+                pass: 0,
+                fail: 0,
+                check: 0,
+                tc_id: 2,
+                result: 0,
+                status: 'pending',
+                cases: [
+                    {id: 'case-0x11-1', name: 'Hard Reset', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x11-2', name: 'Key Off On Reset', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x11-3', name: 'Soft Reset', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x11-4', name: 'Enable Rapid Power Shutdown', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x11-5', name: 'Invalid Reset Type', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'}
+                ]
+            },
+            {
+                id: 'group-0x27',
+                sid: '0x27',
+                name: 'Security Access',
+                icon: '🔐',
+                count: 2101,
+                progress: 0,
+                exec: 0,
+                pass: 0,
+                fail: 0,
+                check: 0,
+                tc_id: 3,
+                result: 0,
+                status: 'pending',
+                cases: [
+                    {id: 'case-0x27-1', name: 'Request Seed Level 1', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x27-2', name: 'Send Key Level 1', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x27-3', name: 'Request Seed Level 2', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x27-4', name: 'Send Key Level 2', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x27-5', name: 'Invalid Security Level', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x27-6', name: 'Brute Force Attack', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'}
+                ]
+            },
+            {
+                id: 'group-0x28',
+                sid: '0x28',
+                name: 'Communication Control',
+                icon: '📡',
+                count: 15846,
+                progress: 0,
+                exec: 0,
+                pass: 0,
+                fail: 0,
+                check: 0,
+                tc_id: 4,
+                result: 0,
+                status: 'pending',
+                cases: [
+                    {id: 'case-0x28-1', name: 'Enable Rx and Tx', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x28-2', name: 'Enable Rx, Disable Tx', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x28-3', name: 'Disable Rx and Tx', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'},
+                    {id: 'case-0x28-4', name: 'Invalid Control Type', progress: 0, exec: 0, pass: 0, fail: 0, check: 0, status: 'pending'}
+                ]
+            }
+        ];
+
+        // Initialize UI
+        document.addEventListener('DOMContentLoaded', function() {
+            updateClock();
+            setInterval(updateClock, 1000);
+            setInterval(updateTimer, 1000);
+            initializeEventListeners();
+            setupPerformanceChart();
+            initializeNavigation();
+            initializeTestTable();
+            updateGroupProgress();
+        });
+
+        function initializeEventListeners() {
+            document.getElementById('start-btn').addEventListener('click', startTest);
+            document.getElementById('stop-btn').addEventListener('click', stopTest);
+            document.getElementById('pause-btn').addEventListener('click', pauseTest);
+            document.getElementById('reset-btn').addEventListener('click', resetTest);
+
+            // Test group toggles
+            document.querySelectorAll('.test-group-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    this.parentElement.classList.toggle('expanded');
+                });
+            });
+        }
+
+        function startTest() {
+            if (!isRunning) {
+                isRunning = true;
+                startTime = Date.now();
+                document.querySelector('.panel-header').textContent = 'RUNNING';
+                document.getElementById('start-btn').disabled = true;
+                simulateTestRun();
+            }
+        }
+
+        function stopTest() {
+            isRunning = false;
+            document.querySelector('.panel-header').textContent = 'IDLE';
+            document.getElementById('start-btn').disabled = false;
+        }
+
+        function pauseTest() {
+            isRunning = !isRunning;
+            document.querySelector('.panel-header').textContent = isRunning ? 'RUNNING' : 'PAUSED';
+        }
+
+        function resetTest() {
+            stopTest();
+            testData = { tcCount: 35044, pass: 0, fail: 0, check: 0, speed: 0.00, currentTest: 0 };
+            startTime = null;
+            updateStats();
+            document.getElementById('test-time').textContent = '00:00:00';
+        }
+
+        function simulateTestRun() {
+            if (!isRunning) return;
+            
+            // Simulate test execution
+            const result = Math.random();
+            if (result < 0.85) {
+                testData.pass++;
+            } else if (result < 0.95) {
+                testData.fail++;
+            } else {
+                testData.check++;
+            }
+            
+            testData.currentTest++;
+            
+            // Calculate speed
+            const elapsed = (Date.now() - startTime) / 1000;
+            testData.speed = elapsed > 0 ? (testData.currentTest / elapsed).toFixed(2) : 0;
+            
+            updateStats();
+            updateTestTable();
+            
+            if (isRunning && testData.currentTest < 1000) {
+                setTimeout(simulateTestRun, 50 + Math.random() * 100);
+            } else {
+                stopTest();
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('pass-count').textContent = testData.pass;
+            document.getElementById('fail-count').textContent = testData.fail;
+            document.getElementById('check-count').textContent = testData.check;
+            document.getElementById('speed-count').textContent = testData.speed;
+            
+            document.getElementById('main-pass').textContent = testData.pass;
+            document.getElementById('main-fail').textContent = testData.fail;
+            document.getElementById('main-check').textContent = testData.check;
+            document.getElementById('main-speed').textContent = testData.speed;
+            
+            document.getElementById('right-exec').textContent = testData.currentTest;
+            document.getElementById('right-pass').textContent = testData.pass;
+            document.getElementById('right-fail').textContent = testData.fail;
+            document.getElementById('right-check').textContent = testData.check;
+        }
+
+        function initializeTestTable() {
+            const tableBody = document.getElementById('test-table-body');
+            tableBody.innerHTML = '';
+
+            testGroups.forEach(group => {
+                // Add group row (protocol service)
+                const groupRow = document.createElement('tr');
+                groupRow.className = 'table-row-group';
+                groupRow.innerHTML = `
+                    <td><strong>${group.icon} ${group.sid}</strong></td>
+                    <td>
+                        <div style="font-weight: 600;">${group.name}</div>
+                        <div style="font-size: 10px; color: #666;">${group.cases.length} protocol frames • ${group.count} total iterations</div>
+                    </td>
+                    <td>${group.count}</td>
+                    <td>0%</td>
+                    <td>${group.exec}</td>
+                    <td>${group.pass}</td>
+                    <td>${group.fail}</td>
+                    <td>${group.check}</td>
+                    <td>SVC_${group.tc_id}</td>
+                    <td colspan="2">Protocol Service Group</td>
+                    <td><span class="status-badge status-idle">IDLE</span></td>
+                `;
+                tableBody.appendChild(groupRow);
+
+                // Add case rows (protocol frames)
+                group.cases.forEach((testCase, index) => {
+                    const caseRow = document.createElement('tr');
+                    caseRow.className = 'table-row-case';
+                    caseRow.dataset.groupId = group.id;
+                    caseRow.dataset.caseId = testCase.id;
+                    
+                    // Build frame preview
+                    const frameData = [group.sid, testCase.subFunction, testCase.payload].filter(x => x).join(' ');
+                    const frameDisplay = frameData || `${group.sid} ${testCase.subFunction || '??'}`;
+                    
+                    caseRow.innerHTML = `
+                        <td title="Protocol Frame">${frameDisplay}</td>
+                        <td>
+                            <div style="font-weight: 500;">${testCase.name}</div>
+                            <div style="font-size: 10px; color: #666; font-family: monospace;">${testCase.description || 'Protocol frame test case'}</div>
+                        </td>
+                        <td>${testCase.iterations || 100}</td>
+                        <td>0%</td>
+                        <td>${testCase.exec}</td>
+                        <td>${testCase.pass}</td>
+                        <td>${testCase.fail}</td>
+                        <td>${testCase.check}</td>
+                        <td>${group.tc_id}.${index + 1}</td>
+                        <td title="Expected: ${testCase.responsePattern}">${testCase.responseSid || '-'}</td>
+                        <td title="Negative Response Codes">${testCase.nrcCodes ? testCase.nrcCodes.split(',')[0] : '-'}</td>
+                        <td><span class="status-badge status-idle">IDLE</span></td>
+                    `;
+                    tableBody.appendChild(caseRow);
+                });
+            });
+
+            // Calculate total test cases
+            const totalCases = testGroups.reduce((total, group) => total + group.cases.length, 0);
+            document.getElementById('testcase-total').textContent = totalCases;
+        }
+
+        function updateGroupProgress() {
+            testGroups.forEach(group => {
+                const completedCases = group.cases.filter(c => c.status === 'completed').length;
+                const totalCases = group.cases.length;
+                const progress = totalCases > 0 ? Math.floor((completedCases / totalCases) * 100) : 0;
+                
+                // Update group progress in left panel
+                const groupElements = document.querySelectorAll('.test-group');
+                groupElements.forEach(element => {
+                    const groupName = element.querySelector('.group-name');
+                    if (groupName && groupName.textContent.includes(group.name)) {
+                        const progressElement = element.querySelector('.group-progress');
+                        if (progressElement) {
+                            progressElement.textContent = `${completedCases}/${totalCases}`;
+                        }
+                    }
+                });
+            });
+        }
+
+        function updateTestTable() {
+            // Enhanced to handle both groups and individual cases
+            const allCases = testGroups.flatMap(group => 
+                group.cases.map(testCase => ({...testCase, groupId: group.id, groupName: group.name}))
+            );
+            
+            if (testData.currentTest < allCases.length) {
+                const currentCase = allCases[testData.currentTest];
+                const caseRow = document.querySelector(`tr[data-case-id="${currentCase.id}"]`);
+                
+                if (caseRow) {
+                    const statusCell = caseRow.querySelector('.status-badge');
+                    statusCell.textContent = 'RUNNING';
+                    statusCell.className = 'status-badge status-running';
+                    
+                    // Update case data
+                    currentCase.exec++;
+                    caseRow.cells[4].textContent = currentCase.exec;
+                    
+                    // Update case status in the left panel
+                    updateCaseStatusInLeftPanel(currentCase);
+                }
+                
+                // Update group progress
+                updateGroupProgress();
+            }
+        }
+
+        function updateCaseStatusInLeftPanel(currentCase) {
+            const testGroups = document.querySelectorAll('.test-group');
+            testGroups.forEach(groupElement => {
+                const caseItems = groupElement.querySelectorAll('.test-case-item');
+                caseItems.forEach(caseItem => {
+                    const caseName = caseItem.querySelector('.case-name');
+                    if (caseName && caseName.textContent === currentCase.name) {
+                        const statusIcon = caseItem.querySelector('.case-status');
+                        const progressBar = caseItem.querySelector('.case-progress-fill');
+                        
+                        statusIcon.textContent = '🔄';
+                        statusIcon.className = 'case-status status-running';
+                        progressBar.style.width = '50%';
+                    }
+                });
+            });
+        }
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString();
+        }
+
+        function updateTimer() {
+            if (startTime && isRunning) {
+                const elapsed = Date.now() - startTime;
+                document.getElementById('test-time').textContent = formatTime(elapsed);
+            }
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function setupPerformanceChart() {
+            const canvas = document.getElementById('performance-chart');
+            const ctx = canvas.getContext('2d');
+            let dataPoints = Array(30).fill(0);
+            
+            function drawChart() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Update data
+                dataPoints.shift();
+                dataPoints.push(parseFloat(testData.speed) || 0);
+                
+                // Draw grid
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = (canvas.height / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // Draw line
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                dataPoints.forEach((point, index) => {
+                    const x = (canvas.width / (dataPoints.length - 1)) * index;
+                    const y = canvas.height - (point * 3);
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+            }
+            
+            setInterval(drawChart, 1000);
+        }
+
+        function initializeNavigation() {
+            const navTabs = document.querySelectorAll('.nav-tab');
+            const pages = document.querySelectorAll('.page');
+
+            navTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetPage = this.getAttribute('data-page');
+                    
+                    // Remove active class from all tabs and pages
+                    navTabs.forEach(t => t.classList.remove('active'));
+                    pages.forEach(p => p.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding page
+                    this.classList.add('active');
+                    const activePage = document.getElementById(targetPage + '-page');
+                    activePage.classList.add('active');
+                    
+                    // Special handling for management page layout
+                    if (targetPage === 'management') {
+                        setTimeout(() => {
+                            const managementPage = document.getElementById('management-page');
+                            if (managementPage) {
+                                // Ensure the grid layout is applied
+                                managementPage.style.display = 'grid';
+                                managementPage.style.gridTemplateColumns = '300px 1fr 4px auto';
+                                
+                                // Initialize the saved width if available
+                                const savedWidth = localStorage.getItem('properties-panel-width');
+                                if (savedWidth) {
+                                    const width = parseInt(savedWidth);
+                                    if (width >= 250 && width <= 600) {
+                                        managementPage.style.setProperty('--properties-width', width + 'px');
+                                    }
+                                }
+                            }
+                        }, 10);
+                    }
+                });
+            });
+
+            // Initialize configuration page functionality
+            initializeConfigPage();
+            initializeResultsPage();
+            initializeManagementPage();
+        }
+
+        function initializeConfigPage() {
+            // Handle range input updates
+            const rangeInputs = document.querySelectorAll('input[type="range"]');
+            rangeInputs.forEach(input => {
+                const valueSpan = input.nextElementSibling;
+                input.addEventListener('input', function() {
+                    if (valueSpan && valueSpan.classList.contains('range-value')) {
+                        valueSpan.textContent = this.value;
+                    }
+                    updateConfigPreview();
+                });
+            });
+
+            // Update preview when any config changes
+            const configControls = document.querySelectorAll('.config-control');
+            configControls.forEach(control => {
+                control.addEventListener('change', updateConfigPreview);
+                control.addEventListener('input', updateConfigPreview);
+            });
+
+            // Configuration save/load functionality
+            document.querySelector('.btn-primary').addEventListener('click', function() {
+                saveConfiguration();
+                alert('Configuration saved successfully!');
+            });
+
+            const loadBtn = document.querySelectorAll('.btn-secondary')[0];
+            if (loadBtn) {
+                loadBtn.addEventListener('click', function() {
+                    loadConfiguration();
+                    alert('Configuration loaded successfully!');
+                });
+            }
+
+            const resetBtn = document.querySelectorAll('.btn-secondary')[1];
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function() {
+                    if (confirm('Reset all settings to defaults?')) {
+                        resetConfiguration();
+                        alert('Configuration reset to defaults!');
+                    }
+                });
+            }
+        }
+
+        function initializeResultsPage() {
+            // File tree navigation
+            const fileItems = document.querySelectorAll('.file-item');
+            fileItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    fileItems.forEach(f => f.classList.remove('selected'));
+                    this.classList.add('selected');
+                    loadResultFile(this.textContent.trim());
+                });
+            });
+
+            // Log row selection
+            const logRows = document.querySelectorAll('.log-row');
+            logRows.forEach(row => {
+                row.addEventListener('click', function() {
+                    logRows.forEach(r => r.classList.remove('selected'));
+                    this.classList.add('selected');
+                    showLogDetails(this);
+                });
+            });
+
+            // Simulate live log updates
+            setInterval(updateLiveLog, 2000);
+        }
+
+        function saveConfiguration() {
+            const config = {};
+            const controls = document.querySelectorAll('.config-control');
+            controls.forEach(control => {
+                if (control.type === 'checkbox') {
+                    config[control.name || control.id] = control.checked;
+                } else {
+                    config[control.name || control.id] = control.value;
+                }
+            });
+            localStorage.setItem('iot-fuzzer-config', JSON.stringify(config));
+        }
+
+        function loadConfiguration() {
+            const config = JSON.parse(localStorage.getItem('iot-fuzzer-config') || '{}');
+            const controls = document.querySelectorAll('.config-control');
+            controls.forEach(control => {
+                const key = control.name || control.id;
+                if (config[key] !== undefined) {
+                    if (control.type === 'checkbox') {
+                        control.checked = config[key];
+                    } else {
+                        control.value = config[key];
+                    }
+                }
+            });
+        }
+
+        function resetConfiguration() {
+            const controls = document.querySelectorAll('.config-control');
+            controls.forEach(control => {
+                if (control.type === 'checkbox') {
+                    control.checked = control.hasAttribute('checked');
+                } else if (control.tagName === 'SELECT') {
+                    const defaultOption = control.querySelector('option[selected]');
+                    if (defaultOption) {
+                        control.value = defaultOption.value;
+                    } else {
+                        control.selectedIndex = 0;
+                    }
+                } else {
+                    control.value = control.defaultValue || '';
+                }
+            });
+        }
+
+        function loadResultFile(filename) {
+            // Simulate loading result file
+            console.log('Loading result file:', filename);
+            // Update result summary based on selected file
+            updateResultSummary(filename);
+        }
+
+        function updateResultSummary(filename) {
+            // Simulate updating result summary
+            const summaryData = {
+                testState: 'complete',
+                testDate: '2022/03/04',
+                testTime: '1:11:23:13520',
+                totalCases: Math.floor(Math.random() * 100) + 20,
+                passedCases: Math.floor(Math.random() * 50) + 30,
+                failedCases: Math.floor(Math.random() * 10) + 2,
+                otherCases: Math.floor(Math.random() * 5) + 1
+            };
+
+            // Update DOM with new data
+            document.querySelector('.summary-header span:last-child').textContent = filename;
+            // Update other summary fields as needed
+        }
+
+        function showLogDetails(row) {
+            const testNumber = row.cells[0].textContent;
+            const status = row.cells[1].textContent;
+            console.log('Selected test case:', testNumber, 'Status:', status);
+            // Update live log or detail view
+        }
+
+        function updateLiveLog() {
+            const liveLog = document.querySelector('.live-log');
+            const now = new Date();
+            const timestamp = now.toTimeString().substring(0, 8);
+            
+            const logMessages = [
+                `${timestamp} TEST CASE #${Math.floor(Math.random() * 1000)}`,
+                `${timestamp} can.can-uds-ecureset valid`,
+                `${timestamp} CAN-ISOTP payload --> remote ${Math.floor(Math.random() * 10)} Message`,
+                `${timestamp} udp ${Math.floor(Math.random() * 65535)} --> 127.0.1:9999 16 ecu-reset`,
+                `${timestamp} Test case #${Math.floor(Math.random() * 100)} ${Math.random() > 0.8 ? 'fail' : 'pass'}`
+            ];
+
+            const randomMessage = logMessages[Math.floor(Math.random() * logMessages.length)];
+            const newEntry = document.createElement('div');
+            newEntry.className = 'log-entry';
+            newEntry.textContent = randomMessage;
+            
+            liveLog.appendChild(newEntry);
+            
+            // Keep only last 100 entries
+            while (liveLog.children.length > 100) {
+                liveLog.removeChild(liveLog.firstChild);
+            }
+            
+            // Auto-scroll to bottom
+            liveLog.scrollTop = liveLog.scrollHeight;
+        }
+
+        // Test Management Page Functions
+        let selectedGroup = null;
+        let selectedCase = null;
+
+        function initializeManagementPage() {
+            populateGroupsList();
+            populateCasesList();
+            initializeManagementEventListeners();
+            initializeResizeHandle();
+        }
+
+        function initializeManagementEventListeners() {
+            // Group management
+            document.getElementById('add-group-btn').addEventListener('click', addNewGroup);
+            document.getElementById('import-groups-btn').addEventListener('click', importGroups);
+            
+            // Case management
+            document.getElementById('add-case-btn').addEventListener('click', addNewCase);
+            document.getElementById('group-filter').addEventListener('change', filterCases);
+            
+            // Properties management
+            document.getElementById('save-properties-btn').addEventListener('click', saveProperties);
+            document.getElementById('cancel-properties-btn').addEventListener('click', cancelProperties);
+            document.getElementById('delete-item-btn').addEventListener('click', deleteItem);
+        }
+
+        function populateGroupsList() {
+            const groupsList = document.getElementById('groups-list');
+            const groupFilter = document.getElementById('group-filter');
+            
+            groupsList.innerHTML = '';
+            groupFilter.innerHTML = '<option value="">All Groups</option>';
+
+            testGroups.forEach(group => {
+                // Create group item
+                const groupItem = document.createElement('div');
+                groupItem.className = 'group-item';
+                groupItem.dataset.groupId = group.id;
+                groupItem.innerHTML = `
+                    <div class="group-info">
+                        <span class="group-icon">${group.icon}</span>
+                        <div class="group-details">
+                            <div class="group-name">${group.name}</div>
+                            <div class="group-count">${group.cases.length} cases • ${group.count} iterations</div>
+                        </div>
+                    </div>
+                    <div class="group-actions">
+                        <button class="case-action-btn" onclick="editGroup('${group.id}')">✏️</button>
+                        <button class="case-action-btn" onclick="duplicateGroup('${group.id}')">📋</button>
+                    </div>
+                `;
+                
+                groupItem.addEventListener('click', (e) => {
+                    if (!e.target.closest('.group-actions')) {
+                        selectGroup(group.id);
+                    }
+                });
+
+                groupsList.appendChild(groupItem);
+
+                // Add to filter dropdown
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = group.name;
+                groupFilter.appendChild(option);
+            });
+        }
+
+        function populateCasesList(filterGroupId = '') {
+            const casesList = document.getElementById('cases-list');
+            casesList.innerHTML = '';
+
+            testGroups.forEach(group => {
+                if (filterGroupId && group.id !== filterGroupId) return;
+
+                group.cases.forEach(testCase => {
+                    const caseItem = document.createElement('div');
+                    caseItem.className = 'case-item';
+                    caseItem.dataset.caseId = testCase.id;
+                    caseItem.dataset.groupId = group.id;
+                    caseItem.draggable = true;
+                    
+                    caseItem.innerHTML = `
+                        <div class="case-main">
+                            <span class="case-icon">🔹</span>
+                            <div class="case-details">
+                                <div class="case-name">${testCase.name}</div>
+                                <div class="case-group">Group: ${group.name}</div>
+                            </div>
+                        </div>
+                        <div class="case-actions">
+                            <button class="case-action-btn" onclick="editCase('${testCase.id}')">✏️</button>
+                            <button class="case-action-btn" onclick="duplicateCase('${testCase.id}')">📋</button>
+                            <button class="case-action-btn" onclick="deleteCase('${testCase.id}')">🗑️</button>
+                        </div>
+                    `;
+
+                    caseItem.addEventListener('click', (e) => {
+                        if (!e.target.closest('.case-actions')) {
+                            selectCase(testCase.id);
+                        }
+                    });
+
+                    // Add drag and drop
+                    caseItem.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', testCase.id);
+                        caseItem.classList.add('dragging');
+                    });
+
+                    caseItem.addEventListener('dragend', () => {
+                        caseItem.classList.remove('dragging');
+                    });
+
+                    casesList.appendChild(caseItem);
+                });
+            });
+
+            // Add drop zones to groups
+            document.querySelectorAll('.group-item').forEach(groupItem => {
+                groupItem.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    groupItem.classList.add('drop-target');
+                });
+
+                groupItem.addEventListener('dragleave', () => {
+                    groupItem.classList.remove('drop-target');
+                });
+
+                groupItem.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const caseId = e.dataTransfer.getData('text/plain');
+                    const targetGroupId = groupItem.dataset.groupId;
+                    moveCaseToGroup(caseId, targetGroupId);
+                    groupItem.classList.remove('drop-target');
+                });
+            });
+        }
+
+        function selectGroup(groupId) {
+            // Clear case selection
+            selectedCase = null;
+            document.querySelectorAll('.case-item').forEach(item => item.classList.remove('selected'));
+
+            // Update group selection
+            selectedGroup = groupId;
+            document.querySelectorAll('.group-item').forEach(item => item.classList.remove('selected'));
+            document.querySelector(`[data-group-id="${groupId}"]`).classList.add('selected');
+
+            // Show group properties
+            showGroupProperties(groupId);
+        }
+
+        function selectCase(caseId) {
+            // Clear group selection
+            selectedGroup = null;
+            document.querySelectorAll('.group-item').forEach(item => item.classList.remove('selected'));
+
+            // Update case selection
+            selectedCase = caseId;
+            document.querySelectorAll('.case-item').forEach(item => item.classList.remove('selected'));
+            document.querySelector(`[data-case-id="${caseId}"]`).classList.add('selected');
+
+            // Show case properties
+            showCaseProperties(caseId);
+        }
+
+        function showGroupProperties(groupId) {
+            const group = testGroups.find(g => g.id === groupId);
+            if (!group) return;
+
+            const propertiesForm = document.getElementById('properties-form');
+            propertiesForm.innerHTML = `
+                <div class="form-section">
+                    <div class="form-section-title">Group Information</div>
+                    <div class="form-group">
+                        <label class="form-label">Group Name</label>
+                        <input type="text" class="form-control" id="edit-group-name" value="${group.name}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Service ID</label>
+                        <input type="text" class="form-control" id="edit-group-sid" value="${group.sid}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Icon</label>
+                        <input type="text" class="form-control" id="edit-group-icon" value="${group.icon}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Test Count</label>
+                        <input type="number" class="form-control" id="edit-group-count" value="${group.count}">
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Test Cases (${group.cases.length})</div>
+                    <div class="cases-summary">
+                        ${group.cases.map(c => `<div class="case-summary-item">🔹 ${c.name}</div>`).join('')}
+                    </div>
+                    <div class="drag-drop-zone">
+                        <p>Drag test cases here to add them to this group</p>
+                    </div>
+                </div>
+            `;
+
+            enablePropertyButtons();
+        }
+
+        function showCaseProperties(caseId) {
+            const testCase = findCaseById(caseId);
+            const group = findGroupByCaseId(caseId);
+            if (!testCase || !group) return;
+
+            const propertiesForm = document.getElementById('properties-form');
+            propertiesForm.innerHTML = `
+                <div class="form-section">
+                    <div class="form-section-title">Test Case Information</div>
+                    <div class="form-group">
+                        <label class="form-label">Protocol</label>
+                        <select class="form-control" id="edit-case-protocol">
+                            <option value="uart" ${testCase.protocol === 'uart' ? 'selected' : ''}>UART/Serial</option>
+                            <option value="can" ${testCase.protocol === 'can' ? 'selected' : ''}>CAN Bus</option>
+                            <option value="spi" ${testCase.protocol === 'spi' ? 'selected' : ''}>SPI</option>
+                            <option value="i2c" ${testCase.protocol === 'i2c' ? 'selected' : ''}>I2C</option>
+                            <option value="ethernet" ${testCase.protocol === 'ethernet' ? 'selected' : ''}>Ethernet</option>
+                            <option value="doip" ${testCase.protocol === 'doip' ? 'selected' : ''}>DoIP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Case Name</label>
+                        <input type="text" class="form-control" id="edit-case-name" value="${testCase.name}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Parent Group</label>
+                        <select class="form-control" id="edit-case-group">
+                            ${testGroups.map(g => `<option value="${g.id}" ${g.id === group.id ? 'selected' : ''}>${g.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="edit-case-description" rows="3">${testCase.description || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-control" id="edit-case-priority">
+                            <option value="low" ${testCase.priority === 'low' ? 'selected' : ''}>Low</option>
+                            <option value="medium" ${testCase.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                            <option value="high" ${testCase.priority === 'high' ? 'selected' : ''}>High</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <div class="form-section-title">Protocol Frame Definition</div>
+                    <div class="protocol-frame-builder">
+                        <div class="frame-header">
+                            <span class="frame-title">🔧 Frame Structure</span>
+                            <button class="btn btn-sm btn-secondary" onclick="addFrameField()">+ Add Field</button>
+                        </div>
+                        <div class="frame-fields" id="frame-fields-${caseId}">
+                            <div class="frame-field">
+                                <div class="field-controls">
+                                    <label>Service ID (SID)</label>
+                                    <input type="text" class="field-input" value="${group.sid}" placeholder="0x10">
+                                    <span class="field-type">HEX</span>
+                                </div>
+                            </div>
+                            <div class="frame-field">
+                                <div class="field-controls">
+                                    <label>Sub-Function</label>
+                                    <input type="text" class="field-input" value="${testCase.subFunction || '0x01'}" placeholder="0x01">
+                                    <span class="field-type">HEX</span>
+                                </div>
+                            </div>
+                            <div class="frame-field">
+                                <div class="field-controls">
+                                    <label>Data Length</label>
+                                    <input type="text" class="field-input" value="${testCase.dataLength || 'auto'}" placeholder="auto">
+                                    <span class="field-type">AUTO</span>
+                                </div>
+                            </div>
+                            <div class="frame-field">
+                                <div class="field-controls">
+                                    <label>Payload Data</label>
+                                    <input type="text" class="field-input" value="${testCase.payload || ''}" placeholder="Additional data...">
+                                    <span class="field-type">HEX</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="frame-templates">
+                            <div style="margin-bottom: 10px; font-size: 12px; font-weight: 500; color: #555;">
+                                📚 Quick Templates:
+                            </div>
+                            <button class="template-btn" onclick="loadFrameTemplate('diagnosticSession')">Diagnostic Session</button>
+                            <button class="template-btn" onclick="loadFrameTemplate('ecuReset')">ECU Reset</button>
+                            <button class="template-btn" onclick="loadFrameTemplate('securityAccess')">Security Access</button>
+                            <button class="template-btn" onclick="loadFrameTemplate('readDataByIdentifier')">Read Data by ID</button>
+                        </div>
+                        
+                        <div class="frame-preview">
+                            <div class="preview-header">
+                                <span>🔍 Frame Preview</span>
+                                <button class="btn btn-sm btn-primary" onclick="validateFrame()">Validate</button>
+                            </div>
+                            <div class="frame-hex-display">
+                                <div class="hex-output" id="hex-output-${caseId}">${group.sid} 01</div>
+                                <div class="frame-breakdown">
+                                    <span class="byte-label" title="Service ID">${group.sid}</span>
+                                    <span class="byte-label" title="Sub-Function">01</span>
+                                </div>
+                            </div>
+                            <div class="protocol-tree">
+                                <div class="tree-node root">📋 Protocol Frame Structure</div>
+                                <div class="tree-node">├── Service ID: ${group.sid} (${group.name})</div>
+                                <div class="tree-node">├── Sub-Function: 0x01</div>
+                                <div class="tree-node">├── Data Length: Auto-calculated</div>
+                                <div class="tree-node">└── Payload: (optional data)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Expected Response</div>
+                    <div class="response-definition">
+                        <div class="form-group">
+                            <label class="form-label">Response SID</label>
+                            <input type="text" class="form-control" id="edit-response-sid" value="${testCase.responseSid || getPositiveResponseSid(group.sid)}" placeholder="0x50">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expected Data Pattern</label>
+                            <input type="text" class="form-control" id="edit-response-pattern" value="${testCase.responsePattern || ''}" placeholder="50 01 [data...]">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Negative Response Codes</label>
+                            <input type="text" class="form-control" id="edit-nrc-codes" value="${testCase.nrcCodes || '10,11,12,13'}" placeholder="10,11,12,13">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Fuzzing Strategy</div>
+                    <div class="fuzzing-config">
+                        <div class="form-group">
+                            <label class="form-label">Mutation Fields</label>
+                            <div class="mutation-checkboxes">
+                                <label><input type="checkbox" checked> Service ID</label>
+                                <label><input type="checkbox" checked> Sub-Function</label>
+                                <label><input type="checkbox"> Data Length</label>
+                                <label><input type="checkbox" checked> Payload Data</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mutation Strategy</label>
+                            <select class="form-control" id="edit-mutation-strategy">
+                                <option value="boundary">Boundary Values</option>
+                                <option value="random" selected>Random Mutation</option>
+                                <option value="bitflip">Bit Flipping</option>
+                                <option value="injection">Code Injection</option>
+                                <option value="overflow">Buffer Overflow</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Iterations per Frame</label>
+                            <input type="number" class="form-control" id="edit-frame-iterations" value="${testCase.iterations || 100}" min="1">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <div class="form-section-title">Test Configuration</div>
+                    <div class="form-group">
+                        <label class="form-label">Expected Result</label>
+                        <select class="form-control" id="edit-case-expected">
+                            <option value="pass" ${testCase.expected === 'pass' ? 'selected' : ''}>Pass</option>
+                            <option value="fail" ${testCase.expected === 'fail' ? 'selected' : ''}>Fail</option>
+                            <option value="check" ${testCase.expected === 'check' ? 'selected' : ''}>Check</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Timeout (ms)</label>
+                        <input type="number" class="form-control" id="edit-case-timeout" value="${testCase.timeout || 5000}">
+                    </div>
+                </div>
+            `;
+
+            enablePropertyButtons();
+            setupFrameBuilder(caseId);
+        }
+
+        function enablePropertyButtons() {
+            document.getElementById('save-properties-btn').disabled = false;
+            document.getElementById('cancel-properties-btn').disabled = false;
+            document.getElementById('delete-item-btn').disabled = false;
+        }
+
+        function addNewGroup() {
+            const groupId = 'group-custom-' + Date.now();
+            const newGroup = {
+                id: groupId,
+                sid: '0x' + Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase(),
+                name: 'New Test Group',
+                icon: '📋',
+                count: 0,
+                progress: 0,
+                exec: 0,
+                pass: 0,
+                fail: 0,
+                check: 0,
+                tc_id: testGroups.length + 1,
+                result: 0,
+                status: 'pending',
+                cases: []
+            };
+
+            testGroups.push(newGroup);
+            populateGroupsList();
+            selectGroup(groupId);
+            
+            // Update main testing interface
+            initializeTestTable();
+            updateGroupProgress();
+        }
+
+        function addNewCase() {
+            // Read selected protocol for new test case
+            const protocol = document.getElementById('protocol-select')?.value || 'uart';
+            const targetGroupId = selectedGroup || testGroups[0].id;
+            const targetGroup = testGroups.find(g => g.id === targetGroupId);
+            
+            const caseId = 'case-custom-' + Date.now();
+            // Create new case with protocol-specific properties
+            const newCase = {
+                id: caseId,
+                protocol: protocol,
+                name: `New ${protocol.toUpperCase()} Test`,
+                progress: 0,
+                exec: 0,
+                pass: 0,
+                fail: 0,
+                check: 0,
+                status: 'pending',
+                priority: 'medium',
+                expected: 'pass',
+                timeout: 5000,
+                iterations: 100,
+                description: `Protocol: ${protocol.toUpperCase()}`
+            };
+
+            targetGroup.cases.push(newCase);
+            populateCasesList();
+            selectCase(caseId);
+            
+            // Update main testing interface
+            initializeTestTable();
+            updateGroupProgress();
+        }
+
+        function moveCaseToGroup(caseId, targetGroupId) {
+            const sourceGroup = findGroupByCaseId(caseId);
+            const targetGroup = testGroups.find(g => g.id === targetGroupId);
+            const testCase = findCaseById(caseId);
+
+            if (sourceGroup && targetGroup && testCase && sourceGroup.id !== targetGroupId) {
+                // Remove from source group
+                sourceGroup.cases = sourceGroup.cases.filter(c => c.id !== caseId);
+                
+                // Add to target group
+                targetGroup.cases.push(testCase);
+                
+                // Refresh UI
+                populateGroupsList();
+                populateCasesList();
+                initializeTestTable();
+                updateGroupProgress();
+                
+                console.log(`Moved case "${testCase.name}" from "${sourceGroup.name}" to "${targetGroup.name}"`);
+            }
+        }
+
+        function saveProperties() {
+            if (selectedGroup) {
+                saveGroupProperties();
+            } else if (selectedCase) {
+                saveCaseProperties();
+            }
+        }
+
+        function saveGroupProperties() {
+            const group = testGroups.find(g => g.id === selectedGroup);
+            if (!group) return;
+
+            group.name = document.getElementById('edit-group-name').value;
+            group.sid = document.getElementById('edit-group-sid').value;
+            group.icon = document.getElementById('edit-group-icon').value;
+            group.count = parseInt(document.getElementById('edit-group-count').value);
+
+            populateGroupsList();
+            initializeTestTable();
+            alert('Group properties saved successfully!');
+        }
+
+        function saveCaseProperties() {
+            const testCase = findCaseById(selectedCase);
+            const currentGroup = findGroupByCaseId(selectedCase);
+            const newGroupId = document.getElementById('edit-case-group').value;
+            
+            if (!testCase || !currentGroup) return;
+
+            // Update case properties
+            testCase.protocol = document.getElementById('edit-case-protocol').value;
+            testCase.name = document.getElementById('edit-case-name').value;
+            testCase.description = document.getElementById('edit-case-description').value;
+            testCase.priority = document.getElementById('edit-case-priority').value;
+            testCase.expected = document.getElementById('edit-case-expected').value;
+            testCase.timeout = parseInt(document.getElementById('edit-case-timeout').value);
+
+            // Move to different group if needed
+            if (currentGroup.id !== newGroupId) {
+                moveCaseToGroup(selectedCase, newGroupId);
+            } else {
+                populateCasesList();
+                initializeTestTable();
+            }
+
+            alert('Test case properties saved successfully!');
+        }
+
+        function cancelProperties() {
+            if (selectedGroup) {
+                showGroupProperties(selectedGroup);
+            } else if (selectedCase) {
+                showCaseProperties(selectedCase);
+            }
+        }
+
+        function deleteItem() {
+            if (selectedGroup) {
+                deleteGroup(selectedGroup);
+            } else if (selectedCase) {
+                deleteCase(selectedCase);
+            }
+        }
+
+        function deleteGroup(groupId) {
+            const group = testGroups.find(g => g.id === groupId);
+            if (!group) return;
+
+            if (confirm(`Delete group "${group.name}" and all its ${group.cases.length} test cases?`)) {
+                testGroups = testGroups.filter(g => g.id !== groupId);
+                selectedGroup = null;
+                
+                populateGroupsList();
+                populateCasesList();
+                initializeTestTable();
+                updateGroupProgress();
+                
+                document.getElementById('properties-form').innerHTML = '<div class="empty-state"><p>Select a group or test case to edit properties</p></div>';
+                document.getElementById('save-properties-btn').disabled = true;
+                document.getElementById('cancel-properties-btn').disabled = true;
+                document.getElementById('delete-item-btn').disabled = true;
+            }
+        }
+
+        function deleteCase(caseId) {
+            const testCase = findCaseById(caseId);
+            const group = findGroupByCaseId(caseId);
+            
+            if (!testCase || !group) return;
+
+            if (confirm(`Delete test case "${testCase.name}"?`)) {
+                group.cases = group.cases.filter(c => c.id !== caseId);
+                selectedCase = null;
+                
+                populateGroupsList();
+                populateCasesList();
+                initializeTestTable();
+                updateGroupProgress();
+                
+                document.getElementById('properties-form').innerHTML = '<div class="empty-state"><p>Select a group or test case to edit properties</p></div>';
+                document.getElementById('save-properties-btn').disabled = true;
+                document.getElementById('cancel-properties-btn').disabled = true;
+                document.getElementById('delete-item-btn').disabled = true;
+            }
+        }
+
+        function filterCases() {
+            const filterGroupId = document.getElementById('group-filter').value;
+            populateCasesList(filterGroupId);
+        }
+
+        function findCaseById(caseId) {
+            for (const group of testGroups) {
+                const testCase = group.cases.find(c => c.id === caseId);
+                if (testCase) return testCase;
+            }
+            return null;
+        }
+
+        function findGroupByCaseId(caseId) {
+            return testGroups.find(group => group.cases.some(c => c.id === caseId));
+        }
+
+        function editGroup(groupId) {
+            selectGroup(groupId);
+        }
+
+        function editCase(caseId) {
+            selectCase(caseId);
+        }
+
+        function duplicateGroup(groupId) {
+            const originalGroup = testGroups.find(g => g.id === groupId);
+            if (!originalGroup) return;
+
+            const newGroupId = 'group-copy-' + Date.now();
+            const duplicatedGroup = {
+                ...originalGroup,
+                id: newGroupId,
+                name: originalGroup.name + ' (Copy)',
+                tc_id: testGroups.length + 1,
+                cases: originalGroup.cases.map(c => ({
+                    ...c,
+                    id: 'case-copy-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+                }))
+            };
+
+            testGroups.push(duplicatedGroup);
+            populateGroupsList();
+            selectGroup(newGroupId);
+            initializeTestTable();
+            updateGroupProgress();
+        }
+
+        function duplicateCase(caseId) {
+            const originalCase = findCaseById(caseId);
+            const group = findGroupByCaseId(caseId);
+            
+            if (!originalCase || !group) return;
+
+            const newCaseId = 'case-copy-' + Date.now();
+            const duplicatedCase = {
+                ...originalCase,
+                id: newCaseId,
+                name: originalCase.name + ' (Copy)'
+            };
+
+            group.cases.push(duplicatedCase);
+            populateCasesList();
+            selectCase(newCaseId);
+            initializeTestTable();
+            updateGroupProgress();
+        }
+
+        function importGroups() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        if (Array.isArray(importedData)) {
+                            if (confirm('Import ' + importedData.length + ' test groups? This will add to existing groups.')) {
+                                importedData.forEach(group => {
+                                    group.id = 'group-import-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                                    group.tc_id = testGroups.length + 1;
+                                    group.cases.forEach(c => {
+                                        c.id = 'case-import-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                                    });
+                                    testGroups.push(group);
+                                });
+                                
+                                populateGroupsList();
+                                populateCasesList();
+                                initializeTestTable();
+                                updateGroupProgress();
+                                alert('Groups imported successfully!');
+                            }
+                        }
+                    } catch (error) {
+                        alert('Invalid JSON file format');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // Configuration Preview Functions
+        function validateConfig() {
+            const protocolType = document.querySelector('select[value="uart"]').closest('select').value;
+            const devicePath = document.querySelector('input[value="/dev/ttyUSB0"]').value;
+            
+            // Simulate validation
+            setTimeout(() => {
+                alert('✅ Configuration is valid!\n\n' +
+                      `Protocol: ${protocolType}\n` +
+                      `Device: ${devicePath}\n` +
+                      'All settings are properly configured.');
+            }, 500);
+        }
+
+        function testConnection() {
+            const devicePath = document.querySelector('input[value="/dev/ttyUSB0"]').value;
+            
+            // Simulate connection test
+            alert('🔗 Testing connection...');
+            setTimeout(() => {
+                const success = Math.random() > 0.3; // 70% success rate simulation
+                if (success) {
+                    alert(`✅ Connection successful!\n\nDevice: ${devicePath}\nStatus: Ready for fuzzing`);
+                } else {
+                    alert(`❌ Connection failed!\n\nDevice: ${devicePath}\nError: Device not found or access denied`);
+                }
+            }, 1000);
+        }
+
+        function exportConfig() {
+            const config = {};
+            const controls = document.querySelectorAll('.config-control');
+            controls.forEach(control => {
+                if (control.type === 'checkbox') {
+                    config[control.name || control.id || 'unnamed'] = control.checked;
+                } else {
+                    config[control.name || control.id || 'unnamed'] = control.value;
+                }
+            });
+            
+            const configJson = JSON.stringify(config, null, 2);
+            const blob = new Blob([configJson], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'iot-fuzzer-config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importConfig() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const config = JSON.parse(e.target.result);
+                            loadConfigFromObject(config);
+                            alert('✅ Configuration imported successfully!');
+                        } catch (error) {
+                            alert('❌ Failed to import configuration: Invalid JSON file');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            
+            input.click();
+        }
+
+        function loadTemplate(templateType) {
+            const templates = {
+                automotive: {
+                    protocolType: 'can',
+                    devicePath: 'can0',
+                    baudRate: '500000',
+                    generatorType: 'radamsa',
+                    iterations: '5000',
+                    seedCorpus: 'binary_protocols'
+                },
+                iot: {
+                    protocolType: 'uart',
+                    devicePath: '/dev/ttyUSB0',
+                    baudRate: '115200',
+                    generatorType: 'radamsa',
+                    iterations: '10000',
+                    seedCorpus: 'at_commands'
+                },
+                industrial: {
+                    protocolType: 'ethernet',
+                    devicePath: '192.168.1.100',
+                    baudRate: '100000',
+                    generatorType: 'targeted',
+                    iterations: '15000',
+                    seedCorpus: 'binary_protocols'
+                }
+            };
+
+            const template = templates[templateType];
+            if (template) {
+                loadConfigFromObject(template);
+                alert(`✅ ${templateType.charAt(0).toUpperCase() + templateType.slice(1)} template loaded!`);
+            }
+        }
+
+        function loadConfigFromObject(config) {
+            const controls = document.querySelectorAll('.config-control');
+            controls.forEach(control => {
+                const key = control.name || control.id;
+                if (config[key] !== undefined) {
+                    if (control.type === 'checkbox') {
+                        control.checked = config[key];
+                    } else {
+                        control.value = config[key];
+                    }
+                }
+                         });
+             updateConfigPreview();
+         }
+
+         function updateConfigPreview() {
+             // Get current configuration values
+             const protocolSelect = document.querySelector('select.config-control');
+             const deviceInput = document.querySelector('input[value="/dev/ttyUSB0"]');
+             const baudSelect = document.querySelectorAll('select.config-control')[1];
+             const generatorSelect = document.getElementById('generator-select');
+             const iterationsInput = document.querySelector('input[value="10000"]');
+
+             // Update preview values
+             if (document.getElementById('preview-protocol') && protocolSelect) {
+                 document.getElementById('preview-protocol').textContent = 
+                     protocolSelect.options[protocolSelect.selectedIndex].text;
+             }
+             
+             if (document.getElementById('preview-device') && deviceInput) {
+                 document.getElementById('preview-device').textContent = deviceInput.value;
+             }
+             
+             if (document.getElementById('preview-baud') && baudSelect) {
+                 document.getElementById('preview-baud').textContent = baudSelect.value;
+             }
+             
+             if (document.getElementById('preview-generator') && generatorSelect) {
+                 document.getElementById('preview-generator').textContent = 
+                     generatorSelect.options[generatorSelect.selectedIndex].text;
+             }
+             
+             if (document.getElementById('preview-iterations') && iterationsInput) {
+                 document.getElementById('preview-iterations').textContent = 
+                     parseInt(iterationsInput.value).toLocaleString();
+             }
+
+             // Update estimated campaign stats
+             const iterations = parseInt(iterationsInput?.value || 10000);
+             const estimatedDuration = Math.round((iterations / 3600) * 10) / 10; // Rough estimate
+             const estimatedData = Math.round((iterations * 0.005)); // Rough estimate in MB
+             
+             const durationCards = document.querySelectorAll('.stat-number');
+             if (durationCards.length >= 3) {
+                 durationCards[0].textContent = `~${estimatedDuration}h`;
+                 durationCards[1].textContent = `~${estimatedData}MB`;
+                 durationCards[2].textContent = `~${85 + Math.round(Math.random() * 10)}%`;
+             }
+         }
+
+         // Protocol Frame Builder Functions
+         function setupFrameBuilder(caseId) {
+             // Build fields based on current protocol
+             const protocol = document.getElementById('edit-case-protocol')?.value || 'uart';
+             buildFrameStructure(caseId, protocol);
+             // Update on protocol change
+             const protoSel = document.getElementById('edit-case-protocol');
+             protoSel?.addEventListener('change', e => {
+                 buildFrameStructure(caseId, e.target.value);
+                 updateFramePreview(caseId);
+             });
+             // Set up real-time frame preview updates
+             const frameFields = document.querySelectorAll(`#frame-fields-${caseId} .field-input`);
+             frameFields.forEach(field => {
+                 field.addEventListener('input', () => updateFramePreview(caseId));
+             });
+             // Initial frame preview update
+             updateFramePreview(caseId);
+         }
+
+         function updateFramePreview(caseId) {
+             const frameFields = document.querySelectorAll(`#frame-fields-${caseId} .field-input`);
+             const hexOutput = document.getElementById(`hex-output-${caseId}`);
+             
+             if (!frameFields.length || !hexOutput) return;
+             
+             let frameBytes = [];
+             let labels = [];
+             
+             frameFields.forEach((field, index) => {
+                 const value = field.value.trim();
+                 if (value && value !== 'auto') {
+                     // Clean hex input (remove 0x prefix, spaces)
+                     const cleanHex = value.replace(/^0x/i, '').replace(/\s+/g, '');
+                     if (/^[0-9a-fA-F]+$/.test(cleanHex)) {
+                         // Split into bytes (pairs of hex digits)
+                         for (let i = 0; i < cleanHex.length; i += 2) {
+                             const byte = cleanHex.substr(i, 2);
+                             if (byte.length === 2) {
+                                 frameBytes.push(byte.toUpperCase());
+                                 
+                                 // Add label for first byte of each field
+                                 if (i === 0) {
+                                     const fieldLabels = ['Service ID', 'Sub-Function', 'Data Length', 'Payload Data'];
+                                     labels.push(fieldLabels[index] || `Field ${index + 1}`);
+                                 }
+                             }
+                         }
+                     }
+                 }
+             });
+             
+             // Update hex display
+             hexOutput.textContent = frameBytes.join(' ') || '(empty frame)';
+             
+             // Update breakdown labels
+             const breakdown = hexOutput.nextElementSibling;
+             if (breakdown) {
+                 breakdown.innerHTML = frameBytes.map((byte, index) => {
+                     const label = labels[index] || '';
+                     return `<span class="byte-label" title="${label}">${byte}</span>`;
+                 }).join('');
+             }
+         }
+
+         function addFrameField() {
+             const fieldTemplate = `
+                 <div class="frame-field">
+                     <div class="field-controls">
+                         <label>Custom Field</label>
+                         <input type="text" class="field-input" placeholder="0x00">
+                         <span class="field-type">HEX</span>
+                         <button class="btn btn-sm btn-danger" onclick="removeFrameField(this)">×</button>
+                     </div>
+                 </div>
+             `;
+             
+             const activeFields = document.querySelector('.frame-fields');
+             if (activeFields) {
+                 activeFields.insertAdjacentHTML('beforeend', fieldTemplate);
+                 
+                 // Setup event listener for new field
+                 const newField = activeFields.lastElementChild.querySelector('.field-input');
+                 newField.addEventListener('input', () => {
+                     const caseId = selectedCase;
+                     if (caseId) updateFramePreview(caseId);
+                 });
+             }
+         }
+
+         function removeFrameField(button) {
+             const fieldElement = button.closest('.frame-field');
+             if (fieldElement) {
+                 fieldElement.remove();
+                 const caseId = selectedCase;
+                 if (caseId) updateFramePreview(caseId);
+             }
+         }
+
+         function validateFrame() {
+             const hexOutput = document.querySelector('.hex-output');
+             if (!hexOutput) return;
+             
+             const frameData = hexOutput.textContent.trim();
+             
+             if (!frameData || frameData === '(empty frame)') {
+                 alert('❌ Frame Validation Failed:\n\nFrame is empty. Please define at least a Service ID.');
+                 return;
+             }
+             
+             const bytes = frameData.split(' ');
+             const validations = [];
+             
+             // Basic validations
+             if (bytes.length < 1) {
+                 validations.push('❌ Missing Service ID');
+             } else {
+                 validations.push('✅ Service ID present');
+             }
+             
+             if (bytes.length < 2) {
+                 validations.push('⚠️ No Sub-Function specified');
+             } else {
+                 validations.push('✅ Sub-Function present');
+             }
+             
+             if (bytes.length > 4095) {
+                 validations.push('❌ Frame too large (>4095 bytes)');
+             } else {
+                 validations.push('✅ Frame size acceptable');
+             }
+             
+             // Check for valid hex bytes
+             const invalidBytes = bytes.filter(byte => !/^[0-9A-F]{2}$/.test(byte));
+             if (invalidBytes.length > 0) {
+                 validations.push(`❌ Invalid hex bytes: ${invalidBytes.join(', ')}`);
+             } else {
+                 validations.push('✅ All bytes are valid hex');
+             }
+             
+             const result = invalidBytes.length === 0 && bytes.length > 0 && bytes.length <= 4095;
+             
+             alert(`🔍 Frame Validation Result:\n\n${validations.join('\n')}\n\n` +
+                   `Overall Status: ${result ? '✅ VALID' : '❌ INVALID'}\n` +
+                   `Frame Length: ${bytes.length} bytes\n` +
+                   `Frame Data: ${frameData}`);
+         }
+
+         function getPositiveResponseSid(requestSid) {
+             // Convert request SID to positive response SID (add 0x40)
+             if (requestSid.startsWith('0x')) {
+                 const sidValue = parseInt(requestSid, 16);
+                 return '0x' + (sidValue + 0x40).toString(16).toUpperCase().padStart(2, '0');
+             }
+             return requestSid;
+         }
+
+         function loadFrameTemplate(templateType) {
+             const templates = {
+                 diagnosticSession: {
+                     serviceId: '0x10',
+                     subFunction: '0x01',
+                     dataLength: 'auto',
+                     payload: ''
+                 },
+                 ecuReset: {
+                     serviceId: '0x11',
+                     subFunction: '0x01',
+                     dataLength: 'auto',
+                     payload: ''
+                 },
+                 securityAccess: {
+                     serviceId: '0x27',
+                     subFunction: '0x01',
+                     dataLength: 'auto',
+                     payload: ''
+                 },
+                 readDataByIdentifier: {
+                     serviceId: '0x22',
+                     subFunction: '',
+                     dataLength: 'auto',
+                     payload: 'F1 90'
+                 }
+             };
+             
+                           const template = templates[templateType];
+              if (template) {
+                  // Apply template to current form
+                  const fields = document.querySelectorAll('.field-input');
+                  if (fields.length >= 4) {
+                      fields[0].value = template.serviceId;
+                      fields[1].value = template.subFunction;
+                      fields[2].value = template.dataLength;
+                      fields[3].value = template.payload;
+                      
+                      const caseId = selectedCase;
+                      if (caseId) updateFramePreview(caseId);
+                  }
+              }
+          }
+
+          // Resize Handle Functionality
+          function initializeResizeHandle() {
+              const resizeHandle = document.getElementById('properties-resize-handle');
+              const managementPage = document.getElementById('management-page');
+              const propertiesPanel = document.getElementById('management-right-panel');
+              
+              if (!resizeHandle || !managementPage || !propertiesPanel) return;
+
+              let isResizing = false;
+              let startX = 0;
+              let startWidth = 350; // Default width
+
+              // Get initial width from CSS or default
+              const computedStyle = getComputedStyle(managementPage);
+              const currentWidth = getPropertiesPanelWidth();
+              if (currentWidth) {
+                  startWidth = currentWidth;
+              }
+
+              // Mouse events
+              resizeHandle.addEventListener('mousedown', startResize);
+              document.addEventListener('mousemove', doResize);
+              document.addEventListener('mouseup', stopResize);
+
+              // Touch events for mobile support
+              resizeHandle.addEventListener('touchstart', handleTouchStart, { passive: false });
+              document.addEventListener('touchmove', handleTouchMove, { passive: false });
+              document.addEventListener('touchend', stopResize);
+
+              function startResize(e) {
+                  isResizing = true;
+                  startX = e.clientX || (e.touches && e.touches[0].clientX);
+                  startWidth = getPropertiesPanelWidth() || 350;
+                  
+                  resizeHandle.classList.add('dragging');
+                  document.body.classList.add('resizing');
+                  
+                  e.preventDefault();
+              }
+
+              function handleTouchStart(e) {
+                  startResize(e);
+              }
+
+              function doResize(e) {
+                  if (!isResizing) return;
+
+                  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                  const deltaX = startX - clientX; // Subtract because we're moving left edge
+                  const newWidth = Math.max(250, Math.min(600, startWidth + deltaX));
+                  
+                  console.log('Resizing - startX:', startX, 'clientX:', clientX, 'deltaX:', deltaX, 'newWidth:', newWidth);
+                  setPropertiesPanelWidth(newWidth);
+                  
+                  e.preventDefault();
+              }
+
+              function handleTouchMove(e) {
+                  doResize(e);
+              }
+
+              function stopResize() {
+                  if (!isResizing) return;
+                  
+                  isResizing = false;
+                  resizeHandle.classList.remove('dragging');
+                  document.body.classList.remove('resizing');
+                  
+                  // Save the new width to localStorage
+                  const currentWidth = getPropertiesPanelWidth();
+                  if (currentWidth) {
+                      localStorage.setItem('properties-panel-width', currentWidth.toString());
+                  }
+              }
+
+              function setPropertiesPanelWidth(width) {
+                  managementPage.style.setProperty('--properties-width', width + 'px');
+                  // Force reflow to ensure the change takes effect
+                  managementPage.offsetHeight;
+                  console.log('Set properties width to:', width + 'px');
+              }
+
+              function getPropertiesPanelWidth() {
+                  const style = getComputedStyle(managementPage);
+                  const widthValue = style.getPropertyValue('--properties-width');
+                  if (widthValue) {
+                      return parseInt(widthValue.replace('px', ''));
+                  }
+                  
+                  // Fallback: measure the actual panel width
+                  const rect = propertiesPanel.getBoundingClientRect();
+                  return rect.width;
+              }
+
+              // Load saved width from localStorage
+              function loadSavedWidth() {
+                  const savedWidth = localStorage.getItem('properties-panel-width');
+                  if (savedWidth) {
+                      const width = parseInt(savedWidth);
+                      if (width >= 250 && width <= 600) {
+                          setPropertiesPanelWidth(width);
+                      }
+                  }
+              }
+
+              // Initialize with saved width
+              loadSavedWidth();
+          }
+
+          // Build frame fields dynamically based on selected protocol
+          function buildFrameStructure(caseId, protocol) {
+              const container = document.getElementById(`frame-fields-${caseId}`);
+              if (!container) return;
+              container.innerHTML = '';
+              const map = {
+                  uart: [{label: 'Payload Data', id: 'payload', type: 'HEX'}],
+                  can: [
+                      {label: 'CAN ID', id: 'canId', type: 'HEX', placeholder: '0x7E0'},
+                      {label: 'Data Length (DLC)', id: 'dlc', type: 'DEC', placeholder: '0-8'},
+                      {label: 'Data Bytes', id: 'data', type: 'HEX'}
+                  ],
+                  spi: [
+                      {label: 'MOSI Data', id: 'mosi', type: 'HEX'},
+                      {label: 'Clock Polarity', id: 'cpol', type: 'DEC', placeholder: '0/1'},
+                      {label: 'Clock Phase', id: 'cpha', type: 'DEC', placeholder: '0/1'}
+                  ],
+                  i2c: [
+                      {label: 'Slave Address', id: 'address', type: 'HEX', placeholder: '0x50'},
+                      {label: 'Register Address', id: 'reg', type: 'HEX'},
+                      {label: 'Data Bytes', id: 'data', type: 'HEX'}
+                  ],
+                  ethernet: [
+                      {label: 'EtherType', id: 'ethType', type: 'HEX', placeholder: '0x0800'},
+                      {label: 'Payload Data', id: 'payload', type: 'HEX'}
+                  ],
+                  doip: [
+                      {label: 'Protocol Version', id: 'version', type: 'HEX', placeholder: '0x02'},
+                      {label: 'Inverse Version', id: 'invVersion', type: 'HEX'},
+                      {label: 'Payload Length', id: 'length', type: 'DEC'},
+                      {label: 'Payload Data', id: 'payload', type: 'HEX'}
+                  ]
+              };
+              const fields = map[protocol] || [];
+              fields.forEach(f => {
+                  const div = document.createElement('div'); div.className = 'frame-field';
+                  div.innerHTML = `
+                      <div class="field-controls">
+                          <label>${f.label}</label>
+                          <input type="text" class="field-input" id="frame-${caseId}-${f.id}" placeholder="${f.placeholder||''}">
+                          <span class="field-type">${f.type}</span>
+                      </div>`;
+                  container.appendChild(div);
+              });
+          }
+    </script>
+</body>
+</html> 

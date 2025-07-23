@@ -8,4 +8,10 @@ websocket_urlpatterns = [
     re_path(r'ws/device/stream/(?P<channel>[^/]+)/$', consumers.DeviceStreamConsumer.as_asgi()),
     re_path(r'ws/console_logs/$', consumers.ConsoleLogsConsumer.as_asgi()),
     re_path(r'ws/ai-assistant/(?P<session_id>\w+)/$', AIAssistantConsumer.as_asgi()),
+    
+    # IoT Fuzzer WebSocket endpoints
+    re_path(r'ws/iot-fuzzer/testing/$', consumers.IoTFuzzerTestingConsumer.as_asgi()),
+    re_path(r'ws/iot-fuzzer/testing/(?P<campaign_id>[^/]+)/$', consumers.IoTFuzzerTestingConsumer.as_asgi()),
+    re_path(r'ws/iot-fuzzer/results/$', consumers.IoTFuzzerResultsConsumer.as_asgi()),
+    re_path(r'ws/iot-fuzzer/results/(?P<campaign_id>[^/]+)/$', consumers.IoTFuzzerResultsConsumer.as_asgi()),
 ]

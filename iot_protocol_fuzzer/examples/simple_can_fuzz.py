@@ -4,7 +4,16 @@ from iot_protocol_fuzzer.generators.radamsa_generator import RadamsaGenerator
 from iot_protocol_fuzzer.harnesses.can_harness import CANHarness
 from iot_protocol_fuzzer.core.orchestrator import Orchestrator, CampaignConfig
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging to show detailed CAN data
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Set specific logger levels
+logging.getLogger("can.interface").setLevel(logging.DEBUG)
+logging.getLogger("fuzzer.monitor").setLevel(logging.WARNING)
+logging.getLogger("fuzzer.orchestrator").setLevel(logging.INFO)
 
 if __name__ == "__main__":
     seeds = [b"\x00\x01\x02\x03"]

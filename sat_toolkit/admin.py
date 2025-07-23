@@ -54,17 +54,50 @@ from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
 class PluginAdmin(admin.ModelAdmin):
     list_display = ["id", "name", "description", "enabled"]
     search_fields = ["name", "description"]
-
-class PluginGroupTreeInline(admin.TabularInline):
-    model = PluginGroupTree
-    fk_name = 'parent'
-    extra = 0
+    list_filter = ["enabled"]
 
 class PluginGroupAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "description", "plugins_count", "enabled"]
+    list_display = ["id", "name", "description", "enabled"]
     search_fields = ["name", "description"]
-    inlines = [PluginGroupTreeInline]
-    filter_horizontal = ["plugins", "plugin_groups"]
+    list_filter = ["enabled"]
+
+class PluginGroupTreeAdmin(admin.ModelAdmin):
+    list_display = ["id", "parent", "child", "sequence"]
+    search_fields = ["parent__name", "child__name"]
 
 admin.site.register(Plugin, PluginAdmin)
 admin.site.register(PluginGroup, PluginGroupAdmin)
+admin.site.register(PluginGroupTree, PluginGroupTreeAdmin)
+
+# IoT Fuzzer Models
+from .models.IoTFuzzer_Model import (
+    FuzzingCampaign,
+    TestGroup,
+    TestCase,
+    FuzzingResult,
+    ConfigTemplate,
+    LiveLog,
+    ProtocolConfiguration,
+    FrameField,
+    FuzzingRule,
+    FuzzingCampaignAdmin,
+    TestGroupAdmin,
+    TestCaseAdmin,
+    FuzzingResultAdmin,
+    ConfigTemplateAdmin,
+    LiveLogAdmin,
+    ProtocolConfigurationAdmin,
+    FrameFieldAdmin,
+    FuzzingRuleAdmin,
+)
+
+# Register IoT Fuzzer models with custom admin classes
+admin.site.register(FuzzingCampaign, FuzzingCampaignAdmin)
+admin.site.register(TestGroup, TestGroupAdmin)
+admin.site.register(TestCase, TestCaseAdmin)
+admin.site.register(FuzzingResult, FuzzingResultAdmin)
+admin.site.register(ConfigTemplate, ConfigTemplateAdmin)
+admin.site.register(LiveLog, LiveLogAdmin)
+admin.site.register(ProtocolConfiguration, ProtocolConfigurationAdmin)
+admin.site.register(FrameField, FrameFieldAdmin)
+admin.site.register(FuzzingRule, FuzzingRuleAdmin)

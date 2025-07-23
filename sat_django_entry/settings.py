@@ -198,6 +198,31 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "can.interface": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "fuzzer.orchestrator": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "fuzzer.monitor": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "fuzzer.logger": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "iot_protocol_fuzzer": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "": {
             "level": "WARNING",
             "handlers": [],

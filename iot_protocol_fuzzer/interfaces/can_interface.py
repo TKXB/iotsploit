@@ -1,4 +1,5 @@
 from typing import Optional
+import logging
 
 from .base import HWInterface
 
@@ -6,6 +7,8 @@ try:
     import can  # type: ignore
 except ImportError:  # pragma: no cover
     can = None
+
+logger = logging.getLogger("can.interface")
 
 
 class SocketCANInterface(HWInterface):
@@ -22,15 +25,23 @@ class SocketCANInterface(HWInterface):
         # Split data into 8-byte CAN frames (standard data frame)
         from can import Message
 
+        logger.info(f"Sending CAN data: {data.hex()} ({len(data)} bytes)")
+        
         for idx in range(0, len(data), 8):
             chunk = data[idx : idx + 8]
             msg = Message(arbitration_id=0x123, data=list(chunk), is_extended_id=False)
+            
+            # Log each CAN frame being sent
+            logger.debug(f"  CAN Frame {idx//8}: ID=0x{msg.arbitration_id:03X}, Data={chunk.hex()}, Length={len(chunk)}")
+            
             self.bus.send(msg)
 
     def receive(self, timeout: float = 0.1) -> Optional[bytes]:
         msg = self.bus.recv(timeout)
         if msg:
-            return bytes(msg.data)
+            received_data = bytes(msg.data)
+            logger.debug(f"Received CAN frame: ID=0x{msg.arbitration_id:03X}, Data={received_data.hex()}")
+            return received_data
         return None
 
     def close(self) -> None:

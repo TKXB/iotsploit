@@ -11,6 +11,7 @@ import time
 from sat_toolkit.core.device_spec import DeviceState
 from collections import deque
 import threading
+# from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager  # Import locally to avoid circular imports
 
 logger = logging.getLogger(__name__)
 
@@ -393,3 +394,323 @@ class ConsoleLogsConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=message)
         except Exception as e:
             logger.error(f"Error sending console log: {e}")
+
+
+class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for IoT Fuzzer testing page real-time updates"""
+    
+    async def connect(self):
+        """Connect to the WebSocket and join the fuzzer group"""
+        self.campaign_id = self.scope['url_route']['kwargs'].get('campaign_id')
+        
+        # Join the IoT fuzzer groups
+        self.general_group = "iot_fuzzer_general"
+        await self.channel_layer.group_add(
+            self.general_group,
+            self.channel_name
+        )
+        
+        # Join campaign-specific group if campaign_id is provided
+        if self.campaign_id:
+            self.campaign_group = f"iot_fuzzer_campaign_{self.campaign_id}"
+            await self.channel_layer.group_add(
+                self.campaign_group,
+                self.channel_name
+            )
+        
+        await self.accept()
+        
+        # Send connection confirmation
+        await self.send(text_data=json.dumps({
+            'type': 'connection_established',
+            'message': 'Connected to IoT Fuzzer testing stream',
+            'campaign_id': self.campaign_id
+        }))
+        
+        # Send initial status if campaign exists
+        if self.campaign_id:
+            await self.send_initial_status()
+    
+    async def disconnect(self, close_code):
+        """Disconnect from the WebSocket and leave the fuzzer groups"""
+        # Leave the general group
+        await self.channel_layer.group_discard(
+            self.general_group,
+            self.channel_name
+        )
+        
+        # Leave campaign-specific group if exists
+        if hasattr(self, 'campaign_group'):
+            await self.channel_layer.group_discard(
+                self.campaign_group,
+                self.channel_name
+            )
+    
+    async def receive(self, text_data):
+        """Handle incoming WebSocket messages"""
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            
+            if message_type == 'get_status':
+                await self.send_current_status(data.get('campaign_id'))
+            elif message_type == 'get_statistics':
+                await self.send_current_statistics(data.get('campaign_id'))
+            elif message_type == 'subscribe_campaign':
+                await self.subscribe_to_campaign(data.get('campaign_id'))
+            elif message_type == 'unsubscribe_campaign':
+                await self.unsubscribe_from_campaign(data.get('campaign_id'))
+                
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Invalid JSON format'
+            }))
+        except Exception as e:
+            logger.error(f"Error handling WebSocket message: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Error processing message: {str(e)}'
+            }))
+    
+    async def fuzzer_event(self, event):
+        """Handle fuzzer events from the bridge"""
+        try:
+            # Forward the event to the WebSocket client
+            await self.send(text_data=json.dumps(event))
+        except Exception as e:
+            logger.error(f"Error sending fuzzer event: {str(e)}")
+    
+    async def send_initial_status(self):
+        """Send initial campaign status"""
+        try:
+            if self.campaign_id:
+                from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
+                fuzzer_manager = IoTFuzzerManager.get_instance()
+                status = fuzzer_manager.get_campaign_status(self.campaign_id)
+                
+                await self.send(text_data=json.dumps({
+                    'type': 'initial_status',
+                    'campaign_id': self.campaign_id,
+                    'status': status
+                }))
+        except Exception as e:
+            logger.error(f"Error sending initial status: {str(e)}")
+    
+    async def send_current_status(self, campaign_id):
+        """Send current campaign status"""
+        try:
+            if campaign_id:
+                from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
+                fuzzer_manager = IoTFuzzerManager.get_instance()
+                status = fuzzer_manager.get_campaign_status(campaign_id)
+                
+                await self.send(text_data=json.dumps({
+                    'type': 'status_response',
+                    'campaign_id': campaign_id,
+                    'status': status
+                }))
+        except Exception as e:
+            logger.error(f"Error sending current status: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Error getting campaign status: {str(e)}'
+            }))
+    
+    async def send_current_statistics(self, campaign_id):
+        """Send current campaign statistics"""
+        try:
+            if campaign_id:
+                from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
+                fuzzer_manager = IoTFuzzerManager.get_instance()
+                statistics = fuzzer_manager.get_campaign_statistics(campaign_id)
+                
+                await self.send(text_data=json.dumps({
+                    'type': 'statistics_response',
+                    'campaign_id': campaign_id,
+                    'statistics': statistics
+                }))
+        except Exception as e:
+            logger.error(f"Error sending current statistics: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Error getting campaign statistics: {str(e)}'
+            }))
+    
+    async def subscribe_to_campaign(self, campaign_id):
+        """Subscribe to a specific campaign"""
+        try:
+            if campaign_id:
+                # Leave old campaign group if exists
+                if hasattr(self, 'campaign_group'):
+                    await self.channel_layer.group_discard(
+                        self.campaign_group,
+                        self.channel_name
+                    )
+                
+                # Join new campaign group
+                self.campaign_id = campaign_id
+                self.campaign_group = f"iot_fuzzer_campaign_{campaign_id}"
+                await self.channel_layer.group_add(
+                    self.campaign_group,
+                    self.channel_name
+                )
+                
+                await self.send(text_data=json.dumps({
+                    'type': 'subscription_confirmed',
+                    'campaign_id': campaign_id
+                }))
+                
+                # Send initial status for new campaign
+                await self.send_initial_status()
+                
+        except Exception as e:
+            logger.error(f"Error subscribing to campaign: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Error subscribing to campaign: {str(e)}'
+            }))
+    
+    async def unsubscribe_from_campaign(self, campaign_id):
+        """Unsubscribe from a specific campaign"""
+        try:
+            if hasattr(self, 'campaign_group') and campaign_id:
+                await self.channel_layer.group_discard(
+                    self.campaign_group,
+                    self.channel_name
+                )
+                
+                self.campaign_id = None
+                delattr(self, 'campaign_group')
+                
+                await self.send(text_data=json.dumps({
+                    'type': 'unsubscription_confirmed',
+                    'campaign_id': campaign_id
+                }))
+                
+        except Exception as e:
+            logger.error(f"Error unsubscribing from campaign: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Error unsubscribing from campaign: {str(e)}'
+            }))
+
+
+class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for IoT Fuzzer results page real-time updates"""
+    
+    async def connect(self):
+        """Connect to the WebSocket and join the results group"""
+        self.campaign_id = self.scope['url_route']['kwargs'].get('campaign_id')
+        
+        # Join the results group
+        self.results_group = "iot_fuzzer_results"
+        await self.channel_layer.group_add(
+            self.results_group,
+            self.channel_name
+        )
+        
+        # Join campaign-specific group if campaign_id is provided
+        if self.campaign_id:
+            self.campaign_group = f"iot_fuzzer_campaign_{self.campaign_id}"
+            await self.channel_layer.group_add(
+                self.campaign_group,
+                self.channel_name
+            )
+        
+        await self.accept()
+        
+        # Send connection confirmation
+        await self.send(text_data=json.dumps({
+            'type': 'connection_established',
+            'message': 'Connected to IoT Fuzzer results stream',
+            'campaign_id': self.campaign_id
+        }))
+    
+    async def disconnect(self, close_code):
+        """Disconnect from the WebSocket and leave the results groups"""
+        # Leave the results group
+        await self.channel_layer.group_discard(
+            self.results_group,
+            self.channel_name
+        )
+        
+        # Leave campaign-specific group if exists
+        if hasattr(self, 'campaign_group'):
+            await self.channel_layer.group_discard(
+                self.campaign_group,
+                self.channel_name
+            )
+    
+    async def receive(self, text_data):
+        """Handle incoming WebSocket messages"""
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            
+            if message_type == 'get_logs':
+                await self.send_recent_logs(data.get('campaign_id'))
+            elif message_type == 'filter_logs':
+                await self.send_filtered_logs(data.get('filter_criteria'))
+            elif message_type == 'subscribe_logs':
+                await self.subscribe_to_logs(data.get('campaign_id'))
+                
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Invalid JSON format'
+            }))
+        except Exception as e:
+            logger.error(f"Error handling WebSocket message: {str(e)}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Error processing message: {str(e)}'
+            }))
+    
+    async def fuzzer_event(self, event):
+        """Handle fuzzer events from the bridge"""
+        try:
+            # Only forward log and result events to results consumer
+            event_type = event.get('event_type')
+            if event_type in ['log_message', 'test_result', 'crash_detected']:
+                await self.send(text_data=json.dumps(event))
+        except Exception as e:
+            logger.error(f"Error sending fuzzer event: {str(e)}")
+    
+    async def send_recent_logs(self, campaign_id):
+        """Send recent logs for a campaign"""
+        try:
+            # This would typically get logs from the database or log buffer
+            # For now, we'll send a placeholder response
+            await self.send(text_data=json.dumps({
+                'type': 'logs_response',
+                'campaign_id': campaign_id,
+                'logs': []  # TODO: Implement actual log retrieval
+            }))
+        except Exception as e:
+            logger.error(f"Error sending recent logs: {str(e)}")
+    
+    async def send_filtered_logs(self, filter_criteria):
+        """Send filtered logs based on criteria"""
+        try:
+            # This would typically filter logs based on criteria
+            # For now, we'll send a placeholder response
+            await self.send(text_data=json.dumps({
+                'type': 'filtered_logs_response',
+                'filter_criteria': filter_criteria,
+                'logs': []  # TODO: Implement actual log filtering
+            }))
+        except Exception as e:
+            logger.error(f"Error sending filtered logs: {str(e)}")
+    
+    async def subscribe_to_logs(self, campaign_id):
+        """Subscribe to logs for a specific campaign"""
+        try:
+            if campaign_id:
+                # Subscribe to campaign-specific logs
+                await self.send(text_data=json.dumps({
+                    'type': 'log_subscription_confirmed',
+                    'campaign_id': campaign_id
+                }))
+        except Exception as e:
+            logger.error(f"Error subscribing to logs: {str(e)}")
