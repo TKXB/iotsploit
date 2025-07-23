@@ -31,6 +31,7 @@ def start_campaign(request: HttpRequest):
     """
     POST /api/iot-fuzzer/testing/campaign/start/
     Start a new fuzzing campaign with provided configuration
+    Supports test_group_ids parameter for group-based filtering
     """
     if request.method != 'POST':
         return JsonResponse({
@@ -41,16 +42,49 @@ def start_campaign(request: HttpRequest):
     try:
         data = json.loads(request.body)
         print(f"start_campaign POST body: {data}")
+        
+        # Ensure data is a dictionary
+        if not isinstance(data, dict):
+            return JsonResponse({
+                "status": "error",
+                "message": "Invalid JSON format: expected object"
+            }, status=400)
+        
         campaign_config = data.get('campaign_config', {})
+        
+        # Extract and validate test_group_ids if provided
+        test_group_ids = campaign_config.get('test_group_ids', [])
+        if test_group_ids:
+            logger.info(f"Starting campaign with test groups: {test_group_ids}")
         
         fuzzer_manager = IoTFuzzerManager.get_instance()
         campaign_id = fuzzer_manager.start_campaign(campaign_config)
         
-        return JsonResponse({
+        # Get enhanced campaign information
+        campaign_state = fuzzer_manager._get_campaign_state(campaign_id)
+        
+        # Prepare enhanced response with strategy statistics
+        response_data = {
             "status": "success",
             "campaign_id": campaign_id,
             "message": "Campaign started successfully"
-        })
+        }
+        
+        # Add strategy statistics if available
+        if campaign_state:
+            strategy_distribution = campaign_state.get('strategy_distribution', {})
+            response_data.update({
+                "strategy_statistics": {
+                    "bit_level_rules": strategy_distribution.get('bit_level', 0),
+                    "field_level_rules": strategy_distribution.get('field_level', 0),
+                    "total_rules": strategy_distribution.get('total_rules', 0),
+                    "total_test_cases": strategy_distribution.get('total_test_cases', 0)
+                },
+                "test_groups_processed": len(test_group_ids),
+                "fuzzing_engine_available": campaign_state.get('fuzzing_engine_available', False)
+            })
+        
+        return JsonResponse(response_data)
         
     except json.JSONDecodeError:
         return JsonResponse({
@@ -275,7 +309,7 @@ def get_campaign_statistics(request: HttpRequest):
 def get_test_groups(request: HttpRequest):
     """
     GET /api/iot-fuzzer/testing/test-groups/
-    Get test groups with progress information
+    Get test groups with enhanced information for group selection
     """
     if request.method != 'GET':
         return JsonResponse({
@@ -286,12 +320,39 @@ def get_test_groups(request: HttpRequest):
     try:
         campaign_id = request.GET.get('campaign_id')
         
-        fuzzer_service = IoTFuzzerService.get_instance()
-        test_groups = fuzzer_service.get_test_groups(campaign_id)
+        # Get test groups from database with enhanced information
+        from sat_toolkit.models.IoTFuzzer_Model import TestGroup
+        from django.db.models import Count, Q
+        
+        # Query test groups with test case counts and strategy information
+        test_groups = TestGroup.objects.filter(enabled=True).annotate(
+            test_cases_count=Count('test_cases', filter=Q(test_cases__enabled=True))
+        ).order_by('name')
+        
+        groups_data = []
+        for group in test_groups:
+            # Calculate strategy distribution for this group
+            strategy_stats = _calculate_group_strategy_distribution(group)
+            
+            groups_data.append({
+                'id': group.id,
+                'name': group.name,
+                'description': group.description,
+                'priority': group.priority,
+                'protocol_type': group.protocol_type,
+                'total_cases': group.total_cases,
+                'completed_cases': group.completed_cases,
+                'enabled_test_cases': group.test_cases_count,
+                'strategy_distribution': strategy_stats,
+                'has_bit_level_rules': strategy_stats.get('bit_level', 0) > 0,
+                'has_field_level_rules': strategy_stats.get('field_level', 0) > 0,
+                'campaign_id': campaign_id
+            })
         
         return JsonResponse({
             "status": "success",
-            "test_groups": test_groups
+            "test_groups": groups_data,
+            "total_groups": len(groups_data)
         })
         
     except Exception as e:
@@ -300,6 +361,36 @@ def get_test_groups(request: HttpRequest):
             "status": "error",
             "message": f"Failed to get test groups: {str(e)}"
         }, status=500)
+
+def _calculate_group_strategy_distribution(group):
+    """Calculate strategy distribution for a test group"""
+    try:
+        from sat_toolkit.models.IoTFuzzer_Model import FuzzingRule
+        
+        # Get fuzzing rules for this group's test cases
+        rules = FuzzingRule.objects.filter(
+            test_case__group=group,
+            test_case__enabled=True,
+            enabled=True
+        )
+        
+        strategy_counts = {
+            'bit_level': 0,
+            'field_level': 0,
+            'total_rules': rules.count()
+        }
+        
+        for rule in rules:
+            if rule.target_type == 'bit':
+                strategy_counts['bit_level'] += 1
+            elif rule.target_type == 'field':
+                strategy_counts['field_level'] += 1
+        
+        return strategy_counts
+        
+    except Exception as e:
+        logger.error(f"Error calculating strategy distribution for group {group.id}: {e}")
+        return {'bit_level': 0, 'field_level': 0, 'total_rules': 0}
 
 # Configuration Endpoints
 def get_protocol_types(request: HttpRequest):
@@ -733,8 +824,8 @@ def get_test_groups_list(request: HttpRequest):
                 'id': group.id,
                 'name': group.name,
                 'description': group.description,
-                'campaign_id': group.campaign.id,
-                'campaign_name': group.campaign.name,
+                'campaign_id': group.campaign.id if group.campaign else None,
+                'campaign_name': group.campaign.name if group.campaign else 'No Campaign',
                 'priority': group.priority,
                 'enabled': group.enabled,
                 'protocol_type': group.protocol_type,
@@ -957,17 +1048,17 @@ def get_test_cases_list(request: HttpRequest):
                 'id': case.id,
                 'name': case.name,
                 'description': case.description,
-                'group_id': case.group.id,
-                'group_name': case.group.name,
-                'campaign_id': case.group.campaign.id,
-                'campaign_name': case.group.campaign.name,
+                'group_id': case.group.id if case.group else None,
+                'group_name': case.group.name if case.group else 'No Group',
+                'campaign_id': case.group.campaign.id if case.group and case.group.campaign else None,
+                'campaign_name': case.group.campaign.name if case.group and case.group.campaign else 'No Campaign',
                 'priority': case.priority,
                 'enabled': case.enabled,
                 'protocol_frame': protocol_frame,  # Reconstructed from frame fields
                 'frame_name': case.frame_name,
                 'frame_description': case.frame_description,
-                'protocol_type': case.protocol_config.protocol_type,
-                'protocol_settings': case.protocol_config.settings,
+                'protocol_type': case.protocol_config.protocol_type if case.protocol_config else 'unknown',
+                'protocol_settings': case.protocol_config.settings if case.protocol_config else {},
                 'fuzzing_targets': fuzzing_targets,
                 'expected_response': case.expected_response,
                 'timeout_seconds': case.timeout_seconds,

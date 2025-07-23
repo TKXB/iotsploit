@@ -116,7 +116,9 @@ class TestGroup(models.Model):
         FuzzingCampaign, 
         on_delete=models.CASCADE,
         related_name='test_groups',
-        help_text="Associated campaign"
+        null=True,
+        blank=True,
+        help_text="Associated campaign (optional)"
     )
     priority = models.CharField(
         max_length=20, 
@@ -155,6 +157,11 @@ class TestGroup(models.Model):
         verbose_name = 'IoT Test Group'
         verbose_name_plural = 'IoT Test Groups'
         ordering = ['priority', 'name']
+        indexes = [
+            models.Index(fields=['enabled', 'priority']),
+            models.Index(fields=['protocol_type']),
+            models.Index(fields=['campaign']),
+        ]
     
     def __str__(self):
         return f"[TestGroup:{self.pk} {self.name}]"
@@ -172,6 +179,22 @@ class TestGroup(models.Model):
         self.completed_cases = test_cases.filter(last_result__isnull=False).count()
         self.failed_cases = test_cases.filter(last_result='failed').count()
         self.save()
+    
+    def get_enabled_test_cases_with_rules(self):
+        """
+        Get enabled test cases with their fuzzing rules and frame fields
+        Optimized query using prefetch_related and select_related
+        """
+        return self.test_cases.filter(
+            enabled=True
+        ).select_related(
+            'protocol_config',
+            'group'
+        ).prefetch_related(
+            'frame_fields',
+            'fuzzing_rules__target_field',
+            'fuzzing_rules'
+        ).order_by('priority', 'name')
 
 
 class ProtocolConfiguration(models.Model):
@@ -255,12 +278,24 @@ class FrameField(models.Model):
     bit_offset = models.IntegerField(null=True, blank=True, help_text="Bit offset within frame")
     bit_length = models.IntegerField(null=True, blank=True, help_text="Field length in bits")
     
+    # Bit-level fuzzing support
+    target_bits = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Bit positions to fuzz (e.g., '0,1,7' or '0-7')"
+    )
+    
     class Meta:
         db_table = 'iot_frame_fields'
         verbose_name = 'Frame Field'
         verbose_name_plural = 'Frame Fields'
         ordering = ['test_case', 'field_order']
         unique_together = ['test_case', 'field_id']
+        indexes = [
+            models.Index(fields=['test_case', 'field_order']),
+            models.Index(fields=['field_type']),
+            models.Index(fields=['target_bits']),
+        ]
     
     def __str__(self):
         return f"[FrameField:{self.pk} {self.field_name}]"
@@ -349,9 +384,54 @@ class FuzzingRule(models.Model):
         verbose_name = 'Fuzzing Rule'
         verbose_name_plural = 'Fuzzing Rules'
         ordering = ['test_case', '-priority', 'rule_name']
+        indexes = [
+            models.Index(fields=['test_case', 'enabled']),
+            models.Index(fields=['target_type']),
+            models.Index(fields=['strategy']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['target_bits']),
+        ]
     
     def __str__(self):
         return f"[FuzzingRule:{self.pk} {self.rule_name}]"
+    
+    @classmethod
+    def get_bit_level_rules(cls, test_case_ids=None):
+        """
+        Get all bit-level fuzzing rules
+        Optimized query for bit-level fuzzing operations
+        """
+        queryset = cls.objects.filter(
+            enabled=True,
+            target_type='bit'
+        ).select_related(
+            'test_case',
+            'target_field'
+        ).order_by('test_case', '-priority')
+        
+        if test_case_ids:
+            queryset = queryset.filter(test_case_id__in=test_case_ids)
+        
+        return queryset
+    
+    @classmethod
+    def get_field_level_rules(cls, test_case_ids=None):
+        """
+        Get all field-level fuzzing rules
+        Optimized query for field-level fuzzing operations
+        """
+        queryset = cls.objects.filter(
+            enabled=True,
+            target_type='field'
+        ).select_related(
+            'test_case',
+            'target_field'
+        ).order_by('test_case', '-priority')
+        
+        if test_case_ids:
+            queryset = queryset.filter(test_case_id__in=test_case_ids)
+        
+        return queryset
 
 
 class TestCase(models.Model):
@@ -456,6 +536,13 @@ class TestCase(models.Model):
         verbose_name = 'IoT Test Case'
         verbose_name_plural = 'IoT Test Cases'
         ordering = ['group', 'priority', 'name']
+        indexes = [
+            models.Index(fields=['group', 'enabled']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['enabled']),
+            models.Index(fields=['last_result']),
+            models.Index(fields=['protocol_config']),
+        ]
     
     def __str__(self):
         return f"[TestCase:{self.pk} {self.name}]"
@@ -474,11 +561,20 @@ class TestCase(models.Model):
         self.last_result = result
         self.save()
     
+    def get_frame_fields_ordered(self):
+        """
+        Get frame fields ordered by field_order
+        Optimized query for frame field retrieval
+        """
+        return self.frame_fields.select_related(
+            'test_case'
+        ).order_by('field_order')
+    
     def get_frame_hex_output(self):
         """Get protocol frame as hex string from fields"""
-        fields = self.frame_fields.filter(
+        fields = self.get_frame_fields_ordered().filter(
             field_type__in=['hex', 'dec']
-        ).order_by('field_order')
+        )
         
         hex_parts = []
         for field in fields:

@@ -164,7 +164,7 @@ class IoTFuzzerManager:
         Start a new fuzzing campaign
         
         Args:
-            campaign_config: Campaign configuration dictionary
+            campaign_config: Campaign configuration dictionary with optional test_group_ids
             
         Returns:
             str: Campaign ID
@@ -179,10 +179,29 @@ class IoTFuzzerManager:
             if not dependency_check['status']:
                 raise Exception(f"Dependency check failed: {dependency_check['message']}")
             
+            # Process test group IDs if provided
+            test_group_ids = campaign_config.get('test_group_ids', [])
+            test_cases_data = []
+            fuzzing_engine = None
+            
+            # Always validate test groups if provided (including empty list)
+            if test_group_ids is not None:
+                # Validate test groups (empty list should fail validation)
+                if not self._validate_test_groups(test_group_ids):
+                    raise ValueError(f"Invalid or disabled test groups: {test_group_ids}")
+                
+                # Load test cases from selected groups
+                test_cases_data = self._load_selected_test_cases(test_group_ids)
+                if not test_cases_data:
+                    raise ValueError(f"No enabled test cases found in groups: {test_group_ids}")
+                
+                # Prepare fuzzing engine with loaded test cases
+                fuzzing_engine = self._prepare_fuzzing_engine(test_cases_data)
+            
             # Generate campaign ID
             campaign_id = str(uuid.uuid4())
             
-            # Initialize campaign state
+            # Initialize campaign state with enhanced tracking
             campaign_state = {
                 'id': campaign_id,
                 'config': campaign_config,
@@ -193,7 +212,13 @@ class IoTFuzzerManager:
                 'iterations_completed': 0,
                 'crashes_found': 0,
                 'timeouts_occurred': 0,
-                'errors_encountered': 0
+                'errors_encountered': 0,
+                # Enhanced tracking for test groups and fuzzing engine
+                'test_group_ids': test_group_ids,
+                'total_test_cases': len(test_cases_data),
+                'fuzzing_engine_available': fuzzing_engine is not None,
+                'strategy_distribution': self._calculate_strategy_distribution(test_cases_data),
+                'mutations_generated': 0
             }
             
             # Store campaign state in Redis
@@ -202,9 +227,11 @@ class IoTFuzzerManager:
             # Create adapter instances
             protocol_adapter = self._get_protocol_adapter()
             
-            # Add campaign_id to config for event emission
+            # Add campaign_id and fuzzing engine to config for event emission
             campaign_config_with_id = campaign_config.copy()
             campaign_config_with_id['campaign_id'] = campaign_id
+            if fuzzing_engine:
+                campaign_config_with_id['fuzzing_engine'] = fuzzing_engine
             
             orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config_with_id)
             monitor_adapter = protocol_adapter.create_monitor_adapter(campaign_config_with_id)
@@ -226,7 +253,7 @@ class IoTFuzzerManager:
                 'started_at': datetime.now().isoformat()
             })
             
-            logger.info(f"Campaign {campaign_id} started successfully")
+            logger.info(f"Campaign {campaign_id} started successfully with {len(test_cases_data)} test cases from {len(test_group_ids)} groups")
             return campaign_id
             
         except Exception as e:
@@ -454,6 +481,42 @@ class IoTFuzzerManager:
         for field in required_fields:
             if field not in config:
                 raise ValueError(f"Missing required field: {field}")
+        
+        # Validate test_group_ids if provided
+        test_group_ids = config.get('test_group_ids', [])
+        if test_group_ids:
+            if not isinstance(test_group_ids, list):
+                raise ValueError("test_group_ids must be a list")
+            if not all(isinstance(group_id, (str, int)) for group_id in test_group_ids):
+                raise ValueError("test_group_ids must contain valid group IDs")
+    
+    def _calculate_strategy_distribution(self, test_cases_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Calculate strategy distribution from test cases data
+        
+        Args:
+            test_cases_data: List of test cases with fuzzing rules
+            
+        Returns:
+            Dict: Strategy distribution statistics
+        """
+        strategy_counts = {
+            'bit_level': 0,
+            'field_level': 0,
+            'total_rules': 0,
+            'total_test_cases': len(test_cases_data)
+        }
+        
+        for test_case in test_cases_data:
+            for rule in test_case.get('fuzzing_rules', []):
+                strategy_counts['total_rules'] += 1
+                
+                if rule.get('target_type') == 'bit':
+                    strategy_counts['bit_level'] += 1
+                elif rule.get('target_type') == 'field':
+                    strategy_counts['field_level'] += 1
+        
+        return strategy_counts
     
     def _start_campaign_task(self, campaign_id: str) -> None:
         """Start background task for campaign execution"""
@@ -561,6 +624,208 @@ class IoTFuzzerManager:
         
         timeouts_occurred = campaign_state.get('timeouts_occurred', 0)
         return (timeouts_occurred / iterations_completed) * 100
+
+    def _validate_test_groups(self, group_ids: List[str]) -> bool:
+        """
+        Validate that the provided test group IDs exist and are enabled
+        
+        Args:
+            group_ids: List of test group IDs to validate
+            
+        Returns:
+            bool: True if all groups are valid and enabled
+        """
+        try:
+            from sat_toolkit.models.IoTFuzzer_Model import TestGroup
+            
+            if not group_ids:
+                logger.warning("No test group IDs provided")
+                return False
+            
+            # Check if all groups exist and are enabled
+            groups = TestGroup.objects.filter(
+                id__in=group_ids,
+                enabled=True
+            )
+            
+            found_count = groups.count()
+            if found_count != len(group_ids):
+                missing_count = len(group_ids) - found_count
+                logger.warning(f"Found {found_count} valid groups, {missing_count} groups missing or disabled")
+                return False
+            
+            logger.info(f"Validated {found_count} test groups successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating test groups: {str(e)}")
+            return False
+    
+    def _load_selected_test_cases(self, group_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Load test cases from the specified test groups with their fuzzing rules
+        
+        Args:
+            group_ids: List of test group IDs to load
+            
+        Returns:
+            List[Dict]: List of test cases with their frame fields and fuzzing rules
+        """
+        try:
+            from sat_toolkit.models.IoTFuzzer_Model import TestCase, FrameField, FuzzingRule
+            
+            # Load test cases with related data using select_related and prefetch_related
+            test_cases = TestCase.objects.filter(
+                group_id__in=group_ids,
+                enabled=True
+            ).select_related(
+                'group',
+                'protocol_config'
+            ).prefetch_related(
+                'frame_fields',
+                'fuzzing_rules__target_field'
+            )
+            
+            test_cases_data = []
+            for test_case in test_cases:
+                # Get frame fields ordered by field_order
+                frame_fields = test_case.frame_fields.all().order_by('field_order')
+                
+                # Get fuzzing rules
+                fuzzing_rules = test_case.fuzzing_rules.filter(enabled=True)
+                
+                test_case_data = {
+                    'id': test_case.id,
+                    'name': test_case.name,
+                    'description': test_case.description,
+                    'priority': test_case.priority,
+                    'group_id': test_case.group.id,
+                    'group_name': test_case.group.name,
+                    'protocol_type': test_case.protocol_config.protocol_type,
+                    'protocol_config': test_case.protocol_config.settings,
+                    'frame_name': test_case.frame_name,
+                    'frame_description': test_case.frame_description,
+                    'timeout_seconds': test_case.timeout_seconds,
+                    'iterations': test_case.iterations,
+                    'frame_fields': [
+                        {
+                            'id': field.id,
+                            'field_name': field.field_name,
+                            'field_id': field.field_id,
+                            'field_type': field.field_type,
+                            'value': field.value,
+                            'default_value': field.default_value,
+                            'field_order': field.field_order,
+                            'bit_offset': field.bit_offset,
+                            'bit_length': field.bit_length,
+                            'target_bits': field.target_bits,
+                            'is_required': field.is_required
+                        }
+                        for field in frame_fields
+                    ],
+                    'fuzzing_rules': [
+                        {
+                            'id': rule.id,
+                            'rule_name': rule.rule_name,
+                            'description': rule.description,
+                            'target_type': rule.target_type,
+                            'target_bits': rule.target_bits,
+                            'strategy': rule.strategy,
+                            'strategy_config': rule.strategy_config,
+                            'iterations_per_rule': rule.iterations_per_rule,
+                            'priority': rule.priority,
+                            'target_field_id': rule.target_field.id if rule.target_field else None
+                        }
+                        for rule in fuzzing_rules
+                    ]
+                }
+                
+                test_cases_data.append(test_case_data)
+            
+            logger.info(f"Loaded {len(test_cases_data)} test cases from {len(group_ids)} groups")
+            return test_cases_data
+            
+        except Exception as e:
+            logger.error(f"Error loading test cases: {str(e)}")
+            return []
+    
+    def _prepare_fuzzing_engine(self, test_cases: List[Dict[str, Any]]) -> Any:
+        """
+        Prepare fuzzing engine with loaded test cases
+        
+        Args:
+            test_cases: List of test cases with frame fields and fuzzing rules
+            
+        Returns:
+            FuzzingEngine: Configured fuzzing engine instance
+        """
+        try:
+            # Import fuzzing engine components
+            from iot_protocol_fuzzer import FuzzingEngine, FuzzTestCase
+            
+            # Create fuzzing engine
+            engine = FuzzingEngine()
+            
+            # Convert test cases to FuzzTestCase objects
+            fuzz_test_cases = []
+            for test_case_data in test_cases:
+                # Create frame data from fields
+                frame_data = self._create_frame_data_from_fields(test_case_data['frame_fields'])
+                
+                # Create FuzzTestCase from test case data
+                fuzz_test_case = FuzzTestCase(
+                    id=str(test_case_data['id']),
+                    name=test_case_data['name'],
+                    protocol_type=test_case_data['protocol_type'],
+                    frame_data=frame_data,
+                    frame_fields=test_case_data['frame_fields'],
+                    fuzzing_rules=test_case_data['fuzzing_rules']
+                )
+                fuzz_test_cases.append(fuzz_test_case)
+            
+            # Store test cases in engine for later use
+            engine.test_cases = fuzz_test_cases
+            
+            logger.info(f"Prepared fuzzing engine with {len(fuzz_test_cases)} test cases")
+            return engine
+            
+        except ImportError as e:
+            logger.warning(f"iot_protocol_fuzzer not available: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error preparing fuzzing engine: {str(e)}")
+            return None
+    
+    def _create_frame_data_from_fields(self, frame_fields: List[Dict[str, Any]]) -> bytes:
+        """
+        Create frame data from frame fields
+        
+        Args:
+            frame_fields: List of frame field dictionaries
+            
+        Returns:
+            bytes: Frame data as bytes
+        """
+        try:
+            frame_data = b''
+            for field in frame_fields:
+                value = field.get('value', '')
+                if value:
+                    # Convert hex string to bytes
+                    if value.startswith('0x'):
+                        value = value[2:]
+                    try:
+                        field_bytes = bytes.fromhex(value)
+                        frame_data += field_bytes
+                    except ValueError:
+                        # If not valid hex, treat as string
+                        frame_data += value.encode('utf-8')
+            
+            return frame_data
+            
+        except Exception as e:
+            logger.error(f"Error creating frame data: {e}")
+            return b''
 
 
 class DependencyChecker:

@@ -119,7 +119,7 @@ class IoTProtocolAdapter:
         Create an orchestrator adapter for a campaign
         
         Args:
-            campaign_config: Campaign configuration
+            campaign_config: Campaign configuration with optional fuzzing_engine
             
         Returns:
             OrchestratorAdapter: Orchestrator adapter instance
@@ -131,6 +131,101 @@ class IoTProtocolAdapter:
         except Exception as e:
             logger.error(f"Error creating orchestrator adapter: {str(e)}")
             raise
+    
+    def execute_mutations(self, fuzzing_engine: Any, test_cases: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Execute mutations from fuzzing engine
+        
+        Args:
+            fuzzing_engine: FuzzingEngine instance
+            test_cases: List of test cases to execute mutations for
+            
+        Returns:
+            List[Dict]: List of mutation results
+        """
+        try:
+            if not fuzzing_engine:
+                logger.warning("No fuzzing engine provided for mutation execution")
+                return []
+            
+            mutation_results = []
+            
+            # Convert test cases to FuzzTestCase objects
+            from iot_protocol_fuzzer import FuzzTestCase
+            
+            fuzz_test_cases = []
+            for test_case in test_cases:
+                # Create frame data from fields
+                frame_data = self._create_frame_data_from_fields(test_case.get('frame_fields', []))
+                
+                fuzz_test_case = FuzzTestCase(
+                    id=str(test_case['id']),
+                    name=test_case['name'],
+                    protocol_type=test_case['protocol_type'],
+                    frame_data=frame_data,
+                    frame_fields=test_case.get('frame_fields', []),
+                    fuzzing_rules=test_case.get('fuzzing_rules', [])
+                )
+                fuzz_test_cases.append(fuzz_test_case)
+            
+            # Generate mutations using fuzzing engine
+            mutations_by_strategy = fuzzing_engine.generate_mutations(
+                fuzz_test_cases, 
+                iterations=100  # Default iterations
+            )
+            
+            # Process mutation results
+            for strategy_name, mutations in mutations_by_strategy.items():
+                for mutation in mutations:
+                    result = {
+                        'test_case_id': mutation.test_case_id,
+                        'test_case_name': test_case.get('name', 'Unknown'),
+                        'mutation_type': strategy_name,
+                        'original_payload': mutation.original_data.hex(),
+                        'mutated_payload': mutation.mutated_data.hex(),
+                        'strategy_used': strategy_name,
+                        'target_bits': mutation.mutation_info.get('target_bits', ''),
+                        'execution_status': 'pending'
+                    }
+                    mutation_results.append(result)
+            
+            logger.info(f"Generated {len(mutation_results)} mutations for {len(test_cases)} test cases")
+            return mutation_results
+            
+        except Exception as e:
+            logger.error(f"Error executing mutations: {str(e)}")
+            return []
+    
+    def _create_frame_data_from_fields(self, frame_fields: List[Dict[str, Any]]) -> bytes:
+        """
+        Create frame data from frame fields
+        
+        Args:
+            frame_fields: List of frame field dictionaries
+            
+        Returns:
+            bytes: Frame data as bytes
+        """
+        try:
+            frame_data = b''
+            for field in frame_fields:
+                value = field.get('value', '')
+                if value:
+                    # Convert hex string to bytes
+                    if value.startswith('0x'):
+                        value = value[2:]
+                    try:
+                        field_bytes = bytes.fromhex(value)
+                        frame_data += field_bytes
+                    except ValueError:
+                        # If not valid hex, treat as string
+                        frame_data += value.encode('utf-8')
+            
+            return frame_data
+            
+        except Exception as e:
+            logger.error(f"Error creating frame data: {e}")
+            return b''
     
     def create_monitor_adapter(self, campaign_config: Dict[str, Any], orchestrator_adapter=None) -> 'MonitorAdapter':
         """
@@ -553,6 +648,11 @@ class OrchestratorAdapter:
         self.orchestrator = None
         self.is_running = False
         
+        # Store fuzzing engine if provided
+        self.fuzzing_engine = campaign_config.get('fuzzing_engine')
+        if self.fuzzing_engine:
+            logger.info("Fuzzing engine provided to orchestrator adapter")
+        
         # Try to initialize fuzzer components
         self._initialize_fuzzer_components()
     
@@ -704,11 +804,84 @@ class OrchestratorAdapter:
     def _run_campaign(self):
         """Run the actual fuzzing campaign"""
         try:
-            self.orchestrator.run()
+            if self.fuzzing_engine:
+                # Use fuzzing engine if available
+                logger.info("Running campaign with fuzzing engine")
+                self._run_with_fuzzing_engine()
+            elif self.orchestrator:
+                # Use traditional orchestrator
+                self.orchestrator.run()
+            else:
+                logger.warning("No fuzzing engine or orchestrator available")
         except Exception as e:
             logger.error(f"Error during fuzzing campaign: {e}")
         finally:
             self.is_running = False
+    
+    def _run_with_fuzzing_engine(self):
+        """Run campaign using the fuzzing engine"""
+        try:
+            if not self.fuzzing_engine:
+                logger.error("No fuzzing engine available")
+                return
+            
+            # Get test cases from campaign config
+            test_cases = self.campaign_config.get('test_cases', [])
+            if not test_cases:
+                logger.warning("No test cases provided for fuzzing engine")
+                return
+            
+            logger.info(f"Starting fuzzing engine with {len(test_cases)} test cases")
+            
+            # Execute mutations using fuzzing engine
+            for test_case in test_cases:
+                try:
+                    # Generate mutations for this test case
+                    mutations = self.fuzzing_engine.generate_mutations(
+                        test_case, 
+                        iterations=test_case.get('iterations', 100)
+                    )
+                    
+                    # Execute each mutation
+                    for mutation in mutations:
+                        self._execute_mutation(mutation, test_case)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing test case {test_case.get('id', 'unknown')}: {e}")
+                    continue
+            
+            logger.info("Fuzzing engine campaign completed")
+            
+        except Exception as e:
+            logger.error(f"Error in fuzzing engine campaign: {e}")
+    
+    def _execute_mutation(self, mutation: Dict[str, Any], test_case: Dict[str, Any]):
+        """Execute a single mutation"""
+        try:
+            # Extract mutation data
+            original_payload = mutation.get('original', '')
+            mutated_payload = mutation.get('mutated', '')
+            strategy_used = mutation.get('strategy', 'unknown')
+            target_bits = mutation.get('target_bits', '')
+            
+            # Log mutation execution
+            logger.debug(f"Executing mutation: {strategy_used} -> {target_bits}")
+            
+            # Here you would send the mutated payload to the target
+            # For now, we'll just log the execution
+            logger.info(f"Mutation executed for test case {test_case.get('id')}: {strategy_used}")
+            
+            # Emit event for mutation execution
+            self._handle_fuzzer_event('mutation_executed', {
+                'test_case_id': test_case.get('id'),
+                'mutation_type': strategy_used,
+                'target_bits': target_bits,
+                'original_payload': original_payload,
+                'mutated_payload': mutated_payload
+            })
+            
+        except Exception as e:
+            logger.error(f"Error executing mutation: {e}")
     
     def stop(self):
         """Stop fuzzing campaign"""
