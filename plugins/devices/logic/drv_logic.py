@@ -20,6 +20,8 @@ from plugins.devices.logic.protocol import (
     LogicAnalyzerModel, 
     AsyncReadSerial, 
     get_available_serial_ports, 
+    find_logic_analyzer_by_vid_pid,
+    get_logic_analyzer_port,
     configure_logic_analyzer, 
     read_logic_analyzer_data_from_file,
     write_logic_analyzer_data_to_file,
@@ -57,7 +59,8 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
         
         # Available commands for this driver
         self.supported_commands = {
-            "scan": "Scan for available serial ports",
+            "scan": "Scan for logic analyzers by VID/PID (0x1d50:0x5128)",
+            "scan_all": "Scan for all available serial ports",
             "connect": "Connect to the logic analyzer",
             "configure": "Configure the logic analyzer",
             "start": "Start capture",
@@ -149,16 +152,24 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
             if hasattr(device, 'attributes') and 'port' in device.attributes:
                 self.logic_analyzer.port = device.attributes['port']
             
-            # Validate port
+            # Auto-detect port if not specified
             if not self.logic_analyzer.port:
-                logger.error("No serial port specified")
-                return False
+                logger.info("No port specified, attempting auto-detection by VID/PID...")
+                auto_port = get_logic_analyzer_port()
+                if auto_port:
+                    self.logic_analyzer.port = auto_port
+                    logger.info(f"Auto-detected logic analyzer at port: {auto_port}")
+                else:
+                    logger.error("No logic analyzer found with VID=0x1d50, PID=0x5128")
+                    return False
             
-            available_ports = get_available_serial_ports()
-            logger.info(f"Available ports: {available_ports}")
+            # Validate that the detected/specified port is a logic analyzer
+            logic_analyzers = find_logic_analyzer_by_vid_pid()
+            logic_analyzer_ports = [la['device'] for la in logic_analyzers]
             
-            if self.logic_analyzer.port not in available_ports:
-                logger.error(f"Port {self.logic_analyzer.port} not available. Available ports: {available_ports}")
+            if self.logic_analyzer.port not in logic_analyzer_ports:
+                logger.error(f"Port {self.logic_analyzer.port} is not a logic analyzer with the expected VID/PID")
+                logger.info(f"Available logic analyzer ports: {logic_analyzer_ports}")
                 return False
             
             # Verify serial port is accessible
@@ -199,21 +210,41 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
             return False
     
     def _scan_impl(self):
-        """Implementation of device scanning"""
+        """Implementation of device scanning - finds logic analyzers by VID/PID"""
         try:
-            available_ports = get_available_serial_ports()
+            # Find logic analyzers by VID/PID (0x1d50:0x5128)
+            logic_analyzers = find_logic_analyzer_by_vid_pid()
             devices = []
             
-            for port in available_ports:
+            for la_info in logic_analyzers:
+                port = la_info['device']
+                description = la_info.get('description', 'Logic Analyzer')
+                
                 # Create SerialDevice which already has DeviceType.Serial set by default
                 device = SerialDevice(
                     device_id=f"enxor_la_{port.replace('/', '_')}",
-                    name=f"Enxor Logic Analyzer ({port})",
+                    name=f"Enxor Logic Analyzer ({description}) - {port}",
                     port=port,
                     baud_rate=115200,
-                    attributes={"port": port, "baud_rate": 115200}
+                    attributes={
+                        "port": port, 
+                        "baud_rate": 115200,
+                        "vid": la_info.get('vid'),
+                        "pid": la_info.get('pid'),
+                        "description": description,
+                        "hwid": la_info.get('hwid'),
+                        "serial_number": la_info.get('serial_number')
+                    }
                 )
                 devices.append(device)
+                logger.info(f"Found Enxor Logic Analyzer: {port} (VID: {la_info.get('vid', 'N/A'):04x}, PID: {la_info.get('pid', 'N/A'):04x})")
+            
+            if not devices:
+                logger.info("No Enxor Logic Analyzers found with VID=0x1d50, PID=0x5128")
+                logger.info("Available serial ports (all):")
+                all_ports = get_available_serial_ports()
+                for port in all_ports:
+                    logger.info(f"  - {port}")
             
             return devices
         
@@ -231,6 +262,9 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
             
             if cmd == "scan":
                 return self.scan_devices()
+            
+            elif cmd == "scan_all":
+                return self.scan_all_serial_ports()
             
             elif cmd == "connect":
                 result = self._connect_impl(device)
@@ -510,11 +544,12 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
             if not self.logic_analyzer or not self.logic_analyzer.port:
                 return {"status": "error", "message": "Logic analyzer not properly initialized"}
             
-            # Verify port is still available
-            available_ports = get_available_serial_ports()
-            if self.logic_analyzer.port not in available_ports:
-                logger.error(f"Port {self.logic_analyzer.port} no longer available")
-                return {"status": "error", "message": f"Port {self.logic_analyzer.port} no longer available"}
+            # Verify port is still available and is a logic analyzer
+            logic_analyzers = find_logic_analyzer_by_vid_pid()
+            logic_analyzer_ports = [la['device'] for la in logic_analyzers]
+            if self.logic_analyzer.port not in logic_analyzer_ports:
+                logger.error(f"Logic analyzer port {self.logic_analyzer.port} no longer available")
+                return {"status": "error", "message": f"Logic analyzer port {self.logic_analyzer.port} no longer available"}
             
             # Configure the analyzer
             logger.info(f"Configuring logic analyzer on port {self.logic_analyzer.port}...")
@@ -643,9 +678,22 @@ class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
         }
     
     def scan_devices(self):
-        """Convenience method to scan for devices and return formatted results"""
+        """Convenience method to scan for logic analyzer devices and return formatted results"""
         devices = self._scan_impl()
         if not devices:
-            return {"status": "success", "message": "No serial ports found", "devices": []}
+            return {"status": "success", "message": "No logic analyzers found with VID=0x1d50, PID=0x5128", "devices": []}
         
         return {"status": "success", "devices": devices}
+    
+    def scan_all_serial_ports(self):
+        """Scan for all available serial ports (not just logic analyzers)"""
+        try:
+            available_ports = get_available_serial_ports()
+            if not available_ports:
+                return {"status": "success", "message": "No serial ports found", "ports": []}
+            
+            return {"status": "success", "message": f"Found {len(available_ports)} serial ports", "ports": available_ports}
+        
+        except Exception as e:
+            logger.error(f"Error scanning for all serial ports: {str(e)}")
+            return {"status": "error", "message": str(e)}

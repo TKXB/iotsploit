@@ -222,6 +222,42 @@ def get_available_serial_ports():
 
     return port_names
 
+def find_logic_analyzer_by_vid_pid(vid=0x1d50, pid=0x5128):
+    """
+    Find logic analyzer device by VID/PID
+    Default values are for the updated logic analyzer firmware
+    VID: 1d50, PID: 5128
+    """
+    ports = serial.tools.list_ports.comports(include_links=False)
+    logic_analyzer_ports = []
+    
+    for port in ports:
+        # Check if this port matches our VID/PID
+        if port.vid == vid and port.pid == pid:
+            logger.info(f"Found logic analyzer at {port.device} (VID: {port.vid:04x}, PID: {port.pid:04x})")
+            logic_analyzer_ports.append({
+                'device': port.device,
+                'description': port.description,
+                'hwid': port.hwid,
+                'vid': port.vid,
+                'pid': port.pid,
+                'serial_number': port.serial_number,
+                'manufacturer': port.manufacturer,
+                'product': port.product
+            })
+    
+    return logic_analyzer_ports
+
+def get_logic_analyzer_port():
+    """
+    Get the first available logic analyzer port
+    Returns the device path (e.g., '/dev/ttyACM0') or None if not found
+    """
+    logic_analyzers = find_logic_analyzer_by_vid_pid()
+    if logic_analyzers:
+        return logic_analyzers[0]['device']
+    return None
+
 def configure_logic_analyzer(las):
     try:
         ser = serial.Serial(port=las.port, baudrate=las.baud, timeout=None, xonxoff=False)
