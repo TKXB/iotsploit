@@ -29,3 +29,4 @@ tests/plug/devices.json
 tests/plug/ut_device_model.py
 tests/ut_shell.py
 ui/
+artifacts/
