@@ -2,6 +2,7 @@ import os
 import importlib.util
 import logging
 import threading
+import json
 from typing import Dict, List, Optional, Any
 from sat_toolkit.core.device_spec import DevicePluginSpec
 from sat_toolkit.models.Device_Model import Device, DeviceDriverState
@@ -33,6 +34,10 @@ class DeviceDriverManager:
             self._connection_locks = {}  # Device operation locks, format: 'driver_name::device_id': Lock
             self.driver_states = {}  # Store driver enablement states
             
+            # 添加USB设备配置
+            self.usb_config_file = 'conf/usb_devices.json'
+            self.usb_device_configs = self._load_usb_config()
+            
             # Define valid state transitions
             self._state_transitions = {
                 DeviceState.UNKNOWN: [DeviceState.DISCOVERED],
@@ -48,6 +53,72 @@ class DeviceDriverManager:
             self._load_driver_states()
             self._initialized = True
             logger.info("DeviceDriverManager initialized")
+
+    def _load_usb_config(self) -> Dict:
+        """加载USB设备配置文件"""
+        try:
+            if os.path.exists(self.usb_config_file):
+                with open(self.usb_config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                logger.warning(f"USB配置文件不存在: {self.usb_config_file}")
+                return {}
+        except Exception as e:
+            logger.error(f"加载USB配置文件失败: {e}")
+            return {}
+
+    def get_usb_device_info(self, device_type: str) -> List[Dict]:
+        """根据设备类型获取USB设备完整信息
+        
+        Args:
+            device_type: 设备类型，如 "logic_analyzer"
+            
+        Returns:
+            List[Dict]: 设备完整信息列表，包含端口、VID/PID、配置等
+        """
+        import serial.tools.list_ports
+        
+        config = self.usb_device_configs.get(device_type)
+        if not config:
+            return []
+        
+        devices = []
+        for vid_pid in config.get("vid_pid_list", []):
+            vid = int(vid_pid["vid"], 16)
+            pid = int(vid_pid["pid"], 16)
+            
+            # 查找匹配的串口设备
+            for port in serial.tools.list_ports.comports():
+                if port.vid == vid and port.pid == pid:
+                    device_info = {
+                        "device_type": device_type,
+                        "port": port.device,
+                        "vid": vid,
+                        "pid": pid,
+                        "description": port.description,
+                        "manufacturer": port.manufacturer,
+                        "product": port.product,
+                        "serial_number": port.serial_number,
+                        "config": config
+                    }
+                    devices.append(device_info)
+        
+        return devices
+
+    def get_usb_vid_pid(self, device_type: str) -> List[Dict]:
+        """根据设备类型获取VID/PID列表
+        
+        Args:
+            device_type: 设备类型，如 "logic_analyzer"
+            
+        Returns:
+            List[Dict]: VID/PID列表，格式 [{"vid": "0x1d50", "pid": "0x5128"}]
+        """
+        config = self.usb_device_configs.get(device_type)
+        if not config:
+            return []
+        
+        return config.get("vid_pid_list", [])
 
     def _load_driver_states(self):
         """Load driver states from database"""

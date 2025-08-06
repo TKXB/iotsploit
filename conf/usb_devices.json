@@ -1,0 +1,21 @@
+{
+  "logic_analyzer": {
+    "name": "Enxor Logic Analyzer",
+    "driver": "enxor_logic_analyzer",
+    "vid_pid_list": [
+      {"vid": "0x1d50", "pid": "0x5128"},
+      {"vid": "0x1d50", "pid": "0x5129"}
+    ],
+    "default_baud_rate": 115200
+  },
+  "esp32": {
+    "name": "ESP32 Device",
+    "driver": "esp32_driver",
+    "vid_pid_list": [
+      {"vid": "0x10c4", "pid": "0xea60"},
+      {"vid": "0x1a86", "pid": "0x7523"},
+      {"vid": "0x303a", "pid": "0x1001"}
+    ],
+    "default_baud_rate": 115200
+  }
+} 
