@@ -237,6 +237,96 @@ class ProtocolConfiguration(models.Model):
         return f"[ProtocolConfig:{self.pk} {self.protocol_type}]"
 
 
+class IoTConfiguration(models.Model):
+    """
+    IoT Configuration Model - Stores complete IoT Fuzzer configuration
+    """
+    
+    name = models.CharField(
+        max_length=255,
+        help_text="Configuration name"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Configuration description"
+    )
+    
+    # Protocol Configuration
+    protocol_type = models.CharField(
+        max_length=20,
+        choices=ProtocolConfiguration.PROTOCOL_TYPE_CHOICES,
+        help_text="Protocol type"
+    )
+    protocol_settings = models.JSONField(
+        default=dict,
+        help_text="Protocol-specific settings"
+    )
+    
+    # Fuzzing Engine Configuration
+    generator_type = models.CharField(
+        max_length=50,
+        default='radamsa',
+        help_text="Fuzzing generator type"
+    )
+    generator_settings = models.JSONField(
+        default=dict,
+        help_text="Generator-specific settings"
+    )
+    
+    # Test Campaign Configuration
+    campaign_settings = models.JSONField(
+        default=dict,
+        help_text="Test campaign settings"
+    )
+    
+    # Monitoring Configuration
+    monitoring_settings = models.JSONField(
+        default=dict,
+        help_text="Monitoring and logging settings"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this configuration is active"
+    )
+    
+    class Meta:
+        db_table = 'iot_configurations'
+        verbose_name = 'IoT Configuration'
+        verbose_name_plural = 'IoT Configurations'
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        return f"[IoTConfig:{self.pk} {self.name}]"
+    
+    def get_protocol_display_name(self):
+        """Get display name for protocol type"""
+        for choice in ProtocolConfiguration.PROTOCOL_TYPE_CHOICES:
+            if choice[0] == self.protocol_type:
+                return choice[1]
+        return self.protocol_type
+    
+    def to_dict(self):
+        """Convert configuration to dictionary format"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'protocol_type': self.protocol_type,
+            'protocol_settings': self.protocol_settings,
+            'generator_type': self.generator_type,
+            'generator_settings': self.generator_settings,
+            'campaign_settings': self.campaign_settings,
+            'monitoring_settings': self.monitoring_settings,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'is_active': self.is_active
+        }
+
+
 class FrameField(models.Model):
     """
     Frame Field Model - Individual fields within a protocol frame
@@ -908,6 +998,34 @@ class ConfigTemplateAdmin(admin.ModelAdmin):
     list_filter = ['category', 'is_default']
     search_fields = ['name', 'description']
     readonly_fields = ['created_at', 'usage_count']
+
+
+class IoTConfigurationAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'protocol_type', 'generator_type', 'is_active', 'updated_at']
+    list_filter = ['protocol_type', 'generator_type', 'is_active']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        ('Protocol Configuration', {
+            'fields': ('protocol_type', 'protocol_settings')
+        }),
+        ('Fuzzing Engine', {
+            'fields': ('generator_type', 'generator_settings')
+        }),
+        ('Test Campaign', {
+            'fields': ('campaign_settings',)
+        }),
+        ('Monitoring', {
+            'fields': ('monitoring_settings',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 
 class LiveLogAdmin(admin.ModelAdmin):

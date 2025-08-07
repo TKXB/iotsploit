@@ -63,6 +63,7 @@ from .view_handlers.iot_fuzzer_views import (
     get_protocol_types,
     get_protocol_config,
     save_protocol_config,
+    get_saved_config,
     test_protocol_connection,
     get_generator_types,
     get_generator_config,
@@ -247,6 +248,7 @@ urlpatterns = [
     path('iot-fuzzer/configuration/protocols/config/', get_protocol_config, name='iot_fuzzer_protocol_config'),
     path('iot-fuzzer/configuration/protocols/config/save/', save_protocol_config, name='iot_fuzzer_save_protocol_config'),
     path('iot-fuzzer/configuration/protocols/test-connection/', test_protocol_connection, name='iot_fuzzer_test_protocol_connection'),
+    path('iot-fuzzer/configuration/protocols/saved-config/', get_saved_config, name='iot_fuzzer_get_saved_config'),
     
     # Configuration Page Endpoints - Generator Configuration
     path('iot-fuzzer/configuration/generators/types/', get_generator_types, name='iot_fuzzer_generator_types'),

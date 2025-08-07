@@ -20,7 +20,7 @@ from sat_toolkit.tools.iot_fuzzer_bridge import IoTFuzzerBridge
 # Import Django models
 from sat_toolkit.models.IoTFuzzer_Model import (
     FuzzingCampaign, TestGroup, TestCase, FuzzingResult, ConfigTemplate, LiveLog,
-    ProtocolConfiguration, FrameField, FuzzingRule
+    ProtocolConfiguration, FrameField, FuzzingRule, IoTConfiguration
 )
 
 logger = logging.getLogger(__name__)
@@ -452,8 +452,8 @@ def get_protocol_config(request: HttpRequest):
 @csrf_exempt
 def save_protocol_config(request: HttpRequest):
     """
-    POST /api/iot-fuzzer/configuration/protocols/config/
-    Save protocol configuration
+    POST /api/iot-fuzzer/configuration/protocols/config/save/
+    Save protocol configuration to database
     """
     if request.method != 'POST':
         return JsonResponse({
@@ -465,13 +465,77 @@ def save_protocol_config(request: HttpRequest):
         data = json.loads(request.body)
         config_data = data.get('config', {})
         
-        fuzzer_service = IoTFuzzerService.get_instance()
-        config_id = fuzzer_service.save_protocol_config(config_data)
+        # Extract configuration components
+        protocol_type = config_data.get('protocol_type', 'uart')
+        protocol_settings = {
+            'device_path': config_data.get('device_path', '/dev/ttyACM0'),
+            'baud_rate': config_data.get('baud_rate', '115200'),
+            'timeout': config_data.get('timeout', 1000),
+        }
+        
+        generator_type = config_data.get('generator_type', 'radamsa')
+        generator_settings = {
+            'mutation_rate': config_data.get('mutation_rate', 0.5),
+            'coverage_feedback': config_data.get('coverage_feedback', True),
+            'radamsa_path': config_data.get('radamsa_path', '/usr/bin/radamsa'),
+        }
+        
+        campaign_settings = {
+            'total_iterations': config_data.get('total_iterations', 1000),
+            'delay_between_tests': config_data.get('delay_between_tests', 100),
+            'crash_detection': config_data.get('crash_detection', True),
+            'save_artifacts': config_data.get('save_artifacts', True),
+        }
+        
+        monitoring_settings = {
+            'log_level': config_data.get('log_level', 'info'),
+            'output_directory': config_data.get('output_directory', '/tmp/fuzzer_output'),
+            'realtime_monitoring': config_data.get('realtime_monitoring', True),
+            'performance_metrics': config_data.get('performance_metrics', True),
+        }
+        
+        # Create or update IoTConfiguration
+        config_name = config_data.get('name', f'{protocol_type.upper()} Configuration')
+        config_description = config_data.get('description', f'Auto-generated {protocol_type} configuration')
+        
+        # Try to find existing active configuration for this protocol type
+        existing_config = IoTConfiguration.objects.filter(
+            protocol_type=protocol_type,
+            is_active=True
+        ).first()
+        
+        if existing_config:
+            # Update existing configuration
+            existing_config.name = config_name
+            existing_config.description = config_description
+            existing_config.protocol_settings = protocol_settings
+            existing_config.generator_type = generator_type
+            existing_config.generator_settings = generator_settings
+            existing_config.campaign_settings = campaign_settings
+            existing_config.monitoring_settings = monitoring_settings
+            existing_config.save()
+            config_id = existing_config.id
+            logger.info(f"Updated existing IoT configuration {config_id}")
+        else:
+            # Create new configuration
+            new_config = IoTConfiguration.objects.create(
+                name=config_name,
+                description=config_description,
+                protocol_type=protocol_type,
+                protocol_settings=protocol_settings,
+                generator_type=generator_type,
+                generator_settings=generator_settings,
+                campaign_settings=campaign_settings,
+                monitoring_settings=monitoring_settings,
+                is_active=True
+            )
+            config_id = new_config.id
+            logger.info(f"Created new IoT configuration {config_id}")
         
         return JsonResponse({
             "status": "success",
             "config_id": config_id,
-            "message": "Protocol configuration saved successfully"
+            "message": "Configuration saved to database successfully"
         })
         
     except json.JSONDecodeError:
@@ -480,11 +544,57 @@ def save_protocol_config(request: HttpRequest):
             "message": "Invalid JSON format"
         }, status=400)
     except Exception as e:
-        logger.error(f"Error saving protocol config: {str(e)}")
+        logger.error(f"Error saving configuration to database: {str(e)}")
         return JsonResponse({
             "status": "error",
-            "message": f"Failed to save protocol config: {str(e)}"
+            "message": f"Failed to save configuration: {str(e)}"
         }, status=500)
+
+
+@csrf_exempt
+def get_saved_config(request: HttpRequest):
+    """
+    GET /api/iot-fuzzer/configuration/saved/
+    Get saved configuration from database
+    """
+    if request.method != 'GET':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only GET method is allowed"
+        }, status=405)
+    
+    try:
+        # Get protocol type from query parameters
+        protocol_type = request.GET.get('protocol_type', 'uart')
+        
+        # Find active configuration for this protocol type
+        config = IoTConfiguration.objects.filter(
+            protocol_type=protocol_type,
+            is_active=True
+        ).first()
+        
+        if not config:
+            return JsonResponse({
+                "status": "error",
+                "message": f"No active configuration found for protocol type: {protocol_type}"
+            }, status=404)
+        
+        # Convert to dictionary format
+        config_data = config.to_dict()
+        
+        return JsonResponse({
+            "status": "success",
+            "config": config_data,
+            "message": "Configuration retrieved successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving configuration from database: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to retrieve configuration: {str(e)}"
+        }, status=500)
+
 
 @csrf_exempt
 def test_protocol_connection(request: HttpRequest):
