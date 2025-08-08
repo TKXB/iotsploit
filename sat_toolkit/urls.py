@@ -71,6 +71,7 @@ from .view_handlers.iot_fuzzer_views import (
     get_templates_list,
     load_template,
     save_template,
+    delete_template,
     validate_configuration,
     # Management Page Endpoints
     get_test_groups_list,
@@ -259,6 +260,7 @@ urlpatterns = [
     path('iot-fuzzer/configuration/templates/list/', get_templates_list, name='iot_fuzzer_templates_list'),
     path('iot-fuzzer/configuration/templates/load/', load_template, name='iot_fuzzer_load_template'),
     path('iot-fuzzer/configuration/templates/save/', save_template, name='iot_fuzzer_save_template'),
+    path('iot-fuzzer/configuration/templates/delete/', delete_template, name='iot_fuzzer_delete_template'),
     
     # Configuration Page Endpoints - Configuration Validation
     path('iot-fuzzer/configuration/validate/', validate_configuration, name='iot_fuzzer_validate_configuration'),

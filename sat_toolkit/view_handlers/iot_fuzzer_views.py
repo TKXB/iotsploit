@@ -752,7 +752,7 @@ def get_templates_list(request: HttpRequest):
         
         templates_data = []
         for template in templates:
-            templates_data.append({
+            item = {
                 'id': template.id,
                 'name': template.name,
                 'description': template.description,
@@ -760,7 +760,17 @@ def get_templates_list(request: HttpRequest):
                 'is_default': template.is_default,
                 'usage_count': template.usage_count,
                 'created_at': template.created_at.isoformat()
-            })
+            }
+
+            # Include saved configuration blocks if present, so frontend can show previews
+            if template.protocol_config is not None:
+                item['protocol_config'] = template.protocol_config
+            if template.generator_config is not None:
+                item['generator_config'] = template.generator_config
+            if template.monitoring_config is not None:
+                item['monitoring_config'] = template.monitoring_config
+
+            templates_data.append(item)
         
         return JsonResponse({
             "status": "success",
@@ -864,6 +874,55 @@ def save_template(request: HttpRequest):
         return JsonResponse({
             "status": "error",
             "message": f"Failed to save template: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+def delete_template(request: HttpRequest):
+    """
+    POST /api/iot-fuzzer/configuration/templates/delete/
+    Delete a configuration template by id
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            "status": "error",
+            "message": "Only POST method is allowed"
+        }, status=405)
+
+    try:
+        data = json.loads(request.body)
+        template_id = data.get('template_id')
+
+        if not template_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Template ID is required"
+            }, status=400)
+
+        # Accept both int and string IDs
+        try:
+            template_obj = ConfigTemplate.objects.get(id=int(template_id))
+        except (ConfigTemplate.DoesNotExist, ValueError):
+            return JsonResponse({
+                "status": "error",
+                "message": "Template not found"
+            }, status=404)
+
+        template_obj.delete()
+
+        return JsonResponse({
+            "status": "success",
+            "message": "Template deleted successfully"
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "message": "Invalid JSON format"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error deleting template: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to delete template: {str(e)}"
         }, status=500)
 
 # Configuration Validation
