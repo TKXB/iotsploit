@@ -670,7 +670,7 @@ class OrchestratorAdapter:
             from iot_protocol_fuzzer.harnesses.can_harness import CANHarness
             from iot_protocol_fuzzer.harnesses.uart_harness import UARTHarness
             from iot_protocol_fuzzer.harnesses.spi_harness import SPIHarness
-            from iot_protocol_fuzzer.monitoring.monitor import Monitor
+            from iot_protocol_fuzzer.monitoring.monitor import create_monitor
             from iot_protocol_fuzzer.analysis.logger import TestLogger
             
             logger.info("Initializing real fuzzer components")
@@ -756,8 +756,8 @@ class OrchestratorAdapter:
                 self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
                 return
             
-            # Create monitor and logger
-            self.monitor = Monitor()
+            # Create monitor and logger (pluggable by protocol)
+            self.monitor = create_monitor(protocol_type, self.campaign_config.get('monitoring'))
             logger_backend = TestLogger()
             
             # Create campaign config with event callback
@@ -1040,11 +1040,13 @@ class MonitorAdapter:
             return
         
         try:
-            # Import real monitor component
-            from iot_protocol_fuzzer.monitoring.monitor import Monitor
+            # Import monitor factory
+            from iot_protocol_fuzzer.monitoring.monitor import create_monitor
             
             logger.info("Initializing real monitor components")
-            self.real_monitor = Monitor()
+            # Determine protocol type from campaign config
+            protocol_type = (self.campaign_config.get('protocol_config', {}) or {}).get('protocol_type')
+            self.real_monitor = create_monitor(protocol_type, self.campaign_config.get('monitoring'))
             
         except ImportError as e:
             logger.warning(f"Failed to import iot_protocol_fuzzer monitor: {e}, using mock implementation")
