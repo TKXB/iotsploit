@@ -33,6 +33,17 @@
       "target": "flash"
     }
   },
+
+  "usbserial_ecp5": {
+    "path": "plugins/devices/logic/firmware/usbserial_ecp5.bit",
+    "device_type": "fpga",
+    "version": "1.0.0",
+    "flash_options": {
+      "cable": "ft2232_b",
+      "target": "flash"
+    }
+  },
+
   "esp32_bootloader": {
     "path": "plugins/devices/esp32/firmware/bootloader.bin",
     "device_type": "esp32",
