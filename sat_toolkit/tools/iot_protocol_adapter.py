@@ -738,11 +738,22 @@ class OrchestratorAdapter:
                 )
                 harness = CANHarness(interface)
             elif protocol_type == 'uart':
-                from iot_protocol_fuzzer.interfaces.uart_interface import SerialInterface
-                interface = SerialInterface(
-                    port=protocol_config.get('port', '/dev/ttyUSB0'),
-                    baud_rate=protocol_config.get('baud_rate', 115200)
+                # Use the actual UARTInterface implementation
+                from iot_protocol_fuzzer.interfaces.uart_interface import UARTInterface
+                # Accept multiple possible keys from the incoming config
+                device = (
+                    protocol_config.get('port')
+                    or protocol_config.get('device')
+                    or protocol_config.get('device_path')
+                    or '/dev/ttyUSB0'
                 )
+                baudrate = protocol_config.get('baud_rate', 115200)
+                timeout_ms = protocol_config.get('timeout', 1000)
+                try:
+                    timeout_s = float(timeout_ms) / 1000.0
+                except Exception:
+                    timeout_s = 0.1
+                interface = UARTInterface(device=device, baudrate=baudrate, timeout=timeout_s)
                 harness = UARTHarness(interface)
             elif protocol_type == 'spi':
                 from iot_protocol_fuzzer.interfaces.spi_interface import SPIInterface

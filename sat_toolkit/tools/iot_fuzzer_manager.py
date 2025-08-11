@@ -195,6 +195,50 @@ class IoTFuzzerManager:
                 if not test_cases_data:
                     raise ValueError(f"No enabled test cases found in groups: {test_group_ids}")
                 
+                # Ensure protocol_type consistency between campaign and selected test cases
+                campaign_protocol_type = str(campaign_config.get('protocol_type', '')).lower()
+                test_case_protocols = {str(tc.get('protocol_type', '')).lower() for tc in test_cases_data}
+                # Remove empty markers
+                test_case_protocols.discard('')
+
+                if len(test_case_protocols) > 1:
+                    raise ValueError(
+                        f"Selected groups contain mixed protocol types: {sorted(test_case_protocols)}. "
+                        f"Please select groups with the same protocol or run separate campaigns."
+                    )
+
+                if len(test_case_protocols) == 1:
+                    only_protocol = next(iter(test_case_protocols))
+                    if campaign_protocol_type and campaign_protocol_type != only_protocol:
+                        logger.warning(
+                            f"Campaign protocol_type '{campaign_protocol_type}' does not match test cases '{only_protocol}'. "
+                            f"Overriding campaign to '{only_protocol}'."
+                        )
+                    # Force campaign protocol to match test cases
+                    campaign_config['protocol_type'] = only_protocol
+
+                    # Normalize/complete protocol_config according to protocol type
+                    protocol_config = campaign_config.get('protocol_config') or {}
+                    protocol_config['protocol_type'] = only_protocol
+                    if only_protocol == 'can':
+                        # Prefer 'device_path' and 'bitrate' keys consumed by orchestrator
+                        if 'device_path' not in protocol_config:
+                            # Accept possible aliases
+                            alias = protocol_config.get('interface') or protocol_config.get('channel')
+                            protocol_config['device_path'] = alias or 'can0'
+                        if 'bitrate' not in protocol_config:
+                            # Accept baud_rate as alias for legacy data
+                            protocol_config['bitrate'] = protocol_config.get('baud_rate', 500000)
+                    elif only_protocol == 'uart':
+                        if 'port' not in protocol_config:
+                            alias = protocol_config.get('device') or protocol_config.get('device_path')
+                            protocol_config['port'] = alias or '/dev/ttyUSB0'
+                        if 'baud_rate' not in protocol_config:
+                            protocol_config['baud_rate'] = 115200
+                        if 'timeout' not in protocol_config:
+                            protocol_config['timeout'] = 1000
+                    campaign_config['protocol_config'] = protocol_config
+
                 # Prepare fuzzing engine with loaded test cases
                 fuzzing_engine = self._prepare_fuzzing_engine(test_cases_data)
             
@@ -232,6 +276,8 @@ class IoTFuzzerManager:
             campaign_config_with_id['campaign_id'] = campaign_id
             if fuzzing_engine:
                 campaign_config_with_id['fuzzing_engine'] = fuzzing_engine
+                # Provide test cases to orchestrator adapter for fuzzing engine path
+                campaign_config_with_id['test_cases'] = test_cases_data
             
             orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config_with_id)
             monitor_adapter = protocol_adapter.create_monitor_adapter(campaign_config_with_id)

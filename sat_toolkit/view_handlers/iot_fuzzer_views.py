@@ -1325,15 +1325,17 @@ def create_test_case(request: HttpRequest):
             timeout_value = timeout_value / 1000.0
         
         # Get or create a default protocol configuration
-        protocol_type = case_data.get('protocol_type', group.protocol_type)
+        protocol_type = (case_data.get('protocol_type') or group.protocol_type or '').lower()
+        default_settings = {'default': True}
+        if protocol_type == 'can':
+            # Use bitrate and device_path for CAN
+            default_settings.update({'bitrate': 500000, 'device_path': 'can0'})
+        elif protocol_type == 'uart':
+            default_settings.update({'baud_rate': 115200, 'port': '/dev/ttyUSB0', 'timeout': 1000})
+
         protocol_config, created = ProtocolConfiguration.objects.get_or_create(
             protocol_type=protocol_type,
-            defaults={
-                'settings': {
-                    'baud_rate': 500000 if protocol_type == 'can' else 115200,
-                    'default': True
-                }
-            }
+            defaults={'settings': default_settings}
         )
         
         test_case = TestCase.objects.create(
