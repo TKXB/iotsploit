@@ -69,6 +69,43 @@ def start_campaign(request: HttpRequest):
             "campaign_id": campaign_id,
             "message": "Campaign started successfully"
         }
+
+        # Persist runtime UUID into DB if possible
+        try:
+            from sat_toolkit.models.IoTFuzzer_Model import FuzzingCampaign
+            # Find or create a campaign record for this run
+            protocol_type = (campaign_config.get('protocol_type') or 'unknown').lower()
+            name = campaign_config.get('campaign_name') or f"{protocol_type.upper()} Campaign"
+            # Try to attach to an existing idle/default or create new
+            db_campaign, _ = FuzzingCampaign.objects.get_or_create(
+                name=name,
+                defaults={
+                    'description': 'Auto-created by start_campaign',
+                    'status': 'running',
+                    'protocol_type': protocol_type,
+                    'protocol_config': campaign_config.get('protocol_config', {}),
+                    'generator_config': campaign_config.get('generator_config', {}),
+                    'monitoring_config': {},
+                    'started_at': timezone.now(),
+                }
+            )
+            # Store UUID
+            try:
+                if not db_campaign.campaign_uuid:
+                    db_campaign.campaign_uuid = str(campaign_id)
+                else:
+                    # If campaign_uuid already set to another value, replace only when different
+                    if db_campaign.campaign_uuid != str(campaign_id):
+                        db_campaign.campaign_uuid = str(campaign_id)
+                db_campaign.status = 'running'
+                if not db_campaign.started_at:
+                    db_campaign.started_at = timezone.now()
+                db_campaign.save()
+                response_data["db_campaign_id"] = db_campaign.id
+            except Exception as e:
+                logger.warning(f"Unable to persist campaign_uuid: {e}")
+        except Exception as e:
+            logger.warning(f"start_campaign DB persist skipped: {e}")
         
         # Add strategy statistics if available
         if campaign_state:
@@ -1905,7 +1942,6 @@ def get_logs_list(request: HttpRequest):
     
     try:
         campaign_id = request.GET.get('campaign_id')
-        log_level = request.GET.get('log_level')
         category = request.GET.get('category')
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 50))
@@ -1914,8 +1950,6 @@ def get_logs_list(request: HttpRequest):
         
         if campaign_id:
             logs = logs.filter(campaign_id=campaign_id)
-        if log_level:
-            logs = logs.filter(log_level=log_level)
         if category:
             logs = logs.filter(category=category)
         
@@ -1926,19 +1960,19 @@ def get_logs_list(request: HttpRequest):
         
         logs_data = []
         for log in page_obj:
-            logs_data.append({
+            item = {
                 'id': log.id,
                 'campaign_id': log.campaign.id,
                 'campaign_name': log.campaign.name,
                 'timestamp': log.timestamp.isoformat(),
-                'log_level': log.log_level,
                 'message': log.message,
                 'category': log.category,
                 'source': log.source,
                 'extra_data': log.extra_data,
                 'formatted_timestamp': log.get_formatted_timestamp(),
                 'is_error': log.is_error()
-            })
+            }
+            logs_data.append(item)
         
         return JsonResponse({
             "status": "success",
@@ -1981,8 +2015,6 @@ def filter_logs(request: HttpRequest):
         # Apply filters
         if 'campaign_id' in filter_criteria:
             logs = logs.filter(campaign_id=filter_criteria['campaign_id'])
-        if 'log_level' in filter_criteria:
-            logs = logs.filter(log_level=filter_criteria['log_level'])
         if 'category' in filter_criteria:
             logs = logs.filter(category=filter_criteria['category'])
         if 'source' in filter_criteria:
@@ -2005,19 +2037,19 @@ def filter_logs(request: HttpRequest):
         
         logs_data = []
         for log in page_obj:
-            logs_data.append({
+            item = {
                 'id': log.id,
                 'campaign_id': log.campaign.id,
                 'campaign_name': log.campaign.name,
                 'timestamp': log.timestamp.isoformat(),
-                'log_level': log.log_level,
                 'message': log.message,
                 'category': log.category,
                 'source': log.source,
                 'extra_data': log.extra_data,
                 'formatted_timestamp': log.get_formatted_timestamp(),
                 'is_error': log.is_error()
-            })
+            }
+            logs_data.append(item)
         
         return JsonResponse({
             "status": "success",
@@ -2058,28 +2090,60 @@ def get_results_summary(request: HttpRequest):
     
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
-        campaign = FuzzingCampaign.objects.get(id=campaign_id)
-        
+
+        # Resolve campaign by numeric id or campaign_uuid
+        campaign = None
+        try:
+            if str(campaign_id).isdigit():
+                campaign = FuzzingCampaign.objects.get(id=int(campaign_id))
+        except Exception:
+            campaign = None
+
+        if campaign is None:
+            # Prefer official campaign_uuid field
+            try:
+                if 'campaign_uuid' in [f.name for f in FuzzingCampaign._meta.fields]:
+                    campaign = FuzzingCampaign.objects.filter(campaign_uuid=str(campaign_id)).first()
+            except Exception:
+                campaign = None
+
+        if campaign is None:
+            return JsonResponse({
+                "status": "error",
+                "message": "Campaign not found"
+            }, status=404)
+
         # Get result statistics
         results = FuzzingResult.objects.filter(campaign=campaign)
-        
+
+        # Compute duration safely without relying on model helpers
+        started_at = getattr(campaign, 'started_at', None)
+        completed_at = getattr(campaign, 'completed_at', None)
+        end_time = completed_at or timezone.now() if started_at else None
+        duration_seconds = int((end_time - started_at).total_seconds()) if (started_at and end_time) else 0
+
+        def _format_duration(seconds: int) -> str:
+            h = seconds // 3600
+            m = (seconds % 3600) // 60
+            s = seconds % 60
+            return f"{h:02d}:{m:02d}:{s:02d}"
+
         summary = {
             'campaign_info': {
-                'id': campaign.id,
-                'name': campaign.name,
-                'status': campaign.status,
-                'protocol_type': campaign.protocol_type,
-                'started_at': campaign.started_at.isoformat() if campaign.started_at else None,
-                'completed_at': campaign.completed_at.isoformat() if campaign.completed_at else None,
-                'duration': campaign.get_duration_formatted(),
-                'progress_percentage': campaign.get_progress_percentage()
+                'id': getattr(campaign, 'id', None),
+                'name': getattr(campaign, 'name', ''),
+                'status': getattr(campaign, 'status', 'unknown'),
+                'protocol_type': getattr(campaign, 'protocol_type', 'unknown'),
+                'started_at': started_at.isoformat() if started_at else None,
+                'completed_at': completed_at.isoformat() if completed_at else None,
+                'duration': _format_duration(duration_seconds),
+                'progress_percentage': 0
             },
             'execution_stats': {
                 'total_results': results.count(),
@@ -2092,20 +2156,19 @@ def get_results_summary(request: HttpRequest):
             'performance_stats': {
                 'avg_response_time': results.aggregate(avg_time=Avg('response_time_ms'))['avg_time'] or 0,
                 'total_payload_size': results.aggregate(total_size=Sum('payload_size'))['total_size'] or 0,
-                'crashes_per_hour': 0,  # Calculate based on duration
-                'test_cases_per_second': 0  # Calculate based on duration
+                'crashes_per_hour': 0,
+                'test_cases_per_second': 0
             }
         }
-        
-        # Calculate performance metrics
-        if campaign.duration_seconds > 0:
+
+        if duration_seconds > 0:
             summary['performance_stats']['crashes_per_hour'] = (
-                summary['execution_stats']['crash_count'] / campaign.duration_seconds * 3600
+                summary['execution_stats']['crash_count'] / duration_seconds * 3600
             )
             summary['performance_stats']['test_cases_per_second'] = (
-                summary['execution_stats']['total_results'] / campaign.duration_seconds
+                summary['execution_stats']['total_results'] / duration_seconds
             )
-        
+
         return JsonResponse({
             "status": "success",
             "summary": summary

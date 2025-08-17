@@ -60,6 +60,15 @@ class FuzzingCampaign(models.Model):
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
+    # Runtime UUID (stable across services), complementary to integer PK
+    campaign_uuid = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        db_index=True,
+        help_text="Runtime UUID for this campaign"
+    )
     
     # Fuzzer integration
     fuzzer_instance_id = models.CharField(
