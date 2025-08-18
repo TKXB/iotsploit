@@ -5,6 +5,7 @@ import time
 import importlib
 import inspect
 from typing import Dict
+import argparse
 
 # Set up Django settings first, before any Django-related imports
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
@@ -466,9 +467,31 @@ class SAT_Shell(SAT_Shell_Base):
                 logger.error(f"Error closing {device.name}: {str(e)}")
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='SAT Shell entrypoint')
+    parser.add_argument('--runserver', action='store_true', help='Start servers directly and keep running until Ctrl+C; on Ctrl+C, stop servers')
+    args = parser.parse_args()
+
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()
     Env_Mgr.Instance().set("SAT_RUN_IN_SHELL", True)
 
-    shell.cmdloop()
+    if args.runserver:
+        try:
+            # 启动服务并保持运行，直到收到 Ctrl+C
+            shell.do_runserver("")
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            # 捕获 Ctrl+C，优雅停止服务
+            try:
+                shell.do_stop_server("")
+            finally:
+                # 确保设备连接被清理
+                try:
+                    shell._cleanup_devices()
+                except Exception:
+                    pass
+        sys.exit(0)
+    else:
+        shell.cmdloop()
 
