@@ -26,6 +26,18 @@ class Bash_Script_Mgr:
         # Ensure temp directory exists
         os.makedirs(self.__temp_dir, exist_ok=True)
         
+    def __truncate(self, text: str) -> str:
+        """Trim long outputs for concise logging."""
+        try:
+            max_len = int(os.environ.get("SAT_BASH_LOG_MAX_CHARS", "400"))
+        except Exception:
+            max_len = 400
+        if not text:
+            return ""
+        if len(text) <= max_len:
+            return text
+        return text[:max_len] + f"... [truncated {len(text) - max_len} chars]"
+        
     def __check_result(self, test_step, exec_result):
         if test_step.pass_check() == 0: #record
             logger.info("Bash Script Result Check Success. Result: Record")
@@ -72,31 +84,45 @@ class Bash_Script_Mgr:
                                        env = Env_Mgr.Instance().fork_sat_env(),
                                        encoding="utf-8")
             out_buf, err_buf = process.communicate()
+            return_code = process.returncode
             
-            logger.info("Bash Script Exec Success. Cmd:{} Output:\n{}".format(cmd_list, out_buf))
-            Env_Mgr.Instance().read_sat_env_from_log(out_buf)
-            return 1, out_buf
+            if return_code == 0:
+                logger.info("Bash Script Exec Success. ExitCode:{} Cmd:{}".format(return_code, cmd_list))
+                # For success, keep output at debug level to reduce noise
+                logger.debug("Output:\n%s", self.__truncate(out_buf))
+                Env_Mgr.Instance().read_sat_env_from_log(out_buf)
+                return 1, out_buf
+            else:
+                logger.error("Bash Script Exec Fail. ExitCode:{} Cmd:{} Output:\n{}".format(return_code, cmd_list, self.__truncate(out_buf)))
+                return -1, out_buf
         
         except Exception as err:
             logger.exception("Bash Script Exec Fail! Cmd:{}".format(cmd_list))
             return -2, err
 
     def exec_cmd(self, cmd_list:str):
-        logger.info("Start To Exec Bash Script Cmd -->> \n{}".format(cmd_list))
+        logger.info("Start To Exec Bash Script Cmd -->> %s" % self.__truncate(cmd_list.replace("\n", " | ")))
+        tmp_path = None
         try:
-            os.makedirs(os.path.dirname(Bash_Script_Mgr.__temp_script_file_path), exist_ok=True)
-            tmp_bash_file = open(Bash_Script_Mgr.__temp_script_file_path, "w", encoding="utf-8")
-            for single_line in cmd_list.splitlines():
-                tmp_bash_file.write(single_line + "\n")
-            tmp_bash_file.close()
+            os.makedirs(str(Bash_Script_Mgr.__temp_dir), exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(prefix="tmp_bash_script_", suffix=".sh", dir=str(Bash_Script_Mgr.__temp_dir))
+            with os.fdopen(fd, "w", encoding="utf-8") as tmp_bash_file:
+                for single_line in cmd_list.splitlines():
+                    tmp_bash_file.write(single_line + "\n")
 
-            logger.info("Bash Script Cmd Write To TEMP File Success. File:{}".format(Bash_Script_Mgr.__temp_script_file_path))
+            logger.info("Bash Script Cmd Write To TEMP File Success. File:{}".format(tmp_path))
         except Exception as err:
-            logger.exception("Bash Script Cmd Exec Fail! TEMP File:{} Write Fail!".format(Bash_Script_Mgr.__temp_script_file_path))
-            return -1, "File:{} Write Fail!\n".format(Bash_Script_Mgr.__temp_script_file_path)
-            
-        cmd_list = [Bash_Script_Mgr.__temp_script_file_path,]
-        return self.exec_file(cmd_list)
+            logger.exception("Bash Script Cmd Exec Fail! TEMP File Write Fail! Dir:{}".format(str(Bash_Script_Mgr.__temp_dir)))
+            return -1, "TEMP File Write Fail in Dir:{}\n".format(str(Bash_Script_Mgr.__temp_dir))
+        
+        try:
+            return self.exec_file([tmp_path])
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
     def exec(self, test_step):
         logger.info("Start To Exec Bash Script -->>")
@@ -111,18 +137,18 @@ class Bash_Script_Mgr:
             
             cmd_list[0] = file_abs_path
         else:
+            tmp_path = None
             try:
-                os.makedirs(os.path.dirname(Bash_Script_Mgr.__temp_script_file_path), exist_ok=True)
-                tmp_bash_file = open(Bash_Script_Mgr.__temp_script_file_path, "w", encoding="utf-8")
-                for single_line in test_step.command_detail.splitlines():
-                    tmp_bash_file.write(single_line + "\n")
-                tmp_bash_file.close()
+                os.makedirs(str(Bash_Script_Mgr.__temp_dir), exist_ok=True)
+                fd, tmp_path = tempfile.mkstemp(prefix="tmp_bash_script_", suffix=".sh", dir=str(Bash_Script_Mgr.__temp_dir))
+                with os.fdopen(fd, "w", encoding="utf-8") as tmp_bash_file:
+                    for single_line in test_step.command_detail.splitlines():
+                        tmp_bash_file.write(single_line + "\n")
 
+                cmd_list = [tmp_path,]
             except Exception as err:
-                logger.exception("Bash Script Exec Fail! TEMP File:{} Write Fail!".format(Bash_Script_Mgr.__temp_script_file_path))
-                return -1, "File:{} Write Fail!\n".format(Bash_Script_Mgr.__temp_script_file_path), ""
-            
-            cmd_list = [Bash_Script_Mgr.__temp_script_file_path,]
+                logger.exception("Bash Script Exec Fail! TEMP File Write Fail! Dir:{}".format(str(Bash_Script_Mgr.__temp_dir)))
+                return -1, "TEMP File Write Fail in Dir:{}\n".format(str(Bash_Script_Mgr.__temp_dir)), ""
 
         cmd_list.insert(0, "bash")
         try:
@@ -134,13 +160,17 @@ class Bash_Script_Mgr:
                                        env = Env_Mgr.Instance().fork_sat_env(),
                                        encoding="utf-8")            
             while True:
-                logger.info(process.stdout.read())
+                # Avoid spamming logs; only log full output at the end
                 return_code = process.poll()
                 if return_code != None:
                     break
             
             exec_result = Report_Mgr.Instance().stop_log_teststep_exec_process()
-            logger.info("Bash Script Exec Success. Cmd:{} ReturnCode:{}".format(cmd_list, return_code))
+            if return_code == 0:
+                logger.info("Bash Script Exec Success. ReturnCode:{} Cmd:{}".format(return_code, cmd_list))
+                logger.debug("Output:\n%s", self.__truncate(exec_result))
+            else:
+                logger.error("Bash Script Exec Fail. ReturnCode:{} Cmd:{} Output:\n{}".format(return_code, cmd_list, self.__truncate(exec_result)))
             Env_Mgr.Instance().read_sat_env_from_log(exec_result)
 
             result, result_desc = self.__check_result(test_step, exec_result)
@@ -150,5 +180,11 @@ class Bash_Script_Mgr:
             exec_result = Report_Mgr.Instance().stop_log_teststep_exec_process()
             logger.exception("Bash Script Exec Fail! Cmd:{}".format(cmd_list))
             return -1, err, exec_result
+        finally:
+            try:
+                if 'tmp_path' in locals() and tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
 
 _instance = Bash_Script_Mgr()
