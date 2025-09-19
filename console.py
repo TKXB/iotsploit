@@ -478,7 +478,9 @@ if __name__ == '__main__':
     if args.runserver:
         try:
             # 启动服务并保持运行，直到收到 Ctrl+C
-            shell.do_runserver("")
+            ok = shell.do_runserver("")
+            if ok is False:
+                sys.exit(1)
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:

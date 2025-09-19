@@ -9,10 +9,58 @@ from .base_commands import BaseCommands
 from sat_toolkit.tools.xlogger import xlog as logger
 import os
 import signal
+import socket
+from typing import Tuple
+try:
+    import redis  # type: ignore
+except Exception:  # pragma: no cover
+    redis = None
+
+from django.conf import settings
 
 
 class DjangoCommands(BaseCommands):
     """Django-related commands for the SAT Shell"""
+
+    def _check_redis_available(self) -> Tuple[bool, str]:
+        """
+        Preflight check for Redis reachability using Django settings.
+
+        Returns (ok, message). If ok is False, message contains human-friendly guidance.
+        """
+        redis_host = getattr(settings, 'REDIS_HOST', '127.0.0.1')
+        redis_port = int(getattr(settings, 'REDIS_PORT', 6379))
+        redis_db = int(getattr(settings, 'REDIS_DB', 0))
+
+        # Quick TCP reachability check first to avoid long client timeouts
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.5)
+            try:
+                sock.connect((redis_host, redis_port))
+            except Exception:
+                guide = (
+                    f"Redis is not reachable at {redis_host}:{redis_port}.\n"
+                    "Celery and WebSocket features require Redis.\n\n"
+                    "How to start Redis:\n"
+                    "  - If you use Docker: docker run --name redis -p 6379:6379 -d redis:latest\n"
+                    "  - On Ubuntu/Debian: sudo apt install redis-server && sudo systemctl start redis-server\n"
+                    "  - Or inside project (docker-compose): enable the redis service\n\n"
+                    "Please start Redis and try again."
+                )
+                return False, guide
+
+        # If redis-py is available, ping for certainty
+        if redis is not None:
+            try:
+                client = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+                client.ping()
+            except Exception as e:  # pragma: no cover
+                return False, (
+                    f"Connected to {redis_host}:{redis_port} but Redis ping failed: {e}\n"
+                    "Please ensure Redis is healthy and try again."
+                )
+
+        return True, "Redis is available"
 
     @cmd2.with_category('Django Commands')
     def do_runserver(self, arg):
@@ -23,6 +71,13 @@ class DjangoCommands(BaseCommands):
 
         try:
             logger.info("Attempting to start Django, Daphne, MCP WebSocket bridge, and Celery servers in background...")
+            
+            # Preflight: check Redis and fail fast if unavailable
+            redis_ok, redis_msg = self._check_redis_available()
+            if not redis_ok:
+                self.poutput(ansi.style("\n[ERROR] Redis is unavailable. Cannot start services that depend on it.", fg=ansi.Fg.RED, bold=True))
+                self.poutput(redis_msg)
+                return False
             
             # Prepare the commands
             django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
@@ -120,9 +175,12 @@ class DjangoCommands(BaseCommands):
                     logger.error(f"Error initializing devices: {str(e)}")
                     break
             
+            return True
+        
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
             logger.debug("Detailed traceback:", exc_info=True)
+            return False
 
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
