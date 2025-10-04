@@ -7,21 +7,17 @@ import inspect
 from typing import Dict
 import argparse
 
-# Set up Django settings first, before any Django-related imports
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
 
 import django
 django.setup()
 
-# Auto-initialize database on first run
 def ensure_database_initialized():
     """Automatically initialize database tables if they don't exist"""
     try:
-        # Check if Django tables exist by trying to access a model
         from sat_toolkit.models.Plugin_Model import Plugin
-        Plugin.objects.exists()  # This will fail if tables don't exist
+        Plugin.objects.exists()
         
-        # Check if SQLAlchemy tables exist
         from sqlalchemy.exc import OperationalError
         from sat_toolkit.models.database import SessionLocal
         from sat_toolkit.models.Device_Model import DeviceDriverState
@@ -44,13 +40,11 @@ def ensure_database_initialized():
         if "no such table" in str(e) or "no such column" in str(e):
             print("🔧 Database not initialized. Setting up database...")
             try:
-                # Run Django migrations
                 print("📋 Running Django migrations...")
                 from django.core.management import execute_from_command_line
                 execute_from_command_line(['manage.py', 'migrate'])
                 print("✅ Django migrations completed!")
                 
-                # Create SQLAlchemy tables
                 print("📋 Creating SQLAlchemy tables...")
                 from sat_toolkit.models.database import Base, engine
                 Base.metadata.create_all(engine)
@@ -93,17 +87,14 @@ def discover_command_modules():
     
     command_classes = []
     commands_dir = os.path.join(os.path.dirname(__file__), 'commands')
-    
-    # Scan all .py files in commands directory
+
     for filename in os.listdir(commands_dir):
         if filename.endswith('.py') and not filename.startswith('__') and filename != 'base_commands.py':
-            module_name = filename[:-3]  # Remove .py extension
+            module_name = filename[:-3]
             
             try:
-                # Import the module
                 module = importlib.import_module(f'commands.{module_name}')
-                
-                # Find classes that inherit from BaseCommands
+
                 for name, obj in inspect.getmembers(module):
                     if (inspect.isclass(obj) and 
                         issubclass(obj, BaseCommands) and 
@@ -239,38 +230,31 @@ class SAT_Shell(SAT_Shell_Base):
             super().do_help(arg)
             return
 
-        # Custom help display for command listing
         self.poutput(ansi.style("\nAvailable Commands:", fg=ansi.Fg.GREEN, bold=True))
         self.poutput(ansi.style("Use 'help <command>' for detailed information about a command.\n", fg=ansi.Fg.YELLOW))
 
-        # Get commands by category
         cmds_by_category = self.get_all_commands_by_category()
         
-        # Sort categories for consistent display, but put Shell Commands last
         categories = sorted([cat for cat in cmds_by_category.keys() if cat != 'Shell Commands'])
         if 'Shell Commands' in cmds_by_category:
             categories.append('Shell Commands')
         
-        # Print commands by category
         for category in categories:
             if category == 'Uncategorized':
-                continue  # Skip uncategorized commands
+                continue
             
             self.poutput(self.help_category_header.format(f" {category} "))
             cmd_list = sorted(cmds_by_category[category])
             
-            # Calculate the maximum command length for proper alignment
             max_cmd_length = max(len(cmd) for cmd in cmd_list) + 2
             
             for cmd in cmd_list:
                 doc = self.get_command_doc(cmd)
-                # Pad the command name to align all descriptions
                 padded_cmd = f"  {cmd:<{max_cmd_length}}"
                 self.poutput(ansi.style(padded_cmd, fg=ansi.Fg.CYAN) + 
                             ansi.style(f"- {doc}", fg=ansi.Fg.WHITE))
             self.poutput(self.help_category_footer)
 
-        # Show command count
         total_commands = sum(len(cmds) for cat, cmds in cmds_by_category.items() if cat != 'Uncategorized')
         self.poutput(ansi.style(f"\nTotal commands: {total_commands}", fg=ansi.Fg.GREEN))
 
@@ -309,7 +293,6 @@ class SAT_Shell(SAT_Shell_Base):
     def _select_device(self):
         """Helper method to handle device selection process"""
         try:
-            # Get available device plugins with connected devices
             available_plugins = [
                 driver_name for driver_name, device 
                 in self.connected_devices.items()
@@ -319,19 +302,16 @@ class SAT_Shell(SAT_Shell_Base):
                 logger.error(ansi.style("No initialized devices available", fg=ansi.Fg.RED))
                 return False
 
-            # Let user select a plugin
             selected_plugin = Input_Mgr.Instance().single_choice(
                 "Select device plugin",
                 available_plugins
             )
 
-            # Get the already connected device
             device = self.connected_devices.get(selected_plugin)
             if not device:
                 logger.error(ansi.style(f"Device not found for {selected_plugin}", fg=ansi.Fg.RED))
                 return False
 
-            # Store the current device and driver information
             self._current_device = device
             self._current_driver = self.device_driver_manager.get_driver_instance(selected_plugin)
             self._current_plugin = selected_plugin
@@ -350,11 +330,10 @@ class SAT_Shell(SAT_Shell_Base):
             source = sources.get(device_id, "unknown")
             source_color = ansi.Fg.GREEN if source == "dynamic" else ansi.Fg.BLUE
             
-            # Only display ID, Name, and Source
             logger.info(ansi.style(f"\n  Device ID: {device_id}", fg=ansi.Fg.CYAN))
             logger.info(ansi.style(f"  Source: {source}", fg=source_color))
             logger.info(f"  Name: {device.name}")
-            logger.info("  " + "-" * 40)  # Separator line
+            logger.info("  " + "-" * 40)
 
     def _auto_initialize_devices(self):
         """自动扫描并初始化所有可用设备"""
@@ -416,11 +395,9 @@ class SAT_Shell(SAT_Shell_Base):
             logger.info("")
             logger.info(f"{driver_name}:")
             
-            # 获取当前设备
             current_device = self.connected_devices.get(driver_name)
             
             if current_device:
-                # 使用当前设备的 device_id 获取状态
                 state = self.device_driver_manager.get_device_state(
                     driver_name, 
                     device_id=current_device.device_id
@@ -431,7 +408,6 @@ class SAT_Shell(SAT_Shell_Base):
                 logger.info(f"  Device: No device connected")
                 logger.info(f"  State: unknown")
                 
-            # 获取支持的命令
             commands = self.device_driver_manager.get_supported_commands(driver_name)
             if commands:
                 logger.info(f"  Commands: {', '.join(commands.keys())}")
@@ -464,18 +440,15 @@ if __name__ == '__main__':
 
     if args.runserver:
         try:
-            # 启动服务并保持运行，直到收到 Ctrl+C
             ok = shell.do_runserver("")
             if ok is False:
                 sys.exit(1)
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            # 捕获 Ctrl+C，优雅停止服务
             try:
                 shell.do_stop_server("")
             finally:
-                # 确保设备连接被清理
                 try:
                     shell._cleanup_devices()
                 except Exception:
