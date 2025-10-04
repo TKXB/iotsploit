@@ -71,26 +71,13 @@ ensure_database_initialized()
 # Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
-import threading
-import subprocess
 from sat_toolkit.models.Target_Model import TargetManager, Vehicle
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
-from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.device_manager import DeviceDriverManager  
 from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice, SocketCANDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
-from sat_toolkit.tools.monitor_mgr import SystemMonitor
-from sat_toolkit.tools.ota_mgr import OTA_Mgr
-from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
 from sat_toolkit.tools.input_mgr import Input_Mgr
-from sat_toolkit.models.Plugin_Model import Plugin
-from sat_toolkit.models.PluginGroup_Model import PluginGroup
-from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
-from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.models.Device_Model import Device
-from sat_toolkit.core.tool_service import get_firmware_service
-from sat_toolkit.core.device_registry import DeviceRegistry
 from sat_toolkit.tools.xlogger import xlog as logger
 from pwnlib import term
 term.term_mode = True
