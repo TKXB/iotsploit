@@ -175,7 +175,7 @@ class DjangoCommands(BaseCommands):
                     logger.error(f"Error initializing devices: {str(e)}")
                     break
             
-            return True
+            return None
         
         except Exception as e:
             logger.error(f"Failed to start servers: {str(e)}")
