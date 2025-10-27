@@ -331,9 +331,44 @@ def get_campaign_statistics(request: HttpRequest):
         fuzzer_manager = IoTFuzzerManager.get_instance()
         statistics = fuzzer_manager.get_campaign_statistics(campaign_id)
         
+        # Merge Redis/state counters into statistics for UI consumption
+        try:
+            status_state = fuzzer_manager.get_campaign_status(campaign_id)
+        except Exception:
+            status_state = {}
+
+        # Prefer existing stats; otherwise fill from state
+        iterations_total = statistics.get('total_iterations') or status_state.get('iterations_total') or 0
+        iterations_completed = statistics.get('total_exec') or status_state.get('iterations_completed') or 0
+        crashes_found = status_state.get('crashes_found') or 0
+        timeouts_occurred = status_state.get('timeouts_occurred') or 0
+        errors_encountered = status_state.get('errors_encountered') or 0
+
+        total_fail = statistics.get('total_fail') or (crashes_found + timeouts_occurred + errors_encountered)
+        total_check = statistics.get('total_check') or 0
+        total_pass = statistics.get('total_pass') or max(0, int(iterations_completed) - int(total_fail) - int(total_check))
+
+        # Speed/time fields
+        speed = statistics.get('speed') or statistics.get('average_iterations_per_second') or status_state.get('iterations_per_second') or 0.0
+        duration_sec = statistics.get('test_time_seconds') or statistics.get('campaign_duration') or 0
+        remaining = max(0, int(iterations_total) - int(iterations_completed))
+        estimated_time = int(remaining / speed) if speed and speed > 0 else 0
+
+        statistics.update({
+            'total_iterations': int(iterations_total),
+            'total_exec': int(iterations_completed),
+            'total_pass': int(total_pass),
+            'total_fail': int(total_fail),
+            'total_check': int(total_check),
+            'speed': float(speed),
+            'test_time_seconds': int(duration_sec),
+            'running_time_seconds': int(duration_sec),
+            'estimated_time_seconds': int(estimated_time),
+        })
+        
         return JsonResponse({
-            "status": "success",
-            "statistics": statistics
+          "status": "success",
+          "statistics": statistics
         })
         
     except Exception as e:
