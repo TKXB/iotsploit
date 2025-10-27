@@ -106,6 +106,50 @@ class IoTFuzzerBridge:
             # Add timestamp
             event_data['timestamp'] = datetime.now().isoformat()
             
+            # Normalize statistics payload to unified schema when needed
+            try:
+                if event_type == 'statistics_update' and isinstance(event_data, dict):
+                    stats = event_data.get('statistics')
+                    if isinstance(stats, dict):
+                        # Build unified map with fixed keys only
+                        ui_stats = {
+                            'total_iterations': int(stats.get('total_iterations', 0) or 0),
+                            'total_exec': int(stats.get('total_exec', 0) or 0),
+                            'total_pass': int(stats.get('total_pass', 0) or 0),
+                            'total_fail': int(stats.get('total_fail', 0) or 0),
+                            'total_check': int(stats.get('total_check', 0) or 0),
+                            'speed': float(stats.get('speed', 0.0) or 0.0),
+                            'test_time_seconds': int(stats.get('test_time_seconds', 0) or 0),
+                            'running_time_seconds': int(stats.get('running_time_seconds', 0) or 0),
+                            'estimated_time_seconds': int(stats.get('estimated_time_seconds', 0) or 0),
+                        }
+                        # Deterministic remap from legacy keys if unified keys are missing
+                        if ui_stats['total_pass'] == 0 and 'successes' in stats:
+                            ui_stats['total_pass'] = int(stats.get('successes', 0) or 0)
+                        if ui_stats['total_fail'] == 0 and (
+                            'crashes' in stats or 'timeouts' in stats or 'errors' in stats
+                        ):
+                            crashes = int(stats.get('crashes', 0) or 0)
+                            timeouts = int(stats.get('timeouts', 0) or 0)
+                            errors = int(stats.get('errors', 0) or 0)
+                            ui_stats['total_fail'] = crashes + timeouts + errors
+                        if ui_stats['total_exec'] == 0 and 'total_cases' in stats:
+                            ui_stats['total_exec'] = int(stats.get('total_cases', 0) or 0)
+
+                        # Log any keys we filled by default for diagnostics
+                        missing = [
+                            k for k, v in ui_stats.items() if v == 0 and k not in stats
+                        ]
+                        if missing:
+                            logger.warning(
+                                "[WS.statistics_update] filled defaults for keys=%s; available_keys=%s",
+                                missing,
+                                list(stats.keys())
+                            )
+                        event_data['statistics'] = ui_stats
+            except Exception as e:
+                logger.error(f"Error normalizing statistics event: {e}")
+
             # Call registered handlers
             if event_type in self.event_handlers:
                 for handler in self.event_handlers[event_type]:
@@ -264,9 +308,52 @@ class CampaignBridge:
         Args:
             stats_data: Statistics data
         """
+        # Strict schema: require fixed keys; warn if missing; fill zeros for missing to keep schema
+        try:
+            expected_keys = [
+                'total_iterations',
+                'total_exec',
+                'total_pass',
+                'total_fail',
+                'total_check',
+                'speed',
+                'test_time_seconds',
+                'running_time_seconds',
+                'estimated_time_seconds',
+            ]
+            # Start with zeros or existing fixed keys
+            ui_stats = {k: stats_data.get(k, 0) for k in expected_keys}
+
+            # Deterministic remap from legacy WS keys (no多方案容错，仅按已知键映射)
+            if 'successes' in stats_data:
+                ui_stats['total_pass'] = int(stats_data['successes'] or 0)
+            if 'crashes' in stats_data or 'timeouts' in stats_data or 'errors' in stats_data:
+                crashes = int(stats_data.get('crashes', 0) or 0)
+                timeouts = int(stats_data.get('timeouts', 0) or 0)
+                errors = int(stats_data.get('errors', 0) or 0)
+                ui_stats['total_fail'] = crashes + timeouts + errors
+            if 'total_cases' in stats_data:
+                ui_stats['total_exec'] = int(stats_data['total_cases'] or 0)
+            # total_check 暂无明确来源，保持默认或已有值
+
+            # Warn if still missing required keys
+            missing = [k for k in expected_keys if k not in stats_data and ui_stats.get(k, 0) == 0]
+            if missing:
+                logger.warning(
+                    "[WS.statistics_update] filled defaults for keys=%s; available_keys=%s",
+                    missing,
+                    list(stats_data.keys())
+                )
+            # keep optional total_cases
+            if 'total_cases' in stats_data:
+                ui_stats['total_cases'] = int(stats_data['total_cases'] or 0)
+        except Exception as e:
+            logger.error(f"Error normalizing statistics payload: {e}")
+            ui_stats = stats_data
+
         stats_event = {
             'campaign_id': self.campaign_id,
-            'statistics': stats_data
+            'statistics': ui_stats
         }
         
         self.main_bridge.emit_event('statistics_update', stats_event)
