@@ -245,24 +245,34 @@ class IoTFuzzerManager:
             # Generate campaign ID
             campaign_id = str(uuid.uuid4())
             
-            # Initialize campaign state with enhanced tracking
+            # Initialize campaign state (AFL++ naming for runtime statistics)
             campaign_state = {
                 'id': campaign_id,
                 'config': campaign_config,
                 'status': 'starting',
                 'created_at': datetime.now().isoformat(),
                 'started_at': None,
-                'iterations_total': campaign_config.get('iterations_total', 1000),
-                'iterations_completed': 0,
-                'crashes_found': 0,
-                'timeouts_occurred': 0,
-                'errors_encountered': 0,
-                # Enhanced tracking for test groups and fuzzing engine
+                # AFL++ runtime statistics (all zero-initialized)
+                'execs_done': 0,
+                'execs_per_sec': 0.0,
+                'cycles_done': 0,
+                'corpus_count': 0,
+                'corpus_favored': 0,
+                'corpus_found': 0,
+                'pending_total': 0,
+                'pending_favs': 0,
+                'bitmap_cvg': 0.0,
+                'saved_crashes': 0,
+                'saved_hangs': 0,
+                'total_tmout': 0,
+                'run_time': 0,
+                'fuzz_time': 0,
+                'last_update': int(time.time()),
+                # Business/static info for UI/context
                 'test_group_ids': test_group_ids,
                 'total_test_cases': len(test_cases_data),
                 'fuzzing_engine_available': fuzzing_engine is not None,
                 'strategy_distribution': self._calculate_strategy_distribution(test_cases_data),
-                'mutations_generated': 0
             }
             
             # Store campaign state in Redis
@@ -411,12 +421,23 @@ class IoTFuzzerManager:
                 orchestrator_adapter = self.orchestrator_adapters[campaign_id]
                 orchestrator_adapter.reset()
             
-            # Reset campaign counters in Redis
+            # Reset campaign runtime statistics (AFL++ keys) in Redis
             self._update_campaign_state(campaign_id, {
-                'iterations_completed': 0,
-                'crashes_found': 0,
-                'timeouts_occurred': 0,
-                'errors_encountered': 0,
+                'execs_done': 0,
+                'execs_per_sec': 0.0,
+                'cycles_done': 0,
+                'corpus_count': 0,
+                'corpus_favored': 0,
+                'corpus_found': 0,
+                'pending_total': 0,
+                'pending_favs': 0,
+                'bitmap_cvg': 0.0,
+                'saved_crashes': 0,
+                'saved_hangs': 0,
+                'total_tmout': 0,
+                'run_time': 0,
+                'fuzz_time': 0,
+                'last_update': int(time.time()),
                 'status': 'reset',
                 'reset_at': datetime.now().isoformat()
             })
@@ -613,17 +634,20 @@ class IoTFuzzerManager:
             logger.error(f"Error cleaning up campaign resources: {str(e)}")
     
     def _calculate_final_statistics_from_redis(self, campaign_id: str) -> Dict[str, Any]:
-        """Calculate final campaign statistics from Redis"""
+        """Calculate final campaign statistics from Redis (AFL++ keys)"""
         campaign_state = self._get_campaign_state(campaign_id)
         if not campaign_state:
             return {'campaign_id': campaign_id, 'error': 'Campaign not found'}
-        
+
         return {
             'campaign_id': campaign_id,
-            'total_iterations': campaign_state.get('iterations_completed', 0),
-            'crashes_found': campaign_state.get('crashes_found', 0),
-            'timeouts_occurred': campaign_state.get('timeouts_occurred', 0),
-            'errors_encountered': campaign_state.get('errors_encountered', 0),
+            'execs_done': campaign_state.get('execs_done', 0),
+            'saved_crashes': campaign_state.get('saved_crashes', 0),
+            'saved_hangs': campaign_state.get('saved_hangs', 0),
+            'total_tmout': campaign_state.get('total_tmout', 0),
+            'bitmap_cvg': campaign_state.get('bitmap_cvg', 0.0),
+            'run_time': campaign_state.get('run_time', 0),
+            'fuzz_time': campaign_state.get('fuzz_time', 0),
             'duration': self._calculate_campaign_duration_from_state(campaign_state)
         }
     

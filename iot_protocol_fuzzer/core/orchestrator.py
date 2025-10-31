@@ -373,13 +373,7 @@ class Orchestrator:
                         'crash_info': result.info if hasattr(result, 'info') else 'Crash detected',
                     })
 
-                # Emit statistics update every 10 iterations or on crashes
-                if idx % 10 == 0 or result.crashed:
-                    stats = self.monitor.get_stats()
-                    self._emit_event(EventType.STATISTICS_UPDATE, {
-                        'statistics': stats,
-                        'protocol_type': self._protocol_type,
-                    })
+                # Chain B statistics_update disabled: statistics are sent via Celery → Redis → WS only
 
                 # Emit progress update
                 progress_percent = (idx / self.config.iterations) * 100

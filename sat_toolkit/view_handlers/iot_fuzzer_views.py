@@ -41,7 +41,6 @@ def start_campaign(request: HttpRequest):
     
     try:
         data = json.loads(request.body)
-        print(f"start_campaign POST body: {data}")
         
         # Ensure data is a dictionary
         if not isinstance(data, dict):
@@ -294,7 +293,6 @@ def get_campaign_status(request: HttpRequest):
         
         fuzzer_manager = IoTFuzzerManager.get_instance()
         status = fuzzer_manager.get_campaign_status(campaign_id)
-        print(f"get_campaign_status: {status}")
         
         return JsonResponse({
             "status": "success",
@@ -311,66 +309,61 @@ def get_campaign_status(request: HttpRequest):
 def get_campaign_statistics(request: HttpRequest):
     """
     GET /api/iot-fuzzer/testing/statistics/
-    Get detailed campaign statistics
+    Return AFL++-aligned runtime statistics (fixed key set)
     """
     if request.method != 'GET':
         return JsonResponse({
             "status": "error",
             "message": "Only GET method is allowed"
         }, status=405)
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         fuzzer_manager = IoTFuzzerManager.get_instance()
-        statistics = fuzzer_manager.get_campaign_statistics(campaign_id)
-        
-        # Merge Redis/state counters into statistics for UI consumption
-        try:
-            status_state = fuzzer_manager.get_campaign_status(campaign_id)
-        except Exception:
-            status_state = {}
 
-        # Prefer existing stats; otherwise fill from state
-        iterations_total = statistics.get('total_iterations') or status_state.get('iterations_total') or 0
-        iterations_completed = statistics.get('total_exec') or status_state.get('iterations_completed') or 0
-        crashes_found = status_state.get('crashes_found') or 0
-        timeouts_occurred = status_state.get('timeouts_occurred') or 0
-        errors_encountered = status_state.get('errors_encountered') or 0
+        # Prefer Redis state as single source of truth
+        state = fuzzer_manager._get_campaign_state(campaign_id) or {}
 
-        total_fail = statistics.get('total_fail') or (crashes_found + timeouts_occurred + errors_encountered)
-        total_check = statistics.get('total_check') or 0
-        total_pass = statistics.get('total_pass') or max(0, int(iterations_completed) - int(total_fail) - int(total_check))
+        # Core AFL++ fields with strict defaults (no fallback chains)
+        stats = {
+            'execs_done': int(state.get('execs_done', 0)),
+            'execs_per_sec': float(state.get('execs_per_sec', 0.0)),
+            'execs_ps_last_min': float(state.get('execs_ps_last_min', 0.0)),
+            'cycles_done': int(state.get('cycles_done', 0)),
+            'cycles_wo_finds': int(state.get('cycles_wo_finds', 0)),
+            'time_wo_finds': int(state.get('time_wo_finds', 0)),
+            'corpus_count': int(state.get('corpus_count', 0)),
+            'corpus_favored': int(state.get('corpus_favored', 0)),
+            'corpus_found': int(state.get('corpus_found', 0)),
+            'pending_total': int(state.get('pending_total', 0)),
+            'pending_favs': int(state.get('pending_favs', 0)),
+            'bitmap_cvg': float(state.get('bitmap_cvg', 0.0)),
+            'stability': float(state.get('stability', 0.0)),
+            'saved_crashes': int(state.get('saved_crashes', 0)),
+            'saved_hangs': int(state.get('saved_hangs', 0)),
+            'total_tmout': int(state.get('total_tmout', 0)),
+            'run_time': int(state.get('run_time', 0)),
+            'fuzz_time': int(state.get('fuzz_time', 0)),
+            'last_update': int(state.get('last_update', 0)),
+        }
 
-        # Speed/time fields
-        speed = statistics.get('speed') or statistics.get('average_iterations_per_second') or status_state.get('iterations_per_second') or 0.0
-        duration_sec = statistics.get('test_time_seconds') or statistics.get('campaign_duration') or 0
-        remaining = max(0, int(iterations_total) - int(iterations_completed))
-        estimated_time = int(remaining / speed) if speed and speed > 0 else 0
+        # Warn once if keys are missing in state
+        missing = [k for k in stats.keys() if k not in state]
+        if missing:
+            logger.warning(f"[HTTP.get_statistics] Missing keys in Redis state: {missing}")
 
-        statistics.update({
-            'total_iterations': int(iterations_total),
-            'total_exec': int(iterations_completed),
-            'total_pass': int(total_pass),
-            'total_fail': int(total_fail),
-            'total_check': int(total_check),
-            'speed': float(speed),
-            'test_time_seconds': int(duration_sec),
-            'running_time_seconds': int(duration_sec),
-            'estimated_time_seconds': int(estimated_time),
-        })
-        
         return JsonResponse({
-          "status": "success",
-          "statistics": statistics
+            "status": "success",
+            "statistics": stats
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting campaign statistics: {str(e)}")
         return JsonResponse({

@@ -1067,33 +1067,82 @@ class MonitorAdapter:
             self.monitor_instance = MockMonitorInstance(self.campaign_config)
     
     def get_status(self) -> Dict[str, Any]:
-        """Get real-time campaign status"""
+        """Get real-time campaign status (AFL++ aligned minimal fields)"""
         if self.real_monitor:
             stats = self.real_monitor.get_stats()
             return {
-                'iterations_per_second': stats.get('cases_per_second', 0.0),
-                'current_iteration': stats.get('total_cases', 0),
-                'last_crash_time': stats.get('last_crash_time'),
-                'active_generators': 1 if stats.get('total_cases', 0) > 0 else 0
+                'cycles_done': stats.get('current_iteration', 0) or 0,
+                'execs_done': stats.get('total_cases', 0) or 0,
+                'saved_crashes': stats.get('crash_count', 0) or 0,
+                'is_running': getattr(self.orchestrator_adapter, 'is_running', False)
             }
         elif self.monitor_instance:
-            return self.monitor_instance.get_status()
-        return {}
+            status = self.monitor_instance.get_status()
+            return {
+                'cycles_done': status.get('current_iteration', 0) or 0,
+                'execs_done':  status.get('current_iteration', 0) or 0,
+                'saved_crashes': 0,
+                'is_running': getattr(self.orchestrator_adapter, 'is_running', False)
+            }
+        return {
+            'cycles_done': 0,
+            'execs_done': 0,
+            'saved_crashes': 0,
+            'is_running': False
+        }
     
     def get_statistics(self) -> Dict[str, Any]:
-        """Get detailed campaign statistics"""
+        """Get detailed campaign statistics (AFL++ naming)"""
         if self.real_monitor:
             stats = self.real_monitor.get_stats()
             return {
-                'total_iterations': stats.get('total_cases', 0),
-                'crashes_detected': stats.get('crash_count', 0),
-                'timeouts': stats.get('timeout_count', 0),
-                'average_response_time': stats.get('avg_response_time', 0.0),
-                'unique_crashes': stats.get('unique_crashes', 0)
+                'execs_done': stats.get('total_cases', 0),
+                'execs_per_sec': stats.get('cases_per_second', 0.0),
+                'cycles_done': stats.get('current_iteration', 0),
+                'corpus_count': stats.get('corpus_count', 0),
+                'corpus_favored': stats.get('corpus_favored', 0),
+                'corpus_found': stats.get('corpus_found', 0),
+                'pending_total': stats.get('pending_total', 0),
+                'pending_favs': stats.get('pending_favs', 0),
+                'bitmap_cvg': stats.get('bitmap_cvg', 0.0),
+                'saved_crashes': stats.get('crash_count', 0),
+                'saved_hangs': stats.get('hang_count', 0),
+                'total_tmout': stats.get('timeout_count', 0),
+                'run_time': stats.get('run_time', 0),
             }
         elif self.monitor_instance:
-            return self.monitor_instance.get_statistics()
-        return {}
+            # Provide AFL++-aligned default/mocked statistics
+            mock = self.monitor_instance.get_statistics()
+            return {
+                'execs_done': mock.get('total_iterations', 0),
+                'execs_per_sec': 0.0,
+                'cycles_done': mock.get('total_iterations', 0),
+                'corpus_count': 0,
+                'corpus_favored': 0,
+                'corpus_found': 0,
+                'pending_total': 0,
+                'pending_favs': 0,
+                'bitmap_cvg': 0.0,
+                'saved_crashes': mock.get('crashes_detected', 0),
+                'saved_hangs': 0,
+                'total_tmout': mock.get('timeouts', 0),
+                'run_time': 0,
+            }
+        return {
+            'execs_done': 0,
+            'execs_per_sec': 0.0,
+            'cycles_done': 0,
+            'corpus_count': 0,
+            'corpus_favored': 0,
+            'corpus_found': 0,
+            'pending_total': 0,
+            'pending_favs': 0,
+            'bitmap_cvg': 0.0,
+            'saved_crashes': 0,
+            'saved_hangs': 0,
+            'total_tmout': 0,
+            'run_time': 0,
+        }
     
     def cleanup(self):
         """Cleanup monitor resources"""

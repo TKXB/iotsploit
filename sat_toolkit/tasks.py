@@ -8,6 +8,7 @@ from sat_toolkit.models.Target_Model import TargetManager
 import asyncio
 import json
 import time
+import os
 from datetime import datetime
 
 logger = get_task_logger(__name__)
@@ -118,53 +119,95 @@ def run_fuzzing_campaign(self, campaign_id, campaign_config):
             'status': 'running'
         })
         
-        # Main fuzzing loop - monitor the real fuzzer progress
-        iterations_total = campaign_config.get('iterations_total', 1000)
-        iterations_completed = 0
-        last_reported_iterations = 0
-        
-        while orchestrator_adapter.is_running and iterations_completed < iterations_total:
+        # Main fuzzing loop - monitor progress and report on execs_done threshold
+        REPORT_THRESHOLD_EXECS = int(os.getenv('FUZZER_REPORT_THRESHOLD_EXECS', 50))
+        logger.info(
+            "[Celery.run_fuzzing_campaign] campaign=%s threshold_execs=%d",
+            campaign_id,
+            REPORT_THRESHOLD_EXECS,
+        )
+        execs_done = 0
+        last_reported_execs = 0
+        printed_monitor_raw = False
+
+        while getattr(orchestrator_adapter, 'is_running', False):
             # Get current campaign state from Redis to check for status changes
             current_state = fuzzer_manager._get_campaign_state(campaign_id)
             if not current_state or current_state.get('status') != 'running':
                 logger.info(f"Campaign {campaign_id} status changed to {current_state.get('status') if current_state else 'not found'}, stopping")
                 orchestrator_adapter.stop()
                 break
-            
-            # Get real fuzzer progress from monitor
-            monitor_stats = monitor_adapter.get_status()
-            current_iterations = monitor_stats.get('current_iteration', 0)
-            
-            # Use the real fuzzer's progress
-            if current_iterations > iterations_completed:
-                iterations_completed = current_iterations
-            
-            # Update Redis state if progress changed significantly
-            if iterations_completed - last_reported_iterations >= 10:
-                fuzzer_manager._update_campaign_state(campaign_id, {
-                    'iterations_completed': iterations_completed
-                })
-                
-                send_campaign_progress_update(campaign_id, {
-                    'iterations_completed': iterations_completed,
-                    'iterations_total': iterations_total,
-                    'progress_percentage': (iterations_completed / iterations_total) * 100
-                })
-                
-                last_reported_iterations = iterations_completed
-            
-            # Check every 100ms
+
+            # Get detailed statistics (AFL++ keys)
+            detail = monitor_adapter.get_statistics() or {}
+            if not printed_monitor_raw:
+                logger.info(
+                    "[Celery.monitor.raw] campaign=%s stats=%s keys=%s",
+                    campaign_id,
+                    detail,
+                    list(detail.keys()),
+                )
+                printed_monitor_raw = True
+            current_execs = int(detail.get('execs_done', 0) or 0)
+            if current_execs > execs_done:
+                logger.info(
+                    "[Celery.stats] execs_done advanced: %d -> %d (eps=%.2f, cycles=%d, crashes=%d, tmout=%d)",
+                    execs_done,
+                    current_execs,
+                    float(detail.get('execs_per_sec', 0.0) or 0.0),
+                    int(detail.get('cycles_done', 0) or 0),
+                    int(detail.get('saved_crashes', 0) or 0),
+                    int(detail.get('total_tmout', 0) or 0),
+                )
+                execs_done = current_execs
+
+            # Update Redis + push when threshold reached
+            if execs_done - last_reported_execs >= REPORT_THRESHOLD_EXECS:
+                updates = {
+                    'execs_done': execs_done,
+                    'execs_per_sec': float(detail.get('execs_per_sec', 0.0) or 0.0),
+                    'cycles_done': int(detail.get('cycles_done', 0) or 0),
+                    'corpus_count': int(detail.get('corpus_count', 0) or 0),
+                    'corpus_favored': int(detail.get('corpus_favored', 0) or 0),
+                    'corpus_found': int(detail.get('corpus_found', 0) or 0),
+                    'pending_total': int(detail.get('pending_total', 0) or 0),
+                    'pending_favs': int(detail.get('pending_favs', 0) or 0),
+                    'bitmap_cvg': float(detail.get('bitmap_cvg', 0.0) or 0.0),
+                    'saved_crashes': int(detail.get('saved_crashes', 0) or 0),
+                    'saved_hangs': int(detail.get('saved_hangs', 0) or 0),
+                    'total_tmout': int(detail.get('total_tmout', 0) or 0),
+                    'run_time': int(detail.get('run_time', 0) or 0),
+                    'last_update': int(time.time()),
+                }
+                logger.info(
+                    "[Celery.threshold] campaign=%s report execs_done %d (+%d): eps=%.2f cycles=%d crashes=%d tmout=%d",
+                    campaign_id,
+                    execs_done,
+                    execs_done - last_reported_execs,
+                    updates['execs_per_sec'],
+                    updates['cycles_done'],
+                    updates['saved_crashes'],
+                    updates['total_tmout'],
+                )
+                fuzzer_manager._update_campaign_state(campaign_id, updates)
+
+                # WebSocket: send statistics_update with nested statistics payload
+                send_campaign_statistics_update(campaign_id, updates)
+
+                last_reported_execs = execs_done
+
+            # pacing
             time.sleep(0.1)
         
         # Ensure orchestrator is stopped
         orchestrator_adapter.stop()
-        
+        logger.info("[Celery.run_fuzzing_campaign] campaign=%s stopped", campaign_id)
+
         # Update final state in Redis
-        final_status = 'completed' if iterations_completed >= iterations_total else 'stopped'
         fuzzer_manager._update_campaign_state(campaign_id, {
-            'status': final_status,
+            'status': 'stopped',
             'completed_at': datetime.now().isoformat(),
-            'iterations_completed': iterations_completed
+            'last_update': int(time.time())
         })
         
         # Get final state for response
@@ -178,8 +221,7 @@ def run_fuzzing_campaign(self, campaign_id, campaign_config):
         return {
             'status': 'success',
             'campaign_id': campaign_id,
-            'iterations_completed': iterations_completed,
-            'final_status': final_status
+            'final_status': 'stopped'
         }
         
     except Exception as e:
@@ -347,6 +389,26 @@ def send_campaign_status_update(campaign_id, status_data):
             async_to_sync(channel_layer.group_send)(group_name, message)
     except Exception as e:
         logger.error(f"Error sending campaign status update: {str(e)}")
+
+
+def send_campaign_statistics_update(campaign_id, statistics_data):
+    """Helper function to send campaign statistics updates (AFL++ keys)"""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            group_name = f"iot_fuzzer_campaign_{campaign_id}"
+            message = {
+                'type': 'fuzzer_event',
+                'event_type': 'statistics_update',
+                'data': {
+                    'campaign_id': campaign_id,
+                    'statistics': statistics_data
+                }
+            }
+
+            async_to_sync(channel_layer.group_send)(group_name, message)
+    except Exception as e:
+        logger.error(f"Error sending campaign statistics update: {str(e)}")
 
 
 def send_results_update(campaign_id, results_data):

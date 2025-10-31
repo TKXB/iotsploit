@@ -106,45 +106,37 @@ class IoTFuzzerBridge:
             # Add timestamp
             event_data['timestamp'] = datetime.now().isoformat()
             
-            # Normalize statistics payload to unified schema when needed
+            # Normalize statistics payload to AFL++ schema when needed
             try:
                 if event_type == 'statistics_update' and isinstance(event_data, dict):
                     stats = event_data.get('statistics')
                     if isinstance(stats, dict):
-                        # Build unified map with fixed keys only
                         ui_stats = {
-                            'total_iterations': int(stats.get('total_iterations', 0) or 0),
-                            'total_exec': int(stats.get('total_exec', 0) or 0),
-                            'total_pass': int(stats.get('total_pass', 0) or 0),
-                            'total_fail': int(stats.get('total_fail', 0) or 0),
-                            'total_check': int(stats.get('total_check', 0) or 0),
-                            'speed': float(stats.get('speed', 0.0) or 0.0),
-                            'test_time_seconds': int(stats.get('test_time_seconds', 0) or 0),
-                            'running_time_seconds': int(stats.get('running_time_seconds', 0) or 0),
-                            'estimated_time_seconds': int(stats.get('estimated_time_seconds', 0) or 0),
+                            'execs_done': int(stats.get('execs_done', 0)),
+                            'execs_per_sec': float(stats.get('execs_per_sec', 0.0)),
+                            'execs_ps_last_min': float(stats.get('execs_ps_last_min', 0.0)),
+                            'cycles_done': int(stats.get('cycles_done', 0)),
+                            'cycles_wo_finds': int(stats.get('cycles_wo_finds', 0)),
+                            'time_wo_finds': int(stats.get('time_wo_finds', 0)),
+                            'corpus_count': int(stats.get('corpus_count', 0)),
+                            'corpus_favored': int(stats.get('corpus_favored', 0)),
+                            'corpus_found': int(stats.get('corpus_found', 0)),
+                            'pending_total': int(stats.get('pending_total', 0)),
+                            'pending_favs': int(stats.get('pending_favs', 0)),
+                            'bitmap_cvg': float(stats.get('bitmap_cvg', 0.0)),
+                            'stability': float(stats.get('stability', 0.0)),
+                            'saved_crashes': int(stats.get('saved_crashes', 0)),
+                            'saved_hangs': int(stats.get('saved_hangs', 0)),
+                            'total_tmout': int(stats.get('total_tmout', 0)),
+                            'run_time': int(stats.get('run_time', 0)),
+                            'fuzz_time': int(stats.get('fuzz_time', 0)),
+                            'last_update': int(stats.get('last_update', 0)),
                         }
-                        # Deterministic remap from legacy keys if unified keys are missing
-                        if ui_stats['total_pass'] == 0 and 'successes' in stats:
-                            ui_stats['total_pass'] = int(stats.get('successes', 0) or 0)
-                        if ui_stats['total_fail'] == 0 and (
-                            'crashes' in stats or 'timeouts' in stats or 'errors' in stats
-                        ):
-                            crashes = int(stats.get('crashes', 0) or 0)
-                            timeouts = int(stats.get('timeouts', 0) or 0)
-                            errors = int(stats.get('errors', 0) or 0)
-                            ui_stats['total_fail'] = crashes + timeouts + errors
-                        if ui_stats['total_exec'] == 0 and 'total_cases' in stats:
-                            ui_stats['total_exec'] = int(stats.get('total_cases', 0) or 0)
-
-                        # Log any keys we filled by default for diagnostics
-                        missing = [
-                            k for k, v in ui_stats.items() if v == 0 and k not in stats
-                        ]
+                        # Warn if keys missing
+                        missing = [k for k in ui_stats.keys() if k not in stats]
                         if missing:
                             logger.warning(
-                                "[WS.statistics_update] filled defaults for keys=%s; available_keys=%s",
-                                missing,
-                                list(stats.keys())
+                                "[WS.statistics_update] Missing keys in stats: %s", missing
                             )
                         event_data['statistics'] = ui_stats
             except Exception as e:

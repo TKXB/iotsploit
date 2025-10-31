@@ -476,43 +476,40 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
     async def fuzzer_event(self, event):
         """Handle fuzzer events from the bridge"""
         try:
-            # Normalize statistics payload to unified schema before forwarding
+            # Normalize statistics payload to AFL++ fixed schema before forwarding
             try:
                 if event.get('event_type') == 'statistics_update' and isinstance(event.get('data'), dict):
                     data = event['data']
                     stats = data.get('statistics')
-                    # Support both nested and flat legacy payloads
                     if not isinstance(stats, dict):
                         stats = {}
-                    # Build unified stats object with fixed keys only
+
                     ui_stats = {
-                        'total_iterations': int(stats.get('total_iterations') or data.get('total_iterations') or 0),
-                        'total_exec': int(stats.get('total_exec') or data.get('current_iteration') or stats.get('total_cases') or 0),
-                        'total_pass': int(stats.get('total_pass') or stats.get('successes') or 0),
-                        'total_fail': int(
-                            (stats.get('total_fail')
-                             if stats.get('total_fail') is not None else 0)
-                            or (
-                                int(stats.get('crashes') or 0)
-                                + int(stats.get('timeouts') or 0)
-                                + int(stats.get('errors') or 0)
-                            )
-                        ),
-                        'total_check': int(stats.get('total_check') or 0),
-                        'speed': float(stats.get('speed') or 0.0),
-                        'test_time_seconds': int(stats.get('test_time_seconds') or 0),
-                        'running_time_seconds': int(stats.get('running_time_seconds') or 0),
-                        'estimated_time_seconds': int(stats.get('estimated_time_seconds') or 0),
+                        'execs_done': int(stats.get('execs_done', 0)),
+                        'execs_per_sec': float(stats.get('execs_per_sec', 0.0)),
+                        'execs_ps_last_min': float(stats.get('execs_ps_last_min', 0.0)),
+                        'cycles_done': int(stats.get('cycles_done', 0)),
+                        'cycles_wo_finds': int(stats.get('cycles_wo_finds', 0)),
+                        'time_wo_finds': int(stats.get('time_wo_finds', 0)),
+                        'corpus_count': int(stats.get('corpus_count', 0)),
+                        'corpus_favored': int(stats.get('corpus_favored', 0)),
+                        'corpus_found': int(stats.get('corpus_found', 0)),
+                        'pending_total': int(stats.get('pending_total', 0)),
+                        'pending_favs': int(stats.get('pending_favs', 0)),
+                        'bitmap_cvg': float(stats.get('bitmap_cvg', 0.0)),
+                        'stability': float(stats.get('stability', 0.0)),
+                        'saved_crashes': int(stats.get('saved_crashes', 0)),
+                        'saved_hangs': int(stats.get('saved_hangs', 0)),
+                        'total_tmout': int(stats.get('total_tmout', 0)),
+                        'run_time': int(stats.get('run_time', 0)),
+                        'fuzz_time': int(stats.get('fuzz_time', 0)),
+                        'last_update': int(stats.get('last_update', 0)),
                     }
-                    # Log if defaults were used to aid diagnostics
-                    missing = [k for k, v in ui_stats.items() if v == 0 and k not in stats and k not in data]
+
+                    missing = [k for k in ui_stats.keys() if k not in stats]
                     if missing:
-                        logger.warning(
-                            "[consumers.statistics_update] filled defaults for keys=%s; available_stats=%s available_data=%s",
-                            missing,
-                            list(stats.keys()),
-                            list(data.keys())
-                        )
+                        logger.warning(f"[WS.normalize] Missing keys: {missing}")
+
                     data['statistics'] = ui_stats
             except Exception as e:
                 logger.error(f"Error normalizing fuzzer_event statistics: {e}")
