@@ -26,7 +26,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         self.input_queue = queue.Queue()
         self.session_id = None
         self.shell_thread = None
-        # Use direct WebSocket connection to MCP bridge instead of local ToolHandler
         self.mcp_websocket_url = "ws://localhost:9998"
         xlog.info("AIAssistantConsumer initialized", "ai_assistant")
         
@@ -37,7 +36,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         self.session_id = self.scope['url_route']['kwargs'].get('session_id', 'default')
         xlog.info(f"WebSocket connection accepted for session: {self.session_id}", "ai_assistant")
         
-        # Start AI assistant session
         await self.start_assistant_session()
         
     async def disconnect(self, close_code):
@@ -77,7 +75,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         """处理命令输入"""
         xlog.info(f"Handling command: {command}", "ai_assistant")
         if self.shell_thread and self.shell_thread.is_alive():
-            # 将命令发送到shell线程
             self.input_queue.put(command + '\n')
             xlog.debug("Command sent to shell thread", "ai_assistant")
         else:
@@ -110,7 +107,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                 await self.send_ai_response(f"AI: Error processing with AI model: {str(e)}")
         else:
             xlog.info("No AI config found, using fallback command mapping", "ai_assistant")
-            # 回退到简单的命令映射
             command_mapping = {
                 "list devices": "scan_devices",
                 "show devices": "scan_devices", 
@@ -182,7 +178,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             async with aiohttp.ClientSession() as session:
                 xlog.info(f"Connecting to MCP WebSocket: {self.mcp_websocket_url}", "ai_assistant")
                 async with session.ws_connect(self.mcp_websocket_url) as ws:
-                    # Send tool call request
                     request = {
                         "type": "mcp_call_tool",
                         "tool_name": tool_name,
@@ -193,7 +188,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                     await ws.send_str(json.dumps(request))
                     xlog.info(f"MCP request sent successfully", "ai_assistant")
                     
-                    # Wait for response
                     xlog.info(f"Waiting for MCP response...", "ai_assistant")
                     response = await ws.receive()
                     xlog.info(f"MCP response received - Type: {response.type}", "ai_assistant")
@@ -209,7 +203,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                             xlog.info(f"Tool result content: {result}", "ai_assistant")
                             
                             if isinstance(result, list) and len(result) > 0:
-                                # Extract text from MCP result format
                                 extracted = result[0].get("text", str(result))
                                 xlog.info(f"Extracted result: {extracted}", "ai_assistant")
                                 xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
@@ -240,7 +233,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
     
     async def get_mcp_tools(self):
         """获取MCP工具定义"""
-        # 定义SAT工具的MCP工具规范
         tools = [
             {
                 "type": "function",
@@ -326,11 +318,9 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
             
-            # 执行MCP工具
             result = await self.execute_mcp_tool(function_name, function_args)
             results.append(f"Executed {function_name}: {result}")
         
-        # 更新使用统计
         await self.update_ai_usage(ai_config)
         
         return "\n".join(results)
@@ -344,11 +334,9 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                 function_name = block.name
                 function_args = block.input
                 
-                # 执行MCP工具
                 result = await self.execute_mcp_tool(function_name, function_args)
                 results.append(f"Executed {function_name}: {result}")
         
-        # 更新使用统计
         await self.update_ai_usage(ai_config)
         
         return "\n".join(results)
@@ -382,14 +370,12 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             from openai import AsyncOpenAI
             import asyncio
             
-            # 初始化OpenAI客户端
             xlog.debug(f"Initializing OpenAI client with base_url: {ai_config.api_url}", "ai_assistant")
             client = AsyncOpenAI(
                 api_key=ai_config.get_api_key(),
                 base_url=ai_config.api_url
             )
             
-            # 构建系统提示，让AI了解SAT工具的功能和MCP工具
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
 Available SAT commands include:
@@ -404,21 +390,17 @@ When users ask about devices, status, or security testing, you can:
 
 For example, when asked about "available devices", you should use the scan_devices MCP tool."""
 
-            # 构建消息
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query}
             ]
             
             xlog.debug("Getting MCP tools for OpenAI", "ai_assistant")
-            # 检查是否有MCP工具可用
             tools = await self.get_mcp_tools()
             xlog.info(f"Found {len(tools)} MCP tools available", "ai_assistant")
             
-            # 调用OpenAI API
             if tools:
                 xlog.debug("Making OpenAI API call with tools", "ai_assistant")
-                # 使用工具调用
                 response = await client.chat.completions.create(
                     model=ai_config.model_name,
                     messages=messages,
@@ -429,7 +411,6 @@ For example, when asked about "available devices", you should use the scan_devic
                 )
                 
                 xlog.info("OpenAI API response received", "ai_assistant")
-                # 处理工具调用
                 if response.choices[0].message.tool_calls:
                     xlog.info(f"Processing {len(response.choices[0].message.tool_calls)} tool calls", "ai_assistant")
                     tool_result = await self.handle_tool_calls(response.choices[0].message, ai_config)
@@ -442,7 +423,6 @@ For example, when asked about "available devices", you should use the scan_devic
                     return ai_response
             else:
                 xlog.debug("Making OpenAI API call without tools", "ai_assistant")
-                # 普通对话
                 response = await client.chat.completions.create(
                     model=ai_config.model_name,
                     messages=messages,
@@ -468,10 +448,8 @@ For example, when asked about "available devices", you should use the scan_devic
             import google.generativeai as genai
             import asyncio
             
-            # 配置Google AI
             genai.configure(api_key=ai_config.get_api_key())
             
-            # 构建系统提示
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
 Available SAT commands include:
@@ -480,19 +458,16 @@ Available SAT commands include:
 
 When users ask about devices or system status, provide helpful explanations and suggest relevant SAT commands."""
 
-            # 初始化模型
             model = genai.GenerativeModel(
                 model_name=ai_config.model_name,
                 system_instruction=system_prompt
             )
             
-            # 配置生成参数
             generation_config = genai.types.GenerationConfig(
                 max_output_tokens=ai_config.extra_config.get('max_tokens', 1000),
                 temperature=ai_config.extra_config.get('temperature', 0.7)
             )
             
-            # 生成响应
             response = await asyncio.to_thread(
                 model.generate_content,
                 query,
@@ -513,13 +488,11 @@ When users ask about devices or system status, provide helpful explanations and 
         try:
             from anthropic import AsyncAnthropic
             
-            # 初始化Anthropic客户端
             client = AsyncAnthropic(
                 api_key=ai_config.get_api_key(),
                 base_url=ai_config.api_url if ai_config.api_url != "https://api.anthropic.com/v1" else None
             )
             
-            # 构建系统提示
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
 Available SAT commands include:
@@ -529,12 +502,9 @@ Available SAT commands include:
 You have access to MCP (Model Context Protocol) tools that can directly execute SAT commands.
 When users ask about devices or system status, provide helpful explanations and suggest relevant commands."""
 
-            # 检查是否有MCP工具可用
             tools = await self.get_mcp_tools()
             
-            # 调用Claude API
             if tools:
-                # 使用工具调用
                 response = await client.messages.create(
                     model=ai_config.model_name,
                     max_tokens=ai_config.extra_config.get('max_tokens', 1000),
@@ -544,7 +514,6 @@ When users ask about devices or system status, provide helpful explanations and 
                     tools=tools
                 )
                 
-                # 处理工具调用
                 if response.content and any(block.type == "tool_use" for block in response.content):
                     tool_result = await self.handle_claude_tool_calls(response, ai_config)
                     xlog.info(f"Claude API tool call result: {tool_result[:200]}...", "ai_assistant")
@@ -554,7 +523,6 @@ When users ask about devices or system status, provide helpful explanations and 
                     xlog.info(f"Claude API response: {ai_response[:200]}...", "ai_assistant")
                     return ai_response
             else:
-                # 普通对话
                 response = await client.messages.create(
                     model=ai_config.model_name,
                     max_tokens=ai_config.extra_config.get('max_tokens', 1000),
@@ -582,19 +550,16 @@ When users ask about devices or system status, provide helpful explanations and 
                 
     async def handle_resize(self, rows, cols):
         """处理终端大小调整"""
-        # 可以实现终端大小调整逻辑
         pass
         
     async def start_assistant_session(self):
         """启动AI助手会话"""
         try:
             xlog.info("Starting AI assistant session", "ai_assistant")
-            # 启动shell线程
             self.shell_thread = Thread(target=self.run_shell_session, daemon=True)
             self.shell_thread.start()
             xlog.debug("Shell thread started", "ai_assistant")
             
-            # 启动输出监听线程
             output_thread = Thread(target=self.monitor_output, daemon=True)
             output_thread.start()
             xlog.debug("Output monitor thread started", "ai_assistant")
@@ -607,12 +572,10 @@ When users ask about devices or system status, provide helpful explanations and 
         """在独立线程中运行SAT Shell"""
         try:
             xlog.info("Starting shell session in thread", "ai_assistant")
-            # 设置环境变量
             env = os.environ.copy()
             env['PYTHONUNBUFFERED'] = '1'
-            env['AI_ASSISTANT_MODE'] = '1'  # 标识AI助手模式
+            env['AI_ASSISTANT_MODE'] = '1'
             
-            # 启动Python控制台，使用console.py
             cmd = [sys.executable, 'console.py']
             xlog.debug(f"Starting process with command: {' '.join(cmd)}", "ai_assistant")
             
@@ -620,16 +583,15 @@ When users ask about devices or system status, provide helpful explanations and 
                 cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # 合并错误输出
+                stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=0,  # 无缓冲
+                bufsize=0,
                 env=env,
                 cwd=os.path.dirname(os.path.abspath(__file__)) + '/../../'
             )
             
             xlog.info(f"Shell process started with PID: {self.assistant_process.pid}", "ai_assistant")
             
-            # 监听输入队列
             def input_handler():
                 xlog.debug("Input handler thread started", "ai_assistant")
                 while self.assistant_process and self.assistant_process.poll() is None:
@@ -649,7 +611,6 @@ When users ask about devices or system status, provide helpful explanations and 
             input_thread = Thread(target=input_handler, daemon=True)
             input_thread.start()
             
-            # 监听输出
             if self.assistant_process.stdout:
                 xlog.debug("Starting output monitoring", "ai_assistant")
                 for line in iter(self.assistant_process.stdout.readline, ''):
@@ -675,7 +636,6 @@ When users ask about devices or system status, provide helpful explanations and 
             try:
                 output_type, data = self.output_queue.get(timeout=0.1)
                 
-                # 使用 async_to_sync 来安全地调用异步方法
                 try:
                     async_to_sync(self.send_output)(output_type, data)
                 except Exception as e:

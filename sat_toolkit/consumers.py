@@ -11,11 +11,9 @@ import time
 from sat_toolkit.core.device_spec import DeviceState
 from collections import deque
 import threading
-# from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager  # Import locally to avoid circular imports
 
 logger = logging.getLogger(__name__)
 
-# Configure the log buffer for console logs
 MAX_LOG_ENTRIES = 1000
 console_log_buffer = deque(maxlen=MAX_LOG_ENTRIES)
 log_buffer_lock = threading.Lock()
@@ -49,21 +47,18 @@ class SystemUsageConsumer(AsyncWebsocketConsumer):
                 break
 
 class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
-    instances = {}  # Class variable to track all active consumers
+    instances = {}
 
     async def connect(self):
         self.task_id = self.scope['url_route']['kwargs']['task_id']
         logger.info(f"WebSocket connected for task: {self.task_id}")
         await self.accept()
         
-        # Flag to control polling
         self.is_polling = True
-        # Start a periodic polling task for task status updates.
         asyncio.create_task(self.poll_task_status())
 
     async def disconnect(self, close_code):
         logger.info(f"WebSocket disconnected for task: {self.task_id}")
-        # Stop polling on disconnect
         self.is_polling = False
 
     async def receive(self, text_data):
@@ -78,20 +73,16 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
     async def send_task_status(self):
         """Fetch and send task status from Celery/Redis"""
         try:
-            # Get task result from Celery
             result = AsyncResult(self.task_id)
             
             if result.ready():
-                # Task is complete
                 task_result = result.get()
                 await self.send(text_data=json.dumps({
                     'status': 'complete',
                     'result': task_result
                 }))
-                # Stop polling when task is complete
                 self.is_polling = False
             else:
-                # Task is still pending
                 await self.send(text_data=json.dumps({
                     'status': 'pending',
                     'message': 'Task is still processing'
@@ -103,11 +94,9 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
                 'status': 'error',
                 'message': f'Error fetching task status: {str(e)}'
             }))
-            # Stop polling on error
             self.is_polling = False
 
     async def poll_task_status(self):
-        # Poll for a status update every 1 second while is_polling is True
         while self.is_polling:
             await self.send_task_status()
             await asyncio.sleep(1)
@@ -125,7 +114,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
         await self.accept()
         logger.debug(f"Stream connection established for channel: {self.channel}, channel_name: {self.channel_name}")
         
-        # Register the channel with StreamManager
         self.stream_manager = StreamManager()
         await self.stream_manager.register_stream(self.channel)
     
@@ -136,7 +124,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
         )
         logger.debug(f"Stream connection closed for channel: {self.channel}, channel_name: {self.channel_name}")
         
-        # Unregister the channel from StreamManager
         await self.stream_manager.unregister_stream(self.channel)
     
     async def stream_data(self, event):
@@ -150,7 +137,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
             json_data = json.loads(text_data)
             stream_data = StreamData.from_dict(json_data)
 
-            # 根据 stream_type 获取对应的驱动名称
             driver_name = None
             if stream_data.stream_type == StreamType.UART:
                 driver_name = 'drv_ft2232'
@@ -170,7 +156,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps(error_data.to_dict()))
                 return
 
-            # Get the driver instance
             device_manager = DeviceDriverManager()
             driver = device_manager.get_driver_instance(driver_name)
             logger.info(f"Driver instance details: {driver}")
@@ -188,7 +173,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps(error_data.to_dict()))
                 return
 
-            # 检查设备状态
             device_state = device_manager.get_device_state(driver_name, self.channel)
             if device_state != DeviceState.CONNECTED:
                 logger.info("Device not connected, attempting to scan and connect...")
@@ -225,10 +209,9 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     await self.send(text_data=json.dumps(error_data.to_dict()))
                     return
 
-            # Handle UART-specific actions
             if stream_data.stream_type == StreamType.UART and stream_data.action == StreamAction.SEND:
                 try:
-                    uart_channel = stream_data.metadata.get('channel', 'A')  # Default to channel A if not specified
+                    uart_channel = stream_data.metadata.get('channel', 'A')
                     hex_data = stream_data.data.get('data')
                     if not hex_data:
                         raise ValueError("No data provided for UART transmission")
@@ -236,7 +219,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     data = bytes.fromhex(hex_data)
                     driver.send_uart_data(driver.device, uart_channel, data)
                     
-                    # Send success response
                     response_data = StreamData(
                         stream_type=StreamType.UART,
                         channel=self.channel,
@@ -275,7 +257,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     )
                     await self.send(text_data=json.dumps(error_data.to_dict()))
 
-            # Handle CAN-specific actions
             elif stream_data.stream_type == StreamType.CAN and stream_data.action == StreamAction.SEND:
                 try:
                     can_id = int(stream_data.data['id'], 16)
@@ -283,7 +264,6 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     
                     driver.send_can_message(driver.device, can_id, can_data)
                     
-                    # Send success response
                     response_data = StreamData(
                         stream_type=StreamType.CAN,
                         channel=self.channel,
@@ -324,7 +304,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     
         except json.JSONDecodeError as e:
             error_data = StreamData(
-                stream_type=StreamType.CAN,  # Default to CAN for backward compatibility
+                stream_type=StreamType.CAN,
                 channel=self.channel,
                 timestamp=time.time(),
                 source=StreamSource.SYSTEM,
@@ -335,7 +315,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps(error_data.to_dict()))
         except Exception as e:
             error_data = StreamData(
-                stream_type=StreamType.CAN,  # Default to CAN for backward compatibility
+                stream_type=StreamType.CAN,
                 channel=self.channel,
                 timestamp=time.time(),
                 source=StreamSource.SYSTEM,
@@ -352,23 +332,20 @@ class ConsoleLogsConsumer(AsyncWebsocketConsumer):
         """Connect to the WebSocket and join the logs group"""
         await self.accept()
         
-        # Join the logs group
         self.group_name = "console_logs"
         await self.channel_layer.group_add(
             self.group_name,
             self.channel_name
         )
         
-        # Send any existing logs from the buffer
         try:
             with log_buffer_lock:
                 existing_logs = list(console_log_buffer)
             
             if existing_logs:
-                for log in existing_logs[-50:]:  # Send the most recent 50 logs
+                for log in existing_logs[-50:]:
                     await self.send(text_data=log)
             
-            # Send a connection confirmation message
             await self.send(text_data=json.dumps({
                 'type': 'connection_established',
                 'message': 'Connected to console log stream'
@@ -379,7 +356,6 @@ class ConsoleLogsConsumer(AsyncWebsocketConsumer):
     
     async def disconnect(self, close_code):
         """Disconnect from the WebSocket and leave the logs group"""
-        # Leave the logs group
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
@@ -388,9 +364,7 @@ class ConsoleLogsConsumer(AsyncWebsocketConsumer):
     async def console_log(self, event):
         """Send a console log message to the WebSocket"""
         try:
-            # Extract the message from the event
             message = event['message']
-            # Send the message to the WebSocket
             await self.send(text_data=message)
         except Exception as e:
             logger.error(f"Error sending console log: {e}")
@@ -403,14 +377,12 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
         """Connect to the WebSocket and join the fuzzer group"""
         self.campaign_id = self.scope['url_route']['kwargs'].get('campaign_id')
         
-        # Join the IoT fuzzer groups
         self.general_group = "iot_fuzzer_general"
         await self.channel_layer.group_add(
             self.general_group,
             self.channel_name
         )
         
-        # Join campaign-specific group if campaign_id is provided
         if self.campaign_id:
             self.campaign_group = f"iot_fuzzer_campaign_{self.campaign_id}"
             await self.channel_layer.group_add(
@@ -420,26 +392,22 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         
-        # Send connection confirmation
         await self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'Connected to IoT Fuzzer testing stream',
             'campaign_id': self.campaign_id
         }))
         
-        # Send initial status if campaign exists
         if self.campaign_id:
             await self.send_initial_status()
     
     async def disconnect(self, close_code):
         """Disconnect from the WebSocket and leave the fuzzer groups"""
-        # Leave the general group
         await self.channel_layer.group_discard(
             self.general_group,
             self.channel_name
         )
         
-        # Leave campaign-specific group if exists
         if hasattr(self, 'campaign_group'):
             await self.channel_layer.group_discard(
                 self.campaign_group,
@@ -514,7 +482,6 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
             except Exception as e:
                 logger.error(f"Error normalizing fuzzer_event statistics: {e}")
 
-            # Forward the (possibly normalized) event to the WebSocket client
             await self.send(text_data=json.dumps(event))
         except Exception as e:
             logger.error(f"Error sending fuzzer event: {str(e)}")
@@ -718,12 +685,10 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
     async def send_recent_logs(self, campaign_id):
         """Send recent logs for a campaign"""
         try:
-            # This would typically get logs from the database or log buffer
-            # For now, we'll send a placeholder response
             await self.send(text_data=json.dumps({
                 'type': 'logs_response',
                 'campaign_id': campaign_id,
-                'logs': []  # TODO: Implement actual log retrieval
+                'logs': []
             }))
         except Exception as e:
             logger.error(f"Error sending recent logs: {str(e)}")
@@ -731,12 +696,10 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
     async def send_filtered_logs(self, filter_criteria):
         """Send filtered logs based on criteria"""
         try:
-            # This would typically filter logs based on criteria
-            # For now, we'll send a placeholder response
             await self.send(text_data=json.dumps({
                 'type': 'filtered_logs_response',
                 'filter_criteria': filter_criteria,
-                'logs': []  # TODO: Implement actual log filtering
+                'logs': []
             }))
         except Exception as e:
             logger.error(f"Error sending filtered logs: {str(e)}")
@@ -745,7 +708,6 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
         """Subscribe to logs for a specific campaign"""
         try:
             if campaign_id:
-                # Subscribe to campaign-specific logs
                 await self.send(text_data=json.dumps({
                     'type': 'log_subscription_confirmed',
                     'campaign_id': campaign_id
