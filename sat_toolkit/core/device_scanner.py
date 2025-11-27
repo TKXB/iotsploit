@@ -35,10 +35,7 @@ class PluginDeviceScanner(DeviceScanner):
                 logger.info("No devices found")
                 return []
                 
-            # 确保返回列表
             devices = result if isinstance(result, list) else [result]
-            
-            # 注册发现的设备
             for device in devices:
                 self.device_store.register_device(device, source="dynamic")
                 

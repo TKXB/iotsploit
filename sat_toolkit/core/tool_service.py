@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-"""
-Tool Management Service for IoTSploit
-====================================
-
-A service that provides tool management capabilities to existing plugins.
-This allows plugins like ESP32Driver to easily manage third-party tools
-without hardcoding paths or handling cross-platform compatibility.
-
-Usage:
-    from sat_toolkit.core.tool_service import ToolService
-    
-    tool_service = ToolService()
-    result = tool_service.execute('esptool', ['--version'])
-"""
+"""Unified tool management and execution service for plugins."""
 
 import json
 import logging
@@ -254,8 +241,6 @@ class ToolService:
             list: Names of registered tools
         """
         return list(self._registered_tools)
-
-# Specialized programmer classes for different device types
 
 class BaseProgrammer:
     """Base class for all programmers"""
@@ -935,7 +920,6 @@ class BinaryToolService(ToolService):
         
         return self.execute_tool('binwalk', args)
 
-# Singleton instances for easy access
 _tool_service_instance = None
 _firmware_service_instance = None
 _network_service_instance = None

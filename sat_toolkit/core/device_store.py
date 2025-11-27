@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class DeviceStore:
     def __init__(self):
         self.devices = {}
-        self.device_sources = {}  # tracks if device is static or dynamic
+        self.device_sources = {}
         self.config_manager = DeviceConfigManager()
         
     def register_device(self, device: Device, source: str = "dynamic"):
@@ -33,7 +33,6 @@ class DeviceStore:
             "attributes": device.attributes
         }
         
-        # 根据设备类型添加特定属性
         if isinstance(device, SerialDevice):
             base_dict.update({
                 "port": device.port,

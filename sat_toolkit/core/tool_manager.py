@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""
-Tool Management System for IoTSploit
-====================================
-
-Core tool management system providing:
-- Dynamic tool discovery and path resolution
-- Cross-platform tool execution
-- Configuration management
-- Tool validation and health checks
-"""
+"""Tool management: discovery, validation, and cross-platform execution."""
 
 import os
 import sys
@@ -557,7 +548,7 @@ class ToolManager:
         
         return validated_tool.status == ToolStatus.AVAILABLE
 
-# Convenience functions
+# Convenience
 def get_tool_manager() -> ToolManager:
     """Get a singleton tool manager instance"""
     if not hasattr(get_tool_manager, '_instance'):

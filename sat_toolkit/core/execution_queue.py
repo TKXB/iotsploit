@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""
-Execution Queue & Scheduling for IoTSploit Tool Manager
-======================================================
-
-Provides advanced execution capabilities:
-- Task queuing and scheduling
-- Priority-based execution
-- Concurrent execution management
-- Resource limiting
-- Progress tracking
-"""
+"""Execution queue and scheduler for tool execution."""
 
 import time
 import threading
@@ -153,7 +143,7 @@ class ExecutionQueue:
         
         logger.debug(f"Task {task_id} queued with priority {priority.name}")
         
-        # Start processing if workers available
+        
         self._process_queue()
         
         return task_id
@@ -382,7 +372,7 @@ class ExecutionQueue:
         logger.info("Execution queue shutdown complete")
 
 class TaskScheduler:
-    """Advanced task scheduler with cron-like capabilities"""
+    """Task scheduler with simple cron-like capabilities"""
     
     def __init__(self, execution_queue: ExecutionQueue):
         self.execution_queue = execution_queue
@@ -394,7 +384,6 @@ class TaskScheduler:
     def schedule_task(self, schedule_id: str, tool_name: str, tool_path: str, 
                      args: List[str], cron_expression: str, **kwargs) -> str:
         """Schedule a recurring task"""
-        # This is a simplified scheduler - in production you'd use a proper cron parser
         with self._lock:
             self.scheduled_tasks[schedule_id] = {
                 'tool_name': tool_name,
@@ -413,8 +402,7 @@ class TaskScheduler:
     
     def _calculate_next_run(self, cron_expression: str) -> float:
         """Calculate next run time (simplified)"""
-        # This is a placeholder - implement proper cron parsing
-        return time.time() + 60  # Run every minute for demo
+        return time.time() + 60
     
     def _start_scheduler(self):
         """Start the scheduler thread"""
@@ -429,7 +417,6 @@ class TaskScheduler:
             with self._lock:
                 for schedule_id, task_info in self.scheduled_tasks.items():
                     if current_time >= task_info['next_run']:
-                        # Submit task
                         self.execution_queue.submit_task(
                             tool_name=task_info['tool_name'],
                             tool_path=task_info['tool_path'],
@@ -443,7 +430,7 @@ class TaskScheduler:
                             task_info['cron_expression']
                         )
             
-            time.sleep(1)  # Check every second
+            time.sleep(1)
     
     def shutdown(self):
         """Shutdown the scheduler"""
@@ -451,7 +438,6 @@ class TaskScheduler:
         if self._scheduler_thread:
             self._scheduler_thread.join()
 
-# Singleton instances
 _execution_queue = None
 _task_scheduler = None
 
