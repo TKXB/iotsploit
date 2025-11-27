@@ -274,3 +274,7 @@ REDIS_DB = 0  # Using the same DB as Celery for simplicity
 # Set the log level for the 'views' logger to DEBUG
 #xlog.set_level("DEBUG", "views")
 
+# UDP Discovery Server Configuration
+DISCOVERY_UDP_PORT = 37020
+DISCOVERY_ENABLED = True
+
