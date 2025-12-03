@@ -179,7 +179,14 @@ class SAT_Shell(SAT_Shell_Base):
         self.device_manager.register_device(DeviceType.Serial, SerialDevice)
         self.device_manager.register_device(DeviceType.USB, USBDevice)
         self.device_manager.register_device(DeviceType.CAN, SocketCANDevice)
-        self.device_manager.parse_and_set_device_from_json('conf/devices.json')
+        
+        # Note: Removed automatic JSON loading to use database as single source of truth
+        # Devices are now discovered by drivers via scan() or managed through UI/CLI
+        # Use 'device_import <json_file>' command if you need to import from JSON
+        existing_devices = self.device_manager.get_all_devices()
+        if not existing_devices:
+            logger.info("No devices found in database. Devices will be auto-discovered by drivers.")
+            logger.info("You can also use 'device_import conf/devices.json' to import from JSON file.")
 
 
         # Customize help display

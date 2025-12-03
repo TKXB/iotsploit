@@ -471,4 +471,64 @@ class DeviceCommands(BaseCommands):
             logger.debug("Detailed error:", exc_info=True)
 
     # Add alias for disable_driver
-    do_dd = do_disable_driver 
+    do_dd = do_disable_driver
+
+    @cmd2.with_category('Device Commands')
+    def do_device_import(self, arg):
+        '''Import devices from a JSON file into the database.
+        
+        Usage: device_import <json_file_path>
+        
+        Example: device_import conf/devices.json
+        
+        JSON file format:
+        {
+            "devices": [
+                {
+                    "device_id": "serial_001",
+                    "name": "Serial Device",
+                    "device_type": "Serial",
+                    "port": "/dev/ttyUSB0",
+                    "baud_rate": 115200
+                },
+                {
+                    "device_id": "usb_001",
+                    "name": "USB Device",
+                    "device_type": "USB",
+                    "vendor_id": "1234",
+                    "product_id": "5678"
+                }
+            ]
+        }
+        '''
+        import os
+        import warnings
+        
+        if not arg:
+            logger.error(ansi.style("Usage: device_import <json_file_path>", fg=ansi.Fg.RED))
+            logger.info(ansi.style("Example: device_import conf/devices.json", fg=ansi.Fg.CYAN))
+            return
+        
+        json_file_path = arg.strip()
+        
+        if not os.path.exists(json_file_path):
+            logger.error(ansi.style(f"File not found: {json_file_path}", fg=ansi.Fg.RED))
+            return
+        
+        try:
+            logger.info(ansi.style(f"Importing devices from: {json_file_path}", fg=ansi.Fg.CYAN))
+            
+            # Suppress deprecation warning since we're intentionally using this for import
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                self.device_manager.parse_and_set_device_from_json(json_file_path)
+            
+            logger.info(ansi.style("Device import completed successfully!", fg=ansi.Fg.GREEN))
+            logger.info(ansi.style("Use 'list_devices' or 'lsdev' to view imported devices.", fg=ansi.Fg.CYAN))
+            
+        except Exception as e:
+            logger.error(ansi.style(f"Error importing devices: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add alias for device_import
+    do_dimport = do_device_import

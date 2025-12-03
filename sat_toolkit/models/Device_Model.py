@@ -217,6 +217,23 @@ class DeviceManager:
             session.close()
 
     def parse_and_set_device_from_json(self, json_file_path):
+        """Import devices from a JSON file into the database.
+        
+        DEPRECATED: This method is kept for backward compatibility and manual imports.
+        Devices are now primarily managed through the database and auto-discovered by drivers.
+        Use 'device_import <json_file>' CLI command for imports.
+        
+        Args:
+            json_file_path: Path to the JSON file containing device definitions
+        """
+        import warnings
+        warnings.warn(
+            "parse_and_set_device_from_json is deprecated. "
+            "Devices are now auto-discovered by drivers or use 'device_import' CLI command.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if not os.path.exists(json_file_path):
             xlog.error(f"File not found: {json_file_path}", name="device_model")
             return
@@ -224,6 +241,7 @@ class DeviceManager:
         with open(json_file_path, 'r') as file:
             data = json.load(file)
 
+        imported_count = 0
         for device in data.get('devices', []):
             device_type = DeviceType(device.get('device_type', 'USB'))
             device_class = self.devices.get(device_type, Device)
@@ -248,8 +266,9 @@ class DeviceManager:
 
             device_instance = self.create_device(device_type, **device_data)
             self.current_device = device_instance
+            imported_count += 1
 
-        xlog.debug("Parsed and created devices from JSON file", name="device_model")
+        xlog.info(f"Imported {imported_count} devices from JSON file: {json_file_path}", name="device_model")
 
     def get_current_device(self) -> Optional[Device]:
         return self.current_device

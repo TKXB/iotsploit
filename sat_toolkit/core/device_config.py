@@ -1,5 +1,14 @@
+"""
+DEPRECATED: This module is deprecated and will be removed in a future version.
+
+Device configuration is now managed entirely through the SQLite database.
+Use DeviceManager from sat_toolkit.models.Device_Model instead.
+
+For importing devices from JSON, use the 'device_import' CLI command.
+"""
 import os
 import json
+import warnings
 from typing import Dict, Optional
 import logging
 from sat_toolkit.models.Device_Model import Device, DeviceType
@@ -7,8 +16,19 @@ from json import JSONEncoder
 
 logger = logging.getLogger(__name__)
 
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "device_config module is deprecated. Device configuration is now managed through the database. "
+    "Use DeviceManager from sat_toolkit.models.Device_Model instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 class DeviceJSONEncoder(JSONEncoder):
-    """自定义JSON编码器，处理特殊类型的序列化"""
+    """自定义JSON编码器，处理特殊类型的序列化
+    
+    DEPRECATED: This class is deprecated. Use database storage instead.
+    """
     def default(self, obj):
         if isinstance(obj, DeviceType):
             return obj.value
@@ -19,9 +39,19 @@ class DeviceJSONEncoder(JSONEncoder):
         return super().default(obj)
 
 class DeviceConfigManager:
-    """设备配置管理器"""
+    """设备配置管理器
+    
+    DEPRECATED: This class is deprecated. 
+    Device configuration is now managed entirely through the SQLite database.
+    Use DeviceManager from sat_toolkit.models.Device_Model for device operations.
+    """
     
     def __init__(self):
+        warnings.warn(
+            "DeviceConfigManager is deprecated. Use DeviceManager from sat_toolkit.models.Device_Model instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.config_file = "conf/devices.json"
         
     def load_configs(self) -> Dict[str, Dict]:
