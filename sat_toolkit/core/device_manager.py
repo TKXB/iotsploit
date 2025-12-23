@@ -123,9 +123,9 @@ class DeviceDriverManager:
     def _load_driver_states(self):
         """Load driver states from database"""
         from sqlalchemy.orm import sessionmaker
-        from sat_toolkit.models.database import SessionLocal
+        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
         
-        session = SessionLocal()
+        session = get_default_sqlalchemy_db().SessionLocal()
         try:
             driver_states = session.query(DeviceDriverState).all()
             for state in driver_states:
@@ -145,9 +145,9 @@ class DeviceDriverManager:
     def _save_driver_state(self, driver_name, enabled, description=None):
         """Save driver state to database"""
         from sqlalchemy.orm import sessionmaker
-        from sat_toolkit.models.database import SessionLocal
+        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
         
-        session = SessionLocal()
+        session = get_default_sqlalchemy_db().SessionLocal()
         try:
             driver_state = session.query(DeviceDriverState).filter_by(driver_name=driver_name).first()
             if driver_state:
@@ -874,9 +874,9 @@ class DeviceDriverManager:
             Dict[str, Dict]: Dictionary of driver states
         """
         from sqlalchemy.orm import sessionmaker
-        from sat_toolkit.models.database import SessionLocal
+        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
         
-        session = SessionLocal()
+        session = get_default_sqlalchemy_db().SessionLocal()
         try:
             result = {}
             driver_states = session.query(DeviceDriverState).all()

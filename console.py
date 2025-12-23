@@ -19,10 +19,10 @@ def ensure_database_initialized():
         Plugin.objects.exists()
         
         from sqlalchemy.exc import OperationalError
-        from sat_toolkit.models.database import SessionLocal
+        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
         from sat_toolkit.models.Device_Model import DeviceDriverState
         
-        session = SessionLocal()
+        session = get_default_sqlalchemy_db().SessionLocal()
         try:
             session.query(DeviceDriverState).first()
             session.close()
@@ -30,8 +30,8 @@ def ensure_database_initialized():
             session.close()
             if "no such table: device_driver_states" in str(e):
                 print("🔧 Setting up SQLAlchemy database tables...")
-                from sat_toolkit.models.database import Base, engine
-                Base.metadata.create_all(engine)
+                db = get_default_sqlalchemy_db()
+                db.Base.metadata.create_all(db.engine)
                 print("✅ SQLAlchemy tables created successfully!")
             else:
                 raise e
@@ -46,8 +46,9 @@ def ensure_database_initialized():
                 print("✅ Django migrations completed!")
                 
                 print("📋 Creating SQLAlchemy tables...")
-                from sat_toolkit.models.database import Base, engine
-                Base.metadata.create_all(engine)
+                from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
+                db = get_default_sqlalchemy_db()
+                db.Base.metadata.create_all(db.engine)
                 print("✅ SQLAlchemy tables created!")
                 
                 print("🎉 Database initialization completed successfully!")

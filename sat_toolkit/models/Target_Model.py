@@ -6,7 +6,12 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 import json
-from .database import Base, engine, SessionLocal
+from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
+
+_db = get_default_sqlalchemy_db()
+Base = _db.Base
+engine = _db.engine
+SessionLocal = _db.SessionLocal
 from sat_toolkit.tools.xlogger import xlog
 
 # Base Target class
