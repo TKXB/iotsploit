@@ -69,8 +69,8 @@ admin.site.register(Plugin, PluginAdmin)
 admin.site.register(PluginGroup, PluginGroupAdmin)
 admin.site.register(PluginGroupTree, PluginGroupTreeAdmin)
 
-# IoT Fuzzer Models
-from .models.IoTFuzzer_Model import (
+# IoT Fuzzer Models (Django adapter)
+from sat_toolkit.adapters.django.iot_fuzzer.models import (
     FuzzingCampaign,
     TestGroup,
     TestCase,

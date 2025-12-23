@@ -706,7 +706,7 @@ class IoTFuzzerManager:
             bool: True if all groups are valid and enabled
         """
         try:
-            from sat_toolkit.models.IoTFuzzer_Model import TestGroup
+            from sat_toolkit.adapters.django.iot_fuzzer.models import TestGroup
             
             if not group_ids:
                 logger.warning("No test group IDs provided")
@@ -742,7 +742,7 @@ class IoTFuzzerManager:
             List[Dict]: List of test cases with their frame fields and fuzzing rules
         """
         try:
-            from sat_toolkit.models.IoTFuzzer_Model import TestCase, FrameField, FuzzingRule
+            from sat_toolkit.adapters.django.iot_fuzzer.models import TestCase, FrameField, FuzzingRule
             
             # Load test cases with related data using select_related and prefetch_related
             test_cases = TestCase.objects.filter(

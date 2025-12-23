@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 import os
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,10 @@ class SatToolkitConfig(AppConfig):
         Initialize the application when Django starts.
         This method is called once per application instance.
         """
+        # Avoid starting long-running background services during unit tests.
+        if any(arg in ("test", "pytest") for arg in sys.argv):
+            return
+
         # Avoid running twice in development (runserver spawns a reloader process)
         # Only run in the main process (when RUN_MAIN is set)
         if os.environ.get('RUN_MAIN') == 'true' or os.environ.get('RUN_MAIN') is None:
