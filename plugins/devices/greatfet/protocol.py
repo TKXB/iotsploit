@@ -1,7 +1,7 @@
 import struct
 import usb.util
 import logging
-from sat_toolkit.models.Device_Model import Device, USBDevice
+from sat_toolkit.domain.device import Device, USBDevice
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,7 @@ from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
 from sat_toolkit.core.device_manager import DeviceDriverManager
-from sat_toolkit.models.Plugin_Model import Plugin
+from sat_toolkit.adapters.django.plugins.models import Plugin
 
 from sat_toolkit.tools.xlogger import xlog
 
@@ -29,11 +29,9 @@ import json
 import datetime
 
 from sat_toolkit.core.device_manager import DeviceDriverManager  
-from sat_toolkit.models.Target_Model import TargetManager
-from sat_toolkit.models.PluginGroup_Model import PluginGroup
-from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
-from sat_toolkit.models.PluginSequence_Model import PluginSequence
-from sat_toolkit.models.Device_Model import DeviceManager
+from sat_toolkit.adapters.django.target_models import TargetManager
+from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree, PluginSequence
+from sat_toolkit.adapters.django.device_models import DeviceManager
 from asgiref.sync import async_to_sync
 
 import asyncio
@@ -329,7 +327,7 @@ def list_plugin_info(request):
         plugin_info_dict = plugin_manager.list_plugin_info()
         
         # Get plugin database entries to access file paths
-        from sat_toolkit.models.Plugin_Model import Plugin
+        from sat_toolkit.adapters.django.plugins.models import Plugin
         plugin_db_entries = {p.name: p for p in Plugin.objects.all()}
         
         # Format the response with success/failure indicators
@@ -809,7 +807,7 @@ def create_group(request):
             group.description = group_description
             group.save()
             # Clear existing plugin sequences to avoid duplicates
-            from sat_toolkit.models.PluginSequence_Model import PluginSequence
+            from sat_toolkit.adapters.django.plugins.models import PluginSequence
             PluginSequence.objects.filter(plugingroup=group).delete()
         
         # Add selected plugins to the group with sequence information
@@ -838,7 +836,7 @@ def create_group(request):
             )
             
             # Create the sequence entry
-            from sat_toolkit.models.PluginSequence_Model import PluginSequence
+            from sat_toolkit.adapters.django.plugins.models import PluginSequence
             plugin_seq = PluginSequence.objects.create(
                 plugingroup=group,
                 plugin=plugin,
@@ -1766,7 +1764,7 @@ def execute_recovery(request, driver_name):
         
         # For recovery operations, we may not need a specific device instance
         # Create a minimal device object for the recovery operation
-        from sat_toolkit.models.Device_Model import Device, DeviceType
+        from sat_toolkit.domain.device import Device, DeviceType
         
         if device_id:
             # Try to get existing device

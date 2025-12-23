@@ -11,7 +11,7 @@ import serial.tools.list_ports
 import traceback
 
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.models.Device_Model import Device, SerialDevice
+from sat_toolkit.domain.device import Device, SerialDevice
 from sat_toolkit.tools.xlogger import xlog as logger
 from sat_toolkit.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 

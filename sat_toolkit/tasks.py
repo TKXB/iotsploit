@@ -3,7 +3,7 @@ from celery.utils.log import get_task_logger
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from sat_toolkit.models.Target_Model import TargetManager
+from sat_toolkit.adapters.django.target_models import TargetManager
 import asyncio
 import json
 import time

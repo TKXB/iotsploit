@@ -15,12 +15,12 @@ django.setup()
 def ensure_database_initialized():
     """Automatically initialize database tables if they don't exist"""
     try:
-        from sat_toolkit.models.Plugin_Model import Plugin
+        from sat_toolkit.adapters.django.plugins.models import Plugin
         Plugin.objects.exists()
         
         from sqlalchemy.exc import OperationalError
         from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-        from sat_toolkit.models.Device_Model import DeviceDriverState
+        from sat_toolkit.adapters.django.device_models import DeviceDriverState
         
         session = get_default_sqlalchemy_db().SessionLocal()
         try:
@@ -66,10 +66,12 @@ ensure_database_initialized()
 # Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
-from sat_toolkit.models.Target_Model import TargetManager, Vehicle
+from sat_toolkit.adapters.django.target_models import TargetManager
+from sat_toolkit.domain.target import Vehicle
 from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from sat_toolkit.core.device_manager import DeviceDriverManager  
-from sat_toolkit.models.Device_Model import DeviceManager, DeviceType, SerialDevice, USBDevice, SocketCANDevice
+from sat_toolkit.adapters.django.device_models import DeviceManager
+from sat_toolkit.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.input_mgr import Input_Mgr

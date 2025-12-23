@@ -6,7 +6,7 @@ import logging
 from django.apps import apps
 
 from sat_toolkit.core.device_manager import DeviceDriverManager
-from sat_toolkit.models.Device_Model import DeviceManager
+from sat_toolkit.adapters.django.device_models import DeviceManager
 from sat_toolkit.tools.monitor_mgr import Pi_Mgr
 from sat_toolkit.core.device_registry import DeviceRegistry
 from sat_toolkit.tools.env_mgr import Env_Mgr

@@ -1,7 +1,7 @@
 import usb.core
 import usb.util
 from sat_toolkit.tools.xlogger import xlog
-from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
+from sat_toolkit.domain.device import Device, DeviceType, USBDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 import time
 from pyftdi.ftdi import Ftdi

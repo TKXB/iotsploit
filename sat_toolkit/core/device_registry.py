@@ -1,6 +1,6 @@
 from typing import Dict, Optional, List
 import logging
-from sat_toolkit.models.Device_Model import Device, DeviceType
+from sat_toolkit.domain.device import Device, DeviceType
 from sat_toolkit.core.device_config import DeviceConfigManager
 from sat_toolkit.core.device_manager import DeviceDriverManager
 from sat_toolkit.core.device_scanner import CompositeDeviceScanner, PluginDeviceScanner

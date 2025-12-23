@@ -4,7 +4,7 @@ import logging
 import uuid
 import os
 from pathlib import Path
-from sat_toolkit.models.Device_Model import Device, DeviceType, USBDevice
+from sat_toolkit.domain.device import Device, DeviceType, USBDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.core.tool_service import get_firmware_service
 from plugins.devices.greatfet.protocol import get_version_number  # Updated to use absolute import
@@ -338,7 +338,7 @@ class GreatFETDriver(BaseDeviceDriver):
         ]
 
 if __name__ == "__main__":
-    from sat_toolkit.models.Device_Model import USBDevice
+    from sat_toolkit.domain.device import USBDevice
     driver = GreatFETDriver()
     found_devices = driver._scan_impl()
     if found_devices:

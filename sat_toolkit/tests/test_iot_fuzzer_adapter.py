@@ -80,3 +80,31 @@ class TestIoTFuzzerAdapterModels(TestCase):
         assert log.is_error() is False
 
 
+class TestTargetManagerCurrentTarget(TestCase):
+    def test_target_manager_current_target_api(self):
+        from sat_toolkit.adapters.django.target_models import TargetManager
+
+        tm = TargetManager.get_instance()
+        assert tm.get_current_target() is None
+
+        target_dict = {
+            "target_id": "t1",
+            "name": "v1",
+            "type": "vehicle",
+            "status": "active",
+            "properties": {},
+            "ip_address": "127.0.0.1",
+            "location": "lab",
+            "components": [
+                {"component_id": "c1", "name": "DHU", "type": "adb_device", "adb_serial_id": "SERIAL1"},
+            ],
+            "interfaces": [],
+        }
+        target = tm.create_target_instance(target_dict)
+        tm.set_current_target(target)
+        assert tm.get_current_target() is not None
+        assert tm.get_current_target().name == "v1"
+        # ADB helper smoke
+        assert tm.get_current_target().get_adb_device_by_name("DHU").adb_serial_id == "SERIAL1"
+
+

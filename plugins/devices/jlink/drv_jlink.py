@@ -2,7 +2,7 @@ import pluggy
 import pylink
 import logging
 from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device, DeviceType
+from sat_toolkit.domain.device import Device, DeviceType
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 logger = logging.getLogger(__name__)
 

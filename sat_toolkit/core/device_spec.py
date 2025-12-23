@@ -1,6 +1,6 @@
 import pluggy
 import warnings
-from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.domain.device import Device
 from typing import List, Optional
 from enum import Enum
 

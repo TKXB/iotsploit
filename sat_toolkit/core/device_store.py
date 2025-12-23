@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 import logging
-from sat_toolkit.models.Device_Model import Device, DeviceType, SerialDevice, USBDevice, SocketCANDevice
+from sat_toolkit.domain.device import Device, DeviceType, SerialDevice, SocketCANDevice, USBDevice
 from sat_toolkit.core.device_config import DeviceConfigManager
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,8 @@ import threading
 import json
 from typing import Dict, List, Optional, Any
 from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device, DeviceDriverState
+from sat_toolkit.domain.device import Device
+from sat_toolkit.adapters.django.device_models import DeviceDriverState
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.core.device_spec import DeviceState
 from sat_toolkit.config import DEVICE_PLUGINS_DIR

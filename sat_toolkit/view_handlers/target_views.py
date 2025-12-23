@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from sat_toolkit.models.Target_Model import TargetManager, ComponentFactory
+from sat_toolkit.adapters.django.target_models import TargetManager
+from sat_toolkit.domain.target import ComponentFactory
 from sat_toolkit.tools.xlogger import xlog
 import json
 

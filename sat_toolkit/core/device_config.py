@@ -11,7 +11,7 @@ import json
 import warnings
 from typing import Dict, Optional
 import logging
-from sat_toolkit.models.Device_Model import Device, DeviceType
+from sat_toolkit.domain.device import Device, DeviceType
 from json import JSONEncoder
 
 logger = logging.getLogger(__name__)

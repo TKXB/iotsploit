@@ -6,7 +6,7 @@ import logging
 import uuid
 import can
 from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device, DeviceType, SocketCANDevice
+from sat_toolkit.domain.device import Device, DeviceType, SocketCANDevice
 from sat_toolkit.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 from sat_toolkit.tools.xlogger import xlog

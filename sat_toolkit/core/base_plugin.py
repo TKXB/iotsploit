@@ -2,7 +2,7 @@ import threading
 import logging
 from typing import Dict, Any, List, Optional
 from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamWrapper
-from sat_toolkit.models.Device_Model import Device
+from sat_toolkit.domain.device import Device
 from sat_toolkit.core.device_spec import DeviceState
 
 logger = logging.getLogger(__name__)

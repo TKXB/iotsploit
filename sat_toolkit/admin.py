@@ -47,9 +47,8 @@ admin.site.register(Subfunction, Subfunction_Admin)
 admin.site.register(RoutineIdentifier, RoutineIdentifier_Admin)
 admin.site.register(ResponseItem, ResponseItem_Admin)
 
-from sat_toolkit.models.Plugin_Model import Plugin
-from sat_toolkit.models.PluginGroup_Model import PluginGroup
-from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
+from sat_toolkit.adapters.django.plugins.models import Plugin
+from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree
 
 class PluginAdmin(admin.ModelAdmin):
     list_display = ["id", "name", "description", "enabled"]
