@@ -8,7 +8,7 @@ from django.apps import apps
 from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.adapters.django.device_models import DeviceManager
 from sat_toolkit.tools.monitor_mgr import Pi_Mgr
-from sat_toolkit.core.device_registry import DeviceRegistry
+from sat_toolkit.adapters.django.device_registry_factory import get_device_registry
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.apps import SatToolkitConfig
 
@@ -112,7 +112,7 @@ def list_devices(request):
     """
     try:
         # Get device registry instance
-        device_registry = DeviceRegistry()
+        device_registry = get_device_registry()
         device_registry.initialize()
         
         # Perform device scan

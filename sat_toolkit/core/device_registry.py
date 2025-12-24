@@ -1,29 +1,59 @@
-from typing import Dict, Optional, List
+from __future__ import annotations
+
 import logging
-from sat_toolkit.domain.device import Device, DeviceType
+from typing import Dict, List, Optional
+
 from sat_toolkit.core.device_config import DeviceConfigManager
-from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.core.device_scanner import CompositeDeviceScanner, PluginDeviceScanner
 from sat_toolkit.core.device_store import DeviceStore
+from sat_toolkit.domain.device import Device
 
 logger = logging.getLogger(__name__)
 
 class DeviceRegistry:
     _instance = None
     
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(DeviceRegistry, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
     
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        driver_manager,
+        device_store: DeviceStore | None = None,
+        config_manager: DeviceConfigManager | None = None,
+        scanner: CompositeDeviceScanner | None = None,
+    ):
         if not self._initialized:
-            self.device_store = DeviceStore()
-            self.config_manager = DeviceConfigManager()
-            self.driver_manager = get_device_driver_manager()
-            self.scanner = CompositeDeviceScanner(self.device_store)
+            if driver_manager is None:
+                raise TypeError("DeviceRegistry requires 'driver_manager' (inject via adapter factory).")
+            self.device_store = device_store or DeviceStore()
+            self.config_manager = config_manager or DeviceConfigManager()
+            self.driver_manager = driver_manager
+            self.scanner = scanner or CompositeDeviceScanner(self.device_store)
             self._initialized = True
+
+    @classmethod
+    def get_instance(
+        cls,
+        *,
+        driver_manager,
+        device_store: DeviceStore | None = None,
+        config_manager: DeviceConfigManager | None = None,
+        scanner: CompositeDeviceScanner | None = None,
+    ) -> "DeviceRegistry":
+        """Get singleton instance (requires injection on first initialization)."""
+
+        inst = cls(
+            driver_manager=driver_manager,
+            device_store=device_store,
+            config_manager=config_manager,
+            scanner=scanner,
+        )
+        return inst
             
     def initialize(self):
         """初始化设备注册表"""
