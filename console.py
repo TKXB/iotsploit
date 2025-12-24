@@ -69,7 +69,7 @@ from cmd2 import ansi
 from sat_toolkit.adapters.django.target_models import TargetManager
 from sat_toolkit.domain.target import Vehicle
 from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
-from sat_toolkit.core.device_manager import DeviceDriverManager  
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.adapters.django.device_models import DeviceManager
 from sat_toolkit.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
@@ -148,7 +148,7 @@ class SAT_Shell(SAT_Shell_Base):
         self.celery_worker_process = None
         
         # Initialize device manager and connected devices
-        self.device_driver_manager = DeviceDriverManager()
+        self.device_driver_manager = get_device_driver_manager()
         # 初始化设备相关属性
         self._current_plugin = None
         self._current_device = None
