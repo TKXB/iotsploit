@@ -70,7 +70,7 @@ def main() -> None:
     logger.info(f"[sudo-runner] Parameters: {parameters}")
 
     try:
-        from sat_toolkit.core.exploit_manager import ExploitPluginManager
+        from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
         from sat_toolkit.core.exploit_spec import ExploitResult
         import redis
         from django.conf import settings
@@ -99,7 +99,8 @@ def main() -> None:
         format='%(asctime)s | %(levelname)s | %(name)s | %(message)s'
     )
 
-    mgr = ExploitPluginManager()
+    # This process is already running with elevated privileges; execute in-process.
+    mgr = get_exploit_plugin_manager(use_celery=False)
     mgr.initialize()
 
     logger.info("[sudo-runner] REDIS VERSION - Executing plugin '%s' with target=%s params=%s (task_id=%s)", 

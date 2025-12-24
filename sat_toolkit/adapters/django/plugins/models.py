@@ -153,9 +153,9 @@ class PluginGroup(models.Model):
 
         for seq in self.plugin_sequences():
             logger.info(f"Executing Plugin: {seq.plugin}")
-            from sat_toolkit.core.exploit_manager import ExploitPluginManager
+            from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
 
-            plugin_manager = ExploitPluginManager()
+            plugin_manager = get_exploit_plugin_manager()
             try:
                 result = plugin_manager.execute_plugin(seq.plugin.name, target, parameters)
                 if isinstance(result, dict):

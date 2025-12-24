@@ -68,7 +68,7 @@ import cmd2
 from cmd2 import ansi
 from sat_toolkit.adapters.django.target_models import TargetManager
 from sat_toolkit.domain.target import Vehicle
-from sat_toolkit.core.exploit_manager import ExploitPluginManager
+from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
 from sat_toolkit.core.device_manager import DeviceDriverManager  
 from sat_toolkit.adapters.django.device_models import DeviceManager
 from sat_toolkit.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
@@ -157,7 +157,10 @@ class SAT_Shell(SAT_Shell_Base):
         
         
         # Initialize plugin manager
-        self.plugin_manager = ExploitPluginManager()
+        # Use Django composition root to wire ORM repos (+ optional Celery runner).
+        # Default to Celery-enabled behavior for parity with previous implementation.
+        use_celery = os.getenv("SAT_SHELL_USE_CELERY", "1").lower() not in ("0", "false", "no")
+        self.plugin_manager = get_exploit_plugin_manager(use_celery=use_celery)
         self.plugin_manager.initialize()
         
         # Initialize target manager

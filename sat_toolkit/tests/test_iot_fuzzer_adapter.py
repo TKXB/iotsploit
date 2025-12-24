@@ -1,4 +1,17 @@
+from __future__ import annotations
+
+import os
+
+import django
+from django.apps import apps
 from django.test import TestCase
+
+
+# Pytest runs these tests without Django's manage.py test runner, so we must ensure the
+# AppRegistry is initialized before importing any adapter Django models.
+if not apps.ready:
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "sat_django_entry.settings")
+    django.setup()
 
 
 class TestIoTFuzzerAdapterModels(TestCase):

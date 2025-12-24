@@ -14,7 +14,7 @@ from sat_toolkit.tools.sat_utils import *
 from django.views.decorators.csrf import csrf_exempt
 
 from django.http import JsonResponse
-from sat_toolkit.core.exploit_manager import ExploitPluginManager
+from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
 from sat_toolkit.core.device_manager import DeviceDriverManager
@@ -108,7 +108,7 @@ def __build_confirm_dialog(title:str, button_list:list):
         return HttpResponse("User Input ID:{} Invalid!".format(user_input_id))
 
 def list_plugins(request):
-    plugin_manager = ExploitPluginManager()
+    plugin_manager = get_exploit_plugin_manager()
     plugins = plugin_manager.list_plugins()
     return JsonResponse({'plugins': plugins})
 
@@ -199,7 +199,7 @@ def execute_plugin(request):
                     "message": f"Error converting current target to Vehicle object: {str(e)}"
                 }, status=400)
 
-        plugin_manager = ExploitPluginManager()
+        plugin_manager = get_exploit_plugin_manager()
         plugin_manager.initialize()
 
         # Check if plugin requires root privileges
@@ -320,7 +320,7 @@ def list_plugin_info(request):
     GET
     Returns information about all available plugins with status indicators.
     """
-    plugin_manager = ExploitPluginManager()
+    plugin_manager = get_exploit_plugin_manager()
     
     try:
         # Get plugin info
@@ -516,7 +516,7 @@ def execute_group(request):
             target = target_manager.get_current_target()
             
         # Get plugin manager
-        plugin_manager = ExploitPluginManager()
+        plugin_manager = get_exploit_plugin_manager()
             
         # Execute the group
         logger.info(f"Executing plugin group: {group_name}")
@@ -1031,7 +1031,7 @@ def cleanup_plugins(request):
         }, status=405)
         
     try:
-        plugin_manager = ExploitPluginManager()
+        plugin_manager = get_exploit_plugin_manager()
         plugin_manager.cleanup_all_plugins()
         
         return JsonResponse({
@@ -1206,7 +1206,7 @@ def save_plugin_code(request):
                 file.write(code)
             
             # Reload the plugin if it's already loaded
-            plugin_manager = ExploitPluginManager()
+            plugin_manager = get_exploit_plugin_manager(use_celery=False)
             plugin_name = os.path.basename(plugin_path).replace('.py', '')
             
             try:
