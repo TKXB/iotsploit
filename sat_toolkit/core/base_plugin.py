@@ -1,7 +1,7 @@
 import threading
 import logging
 from typing import Dict, Any, List, Optional
-from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamWrapper
+from sat_toolkit.core.stream_manager import StreamManager, StreamWrapper
 from sat_toolkit.domain.device import Device
 from sat_toolkit.core.device_spec import DeviceState
 
@@ -26,7 +26,8 @@ class BaseDeviceDriver(BasePlugin):
         self.device = None
         self._devices: Dict[str, Device] = {}
         
-        # Stream management
+        # Stream management (core-safe: StreamManager is a facade that falls back to Noop if
+        # Django/Channels is unavailable).
         self.stream_manager = StreamManager()
         self.stream_wrapper = StreamWrapper(self.stream_manager)
         

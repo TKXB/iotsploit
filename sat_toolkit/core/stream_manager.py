@@ -1,135 +1,116 @@
+from __future__ import annotations
+
+"""Core stream facade (no Django/Channels hard dependency).
+
+This module intentionally avoids importing Django/Channels/Redis at import time, so that
+`sat_toolkit.core` can be imported in standalone contexts. In a Django runtime, it will
+try to delegate to the adapter implementation.
+"""
+
 import asyncio
-import json
-from typing import Dict, Set, Optional, Any
-from dataclasses import dataclass
-from enum import Enum
-from datetime import datetime
-from channels.layers import get_channel_layer
-import redis
-from django.conf import settings
-from sat_toolkit.tools.xlogger import xlog
 from queue import Queue
+from typing import Dict, Optional
 
-logger = xlog.get_logger(__name__)  
+from sat_toolkit.domain.stream import StreamAction, StreamData, StreamSource, StreamType
+from sat_toolkit.tools.xlogger import xlog
 
-class StreamType(Enum):
-    UART = "uart"
-    CAN = "can"
-    SPI = "spi"
-    I2C = "i2c"
-    CUSTOM = "custom"
+logger = xlog.get_logger(__name__)
 
-class StreamSource(Enum):
-    CLIENT = "client"    # Data/commands from client to server
-    SERVER = "server"    # Data/responses from server to client
-    SYSTEM = "system"    # System events, status updates, etc.
 
-class StreamAction(Enum):
-    DATA = "data"  # Regular data transmission/reception
-    SEND = "send"  # Request to send data
-    CONFIG = "config"  # Configuration changes
-    STATUS = "status"  # Status updates
-    ERROR = "error"  # Error notifications
-    
-@dataclass
-class StreamData:
-    stream_type: StreamType
-    channel: str
-    timestamp: float
-    source: StreamSource
-    action: StreamAction
-    data: Any
-    metadata: Optional[Dict] = None
+# Re-export domain stream types for backward compatibility with existing imports.
+__all__ = [
+    "StreamType",
+    "StreamSource",
+    "StreamAction",
+    "StreamData",
+    "StreamWrapper",
+    "StreamManager",
+]
 
-    def to_dict(self):
-        return {
-            "stream_type": self.stream_type.value,
-            "channel": self.channel,
-            "timestamp": self.timestamp,
-            "source": self.source.value,
-            "action": self.action.value,
-            "data": self.data,
-            "metadata": self.metadata
-        }
-
-    @classmethod
-    def from_dict(cls, data_dict):
-        return cls(
-            stream_type=StreamType(data_dict["stream_type"]),
-            channel=data_dict["channel"],
-            timestamp=data_dict["timestamp"],
-            source=StreamSource(data_dict["source"]),
-            action=StreamAction(data_dict["action"]),
-            data=data_dict["data"],
-            metadata=data_dict.get("metadata")
-        )
 
 class StreamWrapper:
-    """Wrapper class to handle async operations for stream management"""
+    """Wrapper class to handle async operations for stream management."""
+
     def __init__(self, stream_manager):
         self.stream_manager = stream_manager
 
     def _get_or_create_loop(self):
-        """Get existing loop or create new one if needed"""
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
-            # If there's no loop in the current thread, create one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         return loop
 
     def register_stream(self, channel):
-        """Synchronous wrapper for registering a stream"""
         loop = self._get_or_create_loop()
-        try:
-            if loop.is_running():
-                return loop.create_task(self.stream_manager.register_stream(channel))
-            else:
-                return loop.run_until_complete(self.stream_manager.register_stream(channel))
-        except Exception as e:
-            logger.error(f"Error in register_stream: {e}")
-            raise
+        if loop.is_running():
+            return loop.create_task(self.stream_manager.register_stream(channel))
+        return loop.run_until_complete(self.stream_manager.register_stream(channel))
 
     def unregister_stream(self, channel):
-        """Synchronous wrapper for unregistering a stream"""
         loop = self._get_or_create_loop()
-        try:
-            if loop.is_running():
-                return loop.create_task(self.stream_manager.unregister_stream(channel))
-            else:
-                return loop.run_until_complete(self.stream_manager.unregister_stream(channel))
-        except Exception as e:
-            logger.error(f"Error in unregister_stream: {e}")
-            raise
+        if loop.is_running():
+            return loop.create_task(self.stream_manager.unregister_stream(channel))
+        return loop.run_until_complete(self.stream_manager.unregister_stream(channel))
 
     def stop_broadcast(self, channel):
-        """Synchronous wrapper for stopping broadcast"""
         loop = self._get_or_create_loop()
-        try:
-            if loop.is_running():
-                return loop.create_task(self.stream_manager.stop_broadcast(channel))
-            else:
-                return loop.run_until_complete(self.stream_manager.stop_broadcast(channel))
-        except Exception as e:
-            logger.error(f"Error in stop_broadcast: {e}")
-            raise
+        if loop.is_running():
+            return loop.create_task(self.stream_manager.stop_broadcast(channel))
+        return loop.run_until_complete(self.stream_manager.stop_broadcast(channel))
 
     def broadcast_data(self, stream_data):
-        """Synchronous wrapper for broadcasting data"""
         loop = self._get_or_create_loop()
-        try:
-            if loop.is_running():
-                return loop.create_task(self.stream_manager.broadcast_data(stream_data))
-            else:
-                return loop.run_until_complete(self.stream_manager.broadcast_data(stream_data))
-        except Exception as e:
-            logger.error(f"Error in broadcast_data: {e}")
-            raise
+        if loop.is_running():
+            return loop.create_task(self.stream_manager.broadcast_data(stream_data))
+        return loop.run_until_complete(self.stream_manager.broadcast_data(stream_data))
+
+
+class _NoopStreamManager:
+    """Fallback stream manager when Django/Channels is unavailable.
+
+    Keeps API shape compatible but does not broadcast over WebSocket.
+    """
+
+    def __init__(self):
+        self._client_queues: Dict[str, Queue] = {}
+
+    async def register_stream(self, channel: str):
+        if channel not in self._client_queues:
+            self._client_queues[channel] = Queue()
+
+    async def unregister_stream(self, channel: str):
+        self._client_queues.pop(channel, None)
+
+    async def broadcast_data(self, stream_data: StreamData):
+        # For CLIENT source, enqueue so server-side can consume.
+        if stream_data.source == StreamSource.CLIENT:
+            q = self._client_queues.get(stream_data.channel)
+            if q is not None:
+                q.put(stream_data)
+
+    async def stop_broadcast(self, channel: str):
+        return
+
+    def get_active_channels(self):
+        return list(self._client_queues.keys())
+
+    def get_broadcast_channels(self):
+        return []
+
+    def get_client_data(self) -> Optional[StreamData]:
+        for ch in list(self._client_queues.keys()):
+            q = self._client_queues[ch]
+            if not q.empty():
+                return q.get_nowait()
+        return None
+
 
 class StreamManager:
+    """Facade that delegates to Django adapter when available, else Noop."""
+
     _instance = None
-    _redis = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -137,79 +118,37 @@ class StreamManager:
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, 'initialized'):
-            self.channel_layer = get_channel_layer()
-            self._redis = redis.Redis(
-                host=getattr(settings, 'REDIS_HOST', 'localhost'),
-                port=getattr(settings, 'REDIS_PORT', 6379),
-                db=getattr(settings, 'REDIS_DB', 0)
-            )
-            # 为每个channel创建一个队列来存储客户端数据
-            self._client_queues = {}
-            self.initialized = True
-
-    async def register_stream(self, channel: str):
-        """Register a channel when a client connects"""
-        self._redis.sadd('active_channels', channel)
-        # 为新channel创建队列
-        if channel not in self._client_queues:
-            self._client_queues[channel] = Queue()
-        logger.info(f"Registered stream for channel {channel}")
-
-    async def unregister_stream(self, channel: str):
-        """Unregister a channel when a client disconnects"""
-        self._redis.srem('active_channels', channel)
-        # 移除channel的队列
-        self._client_queues.pop(channel, None)
-        logger.info(f"Unregistered stream for channel {channel}")
-
-    async def broadcast_data(self, stream_data: StreamData):
-        """Broadcast data and track channels"""
-        logger.debug(f"Broadcasting data: {stream_data}")
-
-        channel = stream_data.channel
-        
-        # 如果是客户端发来的数据，存入对应的队列
-        if stream_data.source == StreamSource.CLIENT:
-            if channel in self._client_queues:
-                self._client_queues[channel].put(stream_data)
-                logger.debug(f"Queued client data for channel {channel}")
+        if hasattr(self, "_impl"):
             return
 
-        # 服务器发往客户端的数据通过WebSocket广播
-        self._redis.sadd('broadcast_channels', channel)
-        group_name = f"stream_{channel}"
-        
-        message = {
-            "type": "stream_data",
-            "data": stream_data.to_dict()
-        }
-        
-        logger.debug(f"Broadcasting message to group {group_name}")
-
+        # Lazy import: only in full Django runtime should this succeed.
         try:
-            await self.channel_layer.group_send(group_name, message)
-        except Exception as e:
-            logger.error(f"Error broadcasting to group {group_name}: {str(e)}")
+            from sat_toolkit.adapters.django.stream_manager import DjangoStreamManager as _DjangoStreamManager
+
+            self._impl = _DjangoStreamManager()
+            logger.debug("StreamManager using DjangoStreamManager adapter", name=__name__)
+        except Exception:
+            self._impl = _NoopStreamManager()
+            logger.debug("StreamManager using Noop implementation", name=__name__)
+
+    # Delegate API
+    async def register_stream(self, channel: str):
+        return await self._impl.register_stream(channel)
+
+    async def unregister_stream(self, channel: str):
+        return await self._impl.unregister_stream(channel)
+
+    async def broadcast_data(self, stream_data: StreamData):
+        return await self._impl.broadcast_data(stream_data)
 
     async def stop_broadcast(self, channel: str):
-        """Stop broadcasting on a channel"""
-        self._redis.srem('broadcast_channels', channel)
-        logger.info(f"Stopped broadcasting on channel {channel}")
+        return await self._impl.stop_broadcast(channel)
 
     def get_active_channels(self):
-        """Get channels with connected clients"""
-        return [channel.decode() for channel in self._redis.smembers('active_channels')]
+        return self._impl.get_active_channels()
 
     def get_broadcast_channels(self):
-        """Get channels where data is being broadcast"""
-        return [channel.decode() for channel in self._redis.smembers('broadcast_channels')]
+        return self._impl.get_broadcast_channels()
 
     def get_client_data(self) -> Optional[StreamData]:
-        """获取来自客户端的数据"""
-        # 检查所有活跃channel的队列
-        for channel in self._client_queues:
-            queue = self._client_queues[channel]
-            if not queue.empty():
-                return queue.get_nowait()
-        return None
+        return self._impl.get_client_data()
