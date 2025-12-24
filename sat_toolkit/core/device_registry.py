@@ -2,7 +2,7 @@ from typing import Dict, Optional, List
 import logging
 from sat_toolkit.domain.device import Device, DeviceType
 from sat_toolkit.core.device_config import DeviceConfigManager
-from sat_toolkit.core.device_manager import DeviceDriverManager
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.core.device_scanner import CompositeDeviceScanner, PluginDeviceScanner
 from sat_toolkit.core.device_store import DeviceStore
 
@@ -21,7 +21,7 @@ class DeviceRegistry:
         if not self._initialized:
             self.device_store = DeviceStore()
             self.config_manager = DeviceConfigManager()
-            self.driver_manager = DeviceDriverManager()
+            self.driver_manager = get_device_driver_manager()
             self.scanner = CompositeDeviceScanner(self.device_store)
             self._initialized = True
             

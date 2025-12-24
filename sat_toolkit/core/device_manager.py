@@ -1,16 +1,18 @@
-import os
-import importlib.util
-import logging
-import threading
-import json
-from typing import Dict, List, Optional, Any
-from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.domain.device import Device
-from sat_toolkit.adapters.django.device_models import DeviceDriverState
-from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.core.device_spec import DeviceState
-from sat_toolkit.config import DEVICE_PLUGINS_DIR
+from __future__ import annotations
+
 import datetime
+import importlib.util
+import json
+import logging
+import os
+import threading
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from sat_toolkit.core.base_plugin import BaseDeviceDriver
+from sat_toolkit.core.device_spec import DevicePluginSpec, DeviceState
+from sat_toolkit.domain.device import Device
+from sat_toolkit.ports.driver_state_repo import DriverStateRepository
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,7 @@ class DeviceDriverManager:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -26,9 +28,21 @@ class DeviceDriverManager:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        driver_state_repo: DriverStateRepository,
+        plugins_dir: str | Path | None = None,
+        usb_config_file: str | Path | None = None,
+    ):
         if not self._initialized:
             logger.info("Initializing DeviceDriverManager")
+            self._driver_state_repo = driver_state_repo
+
+            self.plugins_dir = Path(plugins_dir) if plugins_dir is not None else self._default_plugins_dir()
+            self.usb_config_file = str(
+                Path(usb_config_file) if usb_config_file is not None else self._default_usb_config_file()
+            )
             self.plugins = {}
             self.drivers = {}  # Store driver instances
             self.device_states = {}  # Store device states, format: 'driver_name::device_id': DeviceState
@@ -36,7 +50,6 @@ class DeviceDriverManager:
             self.driver_states = {}  # Store driver enablement states
             
             # 添加USB设备配置
-            self.usb_config_file = 'conf/usb_devices.json'
             self.usb_device_configs = self._load_usb_config()
             
             # Define valid state transitions
@@ -54,6 +67,23 @@ class DeviceDriverManager:
             self._load_driver_states()
             self._initialized = True
             logger.info("DeviceDriverManager initialized")
+
+    @staticmethod
+    def _default_plugins_dir() -> Path:
+        env = os.getenv("IOTSPLOIT_DEVICE_PLUGINS_DIR") or os.getenv("SAT_DEVICE_PLUGINS_DIR")
+        if env:
+            return Path(env)
+        # repo layout: <repo>/plugins/devices
+        repo_root = Path(__file__).resolve().parents[2]
+        return repo_root / "plugins" / "devices"
+
+    @staticmethod
+    def _default_usb_config_file() -> Path:
+        env = os.getenv("IOTSPLOIT_USB_CONFIG_FILE") or os.getenv("SAT_USB_CONFIG_FILE")
+        if env:
+            return Path(env)
+        repo_root = Path(__file__).resolve().parents[2]
+        return repo_root / "conf" / "usb_devices.json"
 
     def _load_usb_config(self) -> Dict:
         """加载USB设备配置文件"""
@@ -123,19 +153,12 @@ class DeviceDriverManager:
 
     def _load_driver_states(self):
         """Load driver states from database"""
-        from sqlalchemy.orm import sessionmaker
-        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-        
-        session = get_default_sqlalchemy_db().SessionLocal()
         try:
-            driver_states = session.query(DeviceDriverState).all()
-            for state in driver_states:
-                self.driver_states[state.driver_name] = state.enabled
-                logger.info(f"Loaded driver state: {state.driver_name} -> {'enabled' if state.enabled else 'disabled'}")
+            self.driver_states = self._driver_state_repo.list_enabled()
+            for name, enabled in self.driver_states.items():
+                logger.info(f"Loaded driver state: {name} -> {'enabled' if enabled else 'disabled'}")
         except Exception as e:
             logger.error(f"Error loading driver states: {e}")
-        finally:
-            session.close()
             
         # For any driver not in the database, set to enabled by default
         for driver_name in self.drivers.keys():
@@ -145,31 +168,15 @@ class DeviceDriverManager:
 
     def _save_driver_state(self, driver_name, enabled, description=None):
         """Save driver state to database"""
-        from sqlalchemy.orm import sessionmaker
-        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-        
-        session = get_default_sqlalchemy_db().SessionLocal()
         try:
-            driver_state = session.query(DeviceDriverState).filter_by(driver_name=driver_name).first()
-            if driver_state:
-                driver_state.enabled = enabled
-                driver_state.last_updated = datetime.datetime.now()
-                if description:
-                    driver_state.description = description
-            else:
-                driver_state = DeviceDriverState(driver_name=driver_name, enabled=enabled, description=description)
-                session.add(driver_state)
-            session.commit()
+            self._driver_state_repo.set_enabled(driver_name, bool(enabled), description=description)
             logger.info(f"Saved driver state: {driver_name} -> {'enabled' if enabled else 'disabled'}")
         except Exception as e:
-            session.rollback()
             logger.error(f"Error saving driver state: {e}")
-        finally:
-            session.close()
 
     def load_plugins(self):
         """Load all device driver plugins"""
-        plugin_dir = os.path.join(os.path.dirname(__file__), DEVICE_PLUGINS_DIR)
+        plugin_dir = str(self.plugins_dir)
         logger.info(f"Loading device plugins from {plugin_dir}")
         for root, _, files in os.walk(plugin_dir):
             for filename in files:
@@ -874,33 +881,19 @@ class DeviceDriverManager:
         Returns:
             Dict[str, Dict]: Dictionary of driver states
         """
-        from sqlalchemy.orm import sessionmaker
-        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-        
-        session = get_default_sqlalchemy_db().SessionLocal()
         try:
-            result = {}
-            driver_states = session.query(DeviceDriverState).all()
-            
+            result: Dict[str, Dict] = {}
+            persisted = self._driver_state_repo.list_enabled()
             for driver_name in self.drivers.keys():
-                # Find state in DB or default to enabled
-                state = next((s for s in driver_states if s.driver_name == driver_name), None)
-                
-                if state:
-                    result[driver_name] = state.to_dict()
-                else:
-                    # Driver exists but no state record
-                    result[driver_name] = {
-                        "driver_name": driver_name,
-                        "enabled": True,
-                        "description": None,
-                        "last_updated": None
-                    }
-            
+                enabled = persisted.get(driver_name, True)
+                result[driver_name] = {
+                    "driver_name": driver_name,
+                    "enabled": bool(enabled),
+                    "description": None,
+                    "last_updated": None,
+                }
             return result
         except Exception as e:
             logger.error(f"Error getting driver states: {e}")
             return {}
-        finally:
-            session.close()
 

@@ -17,7 +17,7 @@ from django.http import JsonResponse
 from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
 from sat_toolkit.core.exploit_spec import ExploitResult
 from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
-from sat_toolkit.core.device_manager import DeviceDriverManager
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.adapters.django.plugins.models import Plugin
 
 from sat_toolkit.tools.xlogger import xlog
@@ -28,7 +28,6 @@ logger = xlog.get_logger('views')
 import json
 import datetime
 
-from sat_toolkit.core.device_manager import DeviceDriverManager  
 from sat_toolkit.adapters.django.target_models import TargetManager
 from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree, PluginSequence
 from sat_toolkit.adapters.django.device_models import DeviceManager
@@ -117,7 +116,7 @@ def list_device_drivers(request):
     GET
     Returns a list of available device drivers
     """
-    device_manager = DeviceDriverManager()
+    device_manager = get_device_driver_manager()
     available_drivers = device_manager.list_drivers()
     
     if available_drivers:
@@ -673,7 +672,7 @@ def list_device_commands(request, device_name):
         JSON response containing the available commands and their descriptions
     """
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         
         # Verify the device exists
         available_devices = device_manager.list_drivers()
@@ -734,7 +733,7 @@ def execute_device_command(request, driver_name):
             }, status=400)
 
         # 使用 DeviceDriverManager 执行命令
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         result = device_manager.execute_command(
             driver_name=driver_name,
             command=command,
@@ -1350,7 +1349,7 @@ def get_driver_states(request):
         JSON response with all driver states
     """
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         driver_states = device_manager.get_driver_states()
         
         # Format response to include more useful information
@@ -1402,7 +1401,7 @@ def enable_driver(request):
                 "message": "Driver name is required"
             }, status=400)
             
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         result = device_manager.enable_driver(driver_name, description)
         
         return JsonResponse(result)
@@ -1445,7 +1444,7 @@ def disable_driver(request):
                 "message": "Driver name is required"
             }, status=400)
             
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         result = device_manager.disable_driver(driver_name, description)
         
         return JsonResponse(result)
@@ -1658,7 +1657,7 @@ def list_recovery_drivers(request):
         JSON response with recovery-capable drivers and their supported operations
     """
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         available_drivers = device_manager.list_drivers()
         
         recovery_drivers = []
@@ -1729,7 +1728,7 @@ def execute_recovery(request, driver_name):
                 'message': 'recovery_type is required'
             }, status=400)
         
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         
         # Verify driver exists
         available_drivers = device_manager.list_drivers()
