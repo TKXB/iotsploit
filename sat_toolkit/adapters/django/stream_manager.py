@@ -86,6 +86,11 @@ class DjangoStreamManager:
         return None
 
 
+# Backward-compatible alias: in this refactor, core expects an injected backend.
+# This adapter class already satisfies the StreamBackend Protocol.
+DjangoStreamBackend = DjangoStreamManager
+
+
 class StreamWrapper:
     """Wrapper class to handle async operations for stream management (adapter layer)."""
 

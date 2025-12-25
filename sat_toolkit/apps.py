@@ -25,6 +25,15 @@ class SatToolkitConfig(AppConfig):
             try:
                 from django.conf import settings
                 from sat_toolkit.tools.discovery_server import start_discovery_server
+                # Wire StreamManager backend (Ports & Adapters): core should not import adapters.
+                try:
+                    from sat_toolkit.core.stream_manager import StreamManager
+                    from sat_toolkit.adapters.django.stream_manager import DjangoStreamBackend
+
+                    StreamManager.configure_backend(DjangoStreamBackend())
+                except Exception:
+                    # If channels/redis isn't available/configured, keep Noop backend.
+                    pass
                 
                 # Check if discovery is enabled
                 if getattr(settings, 'DISCOVERY_ENABLED', True):

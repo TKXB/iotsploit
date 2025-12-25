@@ -12,6 +12,7 @@ from queue import Queue
 from typing import Dict, Optional
 
 from sat_toolkit.domain.stream import StreamAction, StreamData, StreamSource, StreamType
+from sat_toolkit.ports.stream_backend import StreamBackend
 from sat_toolkit.tools.xlogger import xlog
 
 logger = xlog.get_logger(__name__)
@@ -67,7 +68,7 @@ class StreamWrapper:
         return loop.run_until_complete(self.stream_manager.broadcast_data(stream_data))
 
 
-class _NoopStreamManager:
+class _NoopStreamBackend:
     """Fallback stream manager when Django/Channels is unavailable.
 
     Keeps API shape compatible but does not broadcast over WebSocket.
@@ -108,7 +109,11 @@ class _NoopStreamManager:
 
 
 class StreamManager:
-    """Facade that delegates to Django adapter when available, else Noop."""
+    """Core stream manager that delegates to an injected backend.
+
+    Default backend is a Noop implementation. Django wiring should inject a real backend
+    during app startup (composition root).
+    """
 
     _instance = None
 
@@ -118,37 +123,35 @@ class StreamManager:
         return cls._instance
 
     def __init__(self):
-        if hasattr(self, "_impl"):
+        if hasattr(self, "_backend"):
             return
+        self._backend: StreamBackend = _NoopStreamBackend()
 
-        # Lazy import: only in full Django runtime should this succeed.
-        try:
-            from sat_toolkit.adapters.django.stream_manager import DjangoStreamManager as _DjangoStreamManager
+    @classmethod
+    def configure_backend(cls, backend: StreamBackend) -> None:
+        """Wire a backend implementation (to be called from Django wiring)."""
 
-            self._impl = _DjangoStreamManager()
-            logger.debug("StreamManager using DjangoStreamManager adapter", name=__name__)
-        except Exception:
-            self._impl = _NoopStreamManager()
-            logger.debug("StreamManager using Noop implementation", name=__name__)
+        inst = cls()
+        inst._backend = backend
 
     # Delegate API
     async def register_stream(self, channel: str):
-        return await self._impl.register_stream(channel)
+        return await self._backend.register_stream(channel)
 
     async def unregister_stream(self, channel: str):
-        return await self._impl.unregister_stream(channel)
+        return await self._backend.unregister_stream(channel)
 
     async def broadcast_data(self, stream_data: StreamData):
-        return await self._impl.broadcast_data(stream_data)
+        return await self._backend.broadcast_data(stream_data)
 
     async def stop_broadcast(self, channel: str):
-        return await self._impl.stop_broadcast(channel)
+        return await self._backend.stop_broadcast(channel)
 
     def get_active_channels(self):
-        return self._impl.get_active_channels()
+        return self._backend.get_active_channels()
 
     def get_broadcast_channels(self):
-        return self._impl.get_broadcast_channels()
+        return self._backend.get_broadcast_channels()
 
     def get_client_data(self) -> Optional[StreamData]:
-        return self._impl.get_client_data()
+        return self._backend.get_client_data()
