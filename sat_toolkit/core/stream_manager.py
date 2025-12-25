@@ -13,9 +13,9 @@ from typing import Dict, Optional
 
 from sat_toolkit.domain.stream import StreamAction, StreamData, StreamSource, StreamType
 from sat_toolkit.ports.stream_backend import StreamBackend
-from sat_toolkit.tools.xlogger import xlog
+import logging
 
-logger = xlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # Re-export domain stream types for backward compatibility with existing imports.
