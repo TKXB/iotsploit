@@ -67,11 +67,11 @@ ensure_database_initialized()
 import cmd2
 from cmd2 import ansi
 from sat_toolkit.adapters.django.target_models import TargetManager
-from sat_toolkit.domain.target import Vehicle
+from iotsploit_core.domain.target import Vehicle
 from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
 from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.adapters.django.device_models import DeviceManager
-from sat_toolkit.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
+from iotsploit_core.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.tools.report_mgr import Report_Mgr
 from sat_toolkit.tools.input_mgr import Input_Mgr

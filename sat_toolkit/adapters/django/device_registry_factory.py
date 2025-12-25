@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
-from sat_toolkit.core.device_registry import DeviceRegistry
+from iotsploit_core.core.device_registry import DeviceRegistry
 
 
 def get_device_registry(*, use_persistence: bool = True) -> DeviceRegistry:

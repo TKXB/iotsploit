@@ -8,7 +8,7 @@ import redis
 from channels.layers import get_channel_layer
 from django.conf import settings
 
-from sat_toolkit.domain.stream import StreamData, StreamSource
+from iotsploit_core.domain.stream import StreamData, StreamSource
 from sat_toolkit.tools.xlogger import xlog
 
 logger = xlog.get_logger(__name__)

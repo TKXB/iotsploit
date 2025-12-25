@@ -15,8 +15,8 @@ from django.views.decorators.csrf import csrf_exempt
 
 from django.http import JsonResponse
 from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
-from sat_toolkit.core.exploit_spec import ExploitResult
-from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
+from iotsploit_core.core.exploit_spec import ExploitResult
+from iotsploit_core.core.base_plugin import BasePlugin, BaseDeviceDriver
 from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from sat_toolkit.adapters.django.plugins.models import Plugin
 
@@ -38,9 +38,9 @@ import asyncio
 from celery.result import AsyncResult
 from .tasks import execute_plugin_task
 
-from sat_toolkit.core.stream_manager import StreamManager
+from iotsploit_core.core.stream_manager import StreamManager
 
-from .core.centralized_tool_manager import get_centralized_tool_manager
+from iotsploit_core.core.centralized_tool_manager import get_centralized_tool_manager
 
 from django.views.decorators.http import require_http_methods
 
@@ -1763,7 +1763,7 @@ def execute_recovery(request, driver_name):
         
         # For recovery operations, we may not need a specific device instance
         # Create a minimal device object for the recovery operation
-        from sat_toolkit.domain.device import Device, DeviceType
+        from iotsploit_core.domain.device import Device, DeviceType
         
         if device_id:
             # Try to get existing device

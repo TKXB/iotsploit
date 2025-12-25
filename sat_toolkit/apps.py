@@ -27,7 +27,7 @@ class SatToolkitConfig(AppConfig):
                 from sat_toolkit.tools.discovery_server import start_discovery_server
                 # Wire StreamManager backend (Ports & Adapters): core should not import adapters.
                 try:
-                    from sat_toolkit.core.stream_manager import StreamManager
+                    from iotsploit_core.core.stream_manager import StreamManager
                     from sat_toolkit.adapters.django.stream_manager import DjangoStreamBackend
 
                     StreamManager.configure_backend(DjangoStreamBackend())

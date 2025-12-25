@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from sat_toolkit.domain.execution_plan import PluginGroupSpec
-from sat_toolkit.domain.plugin import PluginMeta
+from iotsploit_core.domain.execution_plan import PluginGroupSpec
+from iotsploit_core.domain.plugin import PluginMeta
 
 
 class MemoryPluginMetaRepository:

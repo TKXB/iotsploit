@@ -6,8 +6,8 @@ from typing import Any
 from django.db import OperationalError
 
 from sat_toolkit.adapters.django.plugins.models import Plugin, PluginGroup, PluginGroupTree, PluginSequence
-from sat_toolkit.domain.execution_plan import GroupStepSpec, PluginGroupSpec, PluginStepSpec
-from sat_toolkit.domain.plugin import PluginMeta
+from iotsploit_core.domain.execution_plan import GroupStepSpec, PluginGroupSpec, PluginStepSpec
+from iotsploit_core.domain.plugin import PluginMeta
 
 
 class DjangoPluginMetaRepository:

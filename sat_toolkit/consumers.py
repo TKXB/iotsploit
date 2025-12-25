@@ -5,10 +5,10 @@ from sat_toolkit.tools.monitor_mgr import SystemMonitor
 import asyncio
 from asgiref.sync import async_to_sync
 from celery.result import AsyncResult
-from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
+from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 import time
-from sat_toolkit.core.device_spec import DeviceState
+from iotsploit_core.core.device_spec import DeviceState
 from collections import deque
 import threading
 

@@ -1,3 +1,0 @@
-"""Domain layer (framework-agnostic)."""
-
-

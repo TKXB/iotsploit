@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Type
 from sqlalchemy import Column, JSON, String
 
 from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-from sat_toolkit.domain.target import ComponentFactory, GenericTarget, Target, Vehicle
+from iotsploit_core.domain.target import ComponentFactory, GenericTarget, Target, Vehicle
 from sat_toolkit.tools.xlogger import xlog
 
 _db = get_default_sqlalchemy_db()

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Type
 from sqlalchemy import Boolean, Column, DateTime, Enum as SQLAlchemyEnum, JSON, String
 
 from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-from sat_toolkit.domain.device import Device, DeviceType, SerialDevice, SocketCANDevice, USBDevice
+from iotsploit_core.domain.device import Device, DeviceType, SerialDevice, SocketCANDevice, USBDevice
 from sat_toolkit.tools.xlogger import xlog
 
 _db = get_default_sqlalchemy_db()

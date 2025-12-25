@@ -1,7 +1,7 @@
 import struct
 import usb.util
 import logging
-from sat_toolkit.domain.device import Device, USBDevice
+from iotsploit_core.domain.device import Device, USBDevice
 
 logger = logging.getLogger(__name__)
 

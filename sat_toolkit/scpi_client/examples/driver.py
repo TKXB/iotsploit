@@ -1,6 +1,6 @@
 """SCPI device driver integration with device manager framework."""
 
-from sat_toolkit.core.base_plugin import BasePlugin
+from iotsploit_core.core.base_plugin import BasePlugin
 from ..client import ScpiClient
 from ..transport import ScpiTcpTransport, ScpiSerialTransport
 

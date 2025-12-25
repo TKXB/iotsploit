@@ -71,7 +71,7 @@ def main() -> None:
 
     try:
         from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
-        from sat_toolkit.core.exploit_spec import ExploitResult
+        from iotsploit_core.core.exploit_spec import ExploitResult
         import redis
         from django.conf import settings
     except ImportError as e:  # pragma: no cover

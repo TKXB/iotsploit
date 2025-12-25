@@ -3,7 +3,7 @@
 import cmd2
 from cmd2 import ansi
 from .base_commands import BaseCommands
-from sat_toolkit.core.exploit_spec import ExploitResult
+from iotsploit_core.core.exploit_spec import ExploitResult
 from sat_toolkit.tools.input_mgr import Input_Mgr
 from sat_toolkit.adapters.django.plugins.models import Plugin
 from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree
