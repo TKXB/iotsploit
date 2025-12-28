@@ -1,9 +1,9 @@
 import pluggy
 import pylink
 import logging
-from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device, DeviceType
-from sat_toolkit.core.base_plugin import BaseDeviceDriver
+from iotsploit_core.core.device_spec import DevicePluginSpec
+from iotsploit_core.domain.device import Device, DeviceType
+from iotsploit_core.core.base_plugin import BaseDeviceDriver
 logger = logging.getLogger(__name__)
 
 hookimpl = pluggy.HookimplMarker("device_mgr")

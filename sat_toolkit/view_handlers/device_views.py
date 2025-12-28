@@ -5,10 +5,10 @@ import json
 import logging
 from django.apps import apps
 
-from sat_toolkit.core.device_manager import DeviceDriverManager
-from sat_toolkit.models.Device_Model import DeviceManager
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
+from sat_toolkit.adapters.django.device_models import DeviceManager
 from sat_toolkit.tools.monitor_mgr import Pi_Mgr
-from sat_toolkit.core.device_registry import DeviceRegistry
+from sat_toolkit.adapters.django.device_registry_factory import get_device_registry
 from sat_toolkit.tools.env_mgr import Env_Mgr
 from sat_toolkit.apps import SatToolkitConfig
 
@@ -51,7 +51,7 @@ def get_all_devices(request):
 
 def scan_all_devices(request):
     """Scan for all devices using the DeviceDriverManager."""
-    device_manager = DeviceDriverManager()
+    device_manager = get_device_driver_manager()
     scan_results = device_manager.scan_all_devices()
     return JsonResponse(scan_results)
 
@@ -59,7 +59,7 @@ def scan_all_devices(request):
 def scan_specific_device(request, driver_name):
     """Scan for devices using a specific device driver."""
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         
         available_drivers = device_manager.list_drivers()
         if driver_name not in available_drivers:
@@ -112,7 +112,7 @@ def list_devices(request):
     """
     try:
         # Get device registry instance
-        device_registry = DeviceRegistry()
+        device_registry = get_device_registry()
         device_registry.initialize()
         
         # Perform device scan
@@ -195,7 +195,7 @@ def initialize_devices(request):
         }, status=405)
     try:
         # 直接使用 DeviceDriverManager 的单例
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         
         # Log driver states before initialization
         logger.info("Driver states before initialization:")
@@ -227,7 +227,7 @@ def cleanup_devices(request):
             "message": "Only GET method is allowed"
         }, status=405)
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         if not device_manager:
             return JsonResponse({
                 "status": "success",

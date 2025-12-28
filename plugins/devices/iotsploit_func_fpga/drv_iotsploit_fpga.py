@@ -5,10 +5,10 @@ import os
 import shutil
 from typing import Optional, Dict, List, Any
 from pathlib import Path
-from sat_toolkit.core.device_spec import DevicePluginSpec
-from sat_toolkit.models.Device_Model import Device, DeviceType, SerialDevice
-from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.core.tool_service import get_firmware_service
+from iotsploit_core.core.device_spec import DevicePluginSpec
+from iotsploit_core.domain.device import Device, DeviceType, SerialDevice
+from iotsploit_core.core.base_plugin import BaseDeviceDriver
+from iotsploit_core.core.tool_service import get_firmware_service
 
 logger = logging.getLogger(__name__)
 

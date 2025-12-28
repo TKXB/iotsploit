@@ -49,8 +49,8 @@ mcp = FastMCP("sat-toolkit")
 
 # Initialize SAT components
 try:
-    from sat_toolkit.core.device_manager import DeviceDriverManager
-    device_manager = DeviceDriverManager()
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
+    device_manager = get_device_driver_manager()
     log_both('info', "SAT components initialized")
 except Exception as e:
     log_both('warning', f"SAT components failed to initialize: {e}")

@@ -1,10 +1,10 @@
 import logging
 from typing import Optional, Dict, List
-from sat_toolkit.models.Device_Model import Device, DeviceType, SerialDevice
-from sat_toolkit.core.base_plugin import BaseDeviceDriver
+from iotsploit_core.domain.device import Device, DeviceType, SerialDevice
+from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from sat_toolkit.scpi_client.transport import ScpiSerialTransport
 from sat_toolkit.scpi_client.client import ScpiClient
-from sat_toolkit.core.tool_service import get_firmware_service
+from iotsploit_core.core.tool_service import get_firmware_service
 import time
 import serial.tools.list_ports
 from pathlib import Path

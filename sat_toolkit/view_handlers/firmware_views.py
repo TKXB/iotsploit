@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from sat_toolkit.core.tool_service import get_firmware_service
+from iotsploit_core.core.tool_service import get_firmware_service
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

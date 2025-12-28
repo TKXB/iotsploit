@@ -7,7 +7,8 @@ import threading
 from sat_toolkit.tools.usb_mgr import USB_Mgr
 from sat_toolkit.tools.sat_utils import *
 from sat_toolkit.tools.bash_script_engine import Bash_Script_Mgr
-from sat_toolkit.models.Target_Model import TargetManager, ADBDevice
+from sat_toolkit.adapters.django.target_models import TargetManager
+from iotsploit_core.domain.target import ADBDevice
 
 from pwnlib import term
 term.term_mode = True

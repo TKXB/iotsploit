@@ -1,21 +1,22 @@
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from sat_toolkit.core.exploit_manager import ExploitPluginManager
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from sat_toolkit.models.Target_Model import TargetManager
+from sat_toolkit.adapters.django.target_models import TargetManager
 import asyncio
 import json
 import time
 import os
 from datetime import datetime
+from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
 
 logger = get_task_logger(__name__)
 
 @shared_task(bind=True, max_retries=3)
 def execute_plugin_task(self, plugin_name, target=None, parameters=None):
     try:
-        plugin_manager = ExploitPluginManager()
+        # Celery worker runs the plugin in-process; do not enqueue another Celery task.
+        plugin_manager = get_exploit_plugin_manager(use_celery=False)
         
         if target and isinstance(target, dict):
             target_manager = TargetManager.get_instance()

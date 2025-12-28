@@ -14,7 +14,6 @@ import os
 import aiohttp
 from ..models.AIModel_Model import AIModelConfig
 from ..tools.xlogger import xlog
-from sat_toolkit.core.device_manager import DeviceDriverManager
 
 class AIAssistantConsumer(AsyncWebsocketConsumer):
     """AI助手WebSocket消费者，处理智能终端会话"""

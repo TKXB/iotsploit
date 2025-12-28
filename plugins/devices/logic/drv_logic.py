@@ -10,10 +10,10 @@ from threading import Thread
 import serial.tools.list_ports
 import traceback
 
-from sat_toolkit.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.models.Device_Model import Device, SerialDevice
+from iotsploit_core.core.base_plugin import BaseDeviceDriver
+from iotsploit_core.domain.device import Device, SerialDevice
 from sat_toolkit.tools.xlogger import xlog as logger
-from sat_toolkit.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
+from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 
 # Import components from protocol - using absolute import instead of relative
 from plugins.devices.logic.protocol import (

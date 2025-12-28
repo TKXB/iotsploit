@@ -14,11 +14,11 @@ from sat_toolkit.tools.sat_utils import *
 from django.views.decorators.csrf import csrf_exempt
 
 from django.http import JsonResponse
-from sat_toolkit.core.exploit_manager import ExploitPluginManager
-from sat_toolkit.core.exploit_spec import ExploitResult
-from sat_toolkit.core.base_plugin import BasePlugin, BaseDeviceDriver
-from sat_toolkit.core.device_manager import DeviceDriverManager
-from sat_toolkit.models.Plugin_Model import Plugin
+from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
+from iotsploit_core.core.exploit_spec import ExploitResult
+from iotsploit_core.core.base_plugin import BasePlugin, BaseDeviceDriver
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
+from sat_toolkit.adapters.django.plugins.models import Plugin
 
 from sat_toolkit.tools.xlogger import xlog
 
@@ -28,12 +28,9 @@ logger = xlog.get_logger('views')
 import json
 import datetime
 
-from sat_toolkit.core.device_manager import DeviceDriverManager  
-from sat_toolkit.models.Target_Model import TargetManager
-from sat_toolkit.models.PluginGroup_Model import PluginGroup
-from sat_toolkit.models.PluginGroupTree_Model import PluginGroupTree
-from sat_toolkit.models.PluginSequence_Model import PluginSequence
-from sat_toolkit.models.Device_Model import DeviceManager
+from sat_toolkit.adapters.django.target_models import TargetManager
+from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree, PluginSequence
+from sat_toolkit.adapters.django.device_models import DeviceManager
 from asgiref.sync import async_to_sync
 
 import asyncio
@@ -41,9 +38,9 @@ import asyncio
 from celery.result import AsyncResult
 from .tasks import execute_plugin_task
 
-from sat_toolkit.core.stream_manager import StreamManager
+from iotsploit_core.core.stream_manager import StreamManager
 
-from .core.centralized_tool_manager import get_centralized_tool_manager
+from iotsploit_core.core.centralized_tool_manager import get_centralized_tool_manager
 
 from django.views.decorators.http import require_http_methods
 
@@ -110,7 +107,7 @@ def __build_confirm_dialog(title:str, button_list:list):
         return HttpResponse("User Input ID:{} Invalid!".format(user_input_id))
 
 def list_plugins(request):
-    plugin_manager = ExploitPluginManager()
+    plugin_manager = get_exploit_plugin_manager()
     plugins = plugin_manager.list_plugins()
     return JsonResponse({'plugins': plugins})
 
@@ -119,7 +116,7 @@ def list_device_drivers(request):
     GET
     Returns a list of available device drivers
     """
-    device_manager = DeviceDriverManager()
+    device_manager = get_device_driver_manager()
     available_drivers = device_manager.list_drivers()
     
     if available_drivers:
@@ -201,7 +198,7 @@ def execute_plugin(request):
                     "message": f"Error converting current target to Vehicle object: {str(e)}"
                 }, status=400)
 
-        plugin_manager = ExploitPluginManager()
+        plugin_manager = get_exploit_plugin_manager()
         plugin_manager.initialize()
 
         # Check if plugin requires root privileges
@@ -322,14 +319,14 @@ def list_plugin_info(request):
     GET
     Returns information about all available plugins with status indicators.
     """
-    plugin_manager = ExploitPluginManager()
+    plugin_manager = get_exploit_plugin_manager()
     
     try:
         # Get plugin info
         plugin_info_dict = plugin_manager.list_plugin_info()
         
         # Get plugin database entries to access file paths
-        from sat_toolkit.models.Plugin_Model import Plugin
+        from sat_toolkit.adapters.django.plugins.models import Plugin
         plugin_db_entries = {p.name: p for p in Plugin.objects.all()}
         
         # Format the response with success/failure indicators
@@ -518,7 +515,7 @@ def execute_group(request):
             target = target_manager.get_current_target()
             
         # Get plugin manager
-        plugin_manager = ExploitPluginManager()
+        plugin_manager = get_exploit_plugin_manager()
             
         # Execute the group
         logger.info(f"Executing plugin group: {group_name}")
@@ -675,7 +672,7 @@ def list_device_commands(request, device_name):
         JSON response containing the available commands and their descriptions
     """
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         
         # Verify the device exists
         available_devices = device_manager.list_drivers()
@@ -736,7 +733,7 @@ def execute_device_command(request, driver_name):
             }, status=400)
 
         # 使用 DeviceDriverManager 执行命令
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         result = device_manager.execute_command(
             driver_name=driver_name,
             command=command,
@@ -809,7 +806,7 @@ def create_group(request):
             group.description = group_description
             group.save()
             # Clear existing plugin sequences to avoid duplicates
-            from sat_toolkit.models.PluginSequence_Model import PluginSequence
+            from sat_toolkit.adapters.django.plugins.models import PluginSequence
             PluginSequence.objects.filter(plugingroup=group).delete()
         
         # Add selected plugins to the group with sequence information
@@ -838,7 +835,7 @@ def create_group(request):
             )
             
             # Create the sequence entry
-            from sat_toolkit.models.PluginSequence_Model import PluginSequence
+            from sat_toolkit.adapters.django.plugins.models import PluginSequence
             plugin_seq = PluginSequence.objects.create(
                 plugingroup=group,
                 plugin=plugin,
@@ -1033,7 +1030,7 @@ def cleanup_plugins(request):
         }, status=405)
         
     try:
-        plugin_manager = ExploitPluginManager()
+        plugin_manager = get_exploit_plugin_manager()
         plugin_manager.cleanup_all_plugins()
         
         return JsonResponse({
@@ -1208,7 +1205,7 @@ def save_plugin_code(request):
                 file.write(code)
             
             # Reload the plugin if it's already loaded
-            plugin_manager = ExploitPluginManager()
+            plugin_manager = get_exploit_plugin_manager(use_celery=False)
             plugin_name = os.path.basename(plugin_path).replace('.py', '')
             
             try:
@@ -1352,7 +1349,7 @@ def get_driver_states(request):
         JSON response with all driver states
     """
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         driver_states = device_manager.get_driver_states()
         
         # Format response to include more useful information
@@ -1404,7 +1401,7 @@ def enable_driver(request):
                 "message": "Driver name is required"
             }, status=400)
             
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         result = device_manager.enable_driver(driver_name, description)
         
         return JsonResponse(result)
@@ -1447,7 +1444,7 @@ def disable_driver(request):
                 "message": "Driver name is required"
             }, status=400)
             
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         result = device_manager.disable_driver(driver_name, description)
         
         return JsonResponse(result)
@@ -1660,7 +1657,7 @@ def list_recovery_drivers(request):
         JSON response with recovery-capable drivers and their supported operations
     """
     try:
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         available_drivers = device_manager.list_drivers()
         
         recovery_drivers = []
@@ -1731,7 +1728,7 @@ def execute_recovery(request, driver_name):
                 'message': 'recovery_type is required'
             }, status=400)
         
-        device_manager = DeviceDriverManager()
+        device_manager = get_device_driver_manager()
         
         # Verify driver exists
         available_drivers = device_manager.list_drivers()
@@ -1766,7 +1763,7 @@ def execute_recovery(request, driver_name):
         
         # For recovery operations, we may not need a specific device instance
         # Create a minimal device object for the recovery operation
-        from sat_toolkit.models.Device_Model import Device, DeviceType
+        from iotsploit_core.domain.device import Device, DeviceType
         
         if device_id:
             # Try to get existing device

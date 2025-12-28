@@ -6,7 +6,7 @@ from typing import Dict
 from .base_commands import BaseCommands
 from sat_toolkit.tools.monitor_mgr import SystemMonitor
 from sat_toolkit.tools.input_mgr import Input_Mgr
-from sat_toolkit.core.device_registry import DeviceRegistry
+from sat_toolkit.adapters.django.device_registry_factory import get_device_registry
 from sat_toolkit.tools.xlogger import xlog as logger
 
 
@@ -226,7 +226,7 @@ class DeviceCommands(BaseCommands):
         'Scan for devices and show detailed information'
         try:
             # 获取设备注册表实例
-            device_registry = DeviceRegistry()
+            device_registry = get_device_registry()
             device_registry.initialize()  # 确保已初始化
             
             # 执行设备扫描

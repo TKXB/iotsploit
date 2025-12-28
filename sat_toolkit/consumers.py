@@ -5,10 +5,10 @@ from sat_toolkit.tools.monitor_mgr import SystemMonitor
 import asyncio
 from asgiref.sync import async_to_sync
 from celery.result import AsyncResult
-from sat_toolkit.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
-from sat_toolkit.core.device_manager import DeviceDriverManager
+from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
+from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
 import time
-from sat_toolkit.core.device_spec import DeviceState
+from iotsploit_core.core.device_spec import DeviceState
 from collections import deque
 import threading
 
@@ -156,7 +156,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps(error_data.to_dict()))
                 return
 
-            device_manager = DeviceDriverManager()
+            device_manager = get_device_driver_manager()
             driver = device_manager.get_driver_instance(driver_name)
             logger.info(f"Driver instance details: {driver}")
             

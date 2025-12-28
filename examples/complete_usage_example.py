@@ -23,10 +23,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from sat_toolkit.core.centralized_tool_manager import (
+from iotsploit_core.core.centralized_tool_manager import (
     get_centralized_tool_manager, print_system_report
 )
-from sat_toolkit.core.execution_queue import TaskPriority, TaskStatus
+from iotsploit_core.core.execution_queue import TaskPriority, TaskStatus
 
 # Setup logging
 logging.basicConfig(

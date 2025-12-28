@@ -193,6 +193,13 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        # Ports & Adapters: core uses stdlib logging; the Django host app is
+        # responsible for wiring handlers/levels for core namespaces.
+        "iotsploit_core": {
+            "handlers": ["stream"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "sat_toolkit": {
             "handlers": ["stream"],
             "level": "INFO",
