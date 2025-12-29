@@ -15,7 +15,7 @@ class CeleryTaskRunner:
         context: dict | None = None,
     ) -> dict[str, Any]:
         # Local import: keep adapter import side-effects minimal.
-        from sat_toolkit.tasks import execute_plugin_task
+        from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
 
         task = execute_plugin_task.delay(
             plugin_name,

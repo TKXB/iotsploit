@@ -589,7 +589,7 @@ class IoTFuzzerManager:
         """Start background task for campaign execution"""
         try:
             # Import here to avoid circular imports
-            from sat_toolkit.tasks import run_fuzzing_campaign
+            from iotsploit_django.tasks.fuzzer_tasks import run_fuzzing_campaign
             
             # Get campaign state from Redis
             campaign_state = self._get_campaign_state(campaign_id)

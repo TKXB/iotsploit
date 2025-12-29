@@ -40,7 +40,7 @@ from asgiref.sync import async_to_sync
 import asyncio
 
 from celery.result import AsyncResult
-from sat_toolkit.tasks import execute_plugin_task
+from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
 
 from iotsploit_core.core.stream_manager import StreamManager
 

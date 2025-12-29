@@ -19,13 +19,13 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
 django_asgi_app = get_asgi_application()
 
 # Import routing after Django is set up
-import sat_toolkit.routing
+import iotsploit_django.routing
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": AuthMiddlewareStack(
         URLRouter(
-            sat_toolkit.routing.websocket_urlpatterns
+            iotsploit_django.routing.websocket_urlpatterns
         )
     ),
 })
