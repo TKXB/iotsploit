@@ -1,6 +1,6 @@
 from django.urls import path
 
-from sat_toolkit.view_handlers.device_views import (
+from iotsploit_django.view_handlers.device_views import (
     cleanup_devices,
     device_info,
     get_all_devices,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from celery import shared_task
 from celery.utils.log import get_task_logger
 
-from sat_toolkit.adapters.django.target_models import TargetManager
+from iotsploit_django.adapters.django.target_models import TargetManager
 import asyncio
 
 from iotsploit_django.composition_root.wiring import get_exploit_plugin_manager

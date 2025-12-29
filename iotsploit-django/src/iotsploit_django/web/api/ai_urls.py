@@ -1,6 +1,6 @@
 from django.urls import path
 
-from sat_toolkit.view_handlers.ai_model_views import (
+from iotsploit_django.view_handlers.ai_model_views import (
     ai_model_create,
     ai_model_delete,
     ai_model_detail,

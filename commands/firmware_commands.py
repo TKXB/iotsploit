@@ -3,9 +3,9 @@
 import cmd2
 from cmd2 import ansi
 from .base_commands import BaseCommands
-from sat_toolkit.tools.input_mgr import Input_Mgr
+from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_core.core.tool_service import get_firmware_service
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.xlogger import xlog as logger
 
 
 class FirmwareCommands(BaseCommands):

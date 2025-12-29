@@ -10,7 +10,7 @@ import threading
 from threading import Thread
 import serial.tools.list_ports
 
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.xlogger import xlog as logger
 
 # Constants from original logic analyzer
 TRIGGER_DELAY_ENABLE_HEADER = b'\xF7'

@@ -8,7 +8,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-# No additional dependencies needed - uses sat_toolkit components
+# No additional dependencies needed - uses iotsploit_django components
 
 [build-system]
 requires = ["setuptools>=61.0"]

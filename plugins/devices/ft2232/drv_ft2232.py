@@ -1,6 +1,6 @@
 import usb.core
 import usb.util
-from sat_toolkit.tools.xlogger import xlog
+from iotsploit_django.tools.xlogger import xlog
 from iotsploit_core.domain.device import Device, DeviceType, USBDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 import time

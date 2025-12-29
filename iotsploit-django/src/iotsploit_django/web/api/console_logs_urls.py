@@ -1,6 +1,6 @@
 from django.urls import path
 
-from sat_toolkit.view_handlers.console_logs_views import (
+from iotsploit_django.view_handlers.console_logs_views import (
     clear_console_logs,
     control_console_reader,
     get_console_logs,

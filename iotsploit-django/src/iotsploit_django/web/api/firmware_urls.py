@@ -1,7 +1,7 @@
 from django.urls import path
 
 from iotsploit_django.web import views
-from sat_toolkit.view_handlers.firmware_views import (
+from iotsploit_django.view_handlers.firmware_views import (
     firmware_add,
     firmware_download,
     firmware_erase,

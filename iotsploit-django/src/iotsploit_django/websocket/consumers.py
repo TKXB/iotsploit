@@ -1,14 +1,11 @@
-"""Channels consumers (stage-5).
+"""Channels consumers (stage-5.5).
 
-Stage-5 strategy:
-- Keep behavior stable by re-exporting legacy consumer classes.
-- Fix dependency direction for a couple of wiring points so new Django ring code
-  is the integration surface.
+Goal: iotsploit_django runtime must not import legacy modules.
 """
 
 from __future__ import annotations
 
-from sat_toolkit.consumers import (  # noqa: F401
+from iotsploit_django.websocket.consumers_impl import (  # noqa: F401
     ConsoleLogsConsumer,
     DeviceStreamConsumer,
     ExploitWebsocketConsumer,
@@ -17,9 +14,8 @@ from sat_toolkit.consumers import (  # noqa: F401
     SystemUsageConsumer,
 )
 
-# Note: we intentionally keep the consumer implementations in sat_toolkit for
-# now. Later refactors can move implementations here and swap imports to use
-# `iotsploit_django.composition_root.wiring`.
+# Note: current implementations live in `consumers_impl.py` (copied from legacy
+# and rewritten to use iotsploit_django imports).
 
 __all__ = [
     "SystemUsageConsumer",

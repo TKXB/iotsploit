@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from django.conf import settings
-from sat_toolkit.tools.xlogger import xlog
+from iotsploit_django.tools.xlogger import xlog
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -56,7 +56,7 @@ CORS_ALLOW_HEADERS = [
 
 INSTALLED_APPS = [
     'channels',
-    'sat_toolkit.apps.SatToolkitConfig',
+    'iotsploit_django.apps.IoTSploitDjangoConfig',
     'django_extensions',
     'corsheaders',
     'csp',
@@ -200,7 +200,7 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-        "sat_toolkit": {
+        "iotsploit_django": {
             "handlers": ["stream"],
             "level": "INFO",
             "propagate": False,

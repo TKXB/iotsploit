@@ -4,9 +4,9 @@ import cmd2
 from cmd2 import ansi
 import time
 from .base_commands import BaseCommands
-from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
-from sat_toolkit.tools.input_mgr import Input_Mgr
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
+from iotsploit_django.tools.input_mgr import Input_Mgr
+from iotsploit_django.tools.xlogger import xlog as logger
 
 
 class NetworkCommands(BaseCommands):

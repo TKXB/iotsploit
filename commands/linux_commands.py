@@ -4,7 +4,7 @@ import cmd2
 from cmd2 import ansi
 import subprocess
 from .base_commands import BaseCommands
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.xlogger import xlog as logger
 
 
 class LinuxCommands(BaseCommands):

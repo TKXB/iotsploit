@@ -7,7 +7,7 @@ import inspect
 from typing import Dict
 import argparse
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 
 import django
 django.setup()
@@ -15,12 +15,12 @@ django.setup()
 def ensure_database_initialized():
     """Automatically initialize database tables if they don't exist"""
     try:
-        from sat_toolkit.adapters.django.plugins.models import Plugin
+        from iotsploit_django.adapters.django.plugins.models import Plugin
         Plugin.objects.exists()
         
         from sqlalchemy.exc import OperationalError
-        from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-        from sat_toolkit.adapters.django.device_models import DeviceDriverState
+        from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
+        from iotsploit_django.adapters.django.device_models import DeviceDriverState
         
         session = get_default_sqlalchemy_db().SessionLocal()
         try:
@@ -42,11 +42,11 @@ def ensure_database_initialized():
             try:
                 print("📋 Running Django migrations...")
                 from django.core.management import execute_from_command_line
-                execute_from_command_line(['manage.py', 'migrate'])
+                execute_from_command_line(["manage.py", "migrate", "--noinput"])
                 print("✅ Django migrations completed!")
                 
                 print("📋 Creating SQLAlchemy tables...")
-                from sat_toolkit.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
+                from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
                 db = get_default_sqlalchemy_db()
                 db.Base.metadata.create_all(db.engine)
                 print("✅ SQLAlchemy tables created!")
@@ -66,16 +66,15 @@ ensure_database_initialized()
 # Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
-from sat_toolkit.adapters.django.target_models import TargetManager
+from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_core.domain.target import Vehicle
-from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
-from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
-from sat_toolkit.adapters.django.device_models import DeviceManager
+from iotsploit_django.composition_root.wiring import get_device_driver_manager, get_exploit_plugin_manager
+from iotsploit_django.adapters.django.device_models import DeviceManager
 from iotsploit_core.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
-from sat_toolkit.tools.env_mgr import Env_Mgr
-from sat_toolkit.tools.report_mgr import Report_Mgr
-from sat_toolkit.tools.input_mgr import Input_Mgr
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.env_mgr import Env_Mgr
+from iotsploit_django.tools.report_mgr import Report_Mgr
+from iotsploit_django.tools.input_mgr import Input_Mgr
+from iotsploit_django.tools.xlogger import xlog as logger
 from pwnlib import term
 term.term_mode = True
 

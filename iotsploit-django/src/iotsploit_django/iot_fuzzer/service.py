@@ -1,22 +1,10 @@
-"""IoT Fuzzer application service (Django ring).
+"""IoT Fuzzer application service (Django ring)."""
 
-Stage-3 (minimal-risk):
-- Keep runtime behavior stable by re-exporting the existing sat_toolkit implementations.
-- Centralize the dependency surface so later stages can refactor/DI without rewriting
-  every view in one shot.
-"""
+from iotsploit_django.tools.iot_fuzzer_bridge import IoTFuzzerBridge
+from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager
+from iotsploit_django.tools.iot_fuzzer_service import IoTFuzzerService
+from iotsploit_django.tools.iot_protocol_adapter import IoTProtocolAdapter
 
-from sat_toolkit.tools.iot_fuzzer_bridge import IoTFuzzerBridge
-from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
-from sat_toolkit.tools.iot_fuzzer_service import IoTFuzzerService
-from sat_toolkit.tools.iot_protocol_adapter import IoTProtocolAdapter
-
-
-__all__ = [
-    "IoTFuzzerManager",
-    "IoTFuzzerService",
-    "IoTProtocolAdapter",
-    "IoTFuzzerBridge",
-]
+__all__ = ["IoTFuzzerManager", "IoTFuzzerService", "IoTProtocolAdapter", "IoTFuzzerBridge"]
 
 

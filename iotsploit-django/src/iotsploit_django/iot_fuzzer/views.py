@@ -20,7 +20,7 @@ from iotsploit_django.iot_fuzzer.service import (
 )
 
 # Import Django models
-from sat_toolkit.adapters.django.iot_fuzzer.models import (
+from iotsploit_django.adapters.django.iot_fuzzer.models import (
     FuzzingCampaign, TestGroup, TestCase, FuzzingResult, ConfigTemplate, LiveLog,
     ProtocolConfiguration, FrameField, FuzzingRule, IoTConfiguration
 )
@@ -73,7 +73,7 @@ def start_campaign(request: HttpRequest):
 
         # Persist runtime UUID into DB if possible
         try:
-            from sat_toolkit.adapters.django.iot_fuzzer.models import FuzzingCampaign
+            from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingCampaign
             # Find or create a campaign record for this run
             protocol_type = (campaign_config.get('protocol_type') or 'unknown').lower()
             name = campaign_config.get('campaign_name') or f"{protocol_type.upper()} Campaign"
@@ -388,7 +388,7 @@ def get_test_groups(request: HttpRequest):
         campaign_id = request.GET.get('campaign_id')
         
         # Get test groups from database with enhanced information
-        from sat_toolkit.adapters.django.iot_fuzzer.models import TestGroup
+        from iotsploit_django.adapters.django.iot_fuzzer.models import TestGroup
         from django.db.models import Count, Q
         
         # Query test groups with test case counts and strategy information
@@ -432,7 +432,7 @@ def get_test_groups(request: HttpRequest):
 def _calculate_group_strategy_distribution(group):
     """Calculate strategy distribution for a test group"""
     try:
-        from sat_toolkit.adapters.django.iot_fuzzer.models import FuzzingRule
+        from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingRule
         
         # Get fuzzing rules for this group's test cases
         rules = FuzzingRule.objects.filter(

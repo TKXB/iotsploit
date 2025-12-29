@@ -24,7 +24,6 @@ cd /app
 python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
 echo "📊 Running Django migrations..."
 python manage.py makemigrations || echo "⚠️  makemigrations failed (continuing...)"
-python manage.py makemigrations sat_toolkit || echo "⚠️  makemigrations sat_toolkit failed (continuing...)"
 python manage.py migrate || echo "⚠️  Database migration failed (continuing...)"
 
 # NEW: Ensure database file is writable by the Django (www-data) user

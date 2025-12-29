@@ -1,4 +1,4 @@
-"""Development settings for iotsploit-django (stage-1 skeleton)."""
+"""Development settings for iotsploit-django (standalone)."""
 
 from iotsploit_django.settings.base import *  # noqa: F401,F403
 

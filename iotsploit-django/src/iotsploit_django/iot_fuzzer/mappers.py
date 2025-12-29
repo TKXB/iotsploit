@@ -4,7 +4,7 @@ Stage-3: placeholder module so later refactors have a stable home for:
 - ORM model <-> response payload mapping
 - ORM model <-> iosploit_fuzzer DTO mapping (when fuzzer core is introduced)
 
-For now, views still use existing sat_toolkit models and dict payloads.
+For now, views still use dict payloads and migrated Django models.
 """
 
 from __future__ import annotations

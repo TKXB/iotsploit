@@ -1,7 +1,6 @@
-"""AI assistant websocket consumer (migrated from `sat_toolkit`)."""
+"""AI assistant websocket consumer (stage-5.5)."""
 
-# Stage-5: keep behavior stable by re-exporting the legacy consumer.
-from sat_toolkit.websocket.ai_assistant_consumer import AIAssistantConsumer  # noqa: F401
+from iotsploit_django.websocket.ai_assistant_consumer_impl import AIAssistantConsumer  # noqa: F401
 
 __all__ = ["AIAssistantConsumer"]
 

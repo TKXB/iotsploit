@@ -19,8 +19,8 @@ sys.path.insert(0, str(project_root))
 
 from mcp.server.fastmcp import FastMCP
 
-# Use SAT xlogger
-from sat_toolkit.tools.xlogger import xlog
+# Use iotsploit-django xlogger
+from iotsploit_django.tools.xlogger import xlog
 
 logger = xlog.get_logger('sat_fastmcp')
 
@@ -47,14 +47,20 @@ def log_both(level, message):
 # Initialize FastMCP server
 mcp = FastMCP("sat-toolkit")
 
-# Initialize SAT components
+# Initialize Django-backed components (optional)
+device_manager = None
 try:
-from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
+    import django
+
+    django.setup()
+
+    from iotsploit_django.composition_root.wiring import get_device_driver_manager
+
     device_manager = get_device_driver_manager()
-    log_both('info', "SAT components initialized")
+    log_both("info", "SAT components initialized")
 except Exception as e:
-    log_both('warning', f"SAT components failed to initialize: {e}")
-    device_manager = None
+    log_both("warning", f"SAT components failed to initialize: {e}")
 
 @mcp.tool()
 async def scan_devices(driver_name: str = "all") -> str:

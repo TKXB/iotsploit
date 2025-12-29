@@ -4,10 +4,10 @@ import cmd2
 from cmd2 import ansi
 from typing import Dict
 from .base_commands import BaseCommands
-from sat_toolkit.tools.monitor_mgr import SystemMonitor
-from sat_toolkit.tools.input_mgr import Input_Mgr
-from sat_toolkit.adapters.django.device_registry_factory import get_device_registry
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.monitor_mgr import SystemMonitor
+from iotsploit_django.tools.input_mgr import Input_Mgr
+from iotsploit_django.adapters.django.device_registry_factory import get_device_registry
+from iotsploit_django.tools.xlogger import xlog as logger
 
 
 class DeviceCommands(BaseCommands):

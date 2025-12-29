@@ -2,14 +2,14 @@ from django.http import HttpResponse
 from django.http import HttpRequest
 from django.shortcuts import redirect
 
-from sat_toolkit.tools.report_mgr import Report_Mgr
+from iotsploit_django.tools.report_mgr import Report_Mgr
 
-from sat_toolkit.tools.monitor_mgr import Pi_Mgr
-from sat_toolkit.tools.ota_mgr import OTA_Mgr
-from sat_toolkit.tools.wifi_mgr import WiFi_Mgr
+from iotsploit_django.tools.monitor_mgr import Pi_Mgr
+from iotsploit_django.tools.ota_mgr import OTA_Mgr
+from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
 
-from sat_toolkit.tools.env_mgr import Env_Mgr
-from sat_toolkit.tools.sat_utils import *
+from iotsploit_django.tools.env_mgr import Env_Mgr
+from iotsploit_django.tools.sat_utils import *
 
 from django.views.decorators.csrf import csrf_exempt
 
@@ -22,9 +22,9 @@ from iotsploit_django.composition_root.wiring import (
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_core.core.base_plugin import BasePlugin, BaseDeviceDriver
 ensure_stream_backend_configured()
-from sat_toolkit.adapters.django.plugins.models import Plugin
+from iotsploit_django.adapters.django.plugins.models import Plugin
 
-from sat_toolkit.tools.xlogger import xlog
+from iotsploit_django.tools.xlogger import xlog
 
 import logging
 logger = xlog.get_logger('views')
@@ -32,9 +32,9 @@ logger = xlog.get_logger('views')
 import json
 import datetime
 
-from sat_toolkit.adapters.django.target_models import TargetManager
-from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree, PluginSequence
-from sat_toolkit.adapters.django.device_models import DeviceManager
+from iotsploit_django.adapters.django.target_models import TargetManager
+from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree, PluginSequence
+from iotsploit_django.adapters.django.device_models import DeviceManager
 from asgiref.sync import async_to_sync
 
 import asyncio
@@ -212,7 +212,7 @@ def execute_plugin(request):
         if requires_root:
             # Use sudo runner for root-required plugins
             logger.info(f"Plugin '{plugin_name}' requires root privileges, using sudo runner")
-            from sat_toolkit.tools.privilege_mgr import PrivilegeManager
+            from iotsploit_django.tools.privilege_mgr import PrivilegeManager
             
             priv_mgr = PrivilegeManager()
             
@@ -330,7 +330,7 @@ def list_plugin_info(request):
         plugin_info_dict = plugin_manager.list_plugin_info()
         
         # Get plugin database entries to access file paths
-        from sat_toolkit.adapters.django.plugins.models import Plugin
+        from iotsploit_django.adapters.django.plugins.models import Plugin
         plugin_db_entries = {p.name: p for p in Plugin.objects.all()}
         
         # Format the response with success/failure indicators
@@ -810,7 +810,7 @@ def create_group(request):
             group.description = group_description
             group.save()
             # Clear existing plugin sequences to avoid duplicates
-            from sat_toolkit.adapters.django.plugins.models import PluginSequence
+            from iotsploit_django.adapters.django.plugins.models import PluginSequence
             PluginSequence.objects.filter(plugingroup=group).delete()
         
         # Add selected plugins to the group with sequence information
@@ -839,7 +839,7 @@ def create_group(request):
             )
             
             # Create the sequence entry
-            from sat_toolkit.adapters.django.plugins.models import PluginSequence
+            from iotsploit_django.adapters.django.plugins.models import PluginSequence
             plugin_seq = PluginSequence.objects.create(
                 plugingroup=group,
                 plugin=plugin,
@@ -979,7 +979,7 @@ def list_urls(request):
     Returns a list of all available API endpoints
     """
     try:
-        # Stage-3.5+: `sat_toolkit.urls` may be removed; derive patterns from the
+        # Stage-3.5+: derive patterns from the
         # stage-2 route aggregation layer instead.
         from django.urls.resolvers import URLPattern, URLResolver
         from iotsploit_django.web.api import urls as api_urls

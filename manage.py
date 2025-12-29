@@ -6,7 +6,9 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sat_django_entry.settings')
+    # Stage-5.5+: default to iotsploit-django standalone settings.
+    # You can override this by exporting DJANGO_SETTINGS_MODULE explicitly.
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from sat_toolkit.view_handlers.target_views import (
+from iotsploit_django.view_handlers.target_views import (
     create_target,
     delete_target,
     edit_target,

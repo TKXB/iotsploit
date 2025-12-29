@@ -2,8 +2,8 @@ import logging
 from typing import Optional, Dict, List
 from iotsploit_core.domain.device import Device, DeviceType, SerialDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
-from sat_toolkit.scpi_client.transport import ScpiSerialTransport
-from sat_toolkit.scpi_client.client import ScpiClient
+from iotsploit_django.scpi_client.transport import ScpiSerialTransport
+from iotsploit_django.scpi_client.client import ScpiClient
 from iotsploit_core.core.tool_service import get_firmware_service
 import time
 import serial.tools.list_ports

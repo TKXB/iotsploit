@@ -12,9 +12,9 @@ from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository,
 from iotsploit_django.ports_impl.stream_backend import DjangoStreamBackend
 from iotsploit_django.ports_impl.task_runner import CeleryTaskRunner
 
-from sat_toolkit.adapters.memory.driver_state_repo import MemoryDriverStateRepository
-from sat_toolkit.adapters.memory.task_runner import InProcessTaskRunner
-from sat_toolkit.config import DEVICE_PLUGINS_DIR
+from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverStateRepository
+from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
+from iotsploit_django.config import DEVICE_PLUGINS_DIR
 
 
 def build_exploit_plugin_manager(

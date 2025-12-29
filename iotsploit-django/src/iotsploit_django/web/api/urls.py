@@ -1,6 +1,6 @@
 """API URL aggregation (stage-2).
 
-This module intentionally contains *only* URL composition; views remain in `sat_toolkit`.
+This module intentionally contains *only* URL composition.
 """
 
 from django.urls import include, path
@@ -17,7 +17,7 @@ urlpatterns = [
     path("", include("iotsploit_django.web.api.files_urls")),
     path("", include("iotsploit_django.web.api.tools_urls")),
     path("", include("iotsploit_django.web.api.recovery_urls")),
-    # IoT fuzzer sub-domain (urls only; views still in sat_toolkit for now)
+    # IoT fuzzer sub-domain
     path("", include("iotsploit_django.iot_fuzzer.urls")),
 ]
 

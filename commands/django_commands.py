@@ -6,7 +6,7 @@ import sys
 import subprocess
 import time
 from .base_commands import BaseCommands
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.xlogger import xlog as logger
 import os
 import signal
 import socket
@@ -100,7 +100,7 @@ class DjangoCommands(BaseCommands):
                 '-m',
                 'celery',
                 '-A',
-                'sat_toolkit',
+                'iotsploit_django',
                 'worker',
                 '--loglevel=info'
             ]

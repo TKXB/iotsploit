@@ -1,6 +1,6 @@
 from django.urls import path
 
-from sat_toolkit.view_handlers.vehicle_views import ota_info
+from iotsploit_django.view_handlers.vehicle_views import ota_info
 
 
 urlpatterns = [

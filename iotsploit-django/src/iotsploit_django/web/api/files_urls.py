@@ -1,6 +1,6 @@
 from django.urls import path
 
-from sat_toolkit.view_handlers.file_views import (
+from iotsploit_django.view_handlers.file_views import (
     delete_file,
     download_file,
     list_files,

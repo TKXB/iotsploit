@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-# Stage-5: keep behavior stable by re-exporting legacy fuzzer Celery tasks.
-from sat_toolkit.tasks import (  # noqa: F401
+# Stage-5.5: keep behavior stable while removing legacy runtime dependencies.
+from iotsploit_django.tasks.legacy_tasks_impl import (  # noqa: F401
     generate_fuzzing_report,
     process_fuzzing_results,
     run_fuzzing_campaign,

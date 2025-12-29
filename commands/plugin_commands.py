@@ -4,10 +4,10 @@ import cmd2
 from cmd2 import ansi
 from .base_commands import BaseCommands
 from iotsploit_core.core.exploit_spec import ExploitResult
-from sat_toolkit.tools.input_mgr import Input_Mgr
-from sat_toolkit.adapters.django.plugins.models import Plugin
-from sat_toolkit.adapters.django.plugins.models import PluginGroup, PluginGroupTree
-from sat_toolkit.tools.xlogger import xlog as logger
+from iotsploit_django.tools.input_mgr import Input_Mgr
+from iotsploit_django.adapters.django.plugins.models import Plugin
+from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree
+from iotsploit_django.tools.xlogger import xlog as logger
 
 
 class PluginCommands(BaseCommands):
@@ -132,7 +132,7 @@ class PluginCommands(BaseCommands):
                     # Import celery here to avoid circular imports
                     try:
                         from celery.result import AsyncResult
-                        from sat_toolkit import celery_app
+                        from iotsploit_django.tasks import celery_app
                         import time
 
                         task_result = AsyncResult(task_id, app=celery_app)
