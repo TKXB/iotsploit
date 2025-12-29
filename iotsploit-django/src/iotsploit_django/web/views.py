@@ -14,10 +14,14 @@ from sat_toolkit.tools.sat_utils import *
 from django.views.decorators.csrf import csrf_exempt
 
 from django.http import JsonResponse
-from sat_toolkit.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
+from iotsploit_django.composition_root.wiring import (
+    ensure_stream_backend_configured,
+    get_device_driver_manager,
+    get_exploit_plugin_manager,
+)
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_core.core.base_plugin import BasePlugin, BaseDeviceDriver
-from sat_toolkit.adapters.django.device_driver_manager_factory import get_device_driver_manager
+ensure_stream_backend_configured()
 from sat_toolkit.adapters.django.plugins.models import Plugin
 
 from sat_toolkit.tools.xlogger import xlog
