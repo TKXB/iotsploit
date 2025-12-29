@@ -36,7 +36,7 @@ from asgiref.sync import async_to_sync
 import asyncio
 
 from celery.result import AsyncResult
-from .tasks import execute_plugin_task
+from sat_toolkit.tasks import execute_plugin_task
 
 from iotsploit_core.core.stream_manager import StreamManager
 
@@ -975,9 +975,33 @@ def list_urls(request):
     Returns a list of all available API endpoints
     """
     try:
-        from .urls import get_url_patterns
-        
-        url_patterns = get_url_patterns()
+        # Stage-3.5+: `sat_toolkit.urls` may be removed; derive patterns from the
+        # stage-2 route aggregation layer instead.
+        from django.urls.resolvers import URLPattern, URLResolver
+        from iotsploit_django.web.api import urls as api_urls
+
+        def _walk(patterns, prefix: str = ""):
+            out = []
+            for p in patterns:
+                if isinstance(p, URLPattern):
+                    if getattr(p, "name", None):
+                        out.append(
+                            {
+                                "name": str(p.name),
+                                "pattern": f"/api/{prefix}{p.pattern}",
+                                "method": "POST"
+                                if getattr(p.callback, "csrf_exempt", False)
+                                else "GET",
+                                "description": (getattr(p.callback, "__doc__", "") or "").strip(),
+                                "deprecated": "DEPRECATED"
+                                in ((getattr(p.callback, "__doc__", "") or "")),
+                            }
+                        )
+                elif isinstance(p, URLResolver):
+                    out.extend(_walk(list(p.url_patterns), prefix=f"{prefix}{p.pattern}"))
+            return out
+
+        url_patterns = _walk(list(api_urls.urlpatterns))
         
         # Group endpoints by category based on their names or patterns
         categorized_endpoints = {

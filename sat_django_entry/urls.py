@@ -24,7 +24,8 @@ from django.views.generic import TemplateView
 
 urlpatterns = [
     path('admin/', admin.site.urls), 
-    path("api/", include("sat_toolkit.urls")),  
+    # Stage-3.5+: switch legacy entrypoint to iotsploit-django route aggregation.
+    path("api/", include("iotsploit_django.web.api.urls")),
     # path('sat_ui/Audit_Report.html', TemplateView.as_view(template_name='sat_logs/Audit_Report.html')),    
     # path('doip/', doip_diag_admin.urls),
 ]

@@ -12,10 +12,12 @@ import os
 import mimetypes
 from django.apps import apps
 
-from sat_toolkit.tools.iot_fuzzer_manager import IoTFuzzerManager
-from sat_toolkit.tools.iot_fuzzer_service import IoTFuzzerService
-from sat_toolkit.tools.iot_protocol_adapter import IoTProtocolAdapter
-from sat_toolkit.tools.iot_fuzzer_bridge import IoTFuzzerBridge
+from iotsploit_django.iot_fuzzer.service import (
+    IoTFuzzerBridge,
+    IoTFuzzerManager,
+    IoTFuzzerService,
+    IoTProtocolAdapter,
+)
 
 # Import Django models
 from sat_toolkit.adapters.django.iot_fuzzer.models import (

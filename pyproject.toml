@@ -66,6 +66,7 @@ websockets = "^12.0"
 flood_attack = {path = "plugins/exploits/flood_attack", develop = true}
 esp32_driver = {path = "plugins/devices/esp32", develop = true}
 socketcan_driver = {path = "plugins/devices/socketcan", develop = true}
+iotsploit-django = {path = "iotsploit-django", develop = true}
 iot_protocol_fuzzer = {path = "iot_protocol_fuzzer", develop = true}
 # ... other plugin dependencies ...
 
