@@ -62,7 +62,7 @@ def dump_http_routes() -> list[dict[str, Any]]:
 
 def dump_ws_routes() -> list[dict[str, Any]]:
     _django_setup()
-    from sat_toolkit import routing  # type: ignore
+    from iotsploit_django import routing  # type: ignore
 
     out: list[WsRoute] = []
     for p in getattr(routing, "websocket_urlpatterns", []):
