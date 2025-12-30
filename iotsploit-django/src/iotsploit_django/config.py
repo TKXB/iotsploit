@@ -3,11 +3,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# repo root
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+import os
 
-# Path to the device plugins directory
-DEVICE_PLUGINS_DIR = str(PROJECT_ROOT / "plugins" / "devices")
-EXPLOIT_PLUGINS_DIR = str(PROJECT_ROOT / "plugins" / "exploits")
+# repo root (workspace root). File lives at:
+#   <repo>/iotsploit-django/src/iotsploit_django/config.py
+# So parents[3] is the actual repo root.
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Path to the plugins directories (allow env override, consistent with iotsploit-core)
+DEVICE_PLUGINS_DIR = os.getenv("IOTSPLOIT_DEVICE_PLUGINS_DIR") or os.getenv("SAT_DEVICE_PLUGINS_DIR") or str(
+    REPO_ROOT / "plugins" / "devices"
+)
+EXPLOIT_PLUGINS_DIR = os.getenv("IOTSPLOIT_EXPLOIT_PLUGINS_DIR") or os.getenv("SAT_EXPLOIT_PLUGINS_DIR") or str(
+    REPO_ROOT / "plugins" / "exploits"
+)
 
 
