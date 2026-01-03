@@ -24,7 +24,7 @@ from typing import Any, Dict
 # ---------------------------------------------------------------------------
 # Bootstrap Django project (if used inside the SAT server environment)
 # ---------------------------------------------------------------------------
-DJANGO_SETTINGS = os.environ.get("DJANGO_SETTINGS_MODULE", "sat_django_entry.settings")
+DJANGO_SETTINGS = os.environ.get("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 if DJANGO_SETTINGS:
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", DJANGO_SETTINGS)
     try:

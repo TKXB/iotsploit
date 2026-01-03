@@ -20,7 +20,7 @@ services:
       # - ./:/app
       # - /app/ui/build
     environment:
-      - DJANGO_SETTINGS_MODULE=sat_django_entry.settings
+      - DJANGO_SETTINGS_MODULE=iotsploit_django.settings.prod
       - PYTHONPATH=/app
       - REDIS_URL=redis://localhost:6379
       - DEBUG=False

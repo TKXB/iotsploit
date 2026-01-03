@@ -1,6 +1,6 @@
 """ASGI config for iotsploit-django.
 
-Stage-1 skeleton: use existing settings module by default.
+Standalone default: use iotsploit-django settings by default.
 """
 
 import os
@@ -8,7 +8,8 @@ import os
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "sat_django_entry.settings")
+# Allow external override (Docker/supervisor/dev shells). Default to dev.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 
 django_asgi_app = get_asgi_application()
 

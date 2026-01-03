@@ -69,8 +69,8 @@ RUN git clone https://github.com/TKXB/iotsploit.git /tmp/iotsploit \
 # Install all Python dependencies with Poetry (main + dev + plugins)
 RUN poetry install
 
-# Set up Django settings
-ENV DJANGO_SETTINGS_MODULE=sat_django_entry.settings
+# Set up Django settings (container default)
+ENV DJANGO_SETTINGS_MODULE=iotsploit_django.settings.prod
 
 # Download and extract pre-built Flutter web application to static/web directory
 RUN mkdir -p /app/static/web \

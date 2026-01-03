@@ -89,7 +89,7 @@ class DjangoCommands(BaseCommands):
                 '0.0.0.0', 
                 '-p', 
                 '9999', 
-                'sat_django_entry.asgi:application'
+                'iotsploit_django.asgi:application'
             ]
             mcp_bridge_cmd = [
                 sys.executable,
