@@ -199,7 +199,7 @@ class TargetManager:
             xlog.error(f"update_target failed: {e}", name="target_model")
             return False
 
-    def parse_and_set_target_from_json(self, json_file_path: str):
+    def parse_and_set_target_from_json(self, json_file_path: str, force_overwrite: bool = False) -> None:
         xlog.debug(f"Reading JSON file from: {json_file_path}", name="target_model")
         if not os.path.exists(json_file_path):
             xlog.error(f"File not found: {json_file_path}", name="target_model")
@@ -208,8 +208,27 @@ class TargetManager:
         with open(json_file_path, "r") as file:
             data = json.load(file)
 
+        existing_ids: set[str] = set()
+        if not force_overwrite:
+            session = self.Session()
+            try:
+                existing_ids = {row[0] for row in session.query(TargetDBModel.target_id).all()}
+            finally:
+                session.close()
+
         imported_count = 0
+        skipped_count = 0
         for target in data.get("targets", []):
+            target_id = target.get("target_id", "")
+            if not target_id:
+                xlog.warning("Skipping target import: missing target_id", name="target_model")
+                skipped_count += 1
+                continue
+
+            if (not force_overwrite) and (target_id in existing_ids):
+                skipped_count += 1
+                continue
+
             target_type = target.get("type", "vehicle")
             target_class = self.targets.get(target_type, Vehicle)
 
@@ -218,7 +237,7 @@ class TargetManager:
             interfaces = target.get("interfaces", [])
 
             target_instance = target_class(
-                target_id=target.get("target_id", ""),
+                target_id=target_id,
                 name=target.get("name", ""),
                 type=target_type,
                 status=target.get("status", "active"),
@@ -232,6 +251,9 @@ class TargetManager:
             self.current_target = target_instance
             imported_count += 1
 
-        xlog.info(f"Imported {imported_count} targets from JSON file: {json_file_path}", name="target_model")
+        xlog.info(
+            f"Imported {imported_count} targets (skipped {skipped_count}) from JSON file: {json_file_path}",
+            name="target_model",
+        )
 
 
