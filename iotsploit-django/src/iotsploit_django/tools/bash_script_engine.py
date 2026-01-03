@@ -15,7 +15,7 @@ from iotsploit_django.tools.env_mgr import Env_Mgr
 
 class Bash_Script_Mgr:
     __script_dir = "scripts/bash"
-    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __temp_dir = Path(tempfile.gettempdir()) / "iotsploit_tmp"
     __temp_script_file_path = str(__temp_dir / "tmp_bash_script.sh")
 
     @staticmethod

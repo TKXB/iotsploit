@@ -134,7 +134,7 @@ Set up the database:
 
 ```bash
 python manage.py makemigrations
-python manage.py makemigrations sat_toolkit
+python manage.py makemigrations iotsploit_django
 python manage.py migrate
 ```
 

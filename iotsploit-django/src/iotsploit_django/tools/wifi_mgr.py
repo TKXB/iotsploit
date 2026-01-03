@@ -43,7 +43,7 @@ wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 '''
     
-    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __temp_dir = Path(tempfile.gettempdir()) / "iotsploit_tmp"
     __ap_hostapd_config_path = str(__temp_dir / "hostapd.config")
     __dhclient_pid_path = str(__temp_dir / "dhclient.wlan0.pid")
     __dns_backup_file_path = str(__temp_dir / "dns_resolv_conf_bak")

@@ -13,7 +13,7 @@ from iotsploit_django.tools.sat_utils import *
 
 class Python_SubModule_Mgr:
     __script_dir = "scripts/python"
-    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __temp_dir = Path(tempfile.gettempdir()) / "iotsploit_tmp"
     __temp_submodule_file_path = str(__temp_dir / "tmp_python_submodule.py")
 
     @staticmethod

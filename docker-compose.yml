@@ -54,7 +54,7 @@ services:
   #   image: postgres:15-alpine
   #   container_name: sat-postgres
   #   environment:
-  #     POSTGRES_DB: sat_toolkit
+  #     POSTGRES_DB: iotsploit_django
   #     POSTGRES_USER: sat_user
   #     POSTGRES_PASSWORD: sat_password
   #   volumes:

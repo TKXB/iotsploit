@@ -3,6 +3,7 @@ name = "sat-toolkit"
 version = "0.1.0"
 description = "Iotsploit Toolkit"
 authors = ["tk"]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"

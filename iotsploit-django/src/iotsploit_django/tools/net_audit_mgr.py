@@ -38,7 +38,7 @@ class _DUPFloodThread(threading.Thread):
 
 class NetAudit_Mgr:
     #TODO  flood攻击的脚本 改为多进程同时攻击，使用pkill或者killall直接一次性杀掉
-    __temp_dir = Path(tempfile.gettempdir()) / "sat_toolkit_tmp"
+    __temp_dir = Path(tempfile.gettempdir()) / "iotsploit_tmp"
     __nmap_output_file_path = str(__temp_dir / "nmap_output/nmap_audit_result.xml")
 
     @staticmethod

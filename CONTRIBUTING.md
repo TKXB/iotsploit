@@ -33,7 +33,7 @@ Thank you for your interest in contributing to IotSploit! This document provides
 
    # Initialize the database
    python manage.py makemigrations
-   python manage.py makemigrations sat_toolkit
+   python manage.py makemigrations iotsploit_django
    python manage.py migrate
    ```
 
