@@ -100,7 +100,7 @@ class DjangoCommands(BaseCommands):
                 '-m',
                 'celery',
                 '-A',
-                'iotsploit_django',
+                'iotsploit_django.tasks.celery_app:app',
                 'worker',
                 '--loglevel=info'
             ]
