@@ -19,10 +19,8 @@ sys.path.insert(0, str(project_root))
 
 from mcp.server.fastmcp import FastMCP
 
-# Use iotsploit-django xlogger
-from iotsploit_django.tools.xlogger import xlog
-
-logger = xlog.get_logger('sat_fastmcp')
+logger = logging.getLogger("sat_fastmcp")
+logger.setLevel(logging.INFO)
 
 # Add file logging for debugging (since this runs as subprocess)
 file_logger = logging.getLogger('sat_fastmcp_file')
@@ -39,6 +37,12 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 file_handler.setFormatter(formatter)
 file_logger.addHandler(file_handler)
 
+if not logger.handlers:
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
 def log_both(level, message):
     """Log to both regular logger and file logger"""
     getattr(logger, level)(message)
@@ -47,20 +51,15 @@ def log_both(level, message):
 # Initialize FastMCP server
 mcp = FastMCP("sat-toolkit")
 
-# Initialize Django-backed components (optional)
+# Initialize core components (Django is accessed via HTTP API only)
 device_manager = None
 try:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
-    import django
+    from iotsploit_mcp.composition_root import build_device_manager
 
-    django.setup()
-
-    from iotsploit_django.composition_root.wiring import get_device_driver_manager
-
-    device_manager = get_device_driver_manager()
-    log_both("info", "SAT components initialized")
+    device_manager = build_device_manager()
+    log_both("info", "SAT MCP components initialized (driver states via Django HTTP API)")
 except Exception as e:
-    log_both("warning", f"SAT components failed to initialize: {e}")
+    log_both("warning", f"SAT MCP components failed to initialize: {e}")
 
 @mcp.tool()
 async def scan_devices(driver_name: str = "all") -> str:
