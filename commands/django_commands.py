@@ -93,7 +93,7 @@ class DjangoCommands(BaseCommands):
             ]
             mcp_bridge_cmd = [
                 sys.executable,
-                'sat_mcp_server/websocket_bridge_simple.py'
+                'iotsploit_mcp/websocket_bridge_simple.py'
             ]
             celery_cmd = [
                 sys.executable,
