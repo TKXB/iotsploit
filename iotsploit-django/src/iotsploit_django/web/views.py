@@ -115,6 +115,192 @@ def list_plugins(request):
     plugins = plugin_manager.list_plugins()
     return JsonResponse({'plugins': plugins})
 
+
+@require_http_methods(["GET"])
+def list_enabled_exploit_plugins(request):
+    """SSOT endpoint for MCP runtime.
+
+    Returns the enabled exploit plugin metas from Django DB (single source of truth).
+    """
+    try:
+        from iotsploit_django.ports_impl.plugin_repo import DjangoPluginMetaRepository
+
+        repo = DjangoPluginMetaRepository()
+        metas = repo.list_enabled()
+        return JsonResponse(
+            {
+                "status": "success",
+                "plugins": [
+                    {
+                        "name": m.name,
+                        "module_path": m.module_path,
+                        "enabled": bool(m.enabled),
+                        "description": m.description,
+                        "author": m.author,
+                        "license": m.license,
+                        "parameters": m.parameters or {},
+                    }
+                    for m in metas
+                ],
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error listing enabled exploit plugins: {str(e)}")
+        return JsonResponse({"status": "error", "message": str(e), "plugins": []}, status=500)
+
+
+@csrf_exempt
+def discovered_exploit_plugins(request):
+    """Optional: MCP nodes can report locally discovered plugins for Django to upsert."""
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "Only POST method is allowed"}, status=405)
+    try:
+        from iotsploit_core.domain.plugin import PluginMeta
+        from iotsploit_django.ports_impl.plugin_repo import DjangoPluginMetaRepository
+
+        payload = json.loads(request.body or b"{}")
+        items = payload.get("plugins") if isinstance(payload, dict) else payload
+        if not isinstance(items, list):
+            return JsonResponse({"status": "error", "message": "Expected a list of plugins"}, status=400)
+
+        repo = DjangoPluginMetaRepository()
+        count = 0
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            name = (it.get("name") or "").strip()
+            module_path = (it.get("module_path") or "").strip()
+            if not name or not module_path:
+                continue
+            # SSOT rule: discovery should NOT override enabled/disabled decision.
+            # - If exists, preserve DB enabled flag.
+            # - If new, default to disabled (opt-in enable).
+            try:
+                existing = Plugin.objects.filter(name=name).first()
+                enabled = bool(existing.enabled) if existing is not None else False
+            except Exception:
+                enabled = False
+
+            meta = PluginMeta(
+                name=name,
+                module_path=module_path,
+                enabled=enabled,
+                description=str(it.get("description", "") or ""),
+                author=str(it.get("author", "") or ""),
+                license=str(it.get("license", "") or ""),
+                parameters=it.get("parameters") if isinstance(it.get("parameters"), dict) else None,
+            )
+            repo.upsert(meta)
+            count += 1
+
+        return JsonResponse({"status": "accepted", "upserted": count})
+    except Exception as e:
+        logger.error(f"Error upserting discovered exploit plugins: {str(e)}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+def enable_exploit_plugin(request, name: str):
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "Only POST method is allowed"}, status=405)
+    try:
+        updated = int(Plugin.objects.filter(name=name).update(enabled=True))
+        if updated == 0:
+            return JsonResponse({"status": "error", "message": f"Plugin '{name}' not found"}, status=404)
+        return JsonResponse({"status": "success", "name": name, "enabled": True})
+    except Exception as e:
+        logger.error(f"Error enabling exploit plugin {name}: {str(e)}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+def disable_exploit_plugin(request, name: str):
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "Only POST method is allowed"}, status=405)
+    try:
+        updated = int(Plugin.objects.filter(name=name).update(enabled=False))
+        if updated == 0:
+            return JsonResponse({"status": "error", "message": f"Plugin '{name}' not found"}, status=404)
+        return JsonResponse({"status": "success", "name": name, "enabled": False})
+    except Exception as e:
+        logger.error(f"Error disabling exploit plugin {name}: {str(e)}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+def list_enabled_plugin_groups(request):
+    """SSOT endpoint for MCP runtime: returns enabled group specs."""
+    try:
+        from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository
+
+        repo = DjangoPluginGroupRepository()
+        groups = repo.list_enabled_groups()
+        return JsonResponse(
+            {
+                "status": "success",
+                "groups": [
+                    {
+                        "name": g.name,
+                        "enabled": bool(g.enabled),
+                        "plugin_steps": [
+                            {"sequence": s.sequence, "plugin_name": s.plugin_name, "ignore_fail": bool(s.ignore_fail)}
+                            for s in g.plugin_steps
+                        ],
+                        "group_steps": [
+                            {
+                                "sequence": s.sequence,
+                                "group_name": s.group_name,
+                                "ignore_fail": bool(s.ignore_fail),
+                                "force_exec": bool(s.force_exec),
+                            }
+                            for s in g.group_steps
+                        ],
+                    }
+                    for g in groups
+                ],
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error listing enabled plugin groups: {str(e)}")
+        return JsonResponse({"status": "error", "message": str(e), "groups": []}, status=500)
+
+
+@require_http_methods(["GET"])
+def get_plugin_group(request, name: str):
+    """SSOT endpoint for MCP runtime: returns a single group spec by name."""
+    try:
+        from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository
+
+        repo = DjangoPluginGroupRepository()
+        g = repo.get_group(name)
+        if g is None:
+            return JsonResponse({"status": "error", "message": f"Group '{name}' not found"}, status=404)
+        return JsonResponse(
+            {
+                "status": "success",
+                "group": {
+                    "name": g.name,
+                    "enabled": bool(g.enabled),
+                    "plugin_steps": [
+                        {"sequence": s.sequence, "plugin_name": s.plugin_name, "ignore_fail": bool(s.ignore_fail)}
+                        for s in g.plugin_steps
+                    ],
+                    "group_steps": [
+                        {
+                            "sequence": s.sequence,
+                            "group_name": s.group_name,
+                            "ignore_fail": bool(s.ignore_fail),
+                            "force_exec": bool(s.force_exec),
+                        }
+                        for s in g.group_steps
+                    ],
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting plugin group {name}: {str(e)}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
 def list_device_drivers(request):
     """
     GET

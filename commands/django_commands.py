@@ -93,7 +93,13 @@ class DjangoCommands(BaseCommands):
             ]
             mcp_bridge_cmd = [
                 sys.executable,
-                'iotsploit_mcp/websocket_bridge_simple.py'
+                '-m',
+                'iotsploit_mcp.cli',
+                'ws',
+                '--host',
+                '0.0.0.0',
+                '--port',
+                '9998',
             ]
             celery_cmd = [
                 sys.executable,
@@ -127,12 +133,20 @@ class DjangoCommands(BaseCommands):
             
             # Start the WebSocket bridge in its own process group so that we can
             # later terminate the entire group (bridge + sat_fastmcp child)
+            # Set up environment variables for MCP bridge (plugin directories + Django API URL)
+            mcp_env = os.environ.copy()
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            mcp_env.setdefault('IOTSPLOIT_DEVICE_PLUGINS_DIR', os.path.join(project_root, 'plugins', 'devices'))
+            mcp_env.setdefault('IOTSPLOIT_EXPLOIT_PLUGINS_DIR', os.path.join(project_root, 'plugins', 'exploits'))
+            mcp_env.setdefault('IOTSPLOIT_DJANGO_API_BASE_URL', 'http://127.0.0.1:8888')
+            
             self.mcp_bridge_process = subprocess.Popen(
                 mcp_bridge_cmd,
                 stdout=sys.stdout,  # 直接输出到控制台
                 stderr=sys.stderr,
                 universal_newlines=True,
-                start_new_session=True  # create new session = new PGID on POSIX
+                start_new_session=True,  # create new session = new PGID on POSIX
+                env=mcp_env
             )
             
             self.celery_worker_process = subprocess.Popen(

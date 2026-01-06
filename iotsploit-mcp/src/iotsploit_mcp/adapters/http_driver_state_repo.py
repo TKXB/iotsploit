@@ -32,7 +32,6 @@ class HttpDriverStateRepository:
 
     @staticmethod
     def from_env() -> "HttpDriverStateRepository":
-        # `django_commands.py` uses http://localhost:8888 for Django HTTP API by default.
         base_url = os.getenv("IOTSPLOIT_DJANGO_API_BASE_URL", "http://127.0.0.1:8888")
         timeout_s = float(os.getenv("IOTSPLOIT_DJANGO_API_TIMEOUT_S", "5.0"))
         bearer_token = os.getenv("IOTSPLOIT_DJANGO_API_TOKEN") or None

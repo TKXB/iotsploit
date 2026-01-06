@@ -51,6 +51,8 @@ esptool = "4.8.1"
 dataclasses-json = "0.6.7"
 # Standalone extracted core package (scheme B: app imports iotsploit_core.*)
 iotsploit-core = { path = "iotsploit-core", develop = true }
+# MCP outer-ring package (PyPI-style, src-layout)
+iotsploit-mcp = { path = "iotsploit-mcp", develop = true }
 pyudev = "0.24.3"
 facedancer = "^3.0.0"
 # AI and MCP dependencies
