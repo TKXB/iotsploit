@@ -1,7 +1,10 @@
+import os
+# Disable pwntools terminal mode before importing to prevent fileno() errors in non-TTY environments
+os.environ.setdefault("PWNLIB_NOTERM", "1")
+
 import logging
 logger = logging.getLogger(__name__)
 
-import os
 import re
 import threading
 from iotsploit_django.tools.usb_mgr import USB_Mgr
@@ -10,9 +13,7 @@ from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_core.domain.target import ADBDevice
 
-from pwnlib import term
-term.term_mode = True
-from pwn import *
+from pwn import adb, context
 from pwnlib.exception import PwnlibException
 
 
