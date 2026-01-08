@@ -55,12 +55,19 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
         return error_result
 
 def send_task_status(task_id, data):
-    """Helper function to send task status updates to WebSocket clients"""
+    """Send task status updates to WebSocket clients via Channel Layers.
+    
+    Works across processes (Celery worker -> Django ASGI) using Redis-backed
+    channel layers instead of in-memory consumer instances.
+    """
     try:
-        from iotsploit_django.consumers import ExploitWebsocketConsumer
-        
-        for consumer in ExploitWebsocketConsumer.instances.get(task_id, []):
-            consumer.send_update(data)
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            group_name = f"exploit_task_{task_id}"
+            async_to_sync(channel_layer.group_send)(group_name, {
+                'type': 'task_update',
+                'data': data
+            })
     except Exception as e:
         logger.error(f"Error sending task status: {str(e)}")
 

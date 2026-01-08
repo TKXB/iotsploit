@@ -4,7 +4,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 import asyncio
 from asgiref.sync import async_to_sync
-from celery.result import AsyncResult
+# Import the configured Celery app to ensure result backend is available
+from iotsploit_django.tasks.celery_app import app as celery_app
 from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 from iotsploit_django.adapters.django.device_driver_manager_factory import get_device_driver_manager
 import time
@@ -47,10 +48,15 @@ class SystemUsageConsumer(AsyncWebsocketConsumer):
                 break
 
 class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
-    instances = {}
+    instances = {}  # Deprecated: use channel layers for cross-process messaging
 
     async def connect(self):
         self.task_id = self.scope['url_route']['kwargs']['task_id']
+        self.group_name = f"exploit_task_{self.task_id}"
+        
+        # Join channel group for cross-process messaging from Celery worker
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        
         logger.info(f"WebSocket connected for task: {self.task_id}")
         await self.accept()
         
@@ -58,8 +64,14 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
         asyncio.create_task(self.poll_task_status())
 
     async def disconnect(self, close_code):
+        # Leave the channel group
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
         logger.info(f"WebSocket disconnected for task: {self.task_id}")
         self.is_polling = False
+
+    async def task_update(self, event):
+        """Handle task_update messages from Celery worker via channel_layer.group_send()."""
+        await self.send(text_data=json.dumps(event['data']))
 
     async def receive(self, text_data):
         """Handle incoming messages - could be used for requesting status updates"""
@@ -73,7 +85,7 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
     async def send_task_status(self):
         """Fetch and send task status from Celery/Redis"""
         try:
-            result = AsyncResult(self.task_id)
+            result = celery_app.AsyncResult(self.task_id)
             
             if result.ready():
                 task_result = result.get()
