@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import subprocess
 import sys
 from typing import Optional, Set
@@ -18,8 +17,9 @@ from typing import Optional, Set
 import websockets
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+from iotsploit_mcp.tools.xlogger_mcp import xlog_mcp
+
+logger = xlog_mcp.get_logger("iotsploit_mcp.websocket_bridge_simple")
 
 
 class SATMCPWebSocketBridge:

@@ -8,37 +8,17 @@ are sourced from Django SSOT over HTTP APIs.
 
 import asyncio
 import json
-import logging
 import os
-import sys
 
 from mcp.server.fastmcp import FastMCP
 
-logger = logging.getLogger("sat_fastmcp")
-logger.setLevel(logging.INFO)
+from iotsploit_mcp.tools.xlogger_mcp import xlog_mcp
 
-# File logging (since this runs as subprocess)
-file_logger = logging.getLogger("sat_fastmcp_file")
-file_logger.setLevel(logging.DEBUG)
-
-log_dir = "/tmp/sat_logs"
-os.makedirs(log_dir, exist_ok=True)
-file_handler = logging.FileHandler(f"{log_dir}/sat_fastmcp.log")
-file_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-file_logger.addHandler(file_handler)
-
-if not logger.handlers:
-    stream_handler = logging.StreamHandler(sys.stderr)
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-
-
-def log_both(level: str, message: str) -> None:
-    getattr(logger, level)(message)
-    getattr(file_logger, level)(message)
+# sat_fastmcp runs as a subprocess; allow optional file logging.
+logger = xlog_mcp.get_logger(
+    "sat_fastmcp",
+    # enable via env IOTSPLOIT_MCP_LOG_TO_FILE=1 (and optionally IOTSPLOIT_MCP_LOG_FILE / IOTSPLOIT_MCP_LOG_DIR)
+)
 
 
 mcp = FastMCP("sat-toolkit")
@@ -66,10 +46,10 @@ def _ensure_managers_initialized() -> tuple:
 
         _device_manager = build_device_manager()
         _exploit_manager = build_exploit_manager()
-        log_both("info", "SAT MCP components initialized (SSOT via Django HTTP API)")
+        logger.info("SAT MCP components initialized (SSOT via Django HTTP API)")
     except Exception as e:
-        log_both("error", f"SAT MCP components failed to initialize: {e}")
-        log_both("info", "Will retry on next tool call...")
+        logger.error("SAT MCP components failed to initialize: %s", e)
+        logger.info("Will retry on next tool call...")
         _init_attempted = False  # Allow retry on next call
     
     return _device_manager, _exploit_manager
@@ -95,7 +75,7 @@ async def scan_devices(driver_name: str = "all") -> str:
         if not device_manager:
             return "Device manager not available. Ensure Django API is running at IOTSPLOIT_DJANGO_API_BASE_URL"
 
-        log_both("info", f"Scanning devices (driver: {driver_name})")
+        logger.info("Scanning devices (driver: %s)", driver_name)
 
         if driver_name == "all":
             enabled_drivers = [
@@ -136,7 +116,7 @@ async def scan_devices(driver_name: str = "all") -> str:
         return f"No devices found using driver '{driver_name}'"
 
     except Exception as e:
-        log_both("error", f"Error scanning devices: {e}")
+        logger.error("Error scanning devices: %s", e)
         return f"Error scanning devices: {str(e)}"
 
 
@@ -144,7 +124,7 @@ async def scan_devices(driver_name: str = "all") -> str:
 async def get_system_status() -> str:
     """Get overall system status."""
     try:
-        log_both("info", "Getting system status")
+        logger.info("Getting system status")
         device_manager = get_device_manager()
         exploit_manager = get_exploit_manager()
         status = {
@@ -162,7 +142,7 @@ async def get_system_status() -> str:
             status["enabled_exploit_plugins"] = len(exploit_manager.list_plugins())
         return json.dumps(status, indent=2)
     except Exception as e:
-        log_both("error", f"Error getting system status: {e}")
+        logger.error("Error getting system status: %s", e)
         return f"Error getting system status: {str(e)}"
 
 
@@ -188,7 +168,7 @@ async def read_serial_port(
         }
 
         plugin_name = os.getenv("IOTSPLOIT_SERIAL_READER_PLUGIN_NAME", "Picocom Serial Reader")
-        log_both("info", f"Executing exploit plugin '{plugin_name}' for serial port {port}")
+        logger.info("Executing exploit plugin '%s' for serial port %s", plugin_name, port)
         result = await exploit_manager.execute_plugin_async(plugin_name, target=None, parameters=parameters)
 
         if result is None:
@@ -232,7 +212,7 @@ async def read_serial_port(
         )
 
     except Exception as e:
-        log_both("error", f"Error reading serial port: {e}")
+        logger.error("Error reading serial port: %s", e)
         return json.dumps({"success": False, "error": f"Error reading serial port: {str(e)}"}, indent=2)
 
 
@@ -240,7 +220,7 @@ async def read_serial_port(
 async def list_serial_ports() -> str:
     """List available serial ports on the system."""
     try:
-        log_both("info", "Listing serial ports")
+        logger.info("Listing serial ports")
         import serial.tools.list_ports
 
         ports = serial.tools.list_ports.comports()
@@ -261,13 +241,13 @@ async def list_serial_ports() -> str:
             return "No serial ports found on the system"
         return json.dumps({"success": True, "ports": port_list}, indent=2)
     except Exception as e:
-        log_both("error", f"Error listing serial ports: {e}")
+        logger.error("Error listing serial ports: %s", e)
         return f"Error listing serial ports: {str(e)}"
 
 
 async def run_stdio_async() -> None:
     """Run FastMCP stdio server (used by CLI and bridge)."""
-    log_both("info", "Starting SAT FastMCP Server (stdio)")
+    logger.info("Starting SAT FastMCP Server (stdio)")
     await mcp.run_stdio_async()
 
 

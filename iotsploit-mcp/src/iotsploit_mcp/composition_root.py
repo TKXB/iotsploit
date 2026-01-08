@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -12,8 +11,6 @@ from iotsploit_mcp.adapters.http_driver_state_repo import HttpDriverStateReposit
 from iotsploit_mcp.adapters.http_plugin_group_repo import HttpPluginGroupRepository
 from iotsploit_mcp.adapters.http_plugin_meta_repo import HttpPluginMetaRepository
 from iotsploit_mcp.adapters.task_runner_local import LocalTaskRunner
-
-logger = logging.getLogger(__name__)
 
 
 def _default_exploit_plugins_dir() -> Path:
