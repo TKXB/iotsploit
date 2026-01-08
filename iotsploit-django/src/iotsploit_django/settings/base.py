@@ -94,8 +94,10 @@ CSP_STYLE_SRC = ("'self'",)
 CSP_IMG_SRC = ("'self'",)
 
 # Celery
-CELERY_BROKER_URL = "redis://localhost:6379/0"
-CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+# NOTE: use 127.0.0.1 instead of "localhost" to avoid IPv6 ::1 resolution issues
+# when Redis is only bound to IPv4.
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"

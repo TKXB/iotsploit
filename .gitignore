@@ -1,6 +1,5 @@
 db.sqlite3
 *.sqlite3
-*.bak
 **/__pycache__
 **/migrations
 sat_logs

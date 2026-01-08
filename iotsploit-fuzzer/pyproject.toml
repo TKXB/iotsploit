@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "iotsploit-fuzzer"
+version = "0.1.0"
+description = "IoTSploit fuzzer library (ports + core + adapters), extracted from zeekr_sat_main"
+authors = ["IoTSploit Team <devnull@example.com>"]
+readme = "README.md"
+packages = [{ include = "iotsploit_fuzzer", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+
+# Keep core deps minimal; optional hardware/protocol deps are in extras.
+typing-extensions = "^4.0.0"
+
+python-can = { version = "*", optional = true }
+pyserial = { version = "*", optional = true }
+spidev = { version = "*", optional = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+
+[tool.poetry.extras]
+can = ["python-can"]
+uart = ["pyserial"]
+spi = ["spidev"]
+all = ["python-can", "pyserial", "spidev"]
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]
+
+

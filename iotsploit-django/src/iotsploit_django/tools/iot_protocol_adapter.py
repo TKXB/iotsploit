@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 class IoTProtocolAdapter:
     """
-    IoT Protocol Adapter - Adapter pattern implementation for iot_protocol_fuzzer integration
-    This class provides the bridge between Django services and the iot_protocol_fuzzer components
+    IoT Protocol Adapter - Adapter pattern implementation for iotsploit_fuzzer integration
+    This class provides the bridge between Django services and the iotsploit_fuzzer components
     """
     
     _instance = None
@@ -38,19 +38,19 @@ class IoTProtocolAdapter:
         # Initialize supported protocols
         self._initialize_supported_protocols()
         
-        # Check if iot_protocol_fuzzer is available
+        # Check if iotsploit_fuzzer is available
         self._fuzzer_available = self._check_fuzzer_availability()
         
         logger.info("IoT Protocol Adapter initialized")
     
     def _check_fuzzer_availability(self) -> bool:
-        """Check if iot_protocol_fuzzer module is available"""
+        """Check if iotsploit_fuzzer module is available"""
         try:
-            import iot_protocol_fuzzer
-            logger.info("iot_protocol_fuzzer module found and available")
+            import iotsploit_fuzzer  # noqa: F401
+            logger.info("iotsploit_fuzzer module found and available")
             return True
         except ImportError:
-            logger.warning("iot_protocol_fuzzer module not available, using mock implementations")
+            logger.warning("iotsploit_fuzzer module not available, using mock implementations")
             return False
     
     def _check_radamsa_availability(self) -> bool:
@@ -89,9 +89,9 @@ class IoTProtocolAdapter:
         try:
             protocols = []
             
-            # Try to import and discover protocols from iot_protocol_fuzzer
+            # Try to import and discover protocols from iotsploit_fuzzer
             try:
-                # This is where we would import from iot_protocol_fuzzer
+                # This is where we would import from iotsploit_fuzzer
                 # For now, we'll return a hardcoded list of known protocols
                 supported_protocols = self._get_hardcoded_protocols()
                 
@@ -105,7 +105,7 @@ class IoTProtocolAdapter:
                     })
                 
             except ImportError:
-                logger.warning("iot_protocol_fuzzer not available, returning mock protocols")
+                logger.warning("iotsploit_fuzzer not available, returning mock protocols")
                 protocols = self._get_mock_protocols()
             
             return protocols
@@ -151,7 +151,7 @@ class IoTProtocolAdapter:
             mutation_results = []
             
             # Convert test cases to FuzzTestCase objects
-            from iot_protocol_fuzzer import FuzzTestCase
+            from iotsploit_fuzzer import FuzzTestCase
             
             fuzz_test_cases = []
             for test_case in test_cases:
@@ -637,7 +637,7 @@ class IoTProtocolAdapter:
 
 class OrchestratorAdapter:
     """
-    Adapter for iot_protocol_fuzzer orchestrator component
+    Adapter for iotsploit_fuzzer orchestrator component
     """
     
     def __init__(self, campaign_config: Dict[str, Any], fuzzer_available: bool = True):
@@ -659,19 +659,19 @@ class OrchestratorAdapter:
     def _initialize_fuzzer_components(self):
         """Initialize fuzzer components"""
         if not self.fuzzer_available:
-            logger.warning("iot_protocol_fuzzer not available, using mock implementation")
+            logger.warning("iotsploit_fuzzer not available, using mock implementation")
             self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
             return
 
         try:
             # Import real fuzzer components
-            from iot_protocol_fuzzer.core.orchestrator import Orchestrator, CampaignConfig, EventType
-            from iot_protocol_fuzzer.generators.radamsa_generator import RadamsaGenerator
-            from iot_protocol_fuzzer.harnesses.can_harness import CANHarness
-            from iot_protocol_fuzzer.harnesses.uart_harness import UARTHarness
-            from iot_protocol_fuzzer.harnesses.spi_harness import SPIHarness
-            from iot_protocol_fuzzer.monitoring.monitor import create_monitor
-            from iot_protocol_fuzzer.analysis.logger import TestLogger
+            from iotsploit_fuzzer.core.orchestrator import Orchestrator, CampaignConfig, EventType
+            from iotsploit_fuzzer.generators.radamsa_generator import RadamsaGenerator
+            from iotsploit_fuzzer.harnesses.can_harness import CANHarness
+            from iotsploit_fuzzer.harnesses.uart_harness import UARTHarness
+            from iotsploit_fuzzer.harnesses.spi_harness import SPIHarness
+            from iotsploit_fuzzer.monitoring.monitor import create_monitor
+            from iotsploit_fuzzer.analysis.logger import TestLogger
             
             logger.info("Initializing real fuzzer components")
             
@@ -727,7 +727,7 @@ class OrchestratorAdapter:
             protocol_type = protocol_config.get('protocol_type', '').lower()
             
             if protocol_type == 'can':
-                from iot_protocol_fuzzer.interfaces.can_interface import SocketCANInterface
+                from iotsploit_fuzzer.interfaces.can_interface import SocketCANInterface
                 # CAN interfaces are network interfaces (can0), not device files (/dev/can0)
                 channel = protocol_config.get('device_path', 'can0')
                 if channel.startswith('/dev/'):
@@ -739,7 +739,7 @@ class OrchestratorAdapter:
                 harness = CANHarness(interface)
             elif protocol_type == 'uart':
                 # Use the actual UARTInterface implementation
-                from iot_protocol_fuzzer.interfaces.uart_interface import UARTInterface
+                from iotsploit_fuzzer.interfaces.uart_interface import UARTInterface
                 # Accept multiple possible keys from the incoming config
                 device = (
                     protocol_config.get('port')
@@ -756,7 +756,7 @@ class OrchestratorAdapter:
                 interface = UARTInterface(device=device, baudrate=baudrate, timeout=timeout_s)
                 harness = UARTHarness(interface)
             elif protocol_type == 'spi':
-                from iot_protocol_fuzzer.interfaces.spi_interface import SPIInterface
+                from iotsploit_fuzzer.interfaces.spi_interface import SPIInterface
                 interface = SPIInterface(
                     bus=protocol_config.get('bus', 0),
                     device=protocol_config.get('device', 0)
@@ -791,7 +791,7 @@ class OrchestratorAdapter:
             logger.info("Real fuzzer components initialized successfully")
             
         except ImportError as e:
-            logger.warning(f"Failed to import iot_protocol_fuzzer: {e}, using mock implementation")
+            logger.warning(f"Failed to import fuzzer module: {e}, using mock implementation")
             self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
         except Exception as e:
             logger.error(f"Error initializing fuzzer components: {e}, using mock implementation")
@@ -1022,7 +1022,7 @@ class OrchestratorAdapter:
 
 class MonitorAdapter:
     """
-    Adapter for iot_protocol_fuzzer monitor component
+    Adapter for iotsploit_fuzzer monitor component
     """
     
     def __init__(self, campaign_config: Dict[str, Any], fuzzer_available: bool = True, orchestrator_adapter=None):
@@ -1046,13 +1046,13 @@ class MonitorAdapter:
                 return
         
         if not self.fuzzer_available:
-            logger.warning("iot_protocol_fuzzer not available, using mock implementation")
+            logger.warning("iotsploit_fuzzer not available, using mock implementation")
             self.monitor_instance = MockMonitorInstance(self.campaign_config)
             return
         
         try:
             # Import monitor factory
-            from iot_protocol_fuzzer.monitoring.monitor import create_monitor
+            from iotsploit_fuzzer.monitoring.monitor import create_monitor
             
             logger.info("Initializing real monitor components")
             # Determine protocol type from campaign config
@@ -1060,7 +1060,7 @@ class MonitorAdapter:
             self.real_monitor = create_monitor(protocol_type, self.campaign_config.get('monitoring'))
             
         except ImportError as e:
-            logger.warning(f"Failed to import iot_protocol_fuzzer monitor: {e}, using mock implementation")
+            logger.warning(f"Failed to import iotsploit_fuzzer monitor: {e}, using mock implementation")
             self.monitor_instance = MockMonitorInstance(self.campaign_config)
         except Exception as e:
             logger.error(f"Error initializing monitor components: {e}, using mock implementation")
@@ -1157,7 +1157,7 @@ class MonitorAdapter:
 
 class GeneratorAdapter:
     """
-    Adapter for iot_protocol_fuzzer generator component
+    Adapter for iotsploit_fuzzer generator component
     """
     
     def __init__(self, generator_config: Dict[str, Any], fuzzer_available: bool = True):
@@ -1173,13 +1173,13 @@ class GeneratorAdapter:
     def _initialize_generator_components(self):
         """Initialize generator components"""
         if not self.fuzzer_available:
-            logger.warning("iot_protocol_fuzzer not available, using mock implementation")
+            logger.warning("iotsploit_fuzzer not available, using mock implementation")
             self.generator_instance = MockGeneratorInstance(self.generator_config)
             return
         
         try:
             # Import real generator component
-            from iot_protocol_fuzzer.generators.radamsa_generator import RadamsaGenerator
+            from iotsploit_fuzzer.generators.radamsa_generator import RadamsaGenerator
             
             logger.info("Initializing real generator components")
             
@@ -1207,7 +1207,7 @@ class GeneratorAdapter:
                 self.generator_instance = MockGeneratorInstance(self.generator_config)
             
         except ImportError as e:
-            logger.warning(f"Failed to import iot_protocol_fuzzer generator: {e}, using mock implementation")
+            logger.warning(f"Failed to import iotsploit_fuzzer generator: {e}, using mock implementation")
             self.generator_instance = MockGeneratorInstance(self.generator_config)
         except Exception as e:
             logger.error(f"Error initializing generator components: {e}, using mock implementation")
@@ -1270,7 +1270,7 @@ class CANInterfaceAdapter(ProtocolInterfaceAdapter):
             return
         
         try:
-            from iot_protocol_fuzzer.interfaces.can_interface import SocketCANInterface
+            from iotsploit_fuzzer.interfaces.can_interface import SocketCANInterface
             
             # CAN interfaces are network interfaces (can0), not device files (/dev/can0)
             channel = self.protocol_config.get('device_path', 'can0')
@@ -1339,7 +1339,7 @@ class DoIPInterfaceAdapter(ProtocolInterfaceAdapter):
         return True  # Mock implementation always succeeds
 
 
-# Mock implementations for when iot_protocol_fuzzer is not available
+# Mock implementations for when iotsploit_fuzzer is not available
 class MockOrchestratorInstance:
     """Mock orchestrator instance"""
     

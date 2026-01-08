@@ -831,7 +831,7 @@ class IoTFuzzerManager:
         """
         try:
             # Import fuzzing engine components
-            from iot_protocol_fuzzer import FuzzingEngine, FuzzTestCase
+            from iotsploit_fuzzer import FuzzingEngine, FuzzTestCase
             
             # Create fuzzing engine
             engine = FuzzingEngine()
@@ -860,7 +860,7 @@ class IoTFuzzerManager:
             return engine
             
         except ImportError as e:
-            logger.warning(f"iot_protocol_fuzzer not available: {e}")
+            logger.warning(f"iotsploit_fuzzer not available: {e}")
             return None
         except Exception as e:
             logger.error(f"Error preparing fuzzing engine: {str(e)}")
@@ -914,12 +914,12 @@ class DependencyChecker:
             missing_deps = []
             warnings = []
             
-            # Check for iot_protocol_fuzzer module
+            # Check for fuzzer module
             try:
-                import iot_protocol_fuzzer
-                logger.info("iot_protocol_fuzzer module found")
+                import iotsploit_fuzzer  # noqa: F401
+                logger.info("iotsploit_fuzzer module found")
             except ImportError:
-                missing_deps.append("iot_protocol_fuzzer")
+                missing_deps.append("iotsploit_fuzzer")
             
             # Check for required system packages
             system_packages = {
