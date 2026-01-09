@@ -222,7 +222,7 @@ class DjangoCommands(BaseCommands):
                 self.daphne_server_process.terminate()
                 self.daphne_server_process = None
             
-            if hasattr(self, 'mcp_bridge_process') and self.mcp_bridge_process:
+            if self.mcp_bridge_process:
                 try:
                     # Terminate the entire process group so that child processes
                     # such as sat_fastmcp are also stopped.
@@ -235,7 +235,7 @@ class DjangoCommands(BaseCommands):
                 finally:
                     self.mcp_bridge_process = None
             
-            if hasattr(self, 'celery_worker_process') and self.celery_worker_process:
+            if self.celery_worker_process:
                 self.celery_worker_process.terminate()
                 self.celery_worker_process = None
             

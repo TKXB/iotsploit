@@ -144,6 +144,7 @@ class SAT_Shell(SAT_Shell_Base):
         # Rest of your initialization code...
         self.django_server_process = None
         self.daphne_server_process = None
+        self.mcp_bridge_process = None
         self.celery_worker_process = None
         
         # Initialize device manager and connected devices
@@ -450,22 +451,39 @@ if __name__ == '__main__':
     Report_Mgr.Instance().log_init()
     Env_Mgr.Instance().set("SAT_RUN_IN_SHELL", True)
 
-    if args.runserver:
+    # Register OS signal + atexit handlers in the entrypoint so that unexpected exits
+    # (terminal closed / SIGTERM) also trigger the same cleanup path.
+    import signal
+    import atexit
+
+    def _shutdown():
         try:
-            ok = shell.do_runserver("")
-            if ok is False:
-                sys.exit(1)
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
+            shell.do_stop_server("")
+        finally:
             try:
-                shell.do_stop_server("")
-            finally:
-                try:
-                    shell._cleanup_devices()
-                except Exception:
-                    pass
-        sys.exit(0)
+                shell._cleanup_devices()
+            except Exception:
+                pass
+
+    def _signal_handler(signum, frame):  # noqa: ARG001
+        _shutdown()
+        raise SystemExit(0)
+
+    def _atexit_handler():
+        # Do not raise here; just best-effort cleanup.
+        _shutdown()
+
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGHUP, _signal_handler)
+    atexit.register(_atexit_handler)
+
+    if args.runserver:
+        ok = shell.do_runserver("")
+        if ok is False:
+            sys.exit(1)
+        while True:
+            time.sleep(1)
     else:
         shell.cmdloop()
 
