@@ -9,8 +9,40 @@ iotsploit_core.utils
 from __future__ import annotations
 
 from .iots_logger import IotsLogger, get_logger, iots_logger
+from .exceptions import (
+    IotsErrorCode,
+    IotsException,
+    IotsUserException,
+    IotsDeviceException,
+    IotsNetworkException,
+    IotsExecutionException,
+    IotsConfigException,
+    abort,
+    fail,
+    user_cancel,
+    user_confirm,
+)
+from .result import IotsResult
+from .helpers import sleep, format_duration
 
 __all__ = [
+    # error codes / exceptions (new)
+    "IotsErrorCode",
+    "IotsException",
+    "IotsUserException",
+    "IotsDeviceException",
+    "IotsNetworkException",
+    "IotsExecutionException",
+    "IotsConfigException",
+    "abort",
+    "fail",
+    "user_cancel",
+    "user_confirm",
+    # result
+    "IotsResult",
+    # helpers
+    "sleep",
+    "format_duration",
     "IotsLogger",
     "iots_logger",
     "get_logger",
