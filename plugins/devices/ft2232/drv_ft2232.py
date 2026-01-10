@@ -1,6 +1,6 @@
 import usb.core
 import usb.util
-from iotsploit_django.tools.xlogger import xlog
+from iotsploit_core.utils import iots_logger
 from iotsploit_core.domain.device import Device, DeviceType, USBDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 import time
@@ -10,7 +10,7 @@ from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSou
 import pyudev
 from typing import List, Optional, Dict
 
-logger = xlog.get_logger(__name__)
+logger = iots_logger.get_logger(__name__)
 
 # Define the vendor and product IDs for FT2232 devices
 FT2232_VENDOR_ID = 0x0403

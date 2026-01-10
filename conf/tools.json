@@ -31,7 +31,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.3853376,
+      "last_checked": 1768015084.247001,
       "metadata": {}
     },
     "dfu-util": {
@@ -48,7 +48,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.3867047,
+      "last_checked": 1768015084.2484062,
       "metadata": {}
     },
     "openFPGALoader": {
@@ -65,7 +65,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.4056091,
+      "last_checked": 1768015084.267628,
       "metadata": {}
     },
     "greatfet_firmware": {
@@ -99,7 +99,7 @@
       ],
       "min_version": "7.0",
       "max_version": null,
-      "last_checked": 1767768260.4287734,
+      "last_checked": 1768015084.2925353,
       "metadata": {}
     },
     "masscan": {
@@ -133,7 +133,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.4391394,
+      "last_checked": 1768015084.3017254,
       "metadata": {}
     },
     "wget": {
@@ -150,7 +150,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.4422915,
+      "last_checked": 1768015084.3037562,
       "metadata": {}
     },
     "ping": {
@@ -167,7 +167,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.454261,
+      "last_checked": 1768015084.3152401,
       "metadata": {}
     },
     "hydra": {
@@ -184,7 +184,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1767768260.477298,
+      "last_checked": 1768015084.3381088,
       "metadata": {}
     }
   }

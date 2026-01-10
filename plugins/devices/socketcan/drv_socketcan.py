@@ -9,10 +9,10 @@ from iotsploit_core.core.device_spec import DevicePluginSpec
 from iotsploit_core.domain.device import Device, DeviceType, SocketCANDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
-from iotsploit_django.tools.xlogger import xlog
+from iotsploit_core.utils import iots_logger
 from typing import Optional, Dict, List
 
-logger = xlog.get_logger(__name__)
+logger = iots_logger.get_logger(__name__)
 
 class SocketCANDriver(BaseDeviceDriver):
     def __init__(self):

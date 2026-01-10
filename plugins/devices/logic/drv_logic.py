@@ -12,8 +12,10 @@ import traceback
 
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.domain.device import Device, SerialDevice
-from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.utils import iots_logger
 from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
+
+logger = iots_logger.get_logger(__name__)
 
 # Import components from protocol - using absolute import instead of relative
 from plugins.devices.logic.protocol import (

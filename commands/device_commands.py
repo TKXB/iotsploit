@@ -7,7 +7,9 @@ from .base_commands import BaseCommands
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.adapters.django.device_registry_factory import get_device_registry
-from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.utils import iots_logger
+
+logger = iots_logger.get_logger(__name__)
 
 
 class DeviceCommands(BaseCommands):

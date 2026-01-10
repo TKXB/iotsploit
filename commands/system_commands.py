@@ -5,7 +5,9 @@ from cmd2 import ansi
 from .base_commands import BaseCommands
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
-from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.utils import iots_logger
+
+logger = iots_logger.get_logger(__name__)
 
 
 class SystemCommands(BaseCommands):
@@ -64,8 +66,8 @@ class SystemCommands(BaseCommands):
                 return
 
         try:
-            # Set the log level using XLogger's set_level method
-            logger.set_level(selected_level)
+            # Set the log level via core logger (affects all core-managed loggers)
+            iots_logger.set_level(selected_level)
             logger.info(ansi.style(f"Log level set to {selected_level}", fg=ansi.Fg.GREEN))
         except Exception as e:
             logger.error(ansi.style(f"Error setting log level: {str(e)}", fg=ansi.Fg.RED))

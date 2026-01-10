@@ -6,7 +6,7 @@ import sys
 import subprocess
 import time
 from .base_commands import BaseCommands
-from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.utils import iots_logger
 import os
 import signal
 import socket
@@ -17,6 +17,8 @@ except Exception:  # pragma: no cover
     redis = None
 
 from django.conf import settings
+
+logger = iots_logger.get_logger(__name__)
 
 
 class DjangoCommands(BaseCommands):
