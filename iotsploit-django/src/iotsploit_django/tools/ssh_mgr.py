@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 from pwn import process, ssh
 from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
-from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.sat_utils import *
 
 

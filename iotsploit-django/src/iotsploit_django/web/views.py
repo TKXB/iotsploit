@@ -8,7 +8,6 @@ from iotsploit_django.tools.monitor_mgr import Pi_Mgr
 from iotsploit_django.tools.ota_mgr import OTA_Mgr
 from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
 
-from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.sat_utils import *
 
 from django.views.decorators.csrf import csrf_exempt
