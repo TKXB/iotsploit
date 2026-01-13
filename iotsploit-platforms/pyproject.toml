@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "iotsploit-platforms"
+version = "0.1.0"
+description = "IoTSploit platform-specific adapters (WiFi, Input, SSH backends)"
+authors = ["IoTSploit Team <devnull@example.com>"]
+readme = "README.md"
+packages = [{ include = "iotsploit_platforms", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+iotsploit-core = { path = "../iotsploit-core", develop = true }
+# Linux WiFi backend dependencies
+pywifi = "^1.1.12"
+netifaces = "^0.11.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]
