@@ -10,8 +10,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from iotsploit_django.tools.input_mgr import Input_Mgr
-from iotsploit_django.tools.sat_utils import *
 import time
 
 from iotsploit_django.tools.device_info import DeviceInfo
