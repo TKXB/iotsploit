@@ -108,6 +108,23 @@ class IotsConfigException(IotsException):
     """配置/参数相关异常"""
 
 
+class NotSupportedError(IotsException):
+    """平台或功能不支持异常"""
+    
+    def __init__(self, message: str, platform: Optional[str] = None, feature: Optional[str] = None):
+        details = {}
+        if platform:
+            details["platform"] = platform
+        if feature:
+            details["feature"] = feature
+        super().__init__(
+            IotsErrorCode.NOT_IMPLEMENTED,
+            message,
+            details=details,
+            recoverable=False
+        )
+
+
 def abort(message: str, code: IotsErrorCode = IotsErrorCode.EXECUTION_FAILED, **details: Any) -> None:
     """中止当前操作（抛出不可恢复异常）。"""
 
