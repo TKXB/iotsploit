@@ -14,6 +14,48 @@ from iotsploit_django.composition_root.wiring import get_exploit_plugin_manager
 logger = get_task_logger(__name__)
 
 
+def _inject_context_in_worker(plugin_instance):
+    """
+    Inject backend context into plugin in Celery worker process.
+    
+    Since Celery worker is a separate process, we need to build the context
+    here. Configuration is automatically read from environment variables by
+    iotsploit_platforms.selector.build_context().
+    """
+    # Skip if already injected
+    if getattr(plugin_instance, "_iots_ctx_injected", False):
+        return
+    
+    try:
+        from iotsploit_platforms.selector import build_context
+        
+        # build_context() reads all backend config from env vars automatically
+        ctx = build_context()
+        
+        # Inject into plugin
+        if hasattr(plugin_instance, "initialize"):
+            # Never call initialize(None). Prefer initialize(ctx), fallback to initialize().
+            try:
+                plugin_instance.initialize(ctx)
+            except TypeError:
+                try:
+                    plugin_instance.initialize()
+                except TypeError:
+                    logger.warning(
+                        f"Plugin {plugin_instance.__class__.__name__} initialize() "
+                        "signature mismatch, skipping initialization"
+                    )
+        
+        plugin_instance._iots_ctx_injected = True
+        logger.debug(f"Injected backend context into plugin in Celery worker")
+        
+    except Exception as e:
+        logger.warning(
+            f"Failed to inject backend context in Celery worker: {e}. "
+            "Plugin may not have backend access."
+        )
+
+
 @shared_task(bind=True, max_retries=3)
 def execute_plugin_task(self, plugin_name, target=None, parameters=None):
     try:
@@ -25,6 +67,10 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
             target = target_manager.create_target_instance(target)
 
         plugin_instance = plugin_manager.get_plugin(plugin_name)
+        
+        # Inject backend context in worker process
+        # (backends cannot be serialized across processes, must rebuild here)
+        _inject_context_in_worker(plugin_instance)
 
         raw_result = plugin_instance.execute_async(target, parameters)
 

@@ -16,6 +16,20 @@ from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverState
 from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
 from iotsploit_django.config import DEVICE_PLUGINS_DIR
 
+def _context_factory():
+    """
+    Build PluginContext with all backends.
+    
+    This factory is called by ExploitPluginManager before executing plugins.
+    Configuration is automatically read from environment variables by
+    iotsploit_platforms.selector.build_context().
+    
+    Returns:
+        PluginContext instance with all configured backends
+    """
+    from iotsploit_platforms.selector import build_context
+    return build_context()
+
 
 def build_exploit_plugin_manager(
     *,
@@ -32,6 +46,7 @@ def build_exploit_plugin_manager(
         group_repo=group_repo,
         task_runner=runner,
         plugins_dir=plugins_dir,
+        context_factory=_context_factory,
     )
 
 
