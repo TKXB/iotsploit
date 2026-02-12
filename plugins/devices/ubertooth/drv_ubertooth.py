@@ -12,6 +12,7 @@ import usb.core
 import usb.util
 
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
+from iotsploit_core.core.tool_manager import get_tool_manager
 from iotsploit_core.domain.device import DeviceType, USBDevice
 
 logger = logging.getLogger(__name__)
@@ -23,9 +24,14 @@ class UbertoothDriver(BaseDeviceDriver):
 
     def __init__(self):
         super().__init__()
+        self.tool_manager = get_tool_manager()
         self._active_process: Optional[subprocess.Popen] = None
         self._process_lock = threading.Lock()
         self._ubertooth_device = 0
+        
+        # 注册并检查 ubertooth 工具
+        self._register_tools()
+        
         self.supported_commands = {
             "get_info": "Get device info (firmware, board ID, serial)",
             "identify": "Flash LEDs to identify device",
@@ -33,21 +39,81 @@ class UbertoothDriver(BaseDeviceDriver):
             "ble_scan": "Scan BLE advertisements",
         }
 
+    def _register_tools(self):
+        """注册并检查 ubertooth 工具"""
+        required_tools = ['ubertooth-util', 'ubertooth-btle']
+        
+        for tool in required_tools:
+            if not self.tool_manager.is_available(tool):
+                self.tool_manager.add_tool(
+                    name=tool,
+                    aliases=[],
+                    platforms=['linux', 'darwin'],  # Ubertooth 主要支持 Linux/macOS
+                    save_config=True
+                )
+                
+                if not self.tool_manager.is_available(tool):
+                    logger.warning(
+                        f"{tool} is not available. "
+                        f"Please install ubertooth tools: sudo apt install ubertooth (Debian/Ubuntu) "
+                        f"or visit https://github.com/greatscottgadgets/ubertooth/wiki/Build-Guide"
+                    )
+    
     def _device_flag(self) -> str:
         return f"-U{self._ubertooth_device}"
 
-    def _run_cmd(self, cmd: List[str], timeout: int = 10) -> subprocess.CompletedProcess:
-        full_cmd = cmd + [self._device_flag()]
-        logger.debug("Running command: %s", " ".join(full_cmd))
-        return subprocess.run(full_cmd, capture_output=True, text=True, timeout=timeout)
+    def _run_cmd(self, tool_name: str, args: List[str], timeout: int = 10) -> subprocess.CompletedProcess:
+        """使用 tool manager 执行命令"""
+        # 检查工具可用性
+        if not self.tool_manager.is_available(tool_name):
+            raise RuntimeError(
+                f"{tool_name} is not available. "
+                f"Install ubertooth tools: sudo apt install ubertooth (Debian/Ubuntu) "
+                f"or visit https://github.com/greatscottgadgets/ubertooth/wiki/Build-Guide"
+            )
+        
+        # 添加设备标志
+        full_args = args + [self._device_flag()]
+        
+        logger.debug(f"Running: {tool_name} {' '.join(full_args)}")
+        
+        # 使用 tool manager 执行
+        result = self.tool_manager.execute(
+            tool_name=tool_name,
+            args=full_args,
+            timeout=timeout
+        )
+        
+        # 转换为 subprocess.CompletedProcess 格式（保持向后兼容）
+        return subprocess.CompletedProcess(
+            args=[tool_name] + full_args,
+            returncode=result.return_code,
+            stdout=result.stdout,
+            stderr=result.stderr
+        )
 
     def _run_streaming(
         self,
-        cmd: List[str],
+        tool_name: str,
+        args: List[str],
         line_parser,
         timeout: int = 30,
     ) -> List[Dict[str, Any]]:
-        full_cmd = cmd + [self._device_flag()]
+        """流式执行命令（使用 tool manager 获取工具路径）"""
+        # 检查工具可用性
+        if not self.tool_manager.is_available(tool_name):
+            raise RuntimeError(
+                f"{tool_name} is not available. "
+                f"Install ubertooth tools: sudo apt install ubertooth (Debian/Ubuntu) "
+                f"or visit https://github.com/greatscottgadgets/ubertooth/wiki/Build-Guide"
+            )
+        
+        # 获取工具路径
+        tool_info = self.tool_manager.registry.get_tool(tool_name)
+        if not tool_info or not tool_info.path:
+            raise RuntimeError(f"Cannot find path for {tool_name}")
+        
+        full_cmd = [tool_info.path] + args + [self._device_flag()]
         logger.debug("Running streaming command: %s", " ".join(full_cmd))
         results: List[Dict[str, Any]] = []
 
@@ -96,7 +162,7 @@ class UbertoothDriver(BaseDeviceDriver):
                 finally:
                     self._active_process = None
         try:
-            self._run_cmd(["ubertooth-util", "-S"], timeout=5)
+            self._run_cmd("ubertooth-util", ["-S"], timeout=5)
         except Exception as e:
             logger.debug("Failed to send stop to ubertooth-util: %s", e)
 
@@ -129,7 +195,7 @@ class UbertoothDriver(BaseDeviceDriver):
     def _initialize_impl(self, device: USBDevice) -> bool:
         if device.device_type != DeviceType.USB:
             raise ValueError("Ubertooth driver only supports USB devices")
-        result = self._run_cmd(["ubertooth-util", "-v"], timeout=8)
+        result = self._run_cmd("ubertooth-util", ["-v"], timeout=8)
         return result.returncode == 0
 
     def _connect_impl(self, device: USBDevice) -> bool:
@@ -143,7 +209,7 @@ class UbertoothDriver(BaseDeviceDriver):
         if command == "get_info":
             return self._handle_get_info()
         if command == "identify":
-            result = self._run_cmd(["ubertooth-util", "-I"], timeout=8)
+            result = self._run_cmd("ubertooth-util", ["-I"], timeout=8)
             return {
                 "status": "success" if result.returncode == 0 else "error",
                 "stdout": result.stdout.strip(),
@@ -159,19 +225,19 @@ class UbertoothDriver(BaseDeviceDriver):
     def _handle_get_info(self) -> Dict[str, Any]:
         info: Dict[str, Any] = {}
 
-        ver = self._run_cmd(["ubertooth-util", "-v"], timeout=8)
+        ver = self._run_cmd("ubertooth-util", ["-v"], timeout=8)
         info["firmware"] = (ver.stdout or ver.stderr).strip()
 
-        compile_info = self._run_cmd(["ubertooth-util", "-V"], timeout=8)
+        compile_info = self._run_cmd("ubertooth-util", ["-V"], timeout=8)
         info["compile_info"] = (compile_info.stdout or compile_info.stderr).strip()
 
-        board = self._run_cmd(["ubertooth-util", "-b"], timeout=8)
+        board = self._run_cmd("ubertooth-util", ["-b"], timeout=8)
         info["board_id"] = (board.stdout or board.stderr).strip()
 
-        serial = self._run_cmd(["ubertooth-util", "-s"], timeout=8)
+        serial = self._run_cmd("ubertooth-util", ["-s"], timeout=8)
         info["serial"] = (serial.stdout or serial.stderr).strip()
 
-        part = self._run_cmd(["ubertooth-util", "-p"], timeout=8)
+        part = self._run_cmd("ubertooth-util", ["-p"], timeout=8)
         info["part_id"] = (part.stdout or part.stderr).strip()
 
         return info
@@ -241,7 +307,8 @@ class UbertoothDriver(BaseDeviceDriver):
             return None
 
         self._run_streaming(
-            ["ubertooth-btle", "-n", f"-A{channel}"],
+            "ubertooth-btle",
+            ["-n", f"-A{channel}"],
             parse_line,
             timeout=timeout,
         )
@@ -252,7 +319,7 @@ class UbertoothDriver(BaseDeviceDriver):
 
     def _reset_impl(self, device: USBDevice) -> bool:
         self._stop_active()
-        result = self._run_cmd(["ubertooth-util", "-r"], timeout=10)
+        result = self._run_cmd("ubertooth-util", ["-r"], timeout=10)
         return result.returncode == 0
 
     def _close_impl(self, device: USBDevice) -> bool:

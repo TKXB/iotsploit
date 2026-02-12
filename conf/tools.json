@@ -1,94 +1,9 @@
 {
   "tools": {
-    "esptool": {
-      "name": "esptool",
-      "path": null,
-      "version": null,
-      "status": "missing",
-      "aliases": [],
-      "dependencies": [],
-      "platforms": [
-        "linux",
-        "darwin",
-        "windows"
-      ],
-      "min_version": null,
-      "max_version": null,
-      "last_checked": null,
-      "metadata": {}
-    },
-    "openocd": {
-      "name": "openocd",
-      "path": "/home/tkxb/ssd/Tools/openocd/src/openocd",
-      "version": "0.12.0",
-      "status": "available",
-      "aliases": [],
-      "dependencies": [],
-      "platforms": [
-        "linux",
-        "darwin",
-        "windows"
-      ],
-      "min_version": null,
-      "max_version": null,
-      "last_checked": 1768472701.8512433,
-      "metadata": {}
-    },
-    "dfu-util": {
-      "name": "dfu-util",
-      "path": "/usr/bin/dfu-util",
-      "version": "0.9",
-      "status": "available",
-      "aliases": [],
-      "dependencies": [],
-      "platforms": [
-        "linux",
-        "darwin",
-        "windows"
-      ],
-      "min_version": null,
-      "max_version": null,
-      "last_checked": 1768472701.8529437,
-      "metadata": {}
-    },
-    "openFPGALoader": {
-      "name": "openFPGALoader",
-      "path": "/usr/bin/openFPGALoader",
-      "version": "0.13.1",
-      "status": "available",
-      "aliases": [],
-      "dependencies": [],
-      "platforms": [
-        "linux",
-        "darwin",
-        "windows"
-      ],
-      "min_version": null,
-      "max_version": null,
-      "last_checked": 1768472701.8724325,
-      "metadata": {}
-    },
-    "greatfet_firmware": {
-      "name": "greatfet_firmware",
-      "path": "/home/tkxb/.cache/pypoetry/virtualenvs/sat-toolkit-_orGuYYj-py3.9/bin/greatfet_firmware",
-      "version": null,
-      "status": "permission_denied",
-      "aliases": [],
-      "dependencies": [],
-      "platforms": [
-        "linux",
-        "darwin",
-        "windows"
-      ],
-      "min_version": null,
-      "max_version": null,
-      "last_checked": null,
-      "metadata": {}
-    },
     "nmap": {
       "name": "nmap",
       "path": "/usr/bin/nmap",
-      "version": "7.80",
+      "version": "7.95",
       "status": "available",
       "aliases": [],
       "dependencies": [],
@@ -99,7 +14,7 @@
       ],
       "min_version": "7.0",
       "max_version": null,
-      "last_checked": 1768472701.8962317,
+      "last_checked": 1770863033.9255905,
       "metadata": {}
     },
     "masscan": {
@@ -122,7 +37,7 @@
     "curl": {
       "name": "curl",
       "path": "/usr/bin/curl",
-      "version": "7.81.0",
+      "version": "8.14.1",
       "status": "available",
       "aliases": [],
       "dependencies": [],
@@ -133,13 +48,13 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1768472701.9066827,
+      "last_checked": 1770863033.9458709,
       "metadata": {}
     },
     "wget": {
       "name": "wget",
       "path": "/usr/bin/wget",
-      "version": "1.21.2",
+      "version": "1.25.0",
       "status": "available",
       "aliases": [],
       "dependencies": [],
@@ -150,7 +65,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1768472701.910026,
+      "last_checked": 1770863033.9537258,
       "metadata": {}
     },
     "ping": {
@@ -167,13 +82,47 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1768472701.9233792,
+      "last_checked": 1770863037.936471,
       "metadata": {}
     },
     "hydra": {
       "name": "hydra",
-      "path": "/usr/bin/hydra",
-      "version": "9.2",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "esptool": {
+      "name": "esptool",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "openocd": {
+      "name": "openocd",
+      "path": "/usr/bin/openocd",
+      "version": "0.12.0",
       "status": "available",
       "aliases": [],
       "dependencies": [],
@@ -184,7 +133,90 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1768472701.946535,
+      "last_checked": 1770863037.9480639,
+      "metadata": {}
+    },
+    "dfu-util": {
+      "name": "dfu-util",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "openFPGALoader": {
+      "name": "openFPGALoader",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "greatfet_firmware": {
+      "name": "greatfet_firmware",
+      "path": null,
+      "version": null,
+      "status": "missing",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin",
+        "windows"
+      ],
+      "min_version": null,
+      "max_version": null,
+      "last_checked": null,
+      "metadata": {}
+    },
+    "ubertooth-util": {
+      "name": "ubertooth-util",
+      "path": "/usr/bin/ubertooth-util",
+      "version": "1.07",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "min_version": "2018-12-R1",
+      "max_version": null,
+      "last_checked": 1770863037.9571414,
+      "metadata": {}
+    },
+    "ubertooth-btle": {
+      "name": "ubertooth-btle",
+      "path": "/usr/bin/ubertooth-btle",
+      "version": "1.07",
+      "status": "available",
+      "aliases": [],
+      "dependencies": [],
+      "platforms": [
+        "linux",
+        "darwin"
+      ],
+      "min_version": "2018-12-R1",
+      "max_version": null,
+      "last_checked": 1770863037.9654062,
       "metadata": {}
     }
   }
