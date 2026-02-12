@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from iotsploit_django.adapters.django.target_models import TargetManager
-from iotsploit_core.domain.target import ComponentFactory
+from iotsploit_core.domain.target import ComponentFactory, TARGET_TYPES
 from iotsploit_django.tools.xlogger import xlog
 import json
 
@@ -371,4 +371,18 @@ def get_component_types(request):
         })
     except Exception as e:
         logger.error(f"Error getting component types: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+def get_target_types(request):
+    """
+    GET
+    Get list of supported target types
+    """
+    try:
+        return JsonResponse({
+            'status': 'success',
+            'target_types': TARGET_TYPES
+        })
+    except Exception as e:
+        logger.error(f"Error getting target types: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500) 

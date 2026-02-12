@@ -29,9 +29,9 @@ class TargetCommands(BaseCommands):
                 logger.info(f"    Type: {target['type']}")
                 logger.info(f"    Status: {target['status']}")
                 
-                if target['type'] == 'vehicle':
-                    logger.info(f"    IP Address: {target.get('ip_address', 'N/A')}")
-                    logger.info(f"    Location: {target.get('location', 'N/A')}")
+                # All target types now have ip_address and location
+                logger.info(f"    IP Address: {target.get('ip_address', 'N/A')}")
+                logger.info(f"    Location: {target.get('location', 'N/A')}")
                 
                 logger.info(f"    Properties: {target['properties']}")
                 logger.info("    ---")
@@ -52,7 +52,11 @@ class TargetCommands(BaseCommands):
                 return
 
             # Create list of target choices for display
-            target_choices = [f"{t['name']} ({t['ip_address']})" for t in targets if t.get('ip_address')]
+            # Show all targets with their type, and IP if available
+            target_choices = []
+            for t in targets:
+                ip_part = f" - {t['ip_address']}" if t.get('ip_address') else ""
+                target_choices.append(f"{t['name']} ({t['type']}){ip_part}")
             
             # Use Input_Mgr for target selection
             selected_choice = Input_Mgr.Instance().single_choice(

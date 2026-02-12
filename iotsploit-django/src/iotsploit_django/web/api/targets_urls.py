@@ -6,6 +6,7 @@ from iotsploit_django.view_handlers.target_views import (
     edit_target,
     get_component_types,
     get_current_target,
+    get_target_types,
     list_targets,
     select_target,
 )
@@ -19,6 +20,7 @@ urlpatterns = [
     path("delete_target/", delete_target, name="delete_target"),
     path("get_current_target/", get_current_target, name="get_current_target"),
     path("get_component_types/", get_component_types, name="get_component_types"),
+    path("get_target_types/", get_target_types, name="get_target_types"),
 ]
 
 

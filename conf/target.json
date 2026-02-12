@@ -127,7 +127,7 @@
     {
       "target_id": "smartphone_001",
       "name": "Xiaomi Redmi K30 Pro (Test Device)",
-      "type": "vehicle", 
+      "type": "phone", 
       "ip_address": "192.168.50.10",
       "location": "Test Lab",
       "status": "active",

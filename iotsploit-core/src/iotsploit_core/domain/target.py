@@ -12,6 +12,10 @@ class Target(BaseModel, ABC):
     type: str
     status: str = "active"
     properties: Dict[str, Any] = Field(default_factory=dict)
+    ip_address: Optional[str] = None
+    location: Optional[str] = None
+    components: List["Component"] = Field(default_factory=list)
+    interfaces: List["Interface"] = Field(default_factory=list)
 
     @abstractmethod
     def get_info(self) -> Dict[str, Any]:
@@ -164,10 +168,7 @@ class Interface(BaseModel):
 
 
 class Vehicle(Target):
-    ip_address: Optional[str] = None
-    location: Optional[str] = None
-    components: List[Component] = Field(default_factory=list)
-    interfaces: List[Interface] = Field(default_factory=list)
+    """Vehicle target with ADB-specific helper methods."""
 
     def get_info(self) -> Dict[str, Any]:
         info = super().model_dump()
@@ -214,9 +215,29 @@ class Vehicle(Target):
 
 
 class GenericTarget(Target):
-    """Concrete non-vehicle target."""
+    """Generic target for non-vehicle devices (ECU, IoT, phone, router, camera, etc)."""
 
     def get_info(self) -> Dict[str, Any]:
-        return self.model_dump()
+        info = self.model_dump()
+        # Ensure components and interfaces are serialized properly
+        info.update(
+            {
+                "components": [comp.model_dump() for comp in self.components],
+                "interfaces": [intf.model_dump() for intf in self.interfaces],
+            }
+        )
+        return info
+
+
+# Target type registry
+TARGET_TYPES = {
+    "vehicle": "Vehicle",
+    "ecu": "ECU",
+    "iot": "IoT Device",
+    "phone": "Phone/Mobile",
+    "router": "Router",
+    "camera": "Camera",
+    "generic": "Generic",
+}
 
 
