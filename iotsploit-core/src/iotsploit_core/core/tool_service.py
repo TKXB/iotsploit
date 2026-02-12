@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .tool_manager import ToolManager, ExecutionResult, ToolStatus
+from .tool_manager import get_tool_manager, ExecutionResult, ToolStatus
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class ToolService:
     """
     
     def __init__(self):
-        self.tool_manager = ToolManager()
+        self.tool_manager = get_tool_manager()  # Use singleton instead of creating new instance
         self.logger = logging.getLogger("tool_service")
         self._registered_tools = set()
     
@@ -214,24 +214,6 @@ class ToolService:
                 self.logger.warning(f"Optional tool '{tool}' is not available")
         
         return results
-    
-    def discover_tools(self) -> Dict[str, ToolStatus]:
-        """
-        Discover and validate all registered tools.
-        
-        Returns:
-            dict: Tool name -> status mapping
-        """
-        return self.tool_manager.discover_tools()
-    
-    def list_available_tools(self) -> List[str]:
-        """
-        List all available tools.
-        
-        Returns:
-            list: Names of available tools
-        """
-        return self.tool_manager.list_available_tools()
     
     def get_registered_tools(self) -> List[str]:
         """

@@ -17,6 +17,11 @@ import threading
 import time
 from contextlib import contextmanager
 
+# Import ExecutionResult from execution_backend to avoid duplication
+from .execution_backend import ExecutionResult, get_execution_backend_manager
+from .tool_config import get_tool_config_manager, ToolConfig
+from .execution_queue import get_execution_queue, TaskPriority
+
 logger = logging.getLogger(__name__)
 
 class ToolStatus(Enum):
@@ -43,15 +48,28 @@ class ToolInfo:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
-class ExecutionResult:
-    """Result of tool execution"""
-    success: bool
-    return_code: int
-    stdout: str
-    stderr: str
-    execution_time: float
-    command: str
-    tool_path: str
+class CategoryInfo:
+    """Information about the tool category"""
+    name: str
+    description: str
+    tools: List[str] = field(default_factory=list)
+
+class SystemHealth(Enum):
+    """System health status"""
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    CRITICAL = "critical"
+
+@dataclass
+class SystemStatus:
+    """Overall system status"""
+    health: SystemHealth
+    total_tools: int
+    available_tools: int
+    missing_tools: int
+    required_missing: int
+    can_operate: bool
+    recommendations: List[str] = field(default_factory=list)
 
 class ToolRegistry:
     """Central registry for managing tool information"""
@@ -406,11 +424,13 @@ class ToolExecutor:
     def __init__(self, tool_registry: ToolRegistry, validator: ToolValidator):
         self.registry = tool_registry
         self.validator = validator
+        self.backend_manager = get_execution_backend_manager()
     
     def execute_tool(self, tool_name: str, args: List[str], 
                     working_dir: Optional[str] = None,
                     env: Optional[Dict[str, str]] = None,
-                    timeout: Optional[int] = None) -> ExecutionResult:
+                    timeout: Optional[int] = None,
+                    backend: Optional[str] = None) -> ExecutionResult:
         """Execute a tool with given arguments"""
         
         # Get tool info
@@ -423,61 +443,16 @@ class ToolExecutor:
         if tool_info.status != ToolStatus.AVAILABLE:
             raise RuntimeError(f"Tool '{tool_name}' is not available: {tool_info.status.value}")
         
-        # Prepare execution environment
-        exec_env = os.environ.copy()
-        if env:
-            exec_env.update(env)
+        logger.info(f"Executing: {tool_info.path} {' '.join(args)}")
         
-        # Build command
-        command = [tool_info.path] + args
-        command_str = ' '.join(command)
-        
-        logger.info(f"Executing: {command_str}")
-        
-        start_time = time.time()
-        try:
-            result = subprocess.run(
-                command,
-                cwd=working_dir,
-                env=exec_env,
-                capture_output=True,
-                text=True,
+        # Execute using backend manager
+        return self.backend_manager.execute(
+            tool_path=tool_info.path,
+            args=args,
+            backend=backend,
+            working_dir=working_dir,
+            env=env,
                 timeout=timeout
-            )
-            
-            execution_time = time.time() - start_time
-            
-            return ExecutionResult(
-                success=result.returncode == 0,
-                return_code=result.returncode,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                execution_time=execution_time,
-                command=command_str,
-                tool_path=tool_info.path
-            )
-            
-        except subprocess.TimeoutExpired as e:
-            execution_time = time.time() - start_time
-            return ExecutionResult(
-                success=False,
-                return_code=-1,
-                stdout=e.stdout.decode() if e.stdout else "",
-                stderr=f"Command timed out after {timeout} seconds",
-                execution_time=execution_time,
-                command=command_str,
-                tool_path=tool_info.path
-            )
-        except Exception as e:
-            execution_time = time.time() - start_time
-            return ExecutionResult(
-                success=False,
-                return_code=-1,
-                stdout="",
-                stderr=str(e),
-                execution_time=execution_time,
-                command=command_str,
-                tool_path=tool_info.path
             )
 
 class ToolManager:
@@ -488,6 +463,11 @@ class ToolManager:
         self.path_resolver = PathResolver()
         self.validator = ToolValidator(self.path_resolver)
         self.executor = ToolExecutor(self.registry, self.validator)
+        self.config_manager = get_tool_config_manager()
+        self.backend_manager = get_execution_backend_manager()
+        self.queue_manager = get_execution_queue()
+        # Initialize tools from JSON configuration
+        self._initialize_tools()
     
     def discover_tools(self) -> Dict[str, ToolStatus]:
         """Discover and validate all registered tools"""
@@ -547,6 +527,545 @@ class ToolManager:
         self.registry.register_tool(validated_tool, save_config=save_config)
         
         return validated_tool.status == ToolStatus.AVAILABLE
+    
+    # ========== Methods from ToolCategoryManager ==========
+    
+    def _initialize_tools(self):
+        """Initialize all tools from JSON configuration"""
+        logger.info("Initializing tools from JSON config")
+        
+        # Get tools from the main tools.json file
+        tool_configs = self.config_manager.get_tools_by_category("tools")
+        
+        # If no tools found in "tools" category, try loading from the main config
+        if not tool_configs:
+            # Try to load from tools.json in conf directory first, then fallback
+            tools_file = Path('conf') / 'tools.json'
+            if not tools_file.exists():
+                tools_file = self.config_manager.config_dir / "tools.json"
+            
+            if tools_file.exists():
+                with open(tools_file, 'r', encoding='utf-8') as f:
+                    tools_data = json.load(f)
+                
+                tools_added = 0
+                # Support tools field as dict or list
+                tools_section = tools_data.get('tools', [])
+                if isinstance(tools_section, dict):
+                    items = tools_section.items()
+                else:
+                    items = [(td.get('name', 'unknown'), td) for td in tools_section if isinstance(td, dict)]
+                for tool_name, tool_data in items:
+                    try:
+                        # Build tool_data dict and ensure it contains name
+                        data = tool_data.copy() if isinstance(tool_data, dict) else {}
+                        data.setdefault('name', tool_name)
+                        tool_config = ToolConfig.from_dict(data)
+                        tool_config.category = "tools"
+                        # Add tool to manager (don't save config for each tool)
+                        success = self.add_tool(
+                            name=tool_config.name,
+                            aliases=tool_config.aliases,
+                            min_version=tool_config.min_version,
+                            platforms=tool_config.platforms,
+                            path=tool_config.path,
+                            save_config=False
+                        )
+                        if success:
+                            tools_added += 1
+                            logger.debug(f"Added tool: {tool_config.name}")
+                        else:
+                            logger.warning(f"Failed to add tool: {tool_config.name}")
+                    except Exception as e:
+                        logger.error(f"Error adding tool {tool_name}: {e}")
+                
+                # Save config once at the end
+                if tools_added > 0:
+                    self.registry.save_config()
+                    logger.info(f"Successfully initialized {tools_added} tools")
+        else:
+            # Load tools from category
+            tools_added = 0
+            for tool_config in tool_configs:
+                try:
+                    success = self.add_tool(
+                        name=tool_config.name,
+                        aliases=tool_config.aliases,
+                        min_version=tool_config.min_version,
+                        platforms=tool_config.platforms,
+                        path=tool_config.path,
+                        save_config=False  # Don't save for each tool
+                    )
+                    
+                    if success:
+                        tools_added += 1
+                        logger.debug(f"Added tool: {tool_config.name}")
+                    else:
+                        logger.warning(f"Failed to add tool: {tool_config.name}")
+                        
+                except Exception as e:
+                    logger.error(f"Error adding tool {tool_config.name}: {e}")
+            
+            # Save config once at the end
+            if tools_added > 0:
+                self.registry.save_config()
+                logger.info(f"Successfully initialized {tools_added} tools")
+    
+    def get_category_info(self) -> CategoryInfo:
+        """Get category information from JSON config"""
+        # Try to get from tools.json in conf directory first, then fallback
+        tools_file = Path('conf') / 'tools.json'
+        if not tools_file.exists():
+            tools_file = self.config_manager.config_dir / "tools.json"
+        
+        if tools_file.exists():
+            try:
+                with open(tools_file, 'r', encoding='utf-8') as f:
+                    tools_data = json.load(f)
+                
+                # Handle tools field, support dict or list format
+                tools_section = tools_data.get('tools', [])
+                all_tools = []
+                
+                if isinstance(tools_section, dict):
+                    # tools field is dict format: {"tool_name": {...}, ...}
+                    all_tools = list(tools_section.keys())
+                elif isinstance(tools_section, list):
+                    # tools field is list format: [{"name": "tool_name", ...}, ...]
+                    all_tools = [tool.get('name', 'unknown') for tool in tools_section if isinstance(tool, dict)]
+                
+                return CategoryInfo(
+                    name=tools_data.get('name', 'IoTSploit Tools'),
+                    description=tools_data.get('description', 'All tools for IoTSploit'),
+                    tools=all_tools
+                )
+            except Exception as e:
+                logger.error(f"Error reading tools.json: {e}")
+        
+        # Fallback
+        return CategoryInfo(
+            name="IoTSploit Tools",
+            description="All tools for IoTSploit security testing",
+            tools=[]
+        )
+    
+    def get_available_tools(self) -> List[str]:
+        """Get list of available tools"""
+        category_info = self.get_category_info()
+        available = []
+        
+        for tool_name in category_info.tools:
+            if self.is_available(tool_name):
+                available.append(tool_name)
+        
+        return available
+    
+    def get_missing_tools(self) -> List[str]:
+        """Get list of missing tools"""
+        category_info = self.get_category_info()
+        missing = []
+        
+        for tool_name in category_info.tools:
+            if not self.is_available(tool_name):
+                missing.append(tool_name)
+        
+        return missing
+    
+    def get_required_tools(self) -> List[str]:
+        """Get list of required tools"""
+        category_info = self.get_category_info()
+        required = []
+        
+        for tool_name in category_info.tools:
+            tool_config = self.get_tool_config(tool_name)
+            if tool_config and tool_config.required:
+                required.append(tool_name)
+        
+        return required
+    
+    def get_optional_tools(self) -> List[str]:
+        """Get list of optional tools"""
+        category_info = self.get_category_info()
+        optional = []
+        
+        for tool_name in category_info.tools:
+            tool_config = self.get_tool_config(tool_name)
+            if tool_config and not tool_config.required:
+                optional.append(tool_name)
+        
+        return optional
+    
+    def validate_tools(self) -> Dict[str, Any]:
+        """Validate all tools"""
+        category_info = self.get_category_info()
+        required_tools = self.get_required_tools()
+        
+        results = {
+            'total_tools': len(category_info.tools),
+            'available_tools': [],
+            'missing_tools': [],
+            'required_missing': [],
+            'can_operate': True
+        }
+        
+        for tool_name in category_info.tools:
+            if self.is_available(tool_name):
+                results['available_tools'].append(tool_name)
+            else:
+                results['missing_tools'].append(tool_name)
+                if tool_name in required_tools:
+                    results['required_missing'].append(tool_name)
+        
+        # Check if we can operate
+        results['can_operate'] = len(results['required_missing']) == 0
+        
+        return results
+    
+    def get_tool_config(self, tool_name: str) -> Optional[ToolConfig]:
+        """Get tool configuration from JSON"""
+        return self.config_manager.get_tool_config(tool_name)
+    
+    def get_install_hints(self) -> Dict[str, str]:
+        """Get installation hints for missing tools"""
+        missing_tools = self.get_missing_tools()
+        hints = {}
+        
+        for tool_name in missing_tools:
+            tool_config = self.get_tool_config(tool_name)
+            if tool_config and tool_config.install_hint:
+                hints[tool_name] = tool_config.install_hint
+        
+        return hints
+    
+    def reload_configurations(self):
+        """Reload all configurations from JSON files"""
+        self.config_manager.reload_configs()
+        self._initialize_tools()
+        logger.info("Reloaded all tool configurations from JSON files")
+    
+    def get_config_stats(self) -> Dict[str, Any]:
+        """Get statistics about tool configurations"""
+        return self.config_manager.get_stats()
+    
+    # Convenience methods for common operations
+    def flash_esp32(self, port: str, firmware_path: str, **kwargs) -> Dict[str, Any]:
+        """Convenience method for ESP32 flashing"""
+        if not self.is_available('esptool'):
+            return {"status": "error", "message": "esptool not available"}
+        
+        args = [
+            '--chip', kwargs.get('chip', 'esp32s3'),
+            '--port', port,
+            '--baud', kwargs.get('baud', '460800'),
+            'write_flash', kwargs.get('address', '0x10000'), firmware_path
+        ]
+        
+        result = self.execute('esptool', args, timeout=300)
+        return {
+            "status": "success" if result.success else "error",
+            "message": "Flash completed" if result.success else result.stderr,
+            "execution_time": result.execution_time
+        }
+    
+    def port_scan(self, target: str, ports: str = "1-1000", 
+                 scan_type: str = "syn") -> Dict[str, Any]:
+        """Convenience method for port scanning"""
+        if not self.is_available('nmap'):
+            return {"status": "error", "message": "nmap not available"}
+        
+        scan_args = {
+            'syn': ['-sS'],
+            'tcp': ['-sT'],
+            'udp': ['-sU'],
+            'ping': ['-sn']
+        }
+        
+        args = scan_args.get(scan_type, ['-sS'])
+        args.extend(['-p', ports, target])
+        
+        result = self.execute('nmap', args, timeout=300)
+        return {
+            "status": "success" if result.success else "error",
+            "message": "Scan completed" if result.success else result.stderr,
+            "output": result.stdout,
+            "execution_time": result.execution_time
+        }
+    
+    def extract_strings(self, file_path: str, min_length: int = 4) -> Dict[str, Any]:
+        """Convenience method for string extraction"""
+        if not self.is_available('strings'):
+            return {"status": "error", "message": "strings tool not available"}
+        
+        args = [f'-n{min_length}', file_path]
+        result = self.execute('strings', args)
+        
+        return {
+            "status": "success" if result.success else "error",
+            "message": "Strings extracted" if result.success else result.stderr,
+            "strings": result.stdout.split('\n') if result.success else [],
+            "execution_time": result.execution_time
+        }
+    
+    def adb_devices(self) -> Dict[str, Any]:
+        """Convenience method for listing ADB devices"""
+        if not self.is_available('adb'):
+            return {"status": "error", "message": "adb not available"}
+        
+        result = self.execute('adb', ['devices'])
+        
+        devices = []
+        if result.success:
+            lines = result.stdout.split('\n')[1:]  # Skip header
+            for line in lines:
+                line = line.strip()
+                if line and '\t' in line:
+                    device_id, status = line.split('\t')
+                    devices.append({'id': device_id, 'status': status})
+        
+        return {
+            "status": "success" if result.success else "error",
+            "message": "Devices listed" if result.success else result.stderr,
+            "devices": devices,
+            "execution_time": result.execution_time
+        }
+    
+    # ========== Methods from CentralizedToolManager ==========
+    
+    def get_system_status(self) -> SystemStatus:
+        """Get comprehensive system status"""
+        validation = self.validate_tools()
+        
+        # Determine health status
+        if validation['required_missing']:
+            health = SystemHealth.CRITICAL
+        elif validation['missing_tools']:
+            health = SystemHealth.DEGRADED
+        else:
+            health = SystemHealth.HEALTHY
+        
+        # Generate recommendations
+        recommendations = []
+        if validation['required_missing']:
+            recommendations.append(f"Install {len(validation['required_missing'])} required tools")
+        if len(validation['missing_tools']) > len(validation['required_missing']):
+            optional_missing = len(validation['missing_tools']) - len(validation['required_missing'])
+            recommendations.append(f"Consider installing {optional_missing} optional tools")
+        
+        return SystemStatus(
+            health=health,
+            total_tools=validation['total_tools'],
+            available_tools=len(validation['available_tools']),
+            missing_tools=len(validation['missing_tools']),
+            required_missing=len(validation['required_missing']),
+            can_operate=validation['can_operate'],
+            recommendations=recommendations
+        )
+    
+    def get_health_report(self) -> Dict[str, Any]:
+        """Get detailed health report"""
+        status = self.get_system_status()
+        validation = self.validate_tools()
+        
+        report = {
+            'timestamp': self._get_timestamp(),
+            'system_health': status.health.value,
+            'can_operate': status.can_operate,
+            'summary': {
+                'total_tools': status.total_tools,
+                'available_tools': status.available_tools,
+                'missing_tools': status.missing_tools,
+                'required_missing': status.required_missing
+            },
+            'tools': {
+                'available': validation['available_tools'],
+                'missing': validation['missing_tools'],
+                'required_missing': validation['required_missing']
+            },
+            'recommendations': status.recommendations,
+            'backend_status': self.backend_manager.get_status(),
+            'queue_status': self.queue_manager.get_stats()
+        }
+        
+        return report
+    
+    def get_installation_guide(self) -> Dict[str, Any]:
+        """Get installation recommendations with hints"""
+        missing_tools = self.get_missing_tools()
+        install_hints = self.get_install_hints()
+        required_tools = self.get_required_tools()
+        optional_tools = self.get_optional_tools()
+        
+        # Separate required and optional missing tools
+        required_missing = [t for t in missing_tools if t in required_tools]
+        optional_missing = [t for t in missing_tools if t in optional_tools]
+        
+        guide = {
+            'required_tools': {},
+            'optional_tools': {},
+            'priority_order': required_missing + optional_missing[:5]  # Top 5 optional
+        }
+        
+        for tool in required_missing:
+            guide['required_tools'][tool] = {
+                'description': self._get_tool_description(tool),
+                'install_hint': install_hints.get(tool, "No installation hint available"),
+                'priority': 'HIGH'
+            }
+        
+        for tool in optional_missing:
+            guide['optional_tools'][tool] = {
+                'description': self._get_tool_description(tool),
+                'install_hint': install_hints.get(tool, "No installation hint available"),
+                'priority': 'MEDIUM'
+            }
+        
+        return guide
+    
+    def _get_tool_description(self, tool_name: str) -> str:
+        """Get tool description from config"""
+        tool_config = self.get_tool_config(tool_name)
+        return tool_config.description if tool_config else "No description available"
+    
+    def _get_timestamp(self) -> str:
+        """Get current timestamp"""
+        from datetime import datetime
+        return datetime.now().isoformat()
+    
+    def get_system_health(self, force_refresh: bool = False):
+        """Get system health with category status"""
+        status = self.get_system_status()
+        validation = self.validate_tools()
+        
+        # Create a health object with category status
+        class HealthStatus:
+            def __init__(self, status, validation):
+                self.status = status.health.value
+                self.total_tools = status.total_tools
+                self.available_tools = status.available_tools
+                self.missing_tools = status.missing_tools
+                self.missing_critical_tools = status.required_missing
+                self.recommendations = status.recommendations
+                self.category_status = {
+                    "tools": {
+                        "total_tools": validation['total_tools'],
+                        "available_tools": validation['available_tools'],
+                        "missing_tools": validation['missing_tools'],
+                        "can_operate": validation['can_operate']
+                    }
+                }
+        
+        return HealthStatus(status, validation)
+    
+    def get_installation_recommendations(self) -> Dict[str, Dict[str, List[str]]]:
+        """Get installation recommendations by category"""
+        missing_tools = self.get_missing_tools()
+        required_tools = self.get_required_tools()
+        
+        required_missing = [t for t in missing_tools if t in required_tools]
+        optional_missing = [t for t in missing_tools if t not in required_tools]
+        
+        return {
+            "tools": {
+                "required": required_missing,
+                "optional": optional_missing
+            }
+        }
+    
+    # Queue delegation methods
+    def submit_task(self, tool_name: str, args: List[str], 
+                   priority: Union[str, TaskPriority] = "normal", **kwargs) -> str:
+        """Submit a tool execution task to the queue"""
+        # Handle both string and enum priority inputs
+        if isinstance(priority, TaskPriority):
+            task_priority = priority
+        else:
+            # Convert priority string to enum
+            priority_map = {
+                'critical': TaskPriority.CRITICAL,
+                'high': TaskPriority.HIGH,
+                'normal': TaskPriority.NORMAL,
+                'low': TaskPriority.LOW,
+                'background': TaskPriority.BACKGROUND
+            }
+            task_priority = priority_map.get(priority.lower(), TaskPriority.NORMAL)
+        
+        # Get tool path
+        tool_info = self.registry.get_tool(tool_name)
+        if not tool_info:
+            raise ValueError(f"Tool '{tool_name}' not found")
+        
+        return self.queue_manager.submit_task(
+            tool_name=tool_name,
+            tool_path=tool_info.path,
+            args=args,
+            priority=task_priority,
+            **kwargs
+        )
+    
+    def get_task(self, task_id: str):
+        """Get task by ID"""
+        return self.queue_manager.get_task(task_id)
+    
+    def wait_for_task(self, task_id: str, timeout: Optional[float] = None):
+        """Wait for task completion"""
+        return self.queue_manager.wait_for_task(task_id, timeout)
+    
+    def get_queue_stats(self):
+        """Get queue statistics"""
+        return self.queue_manager.get_stats()
+    
+    # Backend delegation methods
+    def list_execution_backends(self) -> List[str]:
+        """List available execution backends"""
+        return self.backend_manager.list_available_backends()
+    
+    def set_default_backend(self, backend_name: str):
+        """Set default execution backend"""
+        self.backend_manager.set_default_backend(backend_name)
+    
+    # System management
+    def initialize(self) -> bool:
+        """Initialize the system"""
+        try:
+            logger.info("Initializing tool manager...")
+            
+            # Discover tools
+            discovery_results = self.discover_tools()
+            logger.info(f"Discovered {len(discovery_results)} tools")
+            
+            # Check system health
+            status = self.get_system_status()
+            logger.info(f"System health: {status.health.value}")
+            
+            if status.health == SystemHealth.CRITICAL:
+                logger.warning(f"System is in CRITICAL state - {status.required_missing} required tools missing")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize system: {e}")
+            return False
+    
+    def cleanup(self):
+        """Cleanup resources"""
+        try:
+            self.queue_manager.shutdown()
+            logger.info("Tool manager cleaned up")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+    
+    def shutdown(self, wait: bool = True):
+        """Shutdown the system"""
+        self.cleanup()
+    
+    def __enter__(self):
+        """Context manager entry"""
+        self.initialize()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit"""
+        self.cleanup()
 
 # Convenience
 def get_tool_manager() -> ToolManager:
@@ -561,4 +1080,87 @@ def execute_tool(tool_name: str, args: List[str], **kwargs) -> ExecutionResult:
 
 def is_tool_available(tool_name: str) -> bool:
     """Check if a tool is available"""
-    return get_tool_manager().is_available(tool_name) 
+    return get_tool_manager().is_available(tool_name)
+
+def print_system_report():
+    """Print a comprehensive system report"""
+    manager = get_tool_manager()
+    
+    print("\n" + "="*60)
+    print("🔧 IOTSPLOIT TOOL MANAGEMENT SYSTEM REPORT")
+    print("="*60)
+    
+    # Get system status
+    status = manager.get_system_status()
+    health_icon = {
+        "healthy": "✅",
+        "degraded": "⚠️",
+        "critical": "❌"
+    }.get(status.health.value, "❓")
+    
+    print(f"\n📊 System Health: {health_icon} {status.health.value.upper()}")
+    print(f"🔧 Total Tools: {status.total_tools}")
+    print(f"✅ Available: {status.available_tools}")
+    print(f"❌ Missing: {status.missing_tools}")
+    print(f"🔴 Required Missing: {status.required_missing}")
+    print(f"🚀 Can Operate: {'Yes' if status.can_operate else 'No'}")
+    
+    # Show recommendations
+    if status.recommendations:
+        print(f"\n💡 Recommendations:")
+        for rec in status.recommendations:
+            print(f"   • {rec}")
+    
+    # Show queue stats
+    try:
+        queue_stats = manager.get_queue_stats()
+        print(f"\n📋 Queue Status:")
+        print(f"   • Total Tasks: {queue_stats.total_tasks}")
+        print(f"   • Running: {queue_stats.running_tasks}")
+        print(f"   • Pending: {queue_stats.pending_tasks}")
+        print(f"   • Completed: {queue_stats.completed_tasks}")
+        print(f"   • Failed: {queue_stats.failed_tasks}")
+        if queue_stats.average_execution_time > 0:
+            print(f"   • Avg Execution Time: {queue_stats.average_execution_time:.2f}s")
+    except Exception as e:
+        print(f"\n📋 Queue Status: Error - {e}")
+    
+    # Show category info
+    try:
+        category_info = manager.get_category_info()
+        print(f"\n📂 Tool Category: {category_info.name}")
+        print(f"   Description: {category_info.description}")
+        print(f"   Tools: {len(category_info.tools)}")
+        
+        # Show available vs missing
+        available = manager.get_available_tools()
+        missing = manager.get_missing_tools()
+        required = manager.get_required_tools()
+        
+        print(f"\n🔧 Tool Breakdown:")
+        print(f"   ✅ Available: {len(available)}")
+        if available[:5]:  # Show first 5
+            for tool in available[:5]:
+                print(f"      • {tool}")
+            if len(available) > 5:
+                print(f"      ... and {len(available) - 5} more")
+        
+        if missing:
+            print(f"   ❌ Missing: {len(missing)}")
+            required_missing = [t for t in missing if t in required]
+            optional_missing = [t for t in missing if t not in required]
+            
+            if required_missing:
+                print(f"      🔴 Required: {', '.join(required_missing[:3])}")
+                if len(required_missing) > 3:
+                    print(f"         ... and {len(required_missing) - 3} more")
+            
+            if optional_missing:
+                print(f"      🟡 Optional: {', '.join(optional_missing[:3])}")
+                if len(optional_missing) > 3:
+                    print(f"         ... and {len(optional_missing) - 3} more")
+    
+    except Exception as e:
+        print(f"\n📂 Category Status: Error - {e}")
+    
+    print("\n" + "="*60) 

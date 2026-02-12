@@ -232,12 +232,12 @@ class GreatFETDriver(BaseDeviceDriver):
             elif recovery_type == "openocd_attach":
                 # OpenOCD attach functionality for GreatFET debugging
                 try:
-                    # Use centralized tool manager for OpenOCD availability check
-                    from iotsploit_core.core.centralized_tool_manager import get_centralized_tool_manager
+                    # Use tool manager for OpenOCD availability check
+                    from iotsploit_core.core.tool_manager import get_tool_manager
                     from pathlib import Path
-                    centralized_manager = get_centralized_tool_manager()
+                    tool_manager = get_tool_manager()
                     
-                    if not centralized_manager.is_tool_available('openocd'):
+                    if not tool_manager.is_available('openocd'):
                         return {
                             "status": "error",
                             "message": "OpenOCD tool is not available. Please install OpenOCD first.",
@@ -245,7 +245,7 @@ class GreatFETDriver(BaseDeviceDriver):
                         }
                     
                     # Get OpenOCD tool info to determine script directory
-                    tool_info = centralized_manager.tool_manager.registry.get_tool('openocd')
+                    tool_info = tool_manager.registry.get_tool('openocd')
                     if not tool_info or not tool_info.path:
                         return {
                             "status": "error",
@@ -272,8 +272,8 @@ class GreatFETDriver(BaseDeviceDriver):
                     
                     logger.info(f"Starting OpenOCD for GreatFET debugging with tcl dir: {tcl_dir if tcl_dir.exists() else 'system default'}")
                     
-                    # Execute OpenOCD using centralized tool manager
-                    result = centralized_manager.execute_tool(
+                    # Execute OpenOCD using tool manager
+                    result = tool_manager.execute(
                         'openocd', 
                         openocd_args,
                         timeout=10  # Short timeout to check if it starts

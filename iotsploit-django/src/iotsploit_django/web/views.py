@@ -43,7 +43,7 @@ from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
 
 from iotsploit_core.core.stream_manager import StreamManager
 
-from iotsploit_core.core.centralized_tool_manager import get_centralized_tool_manager
+from iotsploit_core.core.tool_manager import get_tool_manager
 
 from django.views.decorators.http import require_http_methods
 
@@ -1677,23 +1677,23 @@ def get_tools_status(request):
         JSON response with tools status, categories, and system health information
     """
     try:
-        manager = get_centralized_tool_manager()
+        manager = get_tool_manager()
         
         # Get comprehensive tool information
         discovery_results = manager.discover_tools()
         system_health = manager.get_system_health(force_refresh=True)
-        available_tools = manager.category_manager.get_available_tools()
-        missing_tools = manager.category_manager.get_missing_tools()
-        required_tools = manager.category_manager.get_required_tools()
-        optional_tools = manager.category_manager.get_optional_tools()
-        category_info = manager.category_manager.get_category_info()
+        available_tools = manager.get_available_tools()
+        missing_tools = manager.get_missing_tools()
+        required_tools = manager.get_required_tools()
+        optional_tools = manager.get_optional_tools()
+        category_info = manager.get_category_info()
         install_recommendations = manager.get_installation_recommendations()
         
         # Create detailed tool list with status
         tools_detail = []
         for tool_name, status in discovery_results.items():
-            tool_config = manager.category_manager.get_tool_config(tool_name)
-            tool_info = manager.tool_manager.registry.get_tool(tool_name)
+            tool_config = manager.get_tool_config(tool_name)
+            tool_info = manager.registry.get_tool(tool_name)
             
             tools_detail.append({
                 'name': tool_name,
@@ -1703,7 +1703,7 @@ def get_tools_status(request):
                 'description': tool_config.description if tool_config else 'No description available',
                 'version': tool_info.version if tool_info else None,
                 'path': tool_info.path if tool_info else None,
-                'install_hint': manager.category_manager.get_install_hints().get(tool_name, 'No installation hint available')
+                'install_hint': manager.get_install_hints().get(tool_name, 'No installation hint available')
             })
         
         response_data = {
@@ -1751,7 +1751,7 @@ def refresh_tools(request):
         JSON response with updated discovery results
     """
     try:
-        manager = get_centralized_tool_manager()
+        manager = get_tool_manager()
         
         # Force refresh tools
         discovery_results = manager.discover_tools()
@@ -1791,10 +1791,10 @@ def get_tool_details(request, tool_name):
         JSON response with detailed tool information
     """
     try:
-        manager = get_centralized_tool_manager()
+        manager = get_tool_manager()
         
         # Get tool information
-        tool_info = manager.tool_manager.registry.get_tool(tool_name)
+        tool_info = manager.registry.get_tool(tool_name)
         if not tool_info:
             return JsonResponse({
                 'status': 'error',
@@ -1802,9 +1802,9 @@ def get_tool_details(request, tool_name):
             }, status=404)
         
         # Validate tool to get current status
-        validated_tool = manager.tool_manager.validator.validate_tool(tool_info)
-        tool_config = manager.category_manager.get_tool_config(tool_name)
-        install_hints = manager.category_manager.get_install_hints()
+        validated_tool = manager.validator.validate_tool(tool_info)
+        tool_config = manager.get_tool_config(tool_name)
+        install_hints = manager.get_install_hints()
         
         response_data = {
             'status': 'success',
@@ -1844,7 +1844,7 @@ def get_system_health(request):
         JSON response with system health information
     """
     try:
-        manager = get_centralized_tool_manager()
+        manager = get_tool_manager()
         
         # Get health report
         health_report = manager.get_health_report()
