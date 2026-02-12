@@ -1,95 +1,186 @@
-import pluggy
-import pylink
+from __future__ import annotations
+
+import glob
 import logging
-from iotsploit_core.core.device_spec import DevicePluginSpec
-from iotsploit_core.domain.device import Device, DeviceType
+import os
+from typing import Any, Dict, List, Optional
+
+import pylink
+
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
+from iotsploit_core.domain.device import Device, DeviceType
+
 logger = logging.getLogger(__name__)
 
-hookimpl = pluggy.HookimplMarker("device_mgr")
+
+def _resolve_jlink_lib_path() -> Optional[str]:
+    """Resolve libjlinkarm path from env/default locations."""
+    env_path = os.getenv("JLINKARM_LIB")
+    if env_path and os.path.exists(env_path):
+        return env_path
+
+    # Typical SEGGER install locations on Linux.
+    candidates = [
+        "/opt/SEGGER/JLink/libjlinkarm.so",
+        "/opt/SEGGER/JLink_V918/libjlinkarm.so",
+    ]
+    candidates.extend(sorted(glob.glob("/opt/SEGGER/JLink_V*/libjlinkarm.so"), reverse=True))
+    candidates.extend(sorted(glob.glob("/opt/SEGGER/JLink_V*/arm/libjlinkarm.so"), reverse=True))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _load_jlink_library() -> tuple[Optional[pylink.library.Library], Optional[str]]:
+    """Load pylink library from explicit path first, then fallback to auto-discovery."""
+    path = _resolve_jlink_lib_path()
+    try:
+        if path:
+            lib = pylink.library.Library(path)
+            if lib.dll() is not None:
+                return lib, path
+        lib = pylink.Library()
+        if lib.dll() is not None:
+            return lib, None
+    except Exception:
+        pass
+    return None, path
+
 
 class JLinkAbility(BaseDeviceDriver):
+    """Device driver for SEGGER J-Link debug probes."""
+
     def __init__(self):
-        self.jlink = None
-        self.connected_emulators = []
+        super().__init__()
+        self._jlink_lib, self._jlink_lib_path = _load_jlink_library()
+        self._sdk_available = self._jlink_lib is not None
+        self.jlink: Optional[pylink.JLink] = None
+        self.connected_emulators: list = []
 
-    @hookimpl
-    def scan(self, device: Device = None):
+        if not self._sdk_available:
+            logger.warning(
+                "SEGGER J-Link SDK (libjlinkarm) not found. "
+                "Please install J-Link Software from https://www.segger.com/downloads/jlink/ "
+                "and ensure libjlinkarm.so is accessible. "
+                "You may set JLINKARM_LIB=/path/to/libjlinkarm.so"
+            )
+        elif self._jlink_lib_path:
+            logger.info("Using J-Link library: %s", self._jlink_lib_path)
+
+        self.supported_commands = {
+            "read_memory": "Read 32-bit memory at address",
+            "write_memory": "Write 32-bit memory at address",
+            "reset": "Reset the target MCU",
+        }
+
+    # ------------------------------------------------------------------
+    # BaseDeviceDriver implementation
+    # ------------------------------------------------------------------
+
+    def _scan_impl(self) -> List[Device]:
+        if not self._sdk_available:
+            logger.warning(
+                "J-Link scan skipped: SEGGER J-Link SDK (libjlinkarm) is not installed. "
+                "Install from https://www.segger.com/downloads/jlink/"
+            )
+            return []
+
         try:
-            jlink = pylink.JLink()
+            jlink = pylink.JLink(lib=self._jlink_lib)
             self.connected_emulators = jlink.connected_emulators()
-            if self.connected_emulators:
-                print(f"Found JLink emulator(s): {self.connected_emulators}")
-                if device and device.device_type == DeviceType.JTAG:
-                    device.attributes['emulator_sn'] = self.connected_emulators[0].SerialNumber
-                return True
-            else:
-                print("No JLink emulators found")
-                return False
-        except Exception as e:
-            print(f"Error scanning for JLink devices: {str(e)}")
-            return False
+        except Exception as exc:
+            logger.error("Error enumerating J-Link emulators: %s", exc)
+            return []
 
-    @hookimpl
-    def initialize(self, device: Device = None):
         if not self.connected_emulators:
-            if not self.scan(device):
-                raise ValueError("No JLink emulators found. Please run scan first.")
-        
-        if device:
-            if device.device_type != DeviceType.JTAG:
-                raise ValueError("This plugin only supports JTAG devices")
-            self.current_device = device
-        else:
-            # If no device is provided, create a default one
-            self.current_device = Device("Default JTAG Device", DeviceType.JTAG)
-        
-        emulator_sn = self.current_device.attributes.get('emulator_sn') or self.connected_emulators[0].SerialNumber
-        self.jlink = pylink.JLink()
-        self.jlink.open(serial_no=emulator_sn)
-        
-        # Connect to the target device
-        target_device = self.current_device.attributes.get('target_device', 'STM32F407VG')
+            logger.info("No J-Link emulators found")
+            return []
+
+        devices: List[Device] = []
+        for emu in self.connected_emulators:
+            sn = str(emu.SerialNumber)
+            device = Device(
+                device_id=f"jlink_{sn}",
+                name=f"J-Link ({sn})",
+                device_type=DeviceType.JTAG,
+                attributes={
+                    "emulator_sn": sn,
+                    "target_device": "STM32F407VG",
+                },
+            )
+            devices.append(device)
+            logger.info("Found J-Link emulator: SN=%s", sn)
+
+        return devices
+
+    def _initialize_impl(self, device: Device) -> bool:
+        if not self._sdk_available:
+            raise RuntimeError(
+                "Cannot initialize: SEGGER J-Link SDK (libjlinkarm) is not installed. "
+                "Install from https://www.segger.com/downloads/jlink/"
+            )
+
+        emulator_sn = device.attributes.get("emulator_sn")
+        if not emulator_sn:
+            raise ValueError("Device is missing 'emulator_sn' attribute")
+
+        self.jlink = pylink.JLink(lib=self._jlink_lib)
+        self.jlink.open(serial_no=int(emulator_sn))
+
+        target_device = device.attributes.get("target_device", "STM32F407VG")
         self.jlink.connect(target_device)
-        
-        logger.info(f"Initializing JTAG device: {self.current_device.name} connected to {target_device}")
+        logger.info("J-Link initialized: %s -> %s", device.name, target_device)
+        return True
 
+    def _connect_impl(self, device: Device) -> bool:
+        if self.jlink is None:
+            raise RuntimeError("J-Link not initialised – call initialize first")
+        # Already connected during initialize; just verify
+        return self.jlink.connected()
 
-    @hookimpl
-    def execute(self, device: Device, target: str):
-        if not self.jlink:
-            raise ValueError("JLink device not initialized")
-        
-        if target == "read_memory":
-            mem = self.jlink.memory_read32(0x08000000, 10)
-            print(f"Memory read from {device.name}: {mem}")
-        elif target == "write_memory":
-            self.jlink.memory_write32(0x20000000, [0x12345678])
-            print(f"Memory written to {device.name}")
-        else:
-            print(f"Unknown target: {target}")
+    def _command_impl(self, device: Device, command: str, args: Optional[Dict] = None) -> Any:
+        if self.jlink is None:
+            raise RuntimeError("J-Link device not initialised")
 
-    @hookimpl
-    def command(self, device: Device, command: str):
-        if not self.jlink:
-            raise ValueError("JLink device not initialized")
-        
-        # Implement custom commands here
+        if args is None:
+            args = {}
+
+        if command == "read_memory":
+            address = int(args.get("address", 0x08000000))
+            count = int(args.get("count", 10))
+            mem = self.jlink.memory_read32(address, count)
+            return {"address": hex(address), "count": count, "data": mem}
+
+        if command == "write_memory":
+            address = int(args.get("address", 0x20000000))
+            data = args.get("data", [0x12345678])
+            self.jlink.memory_write32(address, data)
+            return {"address": hex(address), "written": len(data)}
+
         if command == "reset":
             self.jlink.reset()
-            print(f"Reset {device.name}")
-        else:
-            print(f"Unknown command: {command}")
+            return {"status": "success", "message": f"Reset {device.name}"}
 
-    @hookimpl
-    def reset(self, device: Device):
+        raise ValueError(f"Unsupported command: {command}")
+
+    def _reset_impl(self, device: Device) -> bool:
         if self.jlink:
             self.jlink.reset()
-            print(f"Reset JTAG device: {device.name}")
+            logger.info("Reset J-Link device: %s", device.name)
+            return True
+        return False
 
-    @hookimpl
-    def close(self, device: Device):
+    def _close_impl(self, device: Device) -> bool:
         if self.jlink:
             self.jlink.close()
             self.jlink = None
-        print(f"Closed JTAG device: {device.name}")
+            logger.info("Closed J-Link device: %s", device.name)
+        return True
+
+    def _recovery_impl(self, device: Device, recovery_type: str, **kwargs) -> dict:
+        raise NotImplementedError("Recovery operations not implemented for J-Link driver")
+
+    def _get_supported_recovery_operations_impl(self) -> list:
+        return []

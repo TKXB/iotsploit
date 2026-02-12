@@ -14,7 +14,7 @@
       ],
       "min_version": "7.0",
       "max_version": null,
-      "last_checked": 1770863033.9255905,
+      "last_checked": 1770874248.6291423,
       "metadata": {}
     },
     "masscan": {
@@ -48,7 +48,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770863033.9458709,
+      "last_checked": 1770874248.6665828,
       "metadata": {}
     },
     "wget": {
@@ -65,7 +65,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770863033.9537258,
+      "last_checked": 1770874248.686169,
       "metadata": {}
     },
     "ping": {
@@ -82,7 +82,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770863037.936471,
+      "last_checked": 1770874252.1862254,
       "metadata": {}
     },
     "hydra": {
@@ -133,7 +133,7 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770863037.9480639,
+      "last_checked": 1770874252.2006316,
       "metadata": {}
     },
     "dfu-util": {
@@ -200,7 +200,7 @@
       ],
       "min_version": "2018-12-R1",
       "max_version": null,
-      "last_checked": 1770863037.9571414,
+      "last_checked": 1770874252.2246752,
       "metadata": {}
     },
     "ubertooth-btle": {
@@ -216,7 +216,7 @@
       ],
       "min_version": "2018-12-R1",
       "max_version": null,
-      "last_checked": 1770863037.9654062,
+      "last_checked": 1770874252.23522,
       "metadata": {}
     }
   }
