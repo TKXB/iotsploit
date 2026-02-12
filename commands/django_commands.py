@@ -203,17 +203,21 @@ class DjangoCommands(BaseCommands):
         'Stop Django development server, Daphne WebSocket server, MCP WebSocket bridge, and Celery worker'
         try:
             # Cleanup devices using HTTP endpoint (GET method)
-            import requests
-            try:
-                response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')
-                if response.status_code == 200:
-                    logger.info("Devices cleaned up successfully via HTTP API")
-                else:
-                    logger.error(f"Failed to cleanup devices: {response.text}")
-            except requests.exceptions.ConnectionError:
-                logger.warning("Could not reach HTTP server for device cleanup")
-            except Exception as e:
-                logger.error(f"Error during device cleanup: {str(e)}")
+            # Only attempt HTTP cleanup if the Django server process is still alive
+            if self.django_server_process and self.django_server_process.poll() is None:
+                import requests
+                try:
+                    response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')
+                    if response.status_code == 200:
+                        logger.info("Devices cleaned up successfully via HTTP API")
+                    else:
+                        logger.error(f"Failed to cleanup devices: {response.text}")
+                except requests.exceptions.ConnectionError:
+                    logger.warning("Could not reach HTTP server for device cleanup")
+                except Exception as e:
+                    logger.error(f"Error during device cleanup: {str(e)}")
+            else:
+                logger.debug("Django server not running, skipping HTTP device cleanup")
             
             # Stop the servers
             if self.django_server_process:
