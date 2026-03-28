@@ -586,7 +586,7 @@ When users ask about devices or system status, provide helpful explanations and 
                 text=True,
                 bufsize=0,
                 env=env,
-                cwd=os.path.dirname(os.path.abspath(__file__)) + '/../../'
+                cwd=os.path.dirname(os.path.abspath(__file__)) + '/../../../../'
             )
             
             xlog.info(f"Shell process started with PID: {self.assistant_process.pid}", "ai_assistant")
