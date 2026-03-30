@@ -366,8 +366,8 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         try:
             xlog.info(f"Starting AI model processing for provider: {ai_config.provider}", "ai_assistant")
             
-            if ai_config.provider == 'openai':
-                xlog.debug("Calling OpenAI API", "ai_assistant")
+            if ai_config.provider in ('openai', 'azure_openai', 'ollama'):
+                xlog.debug(f"Calling OpenAI-compatible API ({ai_config.provider})", "ai_assistant")
                 return await self.call_openai_api(query, ai_config)
             elif ai_config.provider == 'google':
                 xlog.debug("Calling Google API", "ai_assistant")
@@ -390,10 +390,16 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             from openai import AsyncOpenAI
             import asyncio
             
-            xlog.debug(f"Initializing OpenAI client with base_url: {ai_config.api_url}", "ai_assistant")
+            # Ollama stores /api as the base URL (for model listing), but its
+            # OpenAI-compatible chat endpoint lives at /v1.
+            base_url = ai_config.api_url
+            if ai_config.provider == 'ollama' and base_url.rstrip('/').endswith('/api'):
+                base_url = base_url.rstrip('/').rsplit('/api', 1)[0] + '/v1'
+            xlog.debug(f"Initializing OpenAI client with base_url: {base_url}", "ai_assistant")
+            api_key = ai_config.get_api_key() or 'ollama'  # Ollama doesn't need a real key
             client = AsyncOpenAI(
-                api_key=ai_config.get_api_key(),
-                base_url=ai_config.api_url
+                api_key=api_key,
+                base_url=base_url
             )
             
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.

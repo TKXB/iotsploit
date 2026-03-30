@@ -1,6 +1,7 @@
 from django.urls import path
 
 from iotsploit_django.view_handlers.ai_model_views import (
+    ai_fetch_models,
     ai_model_create,
     ai_model_delete,
     ai_model_detail,
@@ -22,6 +23,7 @@ urlpatterns = [
     path("ai-models/<int:pk>/test/", ai_model_test_connection, name="ai_model_test_connection"),
     path("ai-models/<int:pk>/set-default/", ai_model_set_default, name="ai_model_set_default"),
     path("ai-models/providers/", ai_provider_list, name="ai_provider_list"),
+    path("ai-models/fetch-models/", ai_fetch_models, name="ai_fetch_models"),
     path("ai-templates/", ai_template_list, name="ai_template_list"),
 ]
 

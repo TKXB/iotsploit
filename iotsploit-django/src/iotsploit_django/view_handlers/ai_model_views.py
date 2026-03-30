@@ -1,5 +1,6 @@
 import json
 import logging
+import requests
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -66,8 +67,8 @@ def ai_model_create(request):
         data = json.loads(request.body)
         logger.info(f"AI Model Create Request - Parsed Data: {data}")
         
-        # Validate required fields
-        required_fields = ['name', 'provider', 'model_name', 'api_url', 'api_key']
+        # Validate required fields (api_key is optional for providers like Ollama)
+        required_fields = ['name', 'provider', 'model_name', 'api_url']
         for field in required_fields:
             if field not in data:
                 error_response = {
@@ -428,7 +429,7 @@ def ai_provider_list(request):
             # 确保 provider 是字符串值而不是枚举对象
             provider_id = provider.value if hasattr(provider, 'value') else str(provider)
             provider_name = provider_id.replace('_', ' ').title()
-            
+
             providers.append({
                 'value': provider_id,  # Flutter 期望的字段名
                 'label': provider_name,  # Flutter 期望的字段名
@@ -451,4 +452,42 @@ def ai_provider_list(request):
         return JsonResponse({
             'success': False,
             'error': str(e)
-        }, status=500) 
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def ai_fetch_models(request):
+    """Fetch available models from a provider's API URL.
+
+    Currently supports Ollama (GET <api_url>/tags).
+    Query params:
+        api_url  – base API URL, e.g. http://localhost:11434/api
+    """
+    api_url = request.GET.get('api_url', '').rstrip('/')
+    if not api_url:
+        return JsonResponse({
+            'success': False,
+            'error': 'Missing required query parameter: api_url',
+        }, status=400)
+
+    try:
+        resp = requests.get(f'{api_url}/tags', timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        models = [m['name'] for m in data.get('models', [])]
+        return JsonResponse({
+            'success': True,
+            'data': models,
+        })
+    except requests.ConnectionError:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot connect to {api_url}. Is the service running?',
+        }, status=502)
+    except Exception as e:
+        logger.error(f"Error fetching models from {api_url}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+        }, status=500)
