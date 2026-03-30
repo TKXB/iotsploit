@@ -201,14 +201,10 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
                             xlog.info(f"Tool result type: {type(result)}", "ai_assistant")
                             xlog.info(f"Tool result content: {result}", "ai_assistant")
                             
-                            if isinstance(result, list) and len(result) > 0:
-                                extracted = result[0].get("text", str(result))
-                                xlog.info(f"Extracted result: {extracted}", "ai_assistant")
-                                xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
-                                return extracted
-                            
+                            extracted = self._extract_mcp_text(result)
+                            xlog.info(f"Extracted result: {extracted}", "ai_assistant")
                             xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
-                            return str(result)
+                            return extracted
                         elif data.get("type") == "tool_error":
                             error_msg = data.get('error', 'Unknown error')
                             xlog.error(f"MCP tool error: {error_msg}", "ai_assistant")
@@ -230,6 +226,31 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             xlog.info(f"=== MCP TOOL CALL EXCEPTION ===", "ai_assistant")
             return f"Error executing MCP tool: {str(e)}"
     
+    def _extract_mcp_text(self, result) -> str:
+        """Extract human-readable text from an MCP tool result.
+        
+        MCP standard format: {"content": [{"type": "text", "text": "..."}], "isError": false}
+        Legacy list format:  [{"type": "text", "text": "..."}]
+        """
+        content_list = None
+        if isinstance(result, dict):
+            content_list = result.get("content")
+        elif isinstance(result, list):
+            content_list = result
+
+        if isinstance(content_list, list) and content_list:
+            texts = [
+                item.get("text", "")
+                for item in content_list
+                if isinstance(item, dict) and item.get("type") == "text"
+            ]
+            if texts:
+                return "\n".join(texts)
+
+        if isinstance(result, str):
+            return result
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
     async def get_mcp_tools(self):
         """获取MCP工具定义"""
         tools = [
@@ -376,18 +397,33 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             )
             
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
+You are a security testing assistant. You MUST use the tools available to you when the user requests an action.
 
-Available SAT commands include:
-- scan_devices: Scan for connected devices
+## Remote tools (MCP, executed on the server)
+- scan_devices: Discover connected hardware devices (USB, serial, etc.)
 - get_system_status: Get overall system status
+- list_serial_ports: List available serial ports
+- read_serial_port: Read and analyze serial port output
 
-You have access to MCP (Model Context Protocol) tools that can directly execute SAT commands.
-When users ask about devices, status, or security testing, you can:
-1. Provide helpful explanations
-2. Suggest relevant SAT commands
-3. Use MCP tools to execute commands directly when appropriate
+## Local tools (executed on the client device via built-in Rust engine)
+You have a built-in high-performance port scanner. When the user asks to scan ports, scan a host, check open ports, or anything related to network port scanning, you MUST respond with a tool_call code block. This is mandatory — never refuse or suggest external tools like Nmap.
 
-For example, when asked about "available devices", you should use the scan_devices MCP tool."""
+Format (write exactly this, with real values):
+```tool_call
+{"tool":"port_scan","args":{"target":"<ip>","port_start":<start>,"port_end":<end>}}
+```
+Parameters:
+- target (required): IP address to scan
+- port_start (optional, default 1): first port in range
+- port_end (optional, default 1024): last port in range
+
+You may include a brief explanation before the tool_call block.
+
+Example — user says "scan ports on 192.168.1.1":
+I'll scan the common ports on 192.168.1.1 for you.
+```tool_call
+{"tool":"port_scan","args":{"target":"192.168.1.1","port_start":1,"port_end":1024}}
+```"""
 
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -455,7 +491,17 @@ Available SAT commands include:
 - scan_devices: Scan for connected devices
 - get_system_status: Get overall system status
 
-When users ask about devices or system status, provide helpful explanations and suggest relevant SAT commands."""
+When users ask about devices or system status, provide helpful explanations and suggest relevant SAT commands.
+
+## Local tools (executed on the client device)
+When the user asks to scan ports on a target, respond with a tool_call block so the client app can execute it locally using its built-in Rust port scanner. Format:
+```tool_call
+{"tool":"port_scan","args":{"target":"<ip>","port_start":<start>,"port_end":<end>}}
+```
+- target (required): IP address to scan
+- port_start (optional, default 1): first port
+- port_end (optional, default 1024): last port
+Always include a brief explanation before the tool_call block."""
 
             model = genai.GenerativeModel(
                 model_name=ai_config.model_name,
@@ -499,7 +545,17 @@ Available SAT commands include:
 - get_system_status: Get overall system status
 
 You have access to MCP (Model Context Protocol) tools that can directly execute SAT commands.
-When users ask about devices or system status, provide helpful explanations and suggest relevant commands."""
+When users ask about devices or system status, provide helpful explanations and suggest relevant commands.
+
+## Local tools (executed on the client device)
+When the user asks to scan ports on a target, respond with a tool_call block so the client app can execute it locally using its built-in Rust port scanner. Format:
+```tool_call
+{"tool":"port_scan","args":{"target":"<ip>","port_start":<start>,"port_end":<end>}}
+```
+- target (required): IP address to scan
+- port_start (optional, default 1): first port
+- port_end (optional, default 1024): last port
+Always include a brief explanation before the tool_call block. Do NOT use MCP tools for port scanning."""
 
             tools = await self.get_mcp_tools()
             
