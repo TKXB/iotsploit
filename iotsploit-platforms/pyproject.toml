@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "IoTSploit platform-specific adapters (WiFi, Input, SSH backends)"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 homepage = "https://www.iotsploit.org/"
 repository = "https://github.com/TKXB/iotsploit"
 documentation = "https://www.iotsploit.org/"
@@ -13,6 +13,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Topic :: Security",
     "Topic :: System :: Hardware",
     "Programming Language :: Python :: 3",
