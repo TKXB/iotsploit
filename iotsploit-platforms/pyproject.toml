@@ -25,7 +25,7 @@ packages = [{ include = "iotsploit_platforms", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = { path = "../iotsploit-core", develop = true }
+iotsploit-core = "^0.0.1"
 # Linux WiFi backend dependencies
 # Using NetworkManager (libnm) via PyGObject
 # System dependencies required: python3-gi gir1.2-nm-1.0

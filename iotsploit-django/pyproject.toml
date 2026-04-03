@@ -25,10 +25,13 @@ packages = [{ include = "iotsploit_django", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-
-# NOTE:
-# - 该包的运行依赖（Django/channels/celery/redis 等）当前由仓库根 pyproject 管理。
-# - 这里保持最小依赖，避免与你现有环境发生版本冲突。
+iotsploit-core = "^0.0.1"
+Django = ">=4.2,<5.0"
+channels = ">=4.0"
+celery = ">=5.3"
+redis = ">=5.0"
+channels-redis = ">=4.1"
+daphne = ">=4.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
