@@ -1,9 +1,25 @@
 [tool.poetry]
 name = "iotsploit-core"
-version = "0.1.0"
-description = "IoTSploit core library (domain + ports + core), extracted from zeekr_sat_main"
-authors = ["IoTSploit Team <devnull@example.com>"]
+version = "0.0.1"
+description = "IoTSploit core library (domain + ports + core) - IoT security testing framework"
+authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
+license = "MIT"
+homepage = "https://www.iotsploit.org/"
+repository = "https://github.com/TKXB/iotsploit"
+documentation = "https://www.iotsploit.org/"
+keywords = ["iot", "security", "testing", "pentest", "vulnerability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Topic :: System :: Hardware",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 packages = [{ include = "iotsploit_core", from = "src" }]
 
 [tool.poetry.dependencies]
