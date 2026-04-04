@@ -18,13 +18,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 packages = [
-    { include = "drv_esp32.py" }
+    { include = "drv_esp32.py" },
+    { include = "scpi_client.py" }
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 iotsploit-core = "^0.0.1"
 esptool = ">=4.8"
+pyserial = ">=3.5"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]
