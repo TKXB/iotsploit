@@ -39,9 +39,27 @@ django-csp = ">=3.7"
 mistune = ">=3.0"
 colorlog = ">=6.8"
 SQLAlchemy = ">=2.0"
+netifaces = ">=0.11"
+psutil = ">=5.9"
+requests = ">=2.31"
+cryptography = ">=41.0"
+pydantic = ">=2.0"
+aiohttp = ">=3.9"
+asgiref = ">=3.7"
+elevate = ">=0.1"
+pwntools = ">=4.11"
+bluepy = { version = ">=1.3", optional = true }
+pywifi = { version = ">=1.1", optional = true }
+smbus2 = { version = ">=0.4", optional = true }
+pyusb = { version = ">=1.2", optional = true }
 
 [tool.poetry.extras]
 platforms = ["iotsploit-platforms"]
+bluetooth = ["bluepy"]
+wifi = ["pywifi"]
+i2c = ["smbus2"]
+usb = ["pyusb"]
+hardware = ["bluepy", "pywifi", "smbus2", "pyusb"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
