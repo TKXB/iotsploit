@@ -1,7 +1,6 @@
 db.sqlite3
 *.sqlite3
 **/__pycache__
-**/migrations
 sat_logs
 zeekr_sat_ui
 sat_scripts/mitm/*/dnslog.txt
