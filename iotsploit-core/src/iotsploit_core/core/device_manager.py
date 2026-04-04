@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from importlib import metadata as importlib_metadata
 import importlib.util
 import json
 import logging
@@ -174,8 +175,46 @@ class DeviceDriverManager:
         except Exception as e:
             logger.error(f"Error saving driver state: {e}")
 
+    @staticmethod
+    def _iter_entry_points(group: str):
+        entry_points = importlib_metadata.entry_points()
+        if hasattr(entry_points, "select"):
+            return list(entry_points.select(group=group))
+        return list(entry_points.get(group, []))
+
+    def _load_entry_point_drivers(self) -> None:
+        """Load packaged drivers declared via Python entry points."""
+        group = "iotsploit.device_drivers"
+        for entry_point in self._iter_entry_points(group):
+            driver_name = entry_point.name
+            if driver_name in self.drivers:
+                logger.debug("Skipping duplicate device driver entry point: %s", driver_name)
+                continue
+
+            try:
+                driver_class = entry_point.load()
+                if (
+                    not isinstance(driver_class, type)
+                    or not issubclass(driver_class, BaseDeviceDriver)
+                    or driver_class is BaseDeviceDriver
+                ):
+                    logger.warning(
+                        "Ignoring invalid device driver entry point %s -> %s",
+                        driver_name,
+                        entry_point.value,
+                    )
+                    continue
+
+                self.plugins[driver_name] = driver_class
+                self.drivers[driver_name] = driver_class()
+                logger.info("Loaded device driver entry point: %s (%s)", driver_name, driver_class.__name__)
+            except Exception as e:
+                logger.error("Failed to load device driver entry point %s: %s", driver_name, str(e))
+
     def load_plugins(self):
-        """Load all device driver plugins"""
+        """Load device drivers from entry points first, then legacy filesystem fallbacks."""
+        self._load_entry_point_drivers()
+
         plugin_dir = str(self.plugins_dir)
         logger.info(f"Loading device plugins from {plugin_dir}")
         for root, _, files in os.walk(plugin_dir):
@@ -187,6 +226,10 @@ class DeviceDriverManager:
         """Load a single plugin"""
         try:
             module_name = os.path.splitext(os.path.basename(filepath))[0]
+            if module_name in self.drivers:
+                logger.debug("Skipping legacy device plugin because %s is already registered", module_name)
+                return
+
             spec = importlib.util.spec_from_file_location(module_name, filepath)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -896,4 +939,3 @@ class DeviceDriverManager:
         except Exception as e:
             logger.error(f"Error getting driver states: {e}")
             return {}
-

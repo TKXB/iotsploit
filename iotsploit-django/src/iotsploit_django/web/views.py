@@ -171,19 +171,11 @@ def discovered_exploit_plugins(request):
             module_path = (it.get("module_path") or "").strip()
             if not name or not module_path:
                 continue
-            # SSOT rule: discovery should NOT override enabled/disabled decision.
-            # - If exists, preserve DB enabled flag.
-            # - If new, default to disabled (opt-in enable).
-            try:
-                existing = Plugin.objects.filter(name=name).first()
-                enabled = bool(existing.enabled) if existing is not None else False
-            except Exception:
-                enabled = False
 
             meta = PluginMeta(
                 name=name,
                 module_path=module_path,
-                enabled=enabled,
+                enabled=True,
                 description=str(it.get("description", "") or ""),
                 author=str(it.get("author", "") or ""),
                 license=str(it.get("license", "") or ""),
@@ -980,6 +972,40 @@ def create_group(request):
                 "status": "error",
                 "message": "Group name is required"
             }, status=400)
+
+        normalized_plugins = []
+        for plugin_item in selected_plugins:
+            if isinstance(plugin_item, str):
+                plugin_name = plugin_item
+                sequence = 100
+                ignore_fail = False
+            else:
+                plugin_name = plugin_item.get('name')
+                sequence = plugin_item.get('sequence', 100)
+                ignore_fail = plugin_item.get('ignore_fail', False)
+
+            if not plugin_name:
+                continue
+
+            normalized_plugins.append({
+                "name": plugin_name,
+                "sequence": sequence,
+                "ignore_fail": ignore_fail,
+            })
+
+        existing_plugins = {
+            plugin.name: plugin
+            for plugin in Plugin.objects.filter(name__in=[item["name"] for item in normalized_plugins])
+        }
+        missing_plugins = [
+            item["name"] for item in normalized_plugins if item["name"] not in existing_plugins
+        ]
+        if missing_plugins:
+            return JsonResponse({
+                "status": "error",
+                "message": "Plugins must be discovered before they can be added to a group",
+                "missing_plugins": missing_plugins,
+            }, status=400)
             
         # Create or update the plugin group
         group, created = PluginGroup.objects.get_or_create(
@@ -1000,28 +1026,11 @@ def create_group(request):
         
         # Add selected plugins to the group with sequence information
         added_plugins = []
-        for plugin_item in selected_plugins:
-            # Handle both simple string format and detailed object format
-            if isinstance(plugin_item, str):
-                plugin_name = plugin_item
-                sequence = 100  # Default sequence
-                ignore_fail = False  # Default ignore_fail
-            else:
-                plugin_name = plugin_item.get('name')
-                sequence = plugin_item.get('sequence', 100)
-                ignore_fail = plugin_item.get('ignore_fail', False)
-            
-            if not plugin_name:
-                continue
-                
-            plugin, _ = Plugin.objects.get_or_create(
-                name=plugin_name,
-                defaults={
-                    'description': f'Plugin {plugin_name}',
-                    'enabled': True,
-                    'module_path': f'plugins.exploits.{plugin_name}'
-                }
-            )
+        for plugin_item in normalized_plugins:
+            plugin_name = plugin_item['name']
+            sequence = plugin_item['sequence']
+            ignore_fail = plugin_item['ignore_fail']
+            plugin = existing_plugins[plugin_name]
             
             # Create the sequence entry
             from iotsploit_django.adapters.django.plugins.models import PluginSequence
@@ -2029,4 +2038,3 @@ def execute_recovery(request, driver_name):
             'status': 'error',
             'message': f'Failed to execute recovery operation: {str(e)}'
         }, status=500)
-

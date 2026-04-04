@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "iotsploit-drivers"
+version = "0.0.1"
+description = "Official IoTSploit device driver package"
+authors = ["IoTSploit Team <support@iotsploit.org>"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+packages = [{ include = "iotsploit_drivers", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+iotsploit-core = "^0.0.1"
+iotsploit-django = "^0.0.1"
+pyusb = ">=1.2"
+python-can = ">=4.5"
+pyserial = ">=3.5"
+pyftdi = ">=0.55"
+pylink-square = ">=2.0"
+pyudev = ">=0.24"
+esptool = ">=4.8"
+
+[tool.poetry.plugins."iotsploit.device_drivers"]
+drv_esp32 = "iotsploit_drivers.esp32.drv_esp32:ESP32Driver"
+drv_socketcan = "iotsploit_drivers.socketcan.drv_socketcan:SocketCANDriver"
+drv_ft2232 = "iotsploit_drivers.ft2232.drv_ft2232:FT2232Driver"
+drv_greatfet = "iotsploit_drivers.greatfet.drv_greatfet:GreatFETDriver"
+drv_jlink = "iotsploit_drivers.jlink.drv_jlink:JLinkAbility"
+drv_ubertooth = "iotsploit_drivers.ubertooth.drv_ubertooth:UbertoothDriver"
+drv_logic = "iotsploit_drivers.logic.drv_logic:EnxorLogicAnalyzerDriver"
+drv_iotsploit_fpga = "iotsploit_drivers.iotsploit_func_fpga.drv_iotsploit_fpga:ECP5FPGADriver"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"

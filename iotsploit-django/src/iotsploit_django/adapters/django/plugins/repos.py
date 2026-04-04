@@ -13,7 +13,7 @@ from iotsploit_core.domain.plugin import PluginMeta
 class DjangoPluginMetaRepository:
     def upsert(self, meta: PluginMeta) -> None:
         try:
-            Plugin.objects.update_or_create(
+            plugin, created = Plugin.objects.get_or_create(
                 name=meta.name,
                 defaults={
                     "description": meta.description or "",
@@ -23,6 +23,23 @@ class DjangoPluginMetaRepository:
                     "author": meta.author or "",
                     "parameters": json.dumps(meta.parameters or {}),
                 },
+            )
+            if created:
+                return
+
+            plugin.description = meta.description or ""
+            plugin.module_path = meta.module_path
+            plugin.license = meta.license or ""
+            plugin.author = meta.author or ""
+            plugin.parameters = json.dumps(meta.parameters or {})
+            plugin.save(
+                update_fields=[
+                    "description",
+                    "module_path",
+                    "license",
+                    "author",
+                    "parameters",
+                ]
             )
         except OperationalError:
             # DB not ready (migrations not run, etc.) — keep core importable.
@@ -108,5 +125,4 @@ class DjangoPluginGroupRepository:
             plugin_steps=plugin_steps,
             group_steps=group_steps,
         )
-
 
