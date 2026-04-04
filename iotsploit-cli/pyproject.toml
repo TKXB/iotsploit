@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-cli"
-version = "0.0.1"
+version = "0.0.2"
 description = "IoTSploit CLI shell (console + command modules) - IoT security testing interactive interface"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
@@ -30,7 +30,7 @@ iotsploit = "iotsploit_cli.console:main"
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 iotsploit-core = "^0.0.1"
-iotsploit-django = "^0.0.1"
+iotsploit-django = "^0.0.2"
 cmd2 = "^2.4"
 pwntools = "^4.12"
 
