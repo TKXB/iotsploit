@@ -26,12 +26,16 @@ packages = [{ include = "iotsploit_django", from = "src" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 iotsploit-core = "^0.0.1"
+iotsploit-platforms = { version = "^0.0.1", optional = true }
 Django = ">=4.2,<5.0"
 channels = ">=4.0"
 celery = ">=5.3"
 redis = ">=5.0"
 channels-redis = ">=4.1"
 daphne = ">=4.0"
+
+[tool.poetry.extras]
+platforms = ["iotsploit-platforms"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
