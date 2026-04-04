@@ -33,6 +33,9 @@ celery = ">=5.3"
 redis = ">=5.0"
 channels-redis = ">=4.1"
 daphne = ">=4.0"
+django-extensions = ">=3.2"
+django-cors-headers = ">=4.0"
+django-csp = ">=3.7"
 
 [tool.poetry.extras]
 platforms = ["iotsploit-platforms"]
