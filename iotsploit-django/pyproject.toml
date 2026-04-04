@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-django"
-version = "0.0.2"
+version = "0.0.3"
 description = "IoTSploit Django ring package (HTTP/WS/ORM/Celery + composition root)"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
@@ -36,6 +36,9 @@ daphne = ">=4.0"
 django-extensions = ">=3.2"
 django-cors-headers = ">=4.0"
 django-csp = ">=3.7"
+mistune = ">=3.0"
+colorlog = ">=6.8"
+SQLAlchemy = ">=2.0"
 
 [tool.poetry.extras]
 platforms = ["iotsploit-platforms"]
@@ -50,4 +53,3 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-q"]
-
