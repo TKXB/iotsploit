@@ -27,7 +27,13 @@ def _context_factory():
     Returns:
         PluginContext instance with all configured backends
     """
-    from iotsploit_platforms.selector import build_context
+    try:
+        from iotsploit_platforms.selector import build_context
+    except ImportError:
+        raise ImportError(
+            "iotsploit-platforms is required for plugin execution. "
+            "Install with: pip install iotsploit-django[platforms]"
+        )
     return build_context()
 
 
