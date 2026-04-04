@@ -70,12 +70,10 @@ websockets = "^12.0"
 # ... (other dependencies)
 
 [tool.poetry.group.dev.dependencies]
-flood_attack = {path = "plugins/exploits/flood_attack", develop = true}
-esp32_driver = {path = "plugins/devices/esp32", develop = true}
-socketcan_driver = {path = "plugins/devices/socketcan", develop = true}
+iotsploit-exploits = {path = "iotsploit-exploits", develop = true}
+iotsploit-drivers = {path = "iotsploit-drivers", develop = true}
 iotsploit-django = {path = "iotsploit-django", develop = true}
 iotsploit-fuzzer = {path = "iotsploit-fuzzer", develop = true}
-# ... other plugin dependencies ...
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

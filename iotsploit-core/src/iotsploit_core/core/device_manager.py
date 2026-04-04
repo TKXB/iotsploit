@@ -70,13 +70,11 @@ class DeviceDriverManager:
             logger.info("DeviceDriverManager initialized")
 
     @staticmethod
-    def _default_plugins_dir() -> Path:
+    def _default_plugins_dir() -> Path | None:
         env = os.getenv("IOTSPLOIT_DEVICE_PLUGINS_DIR") or os.getenv("SAT_DEVICE_PLUGINS_DIR")
         if env:
             return Path(env)
-        # repo layout: <repo>/plugins/devices
-        repo_root = Path(__file__).resolve().parents[2]
-        return repo_root / "plugins" / "devices"
+        return None
 
     @staticmethod
     def _default_usb_config_file() -> Path:
@@ -215,6 +213,9 @@ class DeviceDriverManager:
         """Load device drivers from entry points first, then legacy filesystem fallbacks."""
         self._load_entry_point_drivers()
 
+        if self.plugins_dir is None:
+            logger.debug("No legacy device plugins directory configured; skipping filesystem scan")
+            return
         plugin_dir = str(self.plugins_dir)
         logger.info(f"Loading device plugins from {plugin_dir}")
         for root, _, files in os.walk(plugin_dir):

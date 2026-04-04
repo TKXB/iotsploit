@@ -135,11 +135,8 @@ class DjangoCommands(BaseCommands):
             
             # Start the WebSocket bridge in its own process group so that we can
             # later terminate the entire group (bridge + sat_fastmcp child)
-            # Set up environment variables for MCP bridge (plugin directories + Django API URL)
+            # Set up environment variables for MCP bridge (Django API URL)
             mcp_env = os.environ.copy()
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            mcp_env.setdefault('IOTSPLOIT_DEVICE_PLUGINS_DIR', os.path.join(project_root, 'plugins', 'devices'))
-            mcp_env.setdefault('IOTSPLOIT_EXPLOIT_PLUGINS_DIR', os.path.join(project_root, 'plugins', 'exploits'))
             mcp_env.setdefault('IOTSPLOIT_DJANGO_API_BASE_URL', 'http://127.0.0.1:8888')
             
             self.mcp_bridge_process = subprocess.Popen(

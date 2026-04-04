@@ -519,12 +519,18 @@ def list_plugin_info(request):
             plugin_path = None
             if plugin_name in plugin_db_entries:
                 db_entry = plugin_db_entries[plugin_name]
-                # Extract the file path from the module path
                 if db_entry.module_path:
-                    module_parts = db_entry.module_path.split('.')
-                    # Convert module path to file path
-                    file_path = '/'.join(module_parts[:-1]) + '.py'
-                    plugin_path = file_path
+                    mp = db_entry.module_path
+                    if mp.startswith("file://") and "::" in mp:
+                        plugin_path = mp[len("file://"):].split("::", 1)[0]
+                    else:
+                        import importlib.util
+                        module_dotted = mp.rsplit(".", 1)[0]
+                        try:
+                            spec = importlib.util.find_spec(module_dotted)
+                            plugin_path = spec.origin if spec is not None else None
+                        except (ModuleNotFoundError, ValueError):
+                            plugin_path = None
             
             plugin_entry = {
                 "name": plugin_name,
@@ -1344,13 +1350,9 @@ def get_plugin_code(request):
             return JsonResponse({'status': 'error', 'message': 'Plugin path is required'})
         
         # Security check to prevent directory traversal
-        if '..' in plugin_path or plugin_path.startswith('/'):
+        if '..' in plugin_path:
             return JsonResponse({'status': 'error', 'message': 'Invalid plugin path'})
-        
-        # Ensure the path is within the plugins directory
-        if not plugin_path.startswith('plugins/'):
-            plugin_path = f'plugins/{plugin_path}'
-        
+
         try:
             with open(plugin_path, 'r') as file:
                 code = file.read()
@@ -1398,13 +1400,19 @@ def save_plugin_code(request):
             return JsonResponse({'status': 'error', 'message': 'Plugin code is required'})
         
         # Security check to prevent directory traversal
-        if '..' in plugin_path or plugin_path.startswith('/'):
+        if '..' in plugin_path:
             return JsonResponse({'status': 'error', 'message': 'Invalid plugin path'})
-        
-        # Ensure the path is within the plugins directory
-        if not plugin_path.startswith('plugins/'):
-            plugin_path = f'plugins/{plugin_path}'
-        
+
+        # Only allow editing legacy plugins inside the plugins/ directory.
+        # Packaged plugins (installed via entry points) are read-only.
+        from pathlib import Path as _Path
+        from iotsploit_django.config import REPO_ROOT
+        _legacy_root = (REPO_ROOT / 'plugins').resolve()
+        try:
+            _Path(plugin_path).resolve().relative_to(_legacy_root)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Packaged plugins are read-only and cannot be edited here'})
+
         try:
             # Create a backup of the original file
             import os

@@ -207,7 +207,7 @@ class PluginCommands(BaseCommands):
 
     @cmd2.with_category('Plugin Commands')
     def do_flash_plugins(self, arg):
-        'Refresh and reload all plugins from the plugins directory'
+        'Refresh and reload all plugins from installed packages and entry points'
         try:
             logger.info(ansi.style("Starting plugin refresh...", fg=ansi.Fg.CYAN))
             

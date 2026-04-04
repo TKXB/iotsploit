@@ -17,8 +17,7 @@ from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSou
 
 logger = iots_logger.get_logger(__name__)
 
-# Import components from protocol - using absolute import instead of relative
-from plugins.devices.logic.protocol import (
+from .protocol import (
     LogicAnalyzerModel, 
     AsyncReadSerial, 
     get_available_serial_ports, 

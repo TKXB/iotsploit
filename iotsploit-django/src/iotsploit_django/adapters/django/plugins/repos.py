@@ -28,6 +28,7 @@ class DjangoPluginMetaRepository:
                 return
 
             plugin.description = meta.description or ""
+            plugin.enabled = bool(meta.enabled)
             plugin.module_path = meta.module_path
             plugin.license = meta.license or ""
             plugin.author = meta.author or ""
@@ -35,6 +36,7 @@ class DjangoPluginMetaRepository:
             plugin.save(
                 update_fields=[
                     "description",
+                    "enabled",
                     "module_path",
                     "license",
                     "author",

@@ -7,7 +7,7 @@ from pathlib import Path
 from iotsploit_core.domain.device import Device, DeviceType, USBDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.tool_service import get_firmware_service
-from plugins.devices.greatfet.protocol import get_version_number  # Updated to use absolute import
+from .protocol import get_version_number
 
 logger = logging.getLogger(__name__)
 
