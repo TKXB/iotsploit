@@ -1,10 +1,14 @@
 [tool.poetry]
-name = "flood-attack"
-version = "0.1.0"
-description = "Flood Attack Exploit Plugin for IoTSploit"
+name = "iotsploit-cli"
+version = "0.0.1"
+description = "IoTSploit CLI shell (console + command modules) - IoT security testing interactive interface"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
+readme = "README.md"
 license = "GPL-3.0-or-later"
-keywords = ["iot", "security", "flood", "attack", "exploit", "plugin"]
+homepage = "https://www.iotsploit.org/"
+repository = "https://github.com/TKXB/iotsploit"
+documentation = "https://www.iotsploit.org/"
+keywords = ["iot", "security", "testing", "pentest", "cli", "shell"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -12,17 +16,31 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Topic :: Security",
     "Topic :: System :: Hardware",
+    "Environment :: Console",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
+packages = [{ include = "iotsploit_cli", from = "src" }]
+
+[tool.poetry.scripts]
+iotsploit = "iotsploit_cli.console:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 iotsploit-core = "^0.0.1"
-scapy = "^2.5.0"
+iotsploit-django = "^0.0.1"
+cmd2 = "^2.4"
+pwntools = "^4.12"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]

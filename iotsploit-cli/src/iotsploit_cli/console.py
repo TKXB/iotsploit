@@ -85,7 +85,7 @@ sys.excepthook = global_exception_handler
 
 def discover_command_modules():
     """Auto-discover and load all command modules"""
-    from commands.base_commands import BaseCommands
+    from iotsploit_cli.commands.base_commands import BaseCommands
     
     command_classes = []
     commands_dir = os.path.join(os.path.dirname(__file__), 'commands')
@@ -95,7 +95,7 @@ def discover_command_modules():
             module_name = filename[:-3]
             
             try:
-                module = importlib.import_module(f'commands.{module_name}')
+                module = importlib.import_module(f'iotsploit_cli.commands.{module_name}')
 
                 for name, obj in inspect.getmembers(module):
                     if (inspect.isclass(obj) and 
@@ -442,7 +442,10 @@ class SAT_Shell(SAT_Shell_Base):
             except Exception as e:
                 logger.error(f"Error closing {device.name}: {str(e)}")
 
-if __name__ == '__main__':
+def main():
+    import signal
+    import atexit
+
     parser = argparse.ArgumentParser(description='SAT Shell entrypoint')
     parser.add_argument('--runserver', action='store_true', help='Start servers directly and keep running until Ctrl+C; on Ctrl+C, stop servers')
     args = parser.parse_args()
@@ -453,9 +456,6 @@ if __name__ == '__main__':
 
     # Register OS signal + atexit handlers in the entrypoint so that unexpected exits
     # (terminal closed / SIGTERM) also trigger the same cleanup path.
-    import signal
-    import atexit
-
     def _shutdown():
         try:
             shell.do_stop_server("")
@@ -486,4 +486,8 @@ if __name__ == '__main__':
             time.sleep(1)
     else:
         shell.cmdloop()
+
+
+if __name__ == '__main__':
+    main()
 

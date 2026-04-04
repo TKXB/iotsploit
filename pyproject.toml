@@ -55,6 +55,8 @@ iotsploit-core = { path = "iotsploit-core", develop = true }
 iotsploit-platforms = { path = "iotsploit-platforms", develop = true }
 # MCP outer-ring package (PyPI-style, src-layout)
 iotsploit-mcp = { path = "iotsploit-mcp", develop = true }
+# CLI shell (console + commands)
+iotsploit-cli = { path = "iotsploit-cli", develop = true }
 pyudev = "0.24.3"
 facedancer = "^3.0.0"
 # AI and MCP dependencies

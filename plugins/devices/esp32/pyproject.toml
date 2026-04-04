@@ -1,15 +1,31 @@
 [tool.poetry]
-name = "esp32_driver"
+name = "esp32-driver"
 version = "0.1.0"
-description = "ESP32 Driver Plugin for SAT Toolkit"
-authors = ["Your Name <your.email@example.com>"]
+description = "ESP32 Device Driver Plugin for IoTSploit"
+authors = ["IoTSploit Team <support@iotsploit.org>"]
+license = "GPL-3.0-or-later"
+keywords = ["iot", "security", "esp32", "driver", "plugin"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Topic :: Security",
+    "Topic :: System :: Hardware",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 packages = [
     { include = "drv_esp32.py" }
 ]
 
 [tool.poetry.dependencies]
-# No additional dependencies needed - uses iotsploit_django components
+python = ">=3.10,<4.0"
+iotsploit-core = "^0.0.1"
+esptool = ">=4.8"
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
