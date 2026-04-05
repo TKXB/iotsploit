@@ -82,7 +82,7 @@ class DjangoCommands(BaseCommands):
                 return False
             
             # Prepare the commands
-            django_cmd = [sys.executable, 'manage.py', 'runserver', '--noreload', '0.0.0.0:8888']
+            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', '0.0.0.0:8888']
             daphne_cmd = [
                 sys.executable, 
                 '-m', 
