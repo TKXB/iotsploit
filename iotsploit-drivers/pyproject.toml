@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-drivers"
-version = "0.0.1"
+version = "0.0.6"
 description = "Official IoTSploit device driver package"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 license = "GPL-3.0-or-later"
@@ -9,7 +9,7 @@ packages = [{ include = "iotsploit_drivers", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.1"
+iotsploit-core = "^0.0.6"
 pyusb = ">=1.2"
 python-can = ">=4.5"
 pyserial = ">=3.5"

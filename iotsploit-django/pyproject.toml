@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-django"
-version = "0.0.3"
+version = "0.0.6"
 description = "IoTSploit Django ring package (HTTP/WS/ORM/Celery + composition root)"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
@@ -25,8 +25,8 @@ packages = [{ include = "iotsploit_django", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.1"
-iotsploit-platforms = { version = "^0.0.1", optional = true }
+iotsploit-core = "^0.0.6"
+iotsploit-platforms = { version = "^0.0.6", optional = true }
 Django = ">=4.2,<5.0"
 channels = ">=4.0"
 celery = ">=5.3"

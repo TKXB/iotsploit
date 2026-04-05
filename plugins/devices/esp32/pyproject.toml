@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "esp32-driver"
-version = "0.1.0"
+version = "0.0.6"
 description = "ESP32 Device Driver Plugin for IoTSploit"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 license = "GPL-3.0-or-later"
@@ -24,7 +24,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.1"
+iotsploit-core = "^0.0.6"
 esptool = ">=4.8"
 pyserial = ">=3.5"
 

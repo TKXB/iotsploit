@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sat-toolkit"
-version = "0.1.0"
+version = "0.0.6"
 description = "Iotsploit Toolkit"
 authors = ["tk"]
 package-mode = false
@@ -83,4 +83,3 @@ build-backend = "poetry.core.masonry.api"
 name = "aliyun"
 url = "https://mirrors.aliyun.com/pypi/simple/"
 priority = "primary"
-

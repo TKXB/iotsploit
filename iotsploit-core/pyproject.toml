@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-core"
-version = "0.0.1"
+version = "0.0.6"
 description = "IoTSploit core library (domain + ports + core) - IoT security testing framework"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
@@ -38,5 +38,3 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-q"]
-
-

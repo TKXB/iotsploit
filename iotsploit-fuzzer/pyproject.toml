@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-fuzzer"
-version = "0.1.0"
+version = "0.0.6"
 description = "IoTSploit fuzzer library (ports + core + adapters), extracted from zeekr_sat_main"
 authors = ["IoTSploit Team <devnull@example.com>"]
 readme = "README.md"
@@ -32,5 +32,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-q"]
-
 

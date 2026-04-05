@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "socketcan-driver"
-version = "0.1.0"
+version = "0.0.6"
 description = "SocketCAN Device Driver Plugin for IoTSploit"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 license = "GPL-3.0-or-later"
@@ -23,7 +23,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.1"
+iotsploit-core = "^0.0.6"
 python-can = "4.5.0"
 
 [build-system]
