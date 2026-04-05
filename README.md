@@ -91,59 +91,107 @@ Leveraging the versatile M.2 Key E slot, IoTSploit enables seamless integration 
 - **ESP32 Board**: WiFi and Bluetooth-based security assessments
 - **FPGA Board**: 16-channel logic analyzer with protocol decoding
 
+## 📦 Python packages (PyPI)
+
+IoTSploit is distributed as several packages on [PyPI](https://pypi.org/). The usual entry point is **`iotsploit-cli`**: installing it pulls in the interactive shell and the official component stack listed below (including **`iotsploit-core`**, the shared foundation used by Django, drivers, and exploits).
+
+| Package | Role | Location in this repo |
+|---------|------|------------------------|
+| **`iotsploit-cli`** | Console script `iotsploit`, Cmd2 shell, and command modules | `iotsploit-cli/` |
+| **`iotsploit-core`** | Core framework, plugin system, and domain logic | `iotsploit-core/` |
+| **`iotsploit-django`** | Django ring: HTTP/WebSocket APIs, ORM, Celery, backend composition | `iotsploit-django/` |
+| **`iotsploit-mcp`** | MCP runtime (stdio server, WebSocket bridge, tooling integration) | `iotsploit-mcp/` |
+| **`iotsploit-drivers`** | Official device drivers (registered via `iotsploit.device_drivers` entry points) | `iotsploit-drivers/` |
+| **`iotsploit-exploits`** | Official security-testing plugins (registered via `iotsploit.exploit_plugins` entry points) | `iotsploit-exploits/` |
+
+For day-to-day use you only need **`pip install iotsploit-cli`**; dependency resolution brings in the rest. Advanced integrations can depend on individual packages (for example `iotsploit-core` plus `iotsploit-django` only).
+
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
-- Python 3.8+
-- Docker (for Redis)
-- Git
+- Python 3.10+
+- Docker or a local Redis server
+- Git (only required for source development)
 
-### 1. Clone the Repository and Switch to Development Branch
+### 🐧 Linux (Ubuntu/Debian) system dependencies
+
+On a fresh Linux machine, some Python dependencies may be built from source (for example `pycairo`, `pygobject`, `dbus-python`, `cffi`) and require system libraries and headers.
+
+Install them first:
 
 ```bash
-git clone https://github.com/iotsploit/iotsploit.git
-cd iotsploit
-git fetch
-git checkout -b dev origin/dev
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential \
+  pkg-config \
+  cmake \
+  python3-dev \
+  libffi-dev \
+  libcairo2-dev \
+  libdbus-1-dev \
+  libglib2.0-dev \
+  gobject-introspection \
+  libgirepository1.0-dev
+```
+
+### 1. Install IoTSploit from PyPI
+
+This installs **`iotsploit-cli`** and its dependencies (see [Python packages (PyPI)](#python-packages-pypi)).
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install iotsploit-cli
 ```
 
 ### 2. Set Up Redis
 
-Ensure you have Docker installed, then run:
+IoTSploit requires Redis for Celery and WebSocket features. If you use Docker, run:
 
 ```bash
 docker pull redis
 docker run --name sat-redis -p 6379:6379 -d redis:latest
 ```
 
-### 3. Install and Configure Poetry
+### 3. Start the Application
 
-Poetry is used for dependency management:
+Launch the interactive shell:
 
 ```bash
-pip install poetry
-pip install poetry-plugin-shell
-poetry lock        # This may take 10-20 minutes
-poetry install     # This may take 10-20 minutes
-poetry shell
+iotsploit
 ```
 
-### 4. Initialize the Django Database
+On first start, IoTSploit will automatically initialize the local database if needed.
 
-Set up the database:
+### 4. Start Backend Services for the GUI
 
-```bash
-python manage.py makemigrations
-python manage.py makemigrations iotsploit_django
-python manage.py migrate
+If you want to use the Flutter GUI or other remote clients, start the backend services:
+
+From inside the shell:
+
+```text
+<IoX_SHELL> runserver
 ```
 
-### 5. Start the Application
-
-Launch the application:
+Or directly from your terminal:
 
 ```bash
-python console.py
+iotsploit --runserver
+```
+
+### 5. Development Setup from Source
+
+If you want to modify IoTSploit itself instead of installing the published package:
+
+```bash
+git clone https://github.com/iotsploit/iotsploit.git
+cd iotsploit
+git fetch
+git checkout -b dev origin/dev
+python -m pip install poetry
+poetry install
+poetry run iotsploit
 ```
 
 ## 📖 Usage
@@ -269,7 +317,7 @@ We welcome contributions from the community! Here's how you can help improve IoT
    python -m pytest
    
    # Test your plugin
-   python console.py
+   poetry run iotsploit
    ```
 
 4. **Submit a Pull Request**:
