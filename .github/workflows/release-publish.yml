@@ -1,0 +1,144 @@
+name: Release & Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PACKAGES: >-
+    iotsploit-core
+    iotsploit-django
+    iotsploit-drivers
+    iotsploit-exploits
+    iotsploit-cli
+    iotsploit-platforms
+    iotsploit-mcp
+
+jobs:
+  # ──────────────────────────────────────────────
+  # 1. Build all sub-packages
+  # ──────────────────────────────────────────────
+  build:
+    name: Build packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Build all sub-packages
+        run: |
+          for pkg in $PACKAGES; do
+            echo "::group::Building $pkg"
+            cd "$pkg"
+            rm -rf dist/
+            poetry build
+            cd ..
+            echo "::endgroup::"
+          done
+
+      - name: Collect dist artifacts
+        run: |
+          mkdir -p all-dist
+          for pkg in $PACKAGES; do
+            cp "$pkg"/dist/* all-dist/
+          done
+          ls -lh all-dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: all-dist/
+
+  # ──────────────────────────────────────────────
+  # 2. Create GitHub Release (runs in parallel with TestPyPI)
+  # ──────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
+
+  # ──────────────────────────────────────────────
+  # 3. Publish to TestPyPI
+  # ──────────────────────────────────────────────
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Upload to TestPyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: twine upload --repository-url https://test.pypi.org/legacy/ --skip-existing dist/*
+
+      - name: Verify TestPyPI install
+        run: |
+          echo "Waiting for TestPyPI to index packages..."
+          sleep 30
+          pip install \
+            --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            iotsploit-core iotsploit-django || echo "::warning::TestPyPI install verification had issues"
+
+  # ──────────────────────────────────────────────
+  # 4. Publish to PyPI (only after TestPyPI succeeds)
+  # ──────────────────────────────────────────────
+  publish-pypi:
+    name: Publish to PyPI
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload --skip-existing dist/*
