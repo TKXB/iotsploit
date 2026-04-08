@@ -29,11 +29,11 @@ iotsploit = "iotsploit_cli.console:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.6"
-iotsploit-django = "^0.0.6"
-iotsploit-drivers = "^0.0.6"
-iotsploit-exploits = "^0.0.6"
-iotsploit-mcp = "^0.0.6"
+iotsploit-core = "*"
+iotsploit-django = "*"
+iotsploit-drivers = "*"
+iotsploit-exploits = "*"
+iotsploit-mcp = "*"
 cmd2 = "^2.4"
 pwntools = "^4.12"
 

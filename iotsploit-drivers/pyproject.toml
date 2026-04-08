@@ -9,7 +9,7 @@ packages = [{ include = "iotsploit_drivers", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.6"
+iotsploit-core = "*"
 pyusb = ">=1.2"
 python-can = ">=4.5"
 pyserial = ">=3.5"

@@ -23,7 +23,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-iotsploit-core = "^0.0.6"
+iotsploit-core = "*"
 python-can = "4.5.0"
 
 [build-system]
