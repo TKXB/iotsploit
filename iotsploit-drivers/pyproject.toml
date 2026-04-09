@@ -6,6 +6,13 @@ authors = ["IoTSploit Team <support@iotsploit.org>"]
 license = "GPL-3.0-or-later"
 readme = "README.md"
 packages = [{ include = "iotsploit_drivers", from = "src" }]
+include = [
+    { path = "src/iotsploit_drivers/resources/firmware_manifest.json", format = ["sdist", "wheel"] },
+    { path = "src/iotsploit_drivers/resources/firmware/**/*.bin", format = ["sdist", "wheel"] },
+    { path = "src/iotsploit_drivers/resources/firmware/**/*.bit", format = ["sdist", "wheel"] },
+    { path = "src/iotsploit_drivers/resources/firmware/**/*.hex", format = ["sdist", "wheel"] },
+    { path = "src/iotsploit_drivers/resources/firmware/**/*.uf2", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"

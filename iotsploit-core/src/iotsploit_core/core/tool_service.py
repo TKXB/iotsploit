@@ -594,37 +594,193 @@ class GreatFETProgrammer(BaseProgrammer):
         return self.execute_tool('greatfet_firmware', args, timeout=300)
 
 class FirmwareToolService(ToolService):
-    """Tool service specialized for firmware operations"""
-    
+    """Tool service specialized for firmware operations.
+
+    Manifest resolution order (later entries override earlier ones):
+      1. Built-in manifest shipped inside the ``iotsploit_drivers`` package at
+         ``resources/firmware_manifest.json``.
+      2. User override manifest at ``~/.iotsploit/firmware_manifest.json``
+         (also where runtime-added firmware entries are persisted).
+
+    Firmware entries may reference their binary in two ways:
+      * ``"resource": "<package>:<relpath>"`` — a logical reference resolved
+        via :func:`importlib.resources.as_file`. Preferred for bundled
+        defaults so wheels and editable installs both work.
+      * ``"path": "<filesystem path>"`` — a plain filesystem path. Intended
+        for user-added firmware.
+
+    Multi-file entries may use ``flash_options.files`` where each item has
+    either ``"resource"`` or ``"path"``.
+
+    Call :meth:`resolve_firmware` to obtain a context manager that yields
+    a dict with all ``resource`` entries materialized to real filesystem
+    paths — required for subprocess tools like ``esptool`` and
+    ``openFPGALoader`` that need a concrete path on disk.
+    """
+
+    #: Name of the built-in manifest resource inside iotsploit_drivers.
+    _BUILTIN_MANIFEST_PACKAGE = "iotsploit_drivers"
+    _BUILTIN_MANIFEST_RELPATH = "resources/firmware_manifest.json"
+
     def __init__(self):
         super().__init__()
-        
-        # Initialize firmware registry
+
         from pathlib import Path
-        import json
-        # Use centralized configuration directory
-        self.conf_dir = Path('conf')
-        self.conf_dir.mkdir(exist_ok=True)
-        self.manifest_file = self.conf_dir / 'firmware_manifest.json'
+
+        # User directory for overrides and runtime-added firmware.
+        self.user_dir = Path.home() / ".iotsploit"
+        self.user_dir.mkdir(exist_ok=True)
+        self.user_manifest_file = self.user_dir / "firmware_manifest.json"
+
         self.manifests = self._load_manifests()
-        
+
         # Initialize programmers
         self.esp32 = ESP32Programmer(self)
         self.stm32 = STM32Programmer(self)
         self.dfu = DFUProgrammer(self)
         self.fpga = FPGAProgrammer(self)
         self.greatfet = GreatFETProgrammer(self)
-    
+
+    # ------------------------------------------------------------------
+    # Manifest loading
+    # ------------------------------------------------------------------
+
+    def _load_builtin_manifest(self) -> Dict:
+        """Load the manifest shipped inside the iotsploit_drivers package."""
+        try:
+            from importlib.resources import files
+        except ImportError:  # pragma: no cover - Python <3.9 not supported
+            return {}
+
+        try:
+            traversable = files(self._BUILTIN_MANIFEST_PACKAGE).joinpath(
+                self._BUILTIN_MANIFEST_RELPATH
+            )
+            data = json.loads(traversable.read_text(encoding="utf-8"))
+        except (ModuleNotFoundError, FileNotFoundError):
+            self.logger.warning(
+                "Built-in firmware manifest not found in %s:%s",
+                self._BUILTIN_MANIFEST_PACKAGE,
+                self._BUILTIN_MANIFEST_RELPATH,
+            )
+            return {}
+        except json.JSONDecodeError as exc:
+            self.logger.error("Built-in firmware manifest is invalid JSON: %s", exc)
+            return {}
+
+        # Drop schema metadata key if present.
+        data.pop("_schema", None)
+        return data
+
+    def _load_user_manifest(self) -> Dict:
+        """Load the user override manifest from ~/.iotsploit."""
+        if not self.user_manifest_file.exists():
+            return {}
+        try:
+            with open(self.user_manifest_file, "r") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as exc:
+            self.logger.error(
+                "User firmware manifest %s is invalid JSON: %s",
+                self.user_manifest_file,
+                exc,
+            )
+            return {}
+        data.pop("_schema", None)
+        return data
+
     def _load_manifests(self) -> Dict:
-        """Load firmware manifests from JSON file"""
-        if self.manifest_file.exists():
-            try:
-                with open(self.manifest_file, 'r') as f:
-                    return json.load(f)
-            except json.JSONDecodeError:
-                self.logger.error("Error loading firmware manifest file")
-                return {}
-        return {}
+        """Merge built-in and user manifests. User entries take precedence."""
+        merged: Dict = {}
+        merged.update(self._load_builtin_manifest())
+        merged.update(self._load_user_manifest())
+        return merged
+
+    # ------------------------------------------------------------------
+    # Firmware resolution
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_resource_ref(resource_ref: str):
+        """Parse ``"<package>:<relpath>"`` into its components."""
+        if ":" not in resource_ref:
+            raise ValueError(
+                f"Invalid resource ref {resource_ref!r}; "
+                f"expected '<package>:<relpath>'"
+            )
+        package, relpath = resource_ref.split(":", 1)
+        package = package.strip()
+        relpath = relpath.strip().lstrip("/")
+        if not package or not relpath:
+            raise ValueError(f"Invalid resource ref {resource_ref!r}")
+        return package, relpath
+
+    @classmethod
+    def _resource_as_path(cls, resource_ref: str):
+        """Return a context manager yielding a concrete Path for a resource ref.
+
+        Uses :func:`importlib.resources.as_file` so resources packed inside
+        zipped wheels are materialized to a temp file for the duration of the
+        ``with`` block.
+        """
+        from importlib.resources import files, as_file
+
+        package, relpath = cls._parse_resource_ref(resource_ref)
+        traversable = files(package).joinpath(relpath)
+        return as_file(traversable)
+
+    def resolve_firmware(self, name: str):
+        """Context manager yielding a firmware_info dict with real paths.
+
+        The yielded dict is a shallow copy of the manifest entry where:
+          * ``resource`` has been replaced by ``path`` (a real filesystem str)
+          * ``flash_options.files[*].resource`` has been replaced by ``path``
+
+        All temporary files (if any) are kept alive for the duration of the
+        ``with`` block. Raises :class:`KeyError` if ``name`` is not in the
+        manifest.
+        """
+        from contextlib import contextmanager, ExitStack
+        from pathlib import Path
+
+        info = self.manifests.get(name)
+        if info is None:
+            raise KeyError(f"Firmware {name!r} not found in manifest")
+
+        @contextmanager
+        def _ctx():
+            with ExitStack() as stack:
+                resolved = dict(info)
+
+                # Top-level resource/path.
+                if "resource" in info:
+                    p = stack.enter_context(self._resource_as_path(info["resource"]))
+                    resolved["path"] = str(p)
+                    resolved.pop("resource", None)
+                elif "path" in info:
+                    resolved["path"] = str(info["path"])
+
+                # flash_options.files[*]
+                flash_options = dict(info.get("flash_options", {}))
+                if "files" in flash_options:
+                    new_files = []
+                    for entry in flash_options["files"]:
+                        new_entry = dict(entry)
+                        if "resource" in entry:
+                            p = stack.enter_context(
+                                self._resource_as_path(entry["resource"])
+                            )
+                            new_entry["path"] = str(p)
+                            new_entry.pop("resource", None)
+                        elif "path" in entry:
+                            new_entry["path"] = str(entry["path"])
+                        new_files.append(new_entry)
+                    flash_options["files"] = new_files
+
+                resolved["flash_options"] = flash_options
+                yield resolved
+
+        return _ctx()
     
     def add_firmware(self, name: str, path: str, device_type: str, version: str, 
                     flash_options: Optional[Dict[str, Any]] = None) -> bool:
@@ -690,7 +846,9 @@ class FirmwareToolService(ToolService):
                 filename = url.split('/')[-1]
                 if not filename:
                     filename = "downloaded_firmware.bin"
-                output_path = str(self.conf_dir / filename)
+                downloads_dir = self.user_dir / "firmware"
+                downloads_dir.mkdir(parents=True, exist_ok=True)
+                output_path = str(downloads_dir / filename)
             
             with open(output_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
@@ -719,93 +877,103 @@ class FirmwareToolService(ToolService):
                 self.logger.error(f"Firmware not found: {name}")
                 return False
 
-            firmware_info = self.manifests[name]
-            device_type = firmware_info.get('device_type', '').lower()
-            firmware_path = firmware_info['path']
+            with self.resolve_firmware(name) as firmware_info:
+                device_type = firmware_info.get('device_type', '').lower()
+                firmware_path = firmware_info.get('path')
 
-            # Merge options from manifest and provided options
-            flash_options = firmware_info.get('flash_options', {}).copy()
-            if options:
-                flash_options.update(options)
-            
-            # Route to appropriate programmer based on device type
-            if device_type.startswith('esp32'):
-                if 'files' in flash_options:
-                    # Multi-file ESP32 flash
-                    result = self.esp32.flash_multi(
-                        port=flash_options.get('port', '/dev/ttyUSB0'),
-                        files=flash_options['files'],
-                        chip=flash_options.get('chip', 'esp32s3'),
-                        baud=flash_options.get('baud', '460800')
-                    )
-                else:
-                    # Single file ESP32 flash
-                    result = self.esp32.flash_single(
-                        port=flash_options.get('port', '/dev/ttyUSB0'),
+                # Merge options from manifest and provided options
+                flash_options = dict(firmware_info.get('flash_options', {}))
+                if options:
+                    flash_options.update(options)
+
+                # Route to appropriate programmer based on device type
+                if device_type.startswith('esp32'):
+                    if 'files' in flash_options:
+                        # Multi-file ESP32 flash
+                        result = self.esp32.flash_multi(
+                            port=flash_options.get('port', '/dev/ttyUSB0'),
+                            files=flash_options['files'],
+                            chip=flash_options.get('chip', 'esp32s3'),
+                            baud=flash_options.get('baud', '460800')
+                        )
+                    else:
+                        # Single file ESP32 flash
+                        result = self.esp32.flash_single(
+                            port=flash_options.get('port', '/dev/ttyUSB0'),
+                            firmware_path=firmware_path,
+                            address=flash_options.get('address', '0x10000'),
+                            chip=flash_options.get('chip', 'esp32'),
+                            baud=flash_options.get('baud', '460800')
+                        )
+                    return result.success
+
+                elif device_type.startswith('stm32'):
+                    result = self.stm32.flash_firmware(
                         firmware_path=firmware_path,
-                        address=flash_options.get('address', '0x10000'),
-                        chip=flash_options.get('chip', 'esp32'),
-                        baud=flash_options.get('baud', '460800')
+                        interface=flash_options.get('interface', 'stlink'),
+                        target=flash_options.get('target', 'stm32f4x')
                     )
-                return result.success
-            
-            elif device_type.startswith('stm32'):
-                result = self.stm32.flash_firmware(
-                    firmware_path=firmware_path,
-                    interface=flash_options.get('interface', 'stlink'),
-                    target=flash_options.get('target', 'stm32f4x')
-                )
-                return result.success
-            
-            elif device_type == 'dfu':
-                result = self.dfu.flash_firmware(
-                    firmware_path=firmware_path,
-                    vid=flash_options.get('vid'),
-                    pid=flash_options.get('pid'),
-                    alt=flash_options.get('alt')
-                )
-                return result.success
-            
-            elif device_type.startswith('fpga'):
-                target = flash_options.get('target', 'sram').lower()
-                if target == 'sram':
-                    result = self.fpga.load_sram(
-                        bitstream_path=firmware_path,
-                        board=flash_options.get('board'),
-                        cable=flash_options.get('cable')
+                    return result.success
+
+                elif device_type == 'dfu':
+                    result = self.dfu.flash_firmware(
+                        firmware_path=firmware_path,
+                        vid=flash_options.get('vid'),
+                        pid=flash_options.get('pid'),
+                        alt=flash_options.get('alt')
                     )
+                    return result.success
+
+                elif device_type.startswith('fpga'):
+                    target = flash_options.get('target', 'sram').lower()
+                    if target == 'sram':
+                        result = self.fpga.load_sram(
+                            bitstream_path=firmware_path,
+                            board=flash_options.get('board'),
+                            cable=flash_options.get('cable')
+                        )
+                    else:
+                        result = self.fpga.flash_bitstream(
+                            bitstream_path=firmware_path,
+                            board=flash_options.get('board'),
+                            cable=flash_options.get('cable'),
+                            external_flash=flash_options.get('external_flash', False)
+                        )
+                    return result.success
+
+                elif device_type.startswith('greatfet'):
+                    result = self.greatfet.flash_firmware(
+                        firmware_path=firmware_path,
+                        target=flash_options.get('target', 'spi'),
+                        serial=flash_options.get('serial'),
+                        board=flash_options.get('board')
+                    )
+                    return result.success
+
                 else:
-                    result = self.fpga.flash_bitstream(
-                        bitstream_path=firmware_path,
-                        board=flash_options.get('board'),
-                        cable=flash_options.get('cable'),
-                        external_flash=flash_options.get('external_flash', False)
-                    )
-                return result.success
-            
-            elif device_type.startswith('greatfet'):
-                result = self.greatfet.flash_firmware(
-                    firmware_path=firmware_path,
-                    target=flash_options.get('target', 'spi'),
-                    serial=flash_options.get('serial'),
-                    board=flash_options.get('board')
-                )
-                return result.success
-            
-            else:
-                self.logger.error(f"Unsupported device type: {device_type}")
-                return False
+                    self.logger.error(f"Unsupported device type: {device_type}")
+                    return False
 
         except Exception as e:
             self.logger.error(f"Error flashing firmware: {str(e)}")
             return False
     
     def _save_manifests(self):
-        """Save firmware manifests to JSON file"""
+        """Persist user-facing manifest entries to ``~/.iotsploit/firmware_manifest.json``.
+
+        Only entries that differ from the built-in manifest are written so
+        that the user override file stays minimal and keeps working even when
+        the bundled defaults change in a future iotsploit-drivers release.
+        """
         try:
-            import json
-            with open(self.manifest_file, 'w') as f:
-                json.dump(self.manifests, f, indent=2)
+            builtin = self._load_builtin_manifest()
+            user_entries = {
+                name: info
+                for name, info in self.manifests.items()
+                if builtin.get(name) != info
+            }
+            with open(self.user_manifest_file, 'w') as f:
+                json.dump(user_entries, f, indent=2)
         except Exception as e:
             self.logger.error(f"Error saving firmware manifest: {str(e)}")
 

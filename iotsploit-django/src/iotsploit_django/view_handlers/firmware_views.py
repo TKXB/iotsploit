@@ -9,6 +9,65 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+def _format_file_size(size: int) -> str:
+    if size < 1024:
+        return f"{size} B"
+    if size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size / (1024 * 1024):.1f} MB"
+
+
+def _resolved_firmware_paths(resolved: Dict[str, Any]) -> list[Path]:
+    """Return all concrete filesystem paths for a resolved firmware entry."""
+    paths: list[Path] = []
+
+    top_level_path = resolved.get("path")
+    if top_level_path:
+        paths.append(Path(top_level_path))
+
+    flash_options = resolved.get("flash_options") or {}
+    for entry in flash_options.get("files", []):
+        entry_path = entry.get("path")
+        if entry_path:
+            paths.append(Path(entry_path))
+
+    return paths
+
+
+def _annotate_file_stats(firmware_service, name: str, info: Dict) -> None:
+    """Populate file_exists / file_size / file_size_formatted on ``info``.
+
+    Uses ``resolve_firmware`` so both legacy ``path``-based entries and new
+    package-``resource``-based entries produce real filesystem locations.
+    """
+    try:
+        with firmware_service.resolve_firmware(name) as resolved:
+            paths = _resolved_firmware_paths(resolved)
+            if not paths:
+                info['file_exists'] = False
+                info['file_size'] = 0
+                info['file_size_formatted'] = "No path"
+                return
+
+            all_exist = all(path.exists() for path in paths)
+            info['file_exists'] = all_exist
+            if all_exist:
+                try:
+                    size = sum(path.stat().st_size for path in paths)
+                    info['file_size'] = size
+                    info['file_size_formatted'] = _format_file_size(size)
+                except Exception:
+                    info['file_size'] = 0
+                    info['file_size_formatted'] = "Unknown"
+            else:
+                info['file_size'] = 0
+                info['file_size_formatted'] = "File missing"
+    except Exception:
+        info['file_exists'] = False
+        info['file_size'] = 0
+        info['file_size_formatted'] = "Unresolvable"
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def firmware_list(request: HttpRequest) -> JsonResponse:
@@ -24,33 +83,10 @@ def firmware_list(request: HttpRequest) -> JsonResponse:
         firmware_service = get_firmware_service()
         firmware_list = firmware_service.list_firmware()
         
-        # Add file existence check for each firmware
+        # Add file existence check for each firmware (resolves package
+        # resources via the centralized firmware resolver).
         for firmware in firmware_list:
-            path = firmware.get('path', '')
-            if path:
-                firmware['file_exists'] = Path(path).exists()
-                if firmware['file_exists']:
-                    # Add file size if file exists
-                    try:
-                        file_size = Path(path).stat().st_size
-                        firmware['file_size'] = file_size
-                        # Format file size for display
-                        if file_size < 1024:
-                            firmware['file_size_formatted'] = f"{file_size} B"
-                        elif file_size < 1024*1024:
-                            firmware['file_size_formatted'] = f"{file_size/1024:.1f} KB"
-                        else:
-                            firmware['file_size_formatted'] = f"{file_size/(1024*1024):.1f} MB"
-                    except Exception:
-                        firmware['file_size'] = 0
-                        firmware['file_size_formatted'] = "Unknown"
-                else:
-                    firmware['file_size'] = 0
-                    firmware['file_size_formatted'] = "File missing"
-            else:
-                firmware['file_exists'] = False
-                firmware['file_size'] = 0
-                firmware['file_size_formatted'] = "No path"
+            _annotate_file_stats(firmware_service, firmware.get('name', ''), firmware)
         
         return JsonResponse({
             'status': 'success',
@@ -90,32 +126,10 @@ def firmware_info(request: HttpRequest, name: str) -> JsonResponse:
                 'message': f'Firmware "{name}" not found'
             }, status=404)
         
-        # Add file existence check
-        path = firmware_info.get('path', '')
-        if path:
-            firmware_info['file_exists'] = Path(path).exists()
-            if firmware_info['file_exists']:
-                try:
-                    file_size = Path(path).stat().st_size
-                    firmware_info['file_size'] = file_size
-                    # Format file size for display
-                    if file_size < 1024:
-                        firmware_info['file_size_formatted'] = f"{file_size} B"
-                    elif file_size < 1024*1024:
-                        firmware_info['file_size_formatted'] = f"{file_size/1024:.1f} KB"
-                    else:
-                        firmware_info['file_size_formatted'] = f"{file_size/(1024*1024):.1f} MB"
-                except Exception:
-                    firmware_info['file_size'] = 0
-                    firmware_info['file_size_formatted'] = "Unknown"
-            else:
-                firmware_info['file_size'] = 0
-                firmware_info['file_size_formatted'] = "File missing"
-        else:
-            firmware_info['file_exists'] = False
-            firmware_info['file_size'] = 0
-            firmware_info['file_size_formatted'] = "No path"
-        
+        # Add file existence check via the resolver so that both legacy
+        # ``path``-based entries and new ``resource``-based entries work.
+        _annotate_file_stats(firmware_service, name, firmware_info)
+
         # Add name to the response
         firmware_info['name'] = name
         
@@ -289,22 +303,15 @@ def firmware_flash(request: HttpRequest) -> JsonResponse:
         
         firmware_service = get_firmware_service()
         
-        # Check if firmware exists
-        firmware_info = firmware_service.get_firmware_info(firmware_name)
-        if not firmware_info:
+        # Check if firmware exists in the manifest. The actual file check is
+        # delegated to flash_registered_firmware, which uses resolve_firmware
+        # to materialize package-resource references into real paths.
+        if not firmware_service.get_firmware_info(firmware_name):
             return JsonResponse({
                 'status': 'error',
                 'message': f'Firmware "{firmware_name}" not found'
             }, status=404)
-        
-        # Check if firmware file exists
-        firmware_path = firmware_info.get('path', '')
-        if not firmware_path or not Path(firmware_path).exists():
-            return JsonResponse({
-                'status': 'error',
-                'message': f'Firmware file not found: {firmware_path}'
-            }, status=404)
-        
+
         success = firmware_service.flash_registered_firmware(firmware_name, options)
         
         if success:

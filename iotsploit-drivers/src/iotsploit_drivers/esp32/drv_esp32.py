@@ -6,7 +6,6 @@ from .scpi_client import ScpiClient, ScpiSerialTransport
 from iotsploit_core.core.tool_service import get_firmware_service
 import time
 import serial.tools.list_ports
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -213,73 +212,63 @@ class ESP32Driver(BaseDeviceDriver):
             
             # Get firmware name from args or use default
             firmware_name = args.get('firmware_name', 'esp32s3_wifi_penetration_tool') if args else 'esp32s3_wifi_penetration_tool'
-            
-            # Try to get firmware from the centralized manifest
-            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
-            
-            if not firmware_info:
+
+            # Check existence before entering the resolver context so we can
+            # return a clean error for a missing manifest entry.
+            if not self.firmware_service.get_firmware_info(firmware_name):
                 error_msg = f"Firmware '{firmware_name}' not found in manifest"
                 logger.error(error_msg)
                 return {"status": "error", "message": error_msg}
-            
-            # Get flash options from firmware config
-            flash_options = firmware_info.get('flash_options', {})
-            
-            # Get port, chip, and baud from args or flash options or defaults
-            port = args.get('port') if args else None
-            port = port or flash_options.get('port', '/dev/ttyACM2')
-            
-            chip = args.get('chip') if args else None
-            chip = chip or flash_options.get('chip', 'esp32s3')
-            
-            baud = args.get('baud') if args else None
-            baud = baud or flash_options.get('baud', '460800')
-            
-            # Check if this firmware has a files array for multi-file flashing
-            if 'files' in flash_options:
-                # Use the files from the firmware configuration
-                files = flash_options['files']
-                logger.info(f"Using multi-file configuration from manifest: {len(files)} files")
-                
-                # Verify all files exist
-                for file_entry in files:
-                    file_path = file_entry['path']
-                    if not Path(file_path).exists():
-                        error_msg = f"Firmware file not found: {file_path}"
-                        logger.error(error_msg)
-                        return {"status": "error", "message": error_msg}
-                
-                logger.info(f"Flashing ESP32-S3 firmware '{firmware_name}' to {port}...")
-                logger.info(f"Files to flash: {len(files)} files")
-                
-                # Flash all files in one operation using the ESP32 programmer
-                result = self.firmware_service.esp32.flash_multi(
-                    port=port,
-                    files=files,
-                    chip=chip,
-                    baud=baud,
-                    flash_mode=flash_options.get('flash_mode', 'dio'),
-                    flash_freq=flash_options.get('flash_freq', '80m'),
-                    flash_size=flash_options.get('flash_size', '2MB')
-                )
-            else:
-                # Single file flashing
-                firmware_path = firmware_info['path']
-                if not Path(firmware_path).exists():
-                    error_msg = f"Firmware file not found: {firmware_path}"
-                    logger.error(error_msg)
-                    return {"status": "error", "message": error_msg}
-                
-                logger.info(f"Flashing ESP32-S3 single firmware '{firmware_name}' to {port}...")
-                
-                result = self.firmware_service.esp32.flash_single(
-                    port=port,
-                    firmware_path=firmware_path,
-                    address=flash_options.get('address', '0x10000'),
-                    chip=chip,
-                    baud=baud
-                )
-            
+
+            # resolve_firmware() materializes any package-resource references
+            # into real filesystem paths that esptool can consume. Temp files
+            # (when resources live inside a zipped wheel) are kept alive for
+            # the duration of the ``with`` block.
+            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
+                flash_options = firmware_info.get('flash_options', {})
+
+                # Get port, chip, and baud from args or flash options or defaults
+                port = args.get('port') if args else None
+                port = port or flash_options.get('port', '/dev/ttyACM2')
+
+                chip = args.get('chip') if args else None
+                chip = chip or flash_options.get('chip', 'esp32s3')
+
+                baud = args.get('baud') if args else None
+                baud = baud or flash_options.get('baud', '460800')
+
+                # Check if this firmware has a files array for multi-file flashing
+                if 'files' in flash_options:
+                    files = flash_options['files']
+                    logger.info(f"Using multi-file configuration from manifest: {len(files)} files")
+
+                    logger.info(f"Flashing ESP32-S3 firmware '{firmware_name}' to {port}...")
+                    logger.info(f"Files to flash: {len(files)} files")
+
+                    # Flash all files in one operation using the ESP32 programmer
+                    result = self.firmware_service.esp32.flash_multi(
+                        port=port,
+                        files=files,
+                        chip=chip,
+                        baud=baud,
+                        flash_mode=flash_options.get('flash_mode', 'dio'),
+                        flash_freq=flash_options.get('flash_freq', '80m'),
+                        flash_size=flash_options.get('flash_size', '2MB')
+                    )
+                else:
+                    # Single file flashing — path already resolved by resolve_firmware
+                    firmware_path = firmware_info['path']
+
+                    logger.info(f"Flashing ESP32-S3 single firmware '{firmware_name}' to {port}...")
+
+                    result = self.firmware_service.esp32.flash_single(
+                        port=port,
+                        firmware_path=firmware_path,
+                        address=flash_options.get('address', '0x10000'),
+                        chip=chip,
+                        baud=baud
+                    )
+
             if result.success:
                 success_msg = f"ESP32-S3 firmware '{firmware_name}' flashed successfully in {result.execution_time:.2f}s"
                 logger.info(success_msg)

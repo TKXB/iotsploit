@@ -136,28 +136,31 @@ class ECP5FPGADriver(BaseDeviceDriver):
         target = options.get('target', 'flash').lower()  # Default to flash
         
         try:
-            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
-            if not firmware_info:
+            if not self.firmware_service.get_firmware_info(firmware_name):
                 return {"status": "error", "message": f"Firmware {firmware_name} not found"}
-            
-            if target == 'sram':
-                # Load to SRAM (temporary)
-                result = self.firmware_service.fpga.load_sram(
-                    bitstream_path=firmware_info['path'],
-                    cable=flash_options.get('cable'),
-                    board=flash_options.get('board')
-                )
-                action = "loaded to SRAM"
-            else:
-                # Flash to configuration memory (permanent)
-                result = self.firmware_service.fpga.flash_bitstream(
-                    bitstream_path=firmware_info['path'],
-                    cable=flash_options.get('cable'),
-                    board=flash_options.get('board'),
-                    external_flash=flash_options.get('external_flash', False)
-                )
-                action = "flashed to configuration memory"
-                
+
+            # resolve_firmware() materializes any package-resource references
+            # into real filesystem paths. Temp files (when resources live in
+            # a zipped wheel) are kept alive for the duration of the with block.
+            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
+                if target == 'sram':
+                    # Load to SRAM (temporary)
+                    result = self.firmware_service.fpga.load_sram(
+                        bitstream_path=firmware_info['path'],
+                        cable=flash_options.get('cable'),
+                        board=flash_options.get('board')
+                    )
+                    action = "loaded to SRAM"
+                else:
+                    # Flash to configuration memory (permanent)
+                    result = self.firmware_service.fpga.flash_bitstream(
+                        bitstream_path=firmware_info['path'],
+                        cable=flash_options.get('cable'),
+                        board=flash_options.get('board'),
+                        external_flash=flash_options.get('external_flash', False)
+                    )
+                    action = "flashed to configuration memory"
+
             if result.success:
                 return {
                     "status": "success", 
@@ -189,16 +192,16 @@ class ECP5FPGADriver(BaseDeviceDriver):
         load_options.update(options)
         
         try:
-            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
-            if not firmware_info:
+            if not self.firmware_service.get_firmware_info(firmware_name):
                 return {"status": "error", "message": f"Firmware {firmware_name} not found"}
-            
-            result = self.firmware_service.fpga.load_sram(
-                bitstream_path=firmware_info['path'],
-                cable=load_options.get('cable'),
-                board=load_options.get('board')
-            )
-            
+
+            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
+                result = self.firmware_service.fpga.load_sram(
+                    bitstream_path=firmware_info['path'],
+                    cable=load_options.get('cable'),
+                    board=load_options.get('board')
+                )
+
             if result.success:
                 return {
                     "status": "success", 
@@ -230,17 +233,17 @@ class ECP5FPGADriver(BaseDeviceDriver):
         flash_options.update(options)
         
         try:
-            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
-            if not firmware_info:
+            if not self.firmware_service.get_firmware_info(firmware_name):
                 return {"status": "error", "message": f"Firmware {firmware_name} not found"}
-            
-            result = self.firmware_service.fpga.flash_bitstream(
-                bitstream_path=firmware_info['path'],
-                cable=flash_options.get('cable'),
-                board=flash_options.get('board'),
-                external_flash=flash_options.get('external_flash', False)
-            )
-            
+
+            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
+                result = self.firmware_service.fpga.flash_bitstream(
+                    bitstream_path=firmware_info['path'],
+                    cable=flash_options.get('cable'),
+                    board=flash_options.get('board'),
+                    external_flash=flash_options.get('external_flash', False)
+                )
+
             if result.success:
                 return {
                     "status": "success", 

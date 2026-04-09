@@ -120,42 +120,47 @@ class GreatFETDriver(BaseDeviceDriver):
             if not firmware_name:
                 # Use appropriate default firmware name based on target
                 firmware_name = f"greatfet_usb_origin_{target}"
-            
-            # Try to get firmware from the centralized manifest
-            firmware_info = self.firmware_service.get_firmware_info(firmware_name)
-            
-            if not firmware_info:
-                # If not found in manifest, check if a custom firmware_path was provided
-                firmware_path = args.get('firmware_path')
-                if not firmware_path:
-                    error_msg = f"Firmware '{firmware_name}' not found in manifest and no firmware_path provided"
-                    logger.error(error_msg)
-                    return {"status": "error", "message": error_msg}
-                
-                # Use the provided path directly
-                firmware_path_str = str(firmware_path)
-            else:
-                # Use firmware from manifest
-                firmware_path_str = firmware_info['path']
-                logger.info(f"Using firmware from manifest: {firmware_name}")
-            
-            # Verify firmware file exists
-            if not Path(firmware_path_str).exists():
-                error_msg = f"Firmware file not found: {firmware_path_str}"
-                logger.error(error_msg)
-                return {"status": "error", "message": error_msg}
-            
-            # Flash the firmware using the firmware service
+
             target_desc = "SRAM (temporary)" if target == "sram" else "SPI flash (permanent)"
-            logger.info(f"Flashing {firmware_name} to GreatFET device {target_desc}")
-            
-            result = self.firmware_service.greatfet.flash_firmware(
-                firmware_path=firmware_path_str,
-                target=target,
-                serial=device.attributes.get('serial_number'),
-                board=args.get('board')
-            )
-            
+
+            from contextlib import contextmanager
+
+            @contextmanager
+            def _firmware_path_cm():
+                """Yield a real filesystem path for the requested firmware.
+
+                Prefers the centralized manifest (which may resolve a package
+                resource via importlib.resources); falls back to a raw path
+                passed in via ``args['firmware_path']`` when the manifest has
+                no matching entry.
+                """
+                if self.firmware_service.get_firmware_info(firmware_name):
+                    with self.firmware_service.resolve_firmware(firmware_name) as info:
+                        logger.info(f"Using firmware from manifest: {firmware_name}")
+                        yield info['path']
+                else:
+                    fallback = args.get('firmware_path')
+                    if not fallback:
+                        raise FileNotFoundError(
+                            f"Firmware '{firmware_name}' not found in manifest "
+                            f"and no firmware_path provided"
+                        )
+                    if not Path(str(fallback)).exists():
+                        raise FileNotFoundError(
+                            f"Firmware file not found: {fallback}"
+                        )
+                    yield str(fallback)
+
+            with _firmware_path_cm() as firmware_path_str:
+                logger.info(f"Flashing {firmware_name} to GreatFET device {target_desc}")
+
+                result = self.firmware_service.greatfet.flash_firmware(
+                    firmware_path=firmware_path_str,
+                    target=target,
+                    serial=device.attributes.get('serial_number'),
+                    board=args.get('board')
+                )
+
             if result.success:
                 success_msg = f"GreatFET firmware flashed successfully to {target_desc} in {result.execution_time:.2f}s"
                 logger.info(success_msg)

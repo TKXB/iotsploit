@@ -1,0 +1,139 @@
+{
+  "_schema": {
+    "version": 2,
+    "notes": "Entries use logical resource refs of the form '<package>:<relpath>' resolved via importlib.resources. User overrides in ~/.iotsploit/firmware_manifest.json may also use a plain 'path' key pointing to a filesystem location."
+  },
+
+  "iotsploit_func": {
+    "resource": "iotsploit_drivers:resources/firmware/iotsploit_func_fpga/iotsploit_func.bit",
+    "device_type": "fpga",
+    "version": "1.0.0",
+    "flash_options": {
+      "cable": "ft2232_b",
+      "target": "flash"
+    }
+  },
+
+  "usbserial_ecp5": {
+    "resource": "iotsploit_drivers:resources/firmware/logic/usbserial_ecp5.bit",
+    "device_type": "fpga",
+    "version": "1.0.0",
+    "flash_options": {
+      "cable": "ft2232_b",
+      "target": "flash"
+    }
+  },
+
+  "esp32_bootloader": {
+    "resource": "iotsploit_drivers:resources/firmware/esp32/bootloader.bin",
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "address": "0x0",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB"
+    }
+  },
+  "esp32_partition_table": {
+    "resource": "iotsploit_drivers:resources/firmware/esp32/partition-table.bin",
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "address": "0x8000",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB"
+    }
+  },
+  "esp32_app": {
+    "resource": "iotsploit_drivers:resources/firmware/esp32/esp32-wifi-penetration-tool.bin",
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "address": "0x10000",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB"
+    }
+  },
+
+  "esp32s3_wifi_penetration_tool": {
+    "device_type": "esp32",
+    "version": "1.0.0",
+    "flash_options": {
+      "chip": "esp32s3",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "files": [
+        {"address": "0x0",     "resource": "iotsploit_drivers:resources/firmware/esp32/bootloader.bin"},
+        {"address": "0x8000",  "resource": "iotsploit_drivers:resources/firmware/esp32/partition-table.bin"},
+        {"address": "0x10000", "resource": "iotsploit_drivers:resources/firmware/esp32/esp32-wifi-penetration-tool.bin"}
+      ],
+      "description": "ESP32-S3 WiFi penetration testing tool firmware"
+    }
+  },
+
+  "esp32s3-wifi-penetration-tool": {
+    "resource": "iotsploit_drivers:resources/firmware/esp32/esp32-wifi-penetration-tool.bin",
+    "device_type": "esp32s3",
+    "version": "1.0.0",
+    "flash_options": {
+      "port": "/dev/ttyACM2",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "address": "0x10000",
+      "chip": "esp32s3"
+    }
+  },
+  "esp32s3-bootloader": {
+    "resource": "iotsploit_drivers:resources/firmware/esp32/bootloader.bin",
+    "device_type": "esp32s3",
+    "version": "1.0.0",
+    "flash_options": {
+      "port": "/dev/ttyACM2",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "address": "0x0",
+      "chip": "esp32s3"
+    }
+  },
+  "esp32s3-partition-table": {
+    "resource": "iotsploit_drivers:resources/firmware/esp32/partition-table.bin",
+    "device_type": "esp32s3",
+    "version": "1.0.0",
+    "flash_options": {
+      "port": "/dev/ttyACM2",
+      "baud": "460800",
+      "flash_mode": "dio",
+      "flash_freq": "80m",
+      "flash_size": "2MB",
+      "address": "0x8000",
+      "chip": "esp32s3"
+    }
+  },
+
+  "greatfet_usb_origin_sram": {
+    "resource": "iotsploit_drivers:resources/firmware/greatfet/greatfet_usb_origin.bin",
+    "device_type": "greatfet",
+    "version": "1.0.0",
+    "flash_options": {
+      "target": "sram",
+      "serial": "0000000000000000856c64e63349098b"
+    }
+  },
+  "greatfet_usb_origin_spi": {
+    "resource": "iotsploit_drivers:resources/firmware/greatfet/greatfet_usb_origin.bin",
+    "device_type": "greatfet",
+    "version": "1.0.0",
+    "flash_options": {
+      "target": "spi"
+    }
+  }
+}
