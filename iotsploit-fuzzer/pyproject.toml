@@ -10,8 +10,6 @@ packages = [{ include = "iotsploit_fuzzer", from = "src" }]
 python = ">=3.10,<4.0"
 
 # Keep core deps minimal; optional hardware/protocol deps are in extras.
-typing-extensions = "^4.0.0"
-
 python-can = { version = "*", optional = true }
 pyserial = { version = "*", optional = true }
 spidev = { version = "*", optional = true }
@@ -32,4 +30,3 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-q"]
-
