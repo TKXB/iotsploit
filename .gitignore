@@ -30,3 +30,7 @@ tests/ut_shell.py
 ui/
 artifacts/
 build/
+
+# Python build/distribution artifacts
+**/dist/
+*.egg-info/
