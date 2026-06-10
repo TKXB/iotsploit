@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "iotsploit": {
+      "type": "http",
+      "url": "http://127.0.0.1:9900/mcp",
+      "headers": {
+        "Authorization": "Bearer ${IOTSPLOIT_MCP_TOKEN}"
+      }
+    }
+  }
+}

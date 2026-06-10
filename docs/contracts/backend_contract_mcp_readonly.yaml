@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: IoTSploit MCP read-only backend contract
+  version: 0.1.0
+  description: Minimal Django HTTP contract consumed by the read-only MCP MVP.
+servers:
+  - url: http://127.0.0.1:8888/api
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+paths:
+  /system_health/:
+    get:
+      operationId: system_health
+      responses:
+        "200": { description: System health JSON payload }
+  /list_urls/:
+    get:
+      operationId: list_urls
+      responses:
+        "200": { description: API URL inventory }
+  /list_plugin_info/:
+    get:
+      operationId: list_plugin_info
+      responses:
+        "200": { description: Plugin metadata and parameter schemas }
+  /list_groups/:
+    get:
+      operationId: list_groups
+      responses:
+        "200": { description: Plugin groups }
+  /list_device_drivers/:
+    get:
+      operationId: list_device_drivers
+      responses:
+        "200": { description: Device drivers }
+  /list_device_commands/{device_name}/:
+    get:
+      operationId: list_device_commands
+      parameters:
+        - name: device_name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Supported device commands }
+  /scan_all_devices/:
+    get:
+      operationId: scan_all_devices
+      responses:
+        "200": { description: Device scan results }
+  /scan_device/{driver_name}/:
+    get:
+      operationId: scan_device
+      parameters:
+        - name: driver_name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Device scan results for one driver }
+  /list_devices/:
+    get:
+      operationId: list_devices
+      responses:
+        "200": { description: Device list }
+  /device_info/:
+    get:
+      operationId: device_info
+      responses:
+        "200": { description: Device information }
+  /get_driver_states/:
+    get:
+      operationId: get_driver_states
+      responses:
+        "200": { description: Driver enabled state }
+  /list_targets/:
+    get:
+      operationId: list_targets
+      responses:
+        "200": { description: Target list }
+  /get_current_target/:
+    get:
+      operationId: get_current_target
+      responses:
+        "200": { description: Current target }
+  /firmware/list/:
+    get:
+      operationId: firmware_list
+      responses:
+        "200": { description: Firmware list }
+  /firmware/{name}/:
+    get:
+      operationId: firmware_info
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Firmware metadata }
+  /iot-fuzzer/testing/campaign/status/:
+    get:
+      operationId: fuzzer_campaign_status
+      parameters:
+        - name: campaign_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Campaign status }
+  /iot-fuzzer/testing/statistics/:
+    get:
+      operationId: fuzzer_campaign_statistics
+      parameters:
+        - name: campaign_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Campaign statistics }
+  /iot-fuzzer/results/analysis/summary/:
+    get:
+      operationId: fuzzer_results_summary
+      parameters:
+        - name: campaign_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Fuzzer result summary }
+  /iot-fuzzer/results/artifacts/:
+    get:
+      operationId: fuzzer_artifacts
+      parameters:
+        - name: campaign_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Crash and anomaly artifacts }
+  /tools_status/:
+    get:
+      operationId: get_tools_status
+      responses:
+        "200": { description: Host tool status }
+  /tools/{tool_name}/:
+    get:
+      operationId: get_tool_details
+      parameters:
+        - name: tool_name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Host tool details }
+  /list_files/:
+    get:
+      operationId: list_files
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200": { description: Uploaded file list }
