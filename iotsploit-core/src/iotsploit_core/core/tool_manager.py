@@ -11,7 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 import threading
 import time
@@ -883,7 +883,7 @@ class ToolManager:
             },
             'recommendations': status.recommendations,
             'backend_status': self.backend_manager.get_status(),
-            'queue_status': self.queue_manager.get_stats()
+            'queue_status': asdict(self.queue_manager.get_stats())
         }
         
         return report

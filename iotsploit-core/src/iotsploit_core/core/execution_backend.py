@@ -439,7 +439,15 @@ class ExecutionBackendManager:
     def list_available_backends(self) -> List[str]:
         """List all available backends"""
         return list(self.backends.keys())
-    
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get status of all execution backends"""
+        return {
+            'default_backend': self.default_backend,
+            'available_backends': self.list_available_backends(),
+            'total_backends': len(self.backends),
+        }
+
     def set_default_backend(self, name: str):
         """Set default execution backend"""
         if name not in self.backends:
