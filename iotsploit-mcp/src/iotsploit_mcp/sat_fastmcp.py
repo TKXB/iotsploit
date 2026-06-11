@@ -8,7 +8,6 @@ for the WebSocket bridge until that UI path is migrated.
 import asyncio
 import json
 import os
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -59,56 +58,19 @@ async def list_serial_ports() -> str:
         return f"Error listing serial ports: {str(e)}"
 
 
-class BearerTokenMiddleware:
-    """Minimal bearer-token guard for the MCP HTTP endpoint."""
-
-    def __init__(self, app: Any, token: str) -> None:
-        self.app = app
-        self.token = token
-
-    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
-        if scope.get("type") != "http":
-            await self.app(scope, receive, send)
-            return
-
-        headers = {key.decode("latin1").lower(): value.decode("latin1") for key, value in scope.get("headers", [])}
-        expected = f"Bearer {self.token}"
-        if headers.get("authorization") == expected:
-            await self.app(scope, receive, send)
-            return
-
-        body = b'{"status":"error","message":"Missing or invalid bearer token"}'
-        await send(
-            {
-                "type": "http.response.start",
-                "status": 401,
-                "headers": [
-                    (b"content-type", b"application/json"),
-                    (b"www-authenticate", b"Bearer"),
-                    (b"content-length", str(len(body)).encode("ascii")),
-                ],
-            }
-        )
-        await send({"type": "http.response.body", "body": body})
-
-
 async def run_http_async(*, host: str = "127.0.0.1", port: int = 9900) -> None:
     """Run the streamable-HTTP MCP server at /mcp."""
-    token = os.getenv("IOTSPLOIT_MCP_TOKEN")
-    if not token:
-        raise RuntimeError("IOTSPLOIT_MCP_TOKEN is required for the HTTP MCP endpoint")
-
     mcp.settings.host = host
     mcp.settings.port = port
     if host not in ("127.0.0.1", "localhost", "::1"):
-        # The server is intentionally exposed beyond loopback; rely on bearer token
-        # here and TLS/reverse proxy at deployment time.
+        # Exposed beyond loopback; use firewall, TLS/reverse proxy, or re-add auth
+        # before sharing the rig on a LAN or in production.
         mcp.settings.transport_security = None
 
     import uvicorn
 
     logger.info("Starting SAT FastMCP Server (streamable HTTP) on %s:%s/mcp", host, port)
-    app = BearerTokenMiddleware(mcp.streamable_http_app(), token)
+    app = mcp.streamable_http_app()
     config = uvicorn.Config(app, host=host, port=port, log_level=mcp.settings.log_level.lower())
     server = uvicorn.Server(config)
     await server.serve()

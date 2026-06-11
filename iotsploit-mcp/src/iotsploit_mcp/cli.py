@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import sys
 
 
@@ -40,9 +39,6 @@ async def _run_stdio() -> None:
 
 
 async def _run_http(host: str, port: int) -> None:
-    if not os.getenv("IOTSPLOIT_MCP_TOKEN"):
-        raise SystemExit("IOTSPLOIT_MCP_TOKEN is required before starting `iotsploit-mcp http`")
-
     from iotsploit_mcp.sat_fastmcp import run_http_async
 
     await run_http_async(host=host, port=port)

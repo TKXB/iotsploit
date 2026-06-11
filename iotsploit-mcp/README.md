@@ -17,29 +17,23 @@ iotsploit-mcp ws --host 0.0.0.0 --port 9998
 Start the MCP HTTP endpoint for external agents:
 
 ```bash
-export IOTSPLOIT_MCP_TOKEN="<random token>"
 export IOTSPLOIT_DJANGO_API_BASE_URL="http://127.0.0.1:8888"
 iotsploit-mcp http --host 127.0.0.1 --port 9900
 ```
 
 The MCP endpoint is `http://<rig-host>:9900/mcp`.
 
-`IOTSPLOIT_MCP_TOKEN` is required for `http`; every request must send:
-
-```text
-Authorization: Bearer <token>
-```
-
-Bind to `127.0.0.1` for local use. Use `0.0.0.0` only for an intentionally
-shared rig, and put TLS in front of the service outside a trusted LAN.
+Bind to `127.0.0.1` for local use (the default). The HTTP endpoint does not
+require authentication in this MVP. If you expose the service beyond loopback
+(`0.0.0.0` or a LAN address), protect it with a firewall, TLS/reverse proxy, or
+re-add authentication before sharing the rig.
 
 ## Agent Config
 
 Claude Code:
 
 ```bash
-claude mcp add --transport http iotsploit http://<rig-host>:9900/mcp \
-  --header "Authorization: Bearer $IOTSPLOIT_MCP_TOKEN"
+claude mcp add --transport http iotsploit http://<rig-host>:9900/mcp
 ```
 
 Codex, Cursor, or generic MCP config:
@@ -49,10 +43,7 @@ Codex, Cursor, or generic MCP config:
   "mcpServers": {
     "iotsploit": {
       "type": "http",
-      "url": "http://<rig-host>:9900/mcp",
-      "headers": {
-        "Authorization": "Bearer ${IOTSPLOIT_MCP_TOKEN}"
-      }
+      "url": "http://<rig-host>:9900/mcp"
     }
   }
 }
@@ -60,7 +51,6 @@ Codex, Cursor, or generic MCP config:
 
 ## Environment
 
-- `IOTSPLOIT_MCP_TOKEN`: required bearer token for the MCP HTTP endpoint.
 - `IOTSPLOIT_MCP_HOST`: optional default host for the MCP server.
 - `IOTSPLOIT_MCP_PORT`: optional default port for the MCP server.
 - `IOTSPLOIT_DJANGO_API_BASE_URL`: Django API base URL, default
