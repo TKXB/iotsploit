@@ -24,6 +24,20 @@ from .execution_queue import get_execution_queue, TaskPriority
 
 logger = logging.getLogger(__name__)
 
+# Detection results older than this (seconds) are re-probed; fresh ones are served
+# from the runtime cache instead of re-running every tool's `--version`.
+TOOL_CACHE_TTL_SECONDS = 3600
+
+# Curated, version-controlled fields. These live in conf/tools.json and are never
+# rewritten by runtime detection.
+STATIC_TOOL_FIELDS = (
+    "name", "aliases", "dependencies", "platforms",
+    "min_version", "max_version", "metadata",
+)
+# Machine-specific detection results. These live in the gitignored runtime cache
+# (.tools_cache.json) because they differ per host and change on every probe.
+RUNTIME_TOOL_FIELDS = ("path", "version", "status", "last_checked")
+
 class ToolStatus(Enum):
     """Tool availability status"""
     AVAILABLE = "available"
@@ -77,6 +91,8 @@ class ToolRegistry:
     def __init__(self, config_path: Optional[str] = None):
         self.tools: Dict[str, ToolInfo] = {}
         self.config_path = config_path or self._get_default_config_path()
+        # Runtime detection cache lives next to the config but is gitignored.
+        self.cache_path = str(Path(self.config_path).parent / ".tools_cache.json")
         self._lock = threading.RLock()
         self._load_config()
     
@@ -93,25 +109,30 @@ class ToolRegistry:
         return str(config_dir / "tools.json")
     
     def _load_config(self):
-        """Load tool configuration from file"""
+        """Load curated tool definitions from the version-controlled config file."""
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r') as f:
                     config = json.load(f)
-                    for tool_name, tool_data in config.get('tools', {}).items():
-                        # Convert status string back to enum if needed
-                        if 'status' in tool_data and isinstance(tool_data['status'], str):
-                            try:
-                                tool_data['status'] = ToolStatus(tool_data['status'])
-                            except ValueError:
-                                # If status string is invalid, default to MISSING
-                                tool_data['status'] = ToolStatus.MISSING
-                        self.tools[tool_name] = ToolInfo(**tool_data)
-                logger.info(f"Loaded {len(self.tools)} tools from config")
+                known_fields = set(STATIC_TOOL_FIELDS) | set(RUNTIME_TOOL_FIELDS)
+                for tool_name, tool_data in config.get('tools', {}).items():
+                    # Tolerate legacy files that still carry runtime fields, and drop
+                    # any unknown keys so the ToolInfo constructor never fails.
+                    data = {k: v for k, v in tool_data.items() if k in known_fields}
+                    data.setdefault('name', tool_name)
+                    if isinstance(data.get('status'), str):
+                        try:
+                            data['status'] = ToolStatus(data['status'])
+                        except ValueError:
+                            data['status'] = ToolStatus.MISSING
+                    self.tools[tool_name] = ToolInfo(**data)
+                logger.info(f"Loaded {len(self.tools)} tool definitions from config")
             except Exception as e:
                 logger.error(f"Failed to load tool config: {e}")
         else:
             self._create_default_config()
+        # Overlay machine-specific detection results from the runtime cache.
+        self._load_cache()
     
     def _create_default_config(self):
         """Create default tool configuration"""
@@ -154,36 +175,80 @@ class ToolRegistry:
         
         self.save_config()
     
+    def _load_cache(self):
+        """Overlay machine-specific detection results from the runtime cache onto
+        the loaded definitions. A missing or unreadable cache is normal."""
+        if not os.path.exists(self.cache_path):
+            return
+        try:
+            with open(self.cache_path, 'r') as f:
+                cache = json.load(f)
+        except Exception as e:
+            logger.warning(f"Ignoring unreadable tool cache {self.cache_path}: {e}")
+            return
+        for name, runtime in cache.get('tools', {}).items():
+            tool = self.tools.get(name)
+            if not tool:
+                continue
+            if 'path' in runtime:
+                tool.path = runtime['path']
+            if 'version' in runtime:
+                tool.version = runtime['version']
+            if 'last_checked' in runtime:
+                tool.last_checked = runtime['last_checked']
+            if isinstance(runtime.get('status'), str):
+                try:
+                    tool.status = ToolStatus(runtime['status'])
+                except ValueError:
+                    tool.status = ToolStatus.MISSING
+
     def save_config(self):
-        """Save tool configuration to file"""
+        """Persist the curated tool definitions (static fields only).
+
+        Detection results are intentionally excluded — they belong in the runtime
+        cache (see save_cache) so this version-controlled file stays stable across
+        hosts and process restarts. Call this only when a definition changes."""
         try:
             config = {
                 'tools': {
+                    name: {field: getattr(tool, field) for field in STATIC_TOOL_FIELDS}
+                    for name, tool in self.tools.items()
+                }
+            }
+            with open(self.config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            logger.debug(f"Saved tool definitions to {self.config_path}")
+        except Exception as e:
+            logger.error(f"Failed to save tool config: {e}")
+            import traceback
+            logger.debug(f"Save config traceback: {traceback.format_exc()}")
+
+    def save_cache(self):
+        """Persist machine-specific detection results to the gitignored runtime cache.
+
+        path/version/status/last_checked differ per host and change on every probe,
+        so they must never land in the version-controlled tools.json."""
+        try:
+            cache = {
+                'tools': {
                     name: {
-                        'name': tool.name,
                         'path': tool.path,
                         'version': tool.version,
                         'status': tool.status.value if hasattr(tool.status, 'value') else str(tool.status),
-                        'aliases': tool.aliases,
-                        'dependencies': tool.dependencies,
-                        'platforms': tool.platforms,
-                        'min_version': tool.min_version,
-                        'max_version': tool.max_version,
                         'last_checked': tool.last_checked,
-                        'metadata': tool.metadata
                     }
                     for name, tool in self.tools.items()
                 }
             }
-            
-            with open(self.config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            logger.debug(f"Saved tool config to {self.config_path}")
+            Path(self.cache_path).parent.mkdir(parents=True, exist_ok=True)
+            # Guarded by self._lock against threads, but not against multiple
+            # processes sharing one cache file. TODO: add file locking if iotsploit
+            # is ever run as concurrent processes against the same cache.
+            with open(self.cache_path, 'w') as f:
+                json.dump(cache, f, indent=2)
+            logger.debug(f"Saved tool runtime cache to {self.cache_path}")
         except Exception as e:
-            logger.error(f"Failed to save tool config: {e}")
-            # Add more detailed error information
-            import traceback
-            logger.debug(f"Save config traceback: {traceback.format_exc()}")
+            logger.error(f"Failed to save tool cache: {e}")
     
     def register_tool(self, tool_info: ToolInfo, save_config: bool = True):
         """Register a new tool"""
@@ -477,8 +542,8 @@ class ToolManager:
             validated_tool = self.validator.validate_tool(tool_info)
             self.registry.tools[tool_name] = validated_tool
             results[tool_name] = validated_tool.status
-        
-        self.registry.save_config()
+
+        self.registry.save_cache()
         return results
     
     def get_tool_status(self, tool_name: str) -> Optional[ToolStatus]:
@@ -488,11 +553,11 @@ class ToolManager:
             return None
         
         # Refresh status if not checked recently
-        if not tool_info.last_checked or (time.time() - tool_info.last_checked) > 3600:
+        if not tool_info.last_checked or (time.time() - tool_info.last_checked) > TOOL_CACHE_TTL_SECONDS:
             tool_info = self.validator.validate_tool(tool_info)
             self.registry.tools[tool_info.name] = tool_info
-            self.registry.save_config()
-        
+            self.registry.save_cache()
+
         return tool_info.status
     
     def execute(self, tool_name: str, args: List[str], **kwargs) -> ExecutionResult:
@@ -525,91 +590,50 @@ class ToolManager:
         # Validate the tool
         validated_tool = self.validator.validate_tool(tool_info)
         self.registry.register_tool(validated_tool, save_config=save_config)
-        
+        if save_config:
+            # Persisting a new tool also persists its freshly-probed runtime state.
+            self.registry.save_cache()
+
         return validated_tool.status == ToolStatus.AVAILABLE
     
     # ========== Methods from ToolCategoryManager ==========
     
     def _initialize_tools(self):
-        """Initialize all tools from JSON configuration"""
-        logger.info("Initializing tools from JSON config")
-        
-        # Get tools from the main tools.json file
-        tool_configs = self.config_manager.get_tools_by_category("tools")
-        
-        # If no tools found in "tools" category, try loading from the main config
-        if not tool_configs:
-            # Try to load from tools.json in conf directory first, then fallback
-            tools_file = Path('conf') / 'tools.json'
-            if not tools_file.exists():
-                tools_file = self.config_manager.config_dir / "tools.json"
-            
-            if tools_file.exists():
-                with open(tools_file, 'r', encoding='utf-8') as f:
-                    tools_data = json.load(f)
-                
-                tools_added = 0
-                # Support tools field as dict or list
-                tools_section = tools_data.get('tools', [])
-                if isinstance(tools_section, dict):
-                    items = tools_section.items()
-                else:
-                    items = [(td.get('name', 'unknown'), td) for td in tools_section if isinstance(td, dict)]
-                for tool_name, tool_data in items:
-                    try:
-                        # Build tool_data dict and ensure it contains name
-                        data = tool_data.copy() if isinstance(tool_data, dict) else {}
-                        data.setdefault('name', tool_name)
-                        tool_config = ToolConfig.from_dict(data)
-                        tool_config.category = "tools"
-                        # Add tool to manager (don't save config for each tool)
-                        success = self.add_tool(
-                            name=tool_config.name,
-                            aliases=tool_config.aliases,
-                            min_version=tool_config.min_version,
-                            platforms=tool_config.platforms,
-                            path=tool_config.path,
-                            save_config=False
-                        )
-                        if success:
-                            tools_added += 1
-                            logger.debug(f"Added tool: {tool_config.name}")
-                        else:
-                            logger.warning(f"Failed to add tool: {tool_config.name}")
-                    except Exception as e:
-                        logger.error(f"Error adding tool {tool_name}: {e}")
-                
-                # Save config once at the end
-                if tools_added > 0:
-                    self.registry.save_config()
-                    logger.info(f"Successfully initialized {tools_added} tools")
-        else:
-            # Load tools from category
-            tools_added = 0
-            for tool_config in tool_configs:
+        """Validate registered tools, honoring the runtime cache so tools probed
+        recently are not re-probed on every startup."""
+        logger.info("Initializing tools from configuration")
+
+        # The registry already loaded curated definitions (and any cached runtime
+        # state) from tools.json. If it came up empty, fall back to the category
+        # manager as the definition source.
+        if not self.registry.tools:
+            for tool_config in self.config_manager.get_tools_by_category("tools"):
                 try:
-                    success = self.add_tool(
+                    self.registry.tools[tool_config.name] = ToolInfo(
                         name=tool_config.name,
-                        aliases=tool_config.aliases,
-                        min_version=tool_config.min_version,
-                        platforms=tool_config.platforms,
                         path=tool_config.path,
-                        save_config=False  # Don't save for each tool
+                        aliases=tool_config.aliases or [],
+                        min_version=tool_config.min_version,
+                        platforms=tool_config.platforms or ["linux", "darwin", "windows"],
                     )
-                    
-                    if success:
-                        tools_added += 1
-                        logger.debug(f"Added tool: {tool_config.name}")
-                    else:
-                        logger.warning(f"Failed to add tool: {tool_config.name}")
-                        
                 except Exception as e:
                     logger.error(f"Error adding tool {tool_config.name}: {e}")
-            
-            # Save config once at the end
-            if tools_added > 0:
-                self.registry.save_config()
-                logger.info(f"Successfully initialized {tools_added} tools")
+
+        now = time.time()
+        revalidated = 0
+        for name, tool_info in list(self.registry.tools.items()):
+            # Skip tools whose cached detection result is still fresh.
+            if tool_info.last_checked and (now - tool_info.last_checked) < TOOL_CACHE_TTL_SECONDS:
+                continue
+            self.registry.tools[name] = self.validator.validate_tool(tool_info)
+            revalidated += 1
+
+        # Only touch the runtime cache when something was actually re-probed.
+        if revalidated:
+            self.registry.save_cache()
+        logger.info(
+            f"Initialized {len(self.registry.tools)} tools ({revalidated} re-probed)"
+        )
     
     def get_category_info(self) -> CategoryInfo:
         """Get category information from JSON config"""

@@ -34,3 +34,6 @@ build/
 # Python build/distribution artifacts
 **/dist/
 *.egg-info/
+
+# Tool detection runtime cache (machine-specific; never commit)
+**/.tools_cache.json

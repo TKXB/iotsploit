@@ -2,9 +2,6 @@
   "tools": {
     "nmap": {
       "name": "nmap",
-      "path": "/usr/bin/nmap",
-      "version": "7.95",
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -14,14 +11,10 @@
       ],
       "min_version": "7.0",
       "max_version": null,
-      "last_checked": 1770878237.9310026,
       "metadata": {}
     },
     "masscan": {
       "name": "masscan",
-      "path": null,
-      "version": null,
-      "status": "missing",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -31,14 +24,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": null,
       "metadata": {}
     },
     "curl": {
       "name": "curl",
-      "path": "/usr/bin/curl",
-      "version": "8.14.1",
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -48,14 +37,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770878237.9471653,
       "metadata": {}
     },
     "wget": {
       "name": "wget",
-      "path": "/usr/bin/wget",
-      "version": "1.25.0",
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -65,14 +50,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770878237.9634097,
       "metadata": {}
     },
     "ping": {
       "name": "ping",
-      "path": "/usr/bin/ping",
-      "version": null,
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -82,14 +63,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770878241.9350977,
       "metadata": {}
     },
     "hydra": {
       "name": "hydra",
-      "path": null,
-      "version": null,
-      "status": "missing",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -99,14 +76,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": null,
       "metadata": {}
     },
     "esptool": {
       "name": "esptool",
-      "path": null,
-      "version": null,
-      "status": "missing",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -116,14 +89,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": null,
       "metadata": {}
     },
     "openocd": {
       "name": "openocd",
-      "path": "/usr/bin/openocd",
-      "version": "0.12.0",
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -133,14 +102,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": 1770878241.9478753,
       "metadata": {}
     },
     "dfu-util": {
       "name": "dfu-util",
-      "path": null,
-      "version": null,
-      "status": "missing",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -150,14 +115,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": null,
       "metadata": {}
     },
     "openFPGALoader": {
       "name": "openFPGALoader",
-      "path": null,
-      "version": null,
-      "status": "missing",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -167,14 +128,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": null,
       "metadata": {}
     },
     "greatfet_firmware": {
       "name": "greatfet_firmware",
-      "path": null,
-      "version": null,
-      "status": "missing",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -184,14 +141,10 @@
       ],
       "min_version": null,
       "max_version": null,
-      "last_checked": null,
       "metadata": {}
     },
     "ubertooth-util": {
       "name": "ubertooth-util",
-      "path": "/usr/bin/ubertooth-util",
-      "version": "1.07",
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -200,14 +153,10 @@
       ],
       "min_version": "2018-12-R1",
       "max_version": null,
-      "last_checked": 1770878242.1630514,
       "metadata": {}
     },
     "ubertooth-btle": {
       "name": "ubertooth-btle",
-      "path": "/usr/bin/ubertooth-btle",
-      "version": "1.07",
-      "status": "available",
       "aliases": [],
       "dependencies": [],
       "platforms": [
@@ -216,7 +165,6 @@
       ],
       "min_version": "2018-12-R1",
       "max_version": null,
-      "last_checked": 1770878241.9721038,
       "metadata": {}
     }
   }
