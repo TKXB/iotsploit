@@ -21,7 +21,7 @@ logger = xlog_mcp.get_logger(
 
 
 mcp = FastMCP(
-    "sat-toolkit",
+    "iotsploit-mcp",
     host=os.getenv("IOTSPLOIT_MCP_HOST", "127.0.0.1"),
     port=int(os.getenv("IOTSPLOIT_MCP_PORT", "9900")),
     streamable_http_path="/mcp",
