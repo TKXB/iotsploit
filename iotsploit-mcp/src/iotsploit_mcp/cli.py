@@ -9,23 +9,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="iotsploit-mcp")
     sub = p.add_subparsers(dest="cmd")
 
-    ws = sub.add_parser("ws", help="Start WebSocket bridge (default)")
-    ws.add_argument("--host", default="0.0.0.0")
-    ws.add_argument("--port", type=int, default=9998)
-
-    http = sub.add_parser("http", help="Start streamable-HTTP MCP server")
+    http = sub.add_parser("http", help="Start streamable-HTTP MCP server (default)")
     http.add_argument("--host", default="127.0.0.1")
     http.add_argument("--port", type=int, default=9900)
 
     sub.add_parser("stdio", help="Start FastMCP stdio server (legacy bridge only)")
     return p
-
-
-async def _run_ws(host: str, port: int) -> None:
-    from iotsploit_mcp.websocket_bridge_simple import SATMCPWebSocketBridge
-
-    bridge = SATMCPWebSocketBridge(host=host, port=port)
-    await bridge.start_server()
 
 
 async def _run_stdio() -> None:
@@ -49,15 +38,15 @@ def main(argv: list[str] | None = None) -> None:
     p = _build_parser()
     args = p.parse_args(argv)
 
-    cmd = args.cmd or "ws"  # default: ws
-    if cmd == "ws":
-        asyncio.run(_run_ws(host=args.host, port=args.port))
-        return
+    cmd = args.cmd or "http"  # default: http
     if cmd == "stdio":
         asyncio.run(_run_stdio())
         return
     if cmd == "http":
-        asyncio.run(_run_http(host=args.host, port=args.port))
+        # host/port are absent when no subcommand is given (bare `iotsploit-mcp`)
+        host = getattr(args, "host", "127.0.0.1")
+        port = getattr(args, "port", 9900)
+        asyncio.run(_run_http(host=host, port=port))
         return
 
     p.error(f"Unknown cmd: {cmd}")

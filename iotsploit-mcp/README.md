@@ -7,17 +7,12 @@ hardware.
 
 ## Commands
 
-Start the legacy WebSocket bridge used by the existing UI:
-
-```bash
-iotsploit-mcp
-iotsploit-mcp ws --host 0.0.0.0 --port 9998
-```
-
-Start the MCP HTTP endpoint for external agents:
+Start the MCP HTTP endpoint (the default; serves both the Django AI assistant
+and external agents):
 
 ```bash
 export IOTSPLOIT_DJANGO_API_BASE_URL="http://127.0.0.1:8888"
+iotsploit-mcp
 iotsploit-mcp http --host 127.0.0.1 --port 9900
 ```
 
