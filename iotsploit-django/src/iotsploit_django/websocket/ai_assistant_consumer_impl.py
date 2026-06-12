@@ -109,23 +109,15 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             xlog.info("No AI config found, using fallback command mapping", "ai_assistant")
             command_mapping = {
                 "list devices": "scan_devices",
-                "show devices": "scan_devices", 
+                "show devices": "scan_devices",
                 "scan for devices": "scan_devices",
-                "list plugins": "get_system_status",
-                "show exploits": "get_system_status",
-                "help": "get_system_status",
-                "status": "get_system_status",
-                "hello": "get_system_status",
-                "hi": "get_system_status",
+                "list plugins": "list_plugins",
+                "status": "system_status",
+                "health": "system_health",
                 "list serial ports": "list_serial_ports",
                 "show serial ports": "list_serial_ports",
                 "serial ports": "list_serial_ports",
                 "list serial": "list_serial_ports",
-                "read serial": "read_serial_port",
-                "serial read": "read_serial_port",
-                "analyze serial": "read_serial_port",
-                "picocom": "read_serial_port",
-                "connect serial": "read_serial_port"
             }
             
             suggested_command = command_mapping.get(query.lower())
@@ -230,84 +222,50 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             return result
         return json.dumps(result, ensure_ascii=False, indent=2)
 
-    async def get_mcp_tools(self):
-        """获取MCP工具定义"""
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "scan_devices",
-                    "description": "Scan for available devices",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "driver_name": {
-                                "type": "string",
-                                "description": "Device driver name or 'all' for all drivers"
-                            }
-                        }
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_system_status",
-                    "description": "Get overall system status",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_serial_ports",
-                    "description": "List available serial ports on the system",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "read_serial_port",
-                    "description": "Read and analyze serial port output with AI-powered pattern detection. Can detect login shells, device types, and firmware information.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "port": {
-                                "type": "string",
-                                "description": "Serial port path (e.g., /dev/ttyUSB0, COM1)",
-                                "default": "/dev/ttyUSB0"
-                            },
-                            "baudrate": {
-                                "type": "integer",
-                                "description": "Baud rate for serial communication",
-                                "default": 115200
-                            },
-                            "timeout": {
-                                "type": "integer",
-                                "description": "Maximum time to wait for output (seconds)",
-                                "default": 30
-                            },
-                            "auto_interact": {
-                                "type": "boolean",
-                                "description": "Automatically send Enter and common inputs to trigger responses",
-                                "default": True
-                            }
-                        },
-                        "required": ["port"]
-                    }
-                }
-            }
-        ]
-        return tools
+    async def _fetch_mcp_tool_schemas(self):
+        """Discover the live tool surface from the MCP server.
+
+        Single source of truth: whatever the MCP server registers is exactly
+        what the LLM is offered, so tool names/schemas can never drift from the
+        server (which is what caused the "Unknown tool" failures).
+        """
+        async with streamablehttp_client(self.mcp_http_url) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                return (await session.list_tools()).tools
+
+    async def get_mcp_tools(self, fmt="openai"):
+        """Build LLM tool definitions from the live MCP tool surface.
+
+        fmt="openai"    -> OpenAI/Ollama function-calling schema
+        fmt="anthropic" -> Claude tools schema
+        """
+        try:
+            tools = await self._fetch_mcp_tool_schemas()
+        except Exception as e:
+            xlog.error(f"Failed to fetch MCP tool list: {str(e)}", "ai_assistant")
+            return []
+
+        definitions = []
+        for tool in tools:
+            schema = tool.inputSchema or {"type": "object", "properties": {}}
+            description = tool.description or ""
+            if fmt == "anthropic":
+                definitions.append({
+                    "name": tool.name,
+                    "description": description,
+                    "input_schema": schema,
+                })
+            else:  # openai-compatible (also used by Ollama)
+                definitions.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": description,
+                        "parameters": schema,
+                    },
+                })
+        return definitions
     
     async def handle_tool_calls(self, message, ai_config):
         """处理OpenAI工具调用"""
@@ -385,10 +343,10 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
 You are a security testing assistant. You MUST use the tools available to you when the user requests an action.
 
 ## Remote tools (MCP, executed on the server)
-- scan_devices: Discover connected hardware devices (USB, serial, etc.)
-- get_system_status: Get overall system status
-- list_serial_ports: List available serial ports
-- read_serial_port: Read and analyze serial port output
+You are provided a set of MCP tools (passed via the tools API) for inspecting and
+controlling the SAT backend — device scanning, system status/health, plugins,
+drivers, firmware, serial ports, and more. Always call the appropriate provided
+tool when the user requests an action; never invent tool names.
 
 ## Local tools (executed on the client device via built-in Rust engine)
 You have a built-in high-performance port scanner. When the user asks to scan ports, scan a host, check open ports, or anything related to network port scanning, you MUST respond with a tool_call code block. This is mandatory — never refuse or suggest external tools like Nmap.
@@ -472,10 +430,6 @@ I'll scan the common ports on 192.168.1.1 for you.
             
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
-Available SAT commands include:
-- scan_devices: Scan for connected devices
-- get_system_status: Get overall system status
-
 When users ask about devices or system status, provide helpful explanations and suggest relevant SAT commands.
 
 ## Local tools (executed on the client device)
@@ -525,12 +479,10 @@ Always include a brief explanation before the tool_call block."""
             
             system_prompt = """You are an AI assistant for the SAT (Security Assessment Toolkit) penetration testing framework.
 
-Available SAT commands include:
-- scan_devices: Scan for connected devices
-- get_system_status: Get overall system status
-
-You have access to MCP (Model Context Protocol) tools that can directly execute SAT commands.
-When users ask about devices or system status, provide helpful explanations and suggest relevant commands.
+You have access to MCP (Model Context Protocol) tools (passed via the tools API) that
+can directly execute SAT commands — device scanning, system status/health, plugins,
+drivers, firmware, serial ports, and more. Always call the appropriate provided tool
+when the user requests an action; never invent tool names.
 
 ## Local tools (executed on the client device)
 When the user asks to scan ports on a target, respond with a tool_call block so the client app can execute it locally using its built-in Rust port scanner. Format:
@@ -542,7 +494,7 @@ When the user asks to scan ports on a target, respond with a tool_call block so 
 - port_end (optional, default 1024): last port
 Always include a brief explanation before the tool_call block. Do NOT use MCP tools for port scanning."""
 
-            tools = await self.get_mcp_tools()
+            tools = await self.get_mcp_tools(fmt="anthropic")
             
             if tools:
                 response = await client.messages.create(

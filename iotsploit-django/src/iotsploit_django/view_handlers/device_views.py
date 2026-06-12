@@ -48,10 +48,51 @@ def get_all_devices(request):
         }, status=500)
 
 def scan_all_devices(request):
-    """Scan for all devices using the DeviceDriverManager."""
-    device_manager = get_device_driver_manager()
-    scan_results = device_manager.scan_all_devices()
-    return JsonResponse(scan_results)
+    """Scan for devices across every loaded driver.
+
+    DeviceDriverManager exposes a per-driver scan_devices(driver_name); there is
+    no single all-driver method, so we iterate list_drivers() and aggregate the
+    (serialized) results per driver.
+    """
+    try:
+        device_manager = get_device_driver_manager()
+        drivers = device_manager.list_drivers()
+
+        results = {}
+        total_found = 0
+        for driver_name in drivers:
+            scan_result = device_manager.scan_devices(driver_name)
+
+            if scan_result.get("status") != "success":
+                results[driver_name] = {
+                    "status": scan_result.get("status", "error"),
+                    "message": scan_result.get("message", ""),
+                    "devices": [],
+                }
+                continue
+
+            devices = [
+                dev.to_dict(encode_json=True)
+                for dev in scan_result.get("devices", [])
+            ]
+            total_found += len(devices)
+            results[driver_name] = {
+                "status": "success",
+                "devices": devices,
+            }
+
+        return JsonResponse({
+            "status": "success",
+            "devices_found": total_found,
+            "results": results,
+        })
+
+    except Exception as e:
+        logger.error(f"Error scanning all devices: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to scan all devices: {str(e)}"
+        }, status=500)
 
 @csrf_exempt
 def scan_specific_device(request, driver_name):
