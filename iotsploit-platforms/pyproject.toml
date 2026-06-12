@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-platforms"
-version = "0.0.6"
+version = "0.0.7"
 description = "IoTSploit platform-specific adapters (WiFi, Input, SSH backends)"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"

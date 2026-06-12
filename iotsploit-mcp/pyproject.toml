@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-mcp"
-version = "0.0.6"
+version = "0.0.7"
 description = "IoTSploit MCP runtime (FastMCP stdio server + WebSocket bridge), framework-free outer ring."
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
