@@ -66,13 +66,13 @@ class DjangoCommands(BaseCommands):
 
     @cmd2.with_category('Django Commands')
     def do_runserver(self, arg):
-        'Start Django development server, Daphne WebSocket server, MCP WebSocket bridge, and Celery worker in the background'
+        'Start Django development server, Daphne WebSocket server, MCP HTTP server, and Celery worker in the background'
         if self.django_server_process or self.daphne_server_process:
             self.poutput("Servers are already running.")
             return
 
         try:
-            logger.info("Attempting to start Django, Daphne, MCP WebSocket bridge, and Celery servers in background...")
+            logger.info("Attempting to start Django, Daphne, MCP HTTP server, and Celery servers in background...")
             
             # Preflight: check Redis and fail fast if unavailable
             redis_ok, redis_msg = self._check_redis_available()
@@ -97,11 +97,11 @@ class DjangoCommands(BaseCommands):
                 sys.executable,
                 '-m',
                 'iotsploit_mcp.cli',
-                'ws',
+                'http',
                 '--host',
-                '0.0.0.0',
+                '127.0.0.1',
                 '--port',
-                '9998',
+                '9900',
             ]
             celery_cmd = [
                 sys.executable,
@@ -115,7 +115,7 @@ class DjangoCommands(BaseCommands):
             
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
-            logger.info(f"Running MCP WebSocket Bridge command: {' '.join(mcp_bridge_cmd)}")
+            logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
             logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
             
             # Start the processes with direct output to stdout/stderr
@@ -133,8 +133,8 @@ class DjangoCommands(BaseCommands):
                 universal_newlines=True
             )
             
-            # Start the WebSocket bridge in its own process group so that we can
-            # later terminate the entire group (bridge + sat_fastmcp child)
+            # Start the MCP HTTP server in its own process group so that we can
+            # later terminate the entire group
             # Set up environment variables for MCP bridge (Django API URL)
             mcp_env = os.environ.copy()
             mcp_env.setdefault('IOTSPLOIT_DJANGO_API_BASE_URL', 'http://127.0.0.1:8888')
@@ -159,7 +159,7 @@ class DjangoCommands(BaseCommands):
             logger.info("Services running on:")
             logger.info("  - Django HTTP API: http://localhost:8888")
             logger.info("  - Daphne WebSocket: ws://localhost:9999")
-            logger.info("  - MCP WebSocket Bridge: ws://localhost:9998")
+            logger.info("  - MCP HTTP (Streamable HTTP): http://127.0.0.1:9900/mcp")
             logger.info("  - Celery Worker: background task processing")
             
             # Wait for HTTP server to be available and initialize devices
@@ -197,7 +197,7 @@ class DjangoCommands(BaseCommands):
 
     @cmd2.with_category('Django Commands')
     def do_stop_server(self, arg):
-        'Stop Django development server, Daphne WebSocket server, MCP WebSocket bridge, and Celery worker'
+        'Stop Django development server, Daphne WebSocket server, MCP HTTP server, and Celery worker'
         try:
             # Cleanup devices using HTTP endpoint (GET method)
             # Only attempt HTTP cleanup if the Django server process is still alive

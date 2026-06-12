@@ -11,7 +11,8 @@ import subprocess
 from threading import Thread
 import signal
 import os
-import aiohttp
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 from ..models.AIModel_Model import AIModelConfig
 from ..tools.xlogger import xlog
 
@@ -25,7 +26,7 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         self.input_queue = queue.Queue()
         self.session_id = None
         self.shell_thread = None
-        self.mcp_websocket_url = "ws://localhost:9998"
+        self.mcp_http_url = os.environ.get("IOTSPLOIT_MCP_URL", "http://127.0.0.1:9900/mcp")
         xlog.info("AIAssistantConsumer initialized", "ai_assistant")
         
     async def connect(self):
@@ -166,62 +167,40 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
             pass
     
     async def execute_mcp_tool(self, tool_name, arguments):
-        """通过WebSocket连接到MCP桥接器执行工具"""
+        """通过标准 Streamable HTTP 端点调用 MCP 工具。
+
+        每次调用各开一个独立 ClientSession（initialize + tools/call），
+        天然按会话隔离，避免旧 WS 桥共享 stdio 子进程的并发串台问题。
+        """
         try:
             xlog.info(f"=== MCP TOOL CALL START ===", "ai_assistant")
             xlog.info(f"Tool Name: {tool_name}", "ai_assistant")
-            xlog.info(f"Arguments Type: {type(arguments)}", "ai_assistant")
-            xlog.info(f"Arguments Content: {arguments}", "ai_assistant")
-            xlog.info(f"Arguments JSON: {json.dumps(arguments)}", "ai_assistant")
-            
-            async with aiohttp.ClientSession() as session:
-                xlog.info(f"Connecting to MCP WebSocket: {self.mcp_websocket_url}", "ai_assistant")
-                async with session.ws_connect(self.mcp_websocket_url) as ws:
-                    request = {
-                        "type": "mcp_call_tool",
-                        "tool_name": tool_name,
-                        "arguments": arguments
-                    }
-                    
-                    xlog.info(f"Sending MCP request: {json.dumps(request, indent=2)}", "ai_assistant")
-                    await ws.send_str(json.dumps(request))
-                    xlog.info(f"MCP request sent successfully", "ai_assistant")
-                    
-                    xlog.info(f"Waiting for MCP response...", "ai_assistant")
-                    response = await ws.receive()
-                    xlog.info(f"MCP response received - Type: {response.type}", "ai_assistant")
-                    
-                    if response.type == aiohttp.WSMsgType.TEXT:
-                        xlog.info(f"MCP response data: {response.data}", "ai_assistant")
-                        data = json.loads(response.data)
-                        xlog.info(f"MCP response parsed: {json.dumps(data, indent=2)}", "ai_assistant")
-                        
-                        if data.get("type") == "tool_result":
-                            result = data.get("result", "")
-                            xlog.info(f"Tool result type: {type(result)}", "ai_assistant")
-                            xlog.info(f"Tool result content: {result}", "ai_assistant")
-                            
-                            extracted = self._extract_mcp_text(result)
-                            xlog.info(f"Extracted result: {extracted}", "ai_assistant")
-                            xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
-                            return extracted
-                        elif data.get("type") == "tool_error":
-                            error_msg = data.get('error', 'Unknown error')
-                            xlog.error(f"MCP tool error: {error_msg}", "ai_assistant")
-                            xlog.info(f"=== MCP TOOL CALL ERROR ===", "ai_assistant")
-                            return f"Tool error: {error_msg}"
-                        else:
-                            xlog.warning(f"Unexpected MCP response type: {data.get('type')}", "ai_assistant")
-                            xlog.info(f"=== MCP TOOL CALL UNEXPECTED ===", "ai_assistant")
-                            return f"Unexpected response: {data}"
-                    else:
-                        xlog.error(f"Invalid MCP response type: {response.type}", "ai_assistant")
-                        xlog.info(f"=== MCP TOOL CALL FAILED ===", "ai_assistant")
-                        return "Failed to get response from MCP bridge"
-                        
+            xlog.info(f"Arguments: {arguments}", "ai_assistant")
+            xlog.info(f"Connecting to MCP HTTP endpoint: {self.mcp_http_url}", "ai_assistant")
+
+            async with streamablehttp_client(self.mcp_http_url) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.call_tool(tool_name, arguments or {})
+
+            # 标准 CallToolResult: result.content -> list[TextContent], result.isError
+            payload = {
+                "content": [item.model_dump() for item in result.content],
+                "isError": result.isError,
+            }
+            extracted = self._extract_mcp_text(payload)
+
+            if result.isError:
+                xlog.error(f"MCP tool error: {extracted}", "ai_assistant")
+                xlog.info(f"=== MCP TOOL CALL ERROR ===", "ai_assistant")
+                return f"Tool error: {extracted}"
+
+            xlog.info(f"Extracted result: {extracted}", "ai_assistant")
+            xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
+            return extracted
+
         except Exception as e:
             xlog.error(f"Error executing MCP tool: {str(e)}", "ai_assistant")
-            xlog.error(f"Exception type: {type(e)}", "ai_assistant")
             xlog.error(f"Exception details: {repr(e)}", "ai_assistant")
             xlog.info(f"=== MCP TOOL CALL EXCEPTION ===", "ai_assistant")
             return f"Error executing MCP tool: {str(e)}"
