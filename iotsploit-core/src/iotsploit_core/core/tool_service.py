@@ -1019,68 +1019,8 @@ class NetworkToolService(ToolService):
         return self.execute_tool('nmap', args, timeout=300)
     
 
-
-class BinaryToolService(ToolService):
-    """Tool service specialized for binary analysis"""
-    
-    def __init__(self):
-        super().__init__()
-        # Pre-register common binary analysis tools
-        self.register_tool('strings', required=False)
-        self.register_tool('binwalk', required=False)
-        self.register_tool('objdump', required=False)
-        self.register_tool('readelf', required=False)
-        self.register_tool('file', required=False)
-    
-    def extract_strings(self, file_path: str, min_length: int = 4) -> ExecutionResult:
-        """
-        Extract strings from binary file.
-        
-        Args:
-            file_path: Path to binary file
-            min_length: Minimum string length
-            
-        Returns:
-            ExecutionResult: Result containing extracted strings
-        """
-        if not self.is_tool_available('strings'):
-            raise RuntimeError("strings tool is not available")
-        
-        args = [f'-n{min_length}', file_path]
-        return self.execute_tool('strings', args)
-    
-    def analyze_firmware(self, file_path: str, extract: bool = False) -> ExecutionResult:
-        """
-        Analyze firmware file with binwalk.
-        
-        Args:
-            file_path: Path to firmware file
-            extract: Whether to extract found files
-            
-        Returns:
-            ExecutionResult: Result of the analysis
-        """
-        if not self.is_tool_available('binwalk'):
-            raise RuntimeError("binwalk is not available")
-        
-        args = []
-        if extract:
-            args.append('-e')
-        args.append(file_path)
-        
-        return self.execute_tool('binwalk', args)
-
-_tool_service_instance = None
 _firmware_service_instance = None
 _network_service_instance = None
-_binary_service_instance = None
-
-def get_tool_service() -> ToolService:
-    """Get singleton ToolService instance"""
-    global _tool_service_instance
-    if _tool_service_instance is None:
-        _tool_service_instance = ToolService()
-    return _tool_service_instance
 
 def get_firmware_service() -> FirmwareToolService:
     """Get singleton FirmwareToolService instance"""
@@ -1095,10 +1035,3 @@ def get_network_service() -> NetworkToolService:
     if _network_service_instance is None:
         _network_service_instance = NetworkToolService()
     return _network_service_instance
-
-def get_binary_service() -> BinaryToolService:
-    """Get singleton BinaryToolService instance"""
-    global _binary_service_instance
-    if _binary_service_instance is None:
-        _binary_service_instance = BinaryToolService()
-    return _binary_service_instance 
