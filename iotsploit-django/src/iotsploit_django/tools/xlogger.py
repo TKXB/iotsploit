@@ -1,4 +1,5 @@
 import logging
+import os
 import colorlog
 from typing import Optional
 from datetime import datetime
@@ -32,6 +33,24 @@ class _ConsoleBufferWSHandler(logging.Handler):
 class XLogger:
     _instance = None
     _loggers = {}  # 存储不同模块的logger
+    LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+    LOG_FORMATS = {
+        "standard": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        "compact": "%(levelname)s | %(message)s",
+        "plain": "%(message)s",
+    }
+    COLOR_LOG_FORMATS = {
+        "standard": "%(log_color)s%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        "compact": "%(log_color)s%(levelname)s | %(message)s",
+        "plain": "%(log_color)s%(message)s",
+    }
+    LOG_COLORS = {
+        'DEBUG': 'cyan',
+        'INFO': 'green',
+        'WARNING': 'yellow',
+        'ERROR': 'red',
+        'CRITICAL': 'red,bg_white',
+    }
 
     def __new__(cls):
         if cls._instance is None:
@@ -41,7 +60,16 @@ class XLogger:
     def __init__(self):
         if not hasattr(self, 'initialized'):
             self.initialized = True
+            self._default_format = self._get_env_format()
             self._ensure_root_handler()
+            self._set_existing_stream_formatters()
+
+    @classmethod
+    def _get_env_format(cls):
+        fmt = os.getenv("IOTSPLOIT_LOG_FORMAT", "standard").strip().lower()
+        if fmt not in cls.COLOR_LOG_FORMATS:
+            return "standard"
+        return fmt
 
     def _ensure_root_handler(self):
         root = logging.getLogger()
@@ -62,17 +90,8 @@ class XLogger:
             
             # 创建并配置handler
             handler = colorlog.StreamHandler()
-            handler.setFormatter(colorlog.ColoredFormatter(
-                '%(log_color)s%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S',
-                log_colors={
-                    'DEBUG': 'cyan',
-                    'INFO': 'green',
-                    'WARNING': 'yellow',
-                    'ERROR': 'red',
-                    'CRITICAL': 'red,bg_white',
-                }
-            ))
+            setattr(handler, "_xlog_stream", True)
+            self._set_stream_formatter(handler)
             
             # 添加handler到logger
             logger.addHandler(handler)
@@ -105,6 +124,45 @@ class XLogger:
     def critical(self, msg: str, name: str = 'console', **kwargs):
         """Log a critical message with optional kwargs (exc_info, stack_info, stacklevel, extra)"""
         self.get_logger(name).critical(msg, **kwargs)
+
+    def _set_stream_formatter(self, handler):
+        handler.setFormatter(colorlog.ColoredFormatter(
+            self.COLOR_LOG_FORMATS[self._default_format],
+            datefmt=self.LOG_DATE_FORMAT,
+            log_colors=self.LOG_COLORS
+        ))
+
+    def _set_plain_stream_formatter(self, handler):
+        handler.setFormatter(logging.Formatter(
+            self.LOG_FORMATS[self._default_format],
+            datefmt=self.LOG_DATE_FORMAT
+        ))
+
+    def _iter_existing_handlers(self):
+        yield from logging.getLogger().handlers
+        for logger_obj in logging.Logger.manager.loggerDict.values():
+            if isinstance(logger_obj, logging.Logger):
+                yield from logger_obj.handlers
+
+    def _set_existing_stream_formatters(self):
+        for handler in self._iter_existing_handlers():
+            if isinstance(handler, _ConsoleBufferWSHandler):
+                continue
+            if isinstance(handler, logging.FileHandler):
+                continue
+            if getattr(handler, "_xlog_stream", False):
+                self._set_stream_formatter(handler)
+            elif isinstance(handler, logging.StreamHandler):
+                self._set_plain_stream_formatter(handler)
+
+    def set_format(self, fmt: str):
+        """Set terminal logging format without changing the WebSocket console handler."""
+        fmt = fmt.strip().lower()
+        if fmt not in self.COLOR_LOG_FORMATS:
+            return
+
+        self._default_format = fmt
+        self._set_existing_stream_formatters()
 
     def set_level(self, level: str, name: str = 'console'):
         """Set logging level"""

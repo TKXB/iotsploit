@@ -7,6 +7,29 @@ import inspect
 from typing import Dict
 import argparse
 
+LOG_FORMAT_CHOICES = ("standard", "compact", "plain")
+
+
+def _prime_log_format_env_from_argv(argv):
+    selected_format = None
+    idx = 0
+    while idx < len(argv):
+        arg = argv[idx]
+        if arg == '--plain-log' and selected_format is None:
+            selected_format = "plain"
+        elif arg == '--log-format' and idx + 1 < len(argv):
+            selected_format = argv[idx + 1].strip().lower()
+            idx += 1
+        elif arg.startswith('--log-format='):
+            selected_format = arg.split('=', 1)[1].strip().lower()
+        idx += 1
+
+    if selected_format in LOG_FORMAT_CHOICES:
+        os.environ["IOTSPLOIT_LOG_FORMAT"] = selected_format
+
+
+_prime_log_format_env_from_argv(sys.argv[1:])
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 
 import django
@@ -75,6 +98,7 @@ from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.report_mgr import Report_Mgr
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.utils import iots_logger
 from pwnlib import term
 term.term_mode = True
 
@@ -227,9 +251,12 @@ class SAT_Shell(SAT_Shell_Base):
             'run_script': 'Shell Commands',
             'runserver': 'Shell Commands',
             'set': 'Shell Commands',
+            'set_log_format': 'Shell Commands',
             'set_log_level': 'Shell Commands',
             'shell': 'Shell Commands',
             'shortcuts': 'Shell Commands',
+            'slf': 'Shell Commands',
+            'sll': 'Shell Commands',
             'stop_server': 'Shell Commands',
         })
 
@@ -448,7 +475,28 @@ def main():
 
     parser = argparse.ArgumentParser(description='SAT Shell entrypoint')
     parser.add_argument('--runserver', action='store_true', help='Start servers directly and keep running until Ctrl+C; on Ctrl+C, stop servers')
+    parser.add_argument(
+        '--log-format',
+        choices=LOG_FORMAT_CHOICES,
+        default=None,
+        help='Set terminal log format. Overrides --plain-log and IOTSPLOIT_LOG_FORMAT.',
+    )
+    parser.add_argument(
+        '--plain-log',
+        action='store_true',
+        help='Use message-only terminal logs unless --log-format is also provided.',
+    )
     args = parser.parse_args()
+
+    selected_log_format = (
+        args.log_format
+        or ("plain" if args.plain_log else None)
+        or os.getenv("IOTSPLOIT_LOG_FORMAT", "standard").strip().lower()
+    )
+    if selected_log_format not in LOG_FORMAT_CHOICES:
+        selected_log_format = "standard"
+    iots_logger.set_format(selected_log_format)
+    logger.set_format(selected_log_format)
 
     shell = SAT_Shell()
     Report_Mgr.Instance().log_init()
@@ -490,4 +538,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
