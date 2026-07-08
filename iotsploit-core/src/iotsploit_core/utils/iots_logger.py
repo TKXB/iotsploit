@@ -25,9 +25,17 @@ class IotsLogger:
     _instance: Optional["IotsLogger"] = None
     _lock = threading.Lock()
 
-    LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-    COLOR_FORMAT = "%(log_color)s%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    LOG_FORMATS = {
+        "standard": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        "compact": "%(levelname)s | %(message)s",
+        "plain": "%(message)s",
+    }
+    COLOR_LOG_FORMATS = {
+        "standard": "%(log_color)s%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        "compact": "%(log_color)s%(levelname)s | %(message)s",
+        "plain": "%(log_color)s%(message)s",
+    }
 
     LOG_COLORS = {
         "DEBUG": "cyan",
@@ -50,6 +58,7 @@ class IotsLogger:
         self._extra_handlers: List[logging.Handler] = []
         self._use_color = _HAS_COLORLOG and self._is_tty()
         self._default_level = self._get_env_level()
+        self._default_format = self._get_env_format()
 
     @staticmethod
     def _is_tty() -> bool:
@@ -62,6 +71,13 @@ class IotsLogger:
     def _get_env_level() -> int:
         level_str = os.getenv("IOTSPLOIT_LOG_LEVEL", "INFO").upper()
         return getattr(logging, level_str, logging.INFO)
+
+    @classmethod
+    def _get_env_format(cls) -> str:
+        fmt = os.getenv("IOTSPLOIT_LOG_FORMAT", "standard").strip().lower()
+        if fmt not in cls.LOG_FORMATS:
+            return "standard"
+        return fmt
 
     def get_logger(self, name: str = "iotsploit", level: Optional[int] = None) -> logging.Logger:
         """
@@ -93,18 +109,27 @@ class IotsLogger:
     def _create_console_handler(self) -> logging.Handler:
         if self._use_color and _HAS_COLORLOG:
             handler = colorlog.StreamHandler(sys.stderr)  # type: ignore[name-defined]
+            self._set_console_formatter(handler)
+            return handler
+
+        handler = logging.StreamHandler(sys.stderr)
+        self._set_console_formatter(handler)
+        return handler
+
+    def _set_console_formatter(self, handler: logging.Handler) -> None:
+        if self._use_color and _HAS_COLORLOG:
             handler.setFormatter(
                 colorlog.ColoredFormatter(  # type: ignore[name-defined]
-                    self.COLOR_FORMAT,
+                    self.COLOR_LOG_FORMATS[self._default_format],
                     datefmt=self.LOG_DATE_FORMAT,
                     log_colors=self.LOG_COLORS,
                 )
             )
-            return handler
+            return
 
-        handler = logging.StreamHandler(sys.stderr)
-        handler.setFormatter(logging.Formatter(self.LOG_FORMAT, datefmt=self.LOG_DATE_FORMAT))
-        return handler
+        handler.setFormatter(
+            logging.Formatter(self.LOG_FORMATS[self._default_format], datefmt=self.LOG_DATE_FORMAT)
+        )
 
     def add_handler(self, handler: logging.Handler) -> None:
         """为所有已创建的 logger 注入额外 handler。"""
@@ -139,6 +164,21 @@ class IotsLogger:
                 self._default_level = level_value
                 for logger in self._loggers.values():
                     logger.setLevel(level_value)
+
+    def set_format(self, fmt: str) -> None:
+        """设置控制台日志格式：standard、compact 或 plain。额外 handler 不受影响。"""
+        fmt = fmt.strip().lower()
+        if fmt not in self.LOG_FORMATS:
+            return
+
+        with self._lock:
+            self._default_format = fmt
+            for logger in self._loggers.values():
+                for handler in logger.handlers:
+                    if handler in self._extra_handlers:
+                        continue
+                    if isinstance(handler, logging.StreamHandler):
+                        self._set_console_formatter(handler)
 
     def debug(self, msg: str, name: str = "iotsploit", **kwargs: Any) -> None:
         self.get_logger(name).debug(msg, **kwargs)

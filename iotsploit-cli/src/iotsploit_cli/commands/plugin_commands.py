@@ -66,58 +66,80 @@ class PluginCommands(BaseCommands):
             target_manager = self.target_manager
             current_target = target_manager.get_current_target()
             
-            # Prepare target dictionary
+            # Prepare target dictionary (device/target info only, e.g. ip_address)
             target_dict = {}
-            
-            # If we have a target, include its properties
             if current_target:
-                # Add target properties to target dictionary
                 target_dict = current_target.get_info() if hasattr(current_target, 'get_info') else {}
-            
-            # Prompt for required parameters that are not in the target
+
+            # Collect the plugin's declared parameters separately from the target.
+            # Plugins read their params from `parameters` (not `target`), so these
+            # must be passed as parameters=, matching the HTTP/GUI execute path.
+            # We prompt for every declared parameter (not only required ones) so the
+            # TUI mirrors the GUI. Each prompt is labeled REQUIRED or optional:
+            #   - required  -> the user must enter a non-empty value.
+            #   - optional  -> the declared default is shown; pressing Enter skips it.
+            parameters = {}
             for param_name, param_info in plugin_params.items():
-                if param_name not in target_dict and param_info.get('required', False):
-                    param_type = param_info.get('type', 'str')
-                    description = param_info.get('description', f"Enter {param_name}")
-                    default = param_info.get('default')
-                    validation = param_info.get('validation', {})
-                    
-                    if param_type == 'str':
-                        if 'choices' in validation:
-                            # Use single_choice for string with choices
-                            value = Input_Mgr.Instance().single_choice(
-                                f"{description} (Choose one)",
-                                validation['choices']
-                            )
+                # Skip params already satisfied by the current target
+                if param_name in target_dict:
+                    continue
+
+                param_type = param_info.get('type', 'str')
+                required = param_info.get('required', False)
+                description = param_info.get('description', f"Enter {param_name}")
+                default = param_info.get('default')
+                validation = param_info.get('validation', {})
+
+                # Label so the user knows whether the field is mandatory or skippable
+                if required:
+                    prompt = f"{description} (REQUIRED)"
+                elif default is not None:
+                    prompt = f"{description} (optional, default: {default}, press Enter to skip)"
+                else:
+                    prompt = f"{description} (optional, press Enter to skip)"
+
+                if param_type == 'int':
+                    min_val = validation.get('min')
+                    max_val = validation.get('max')
+                    value = Input_Mgr.Instance().int_input(
+                        prompt,
+                        default=default if isinstance(default, int) else None,
+                        min_val=min_val,
+                        max_val=max_val
+                    )
+                elif param_type == 'bool':
+                    value = Input_Mgr.Instance().yes_no_input(
+                        prompt,
+                        default=bool(default) if default is not None else True
+                    )
+                elif param_type == 'str' and 'choices' in validation:
+                    value = Input_Mgr.Instance().single_choice(
+                        f"{prompt} (Choose one)",
+                        validation['choices']
+                    )
+                elif required:
+                    # Mandatory free-text: re-prompt until the user enters something
+                    value = Input_Mgr.Instance().string_input(
+                        prompt,
+                        verify_func=lambda s: bool(s and s.strip())
+                    )
+                else:
+                    # Optional free-text: empty input skips the field. Fall back to the
+                    # declared default if there is one, otherwise omit it entirely so
+                    # the plugin applies its own default.
+                    value = Input_Mgr.Instance().string_input(prompt)
+                    if value is None or value == "":
+                        if default is not None:
+                            value = default
                         else:
-                            # Regular string input
-                            value = Input_Mgr.Instance().string_input(description)
-                    elif param_type == 'int':
-                        # Integer input with optional min/max validation
-                        min_val = validation.get('min')
-                        max_val = validation.get('max')
-                        value = Input_Mgr.Instance().int_input(
-                            description,
-                            min_val=min_val,
-                            max_val=max_val
-                        )
-                    elif param_type == 'bool':
-                        # Boolean input
-                        value = Input_Mgr.Instance().yes_no_input(
-                            description,
-                            default=default if default is not None else True
-                        )
-                    else:
-                        # Default to string for unknown types
-                        value = Input_Mgr.Instance().string_input(description)
-                    
-                    # Add to target dict
-                    target_dict[param_name] = value
-            
-            logger.debug(f"Executing plugin with target configuration: {target_dict}")
-            
-            # Now execute the plugin with our target dictionary
-            result = self.plugin_manager.execute_plugin(choice, target=target_dict)
+                            continue
+
+                parameters[param_name] = value
+
+            logger.debug(f"Executing plugin '{choice}' with target={target_dict}, parameters={parameters}")
+
+            # Execute with target (device info) and parameters (plugin inputs) kept separate
+            result = self.plugin_manager.execute_plugin(choice, target=target_dict, parameters=parameters)
             
             # Check if this is an async execution
             if isinstance(result, dict) and result.get('execution_type') == 'async':

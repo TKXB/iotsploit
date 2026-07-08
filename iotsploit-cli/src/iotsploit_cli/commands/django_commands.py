@@ -24,6 +24,38 @@ logger = iots_logger.get_logger(__name__)
 class DjangoCommands(BaseCommands):
     """Django-related commands for the SAT Shell"""
 
+    def _services_log_to_console(self) -> bool:
+        override = os.getenv("IOTSPLOIT_SERVICE_LOG_TO_CONSOLE", "").strip().lower()
+        if override:
+            return override in ("1", "true", "yes", "y", "on")
+        return os.getenv("IOTSPLOIT_LOG_FORMAT", "standard").strip().lower() == "standard"
+
+    def _open_service_log(self, service_name: str):
+        if not hasattr(self, "_service_log_files"):
+            self._service_log_files = []
+
+        log_dir = os.getenv("IOTSPLOIT_SERVICE_LOG_DIR", "/tmp/sat_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, f"{service_name}.log")
+        log_file = open(log_path, "a", buffering=1, encoding="utf-8")
+        self._service_log_files.append(log_file)
+        return log_file, log_path
+
+    def _service_stdio(self, service_name: str):
+        if self._services_log_to_console():
+            return sys.stdout, sys.stderr, None
+
+        log_file, log_path = self._open_service_log(service_name)
+        return log_file, subprocess.STDOUT, log_path
+
+    def _close_service_log_files(self):
+        for log_file in getattr(self, "_service_log_files", []):
+            try:
+                log_file.close()
+            except Exception:
+                pass
+        self._service_log_files = []
+
     def _check_redis_available(self) -> Tuple[bool, str]:
         """
         Preflight check for Redis reachability using Django settings.
@@ -112,47 +144,57 @@ class DjangoCommands(BaseCommands):
                 'worker',
                 '--loglevel=info'
             ]
+            service_env = os.environ.copy()
             
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
             logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
             logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
+            if not self._services_log_to_console():
+                logger.info(f"Service logs are redirected to {os.getenv('IOTSPLOIT_SERVICE_LOG_DIR', '/tmp/sat_logs')}")
             
             # Start the processes with direct output to stdout/stderr
+            django_stdout, django_stderr, _ = self._service_stdio("django")
             self.django_server_process = subprocess.Popen(
                 django_cmd, 
-                stdout=sys.stdout,  # 直接输出到控制台
-                stderr=sys.stderr,
-                universal_newlines=True
+                stdout=django_stdout,
+                stderr=django_stderr,
+                universal_newlines=True,
+                env=service_env,
             )
             
+            daphne_stdout, daphne_stderr, _ = self._service_stdio("daphne")
             self.daphne_server_process = subprocess.Popen(
                 daphne_cmd, 
-                stdout=sys.stdout,  # 直接输出到控制台
-                stderr=sys.stderr,
-                universal_newlines=True
+                stdout=daphne_stdout,
+                stderr=daphne_stderr,
+                universal_newlines=True,
+                env=service_env,
             )
             
             # Start the MCP HTTP server in its own process group so that we can
             # later terminate the entire group
             # Set up environment variables for MCP bridge (Django API URL)
-            mcp_env = os.environ.copy()
+            mcp_env = service_env.copy()
             mcp_env.setdefault('IOTSPLOIT_DJANGO_API_BASE_URL', 'http://127.0.0.1:8888')
             
+            mcp_stdout, mcp_stderr, _ = self._service_stdio("mcp")
             self.mcp_bridge_process = subprocess.Popen(
                 mcp_bridge_cmd,
-                stdout=sys.stdout,  # 直接输出到控制台
-                stderr=sys.stderr,
+                stdout=mcp_stdout,
+                stderr=mcp_stderr,
                 universal_newlines=True,
                 start_new_session=True,  # create new session = new PGID on POSIX
                 env=mcp_env
             )
             
+            celery_stdout, celery_stderr, _ = self._service_stdio("celery")
             self.celery_worker_process = subprocess.Popen(
                 celery_cmd,
-                stdout=sys.stdout,  # 直接输出到控制台
-                stderr=sys.stderr,
-                universal_newlines=True
+                stdout=celery_stdout,
+                stderr=celery_stderr,
+                universal_newlines=True,
+                env=service_env,
             )
             
             logger.info("All servers started successfully in the background.")
@@ -241,6 +283,8 @@ class DjangoCommands(BaseCommands):
             if self.celery_worker_process:
                 self.celery_worker_process.terminate()
                 self.celery_worker_process = None
+
+            self._close_service_log_files()
             
             if not any([self.django_server_process, self.daphne_server_process, 
                         getattr(self, 'mcp_bridge_process', None),

@@ -2,9 +2,11 @@
 
 import cmd2
 from cmd2 import ansi
+import os
 from .base_commands import BaseCommands
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
+from iotsploit_django.tools.xlogger import xlog
 from iotsploit_core.utils import iots_logger
 
 logger = iots_logger.get_logger(__name__)
@@ -74,4 +76,46 @@ class SystemCommands(BaseCommands):
             logger.debug("Detailed error:", exc_info=True)
 
     # Add an alias for set_log_level
-    do_sll = do_set_log_level 
+    do_sll = do_set_log_level
+
+    @cmd2.with_category('System Commands')
+    def do_set_log_format(self, arg):
+        'Set the terminal logging format (standard, compact, plain)'
+        valid_formats = ['standard', 'compact', 'plain']
+
+        if not arg:
+            selected_format = Input_Mgr.Instance().single_choice(
+                "Select terminal log format",
+                valid_formats
+            )
+        else:
+            selected_format = arg.strip().lower()
+            if selected_format not in valid_formats:
+                logger.error(ansi.style(f"Invalid log format. Choose from: {', '.join(valid_formats)}", fg=ansi.Fg.RED))
+                return
+
+        try:
+            os.environ["IOTSPLOIT_LOG_FORMAT"] = selected_format
+            iots_logger.set_format(selected_format)
+            xlog.set_format(selected_format)
+            logger.info(ansi.style(f"Log format set to {selected_format}", fg=ansi.Fg.GREEN))
+            running_services = any(
+                getattr(self, attr, None)
+                for attr in (
+                    "django_server_process",
+                    "daphne_server_process",
+                    "mcp_bridge_process",
+                    "celery_worker_process",
+                )
+            )
+            if running_services and selected_format != "standard":
+                logger.warning(
+                    "Already-running service processes keep their current terminal output. "
+                    "Run stop_server then runserver to redirect service logs to /tmp/sat_logs."
+                )
+        except Exception as e:
+            logger.error(ansi.style(f"Error setting log format: {str(e)}", fg=ansi.Fg.RED))
+            logger.debug("Detailed error:", exc_info=True)
+
+    # Add an alias for set_log_format
+    do_slf = do_set_log_format

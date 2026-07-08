@@ -8,9 +8,16 @@ from pathlib import Path
 from typing import Dict, Optional
 
 
+LOG_FORMATS = {
+    "standard": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    "compact": "%(levelname)s | %(message)s",
+    "plain": "%(message)s",
+}
+
+
 @dataclass(frozen=True)
 class _MCPLogConfig:
-    fmt: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    fmt: str = LOG_FORMATS["standard"]
     datefmt: str = "%Y-%m-%d %H:%M:%S"
     default_level: int = logging.INFO
     default_log_dir: str = "/tmp/sat_logs"
@@ -28,6 +35,15 @@ def _env_level(default: int) -> int:
     if not v:
         return default
     return getattr(logging, v, default)
+
+
+def _env_format(default: str = "standard") -> str:
+    v = (os.getenv("IOTSPLOIT_MCP_LOG_FORMAT") or "").strip().lower()
+    if not v:
+        return default
+    if v not in LOG_FORMATS:
+        return default
+    return v
 
 
 def _safe_filename(name: str) -> str:
@@ -55,7 +71,10 @@ class XLoggerMCP:
         if hasattr(self, "_initialized") and self._initialized:
             return
         self._initialized = True
-        self._cfg = _MCPLogConfig(default_level=_env_level(_MCPLogConfig.default_level))
+        self._cfg = _MCPLogConfig(
+            fmt=LOG_FORMATS[_env_format()],
+            default_level=_env_level(_MCPLogConfig.default_level),
+        )
         self._loggers: Dict[str, logging.Logger] = {}
 
     def get_logger(
@@ -76,13 +95,14 @@ class XLoggerMCP:
         logger = self._loggers.get(name) or logging.getLogger(name)
         logger.setLevel(lvl)
 
-        formatter = logging.Formatter(self._cfg.fmt, datefmt=self._cfg.datefmt)
+        stream_formatter = logging.Formatter(self._cfg.fmt, datefmt=self._cfg.datefmt)
+        file_formatter = logging.Formatter(LOG_FORMATS["standard"], datefmt=self._cfg.datefmt)
 
         # Ensure stream handler exists (stderr).
         if not any(getattr(h, "_mcp_stream", False) for h in logger.handlers):
             sh = logging.StreamHandler(sys.stderr)
             sh.setLevel(lvl)
-            sh.setFormatter(formatter)
+            sh.setFormatter(stream_formatter)
             setattr(sh, "_mcp_stream", True)
             logger.addHandler(sh)
 
@@ -98,7 +118,7 @@ class XLoggerMCP:
                 Path(target_file).parent.mkdir(parents=True, exist_ok=True)
                 fh = logging.FileHandler(target_file)
                 fh.setLevel(logging.DEBUG)
-                fh.setFormatter(formatter)
+                fh.setFormatter(file_formatter)
                 setattr(fh, "_mcp_file", target_file)
                 logger.addHandler(fh)
 
@@ -125,5 +145,4 @@ class XLoggerMCP:
 
 # Global instance
 xlog_mcp = XLoggerMCP()
-
 
