@@ -27,6 +27,11 @@ Or with the Django server started immediately:
 iotsploit --runserver
 ```
 
+### Custom plugins
+
+`IOTSPLOIT_EXPLOIT_PLUGINS_DIR` can be used for user custom exploit plugins.
+`IOTSPLOIT_DEVICE_PLUGINS_DIR` can be used for user custom device plugins.
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE](../LICENSE) for details.
