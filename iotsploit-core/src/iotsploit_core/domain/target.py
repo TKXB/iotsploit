@@ -21,6 +21,21 @@ class Target(BaseModel, ABC):
     def get_info(self) -> Dict[str, Any]:
         raise NotImplementedError
 
+    def get_ecu_ip(self, ecu: str) -> Optional[str]:
+        """Return the configured IP of the ECU component whose name matches `ecu`.
+
+        ECUs are modeled as components selected by name ("TCAM"/"DHU"/"VGM").
+        The IP is read from the component's free-form ``properties.ip_address``,
+        falling back to a typed ``ip_address`` field (e.g. NetworkComponent).
+        Returns None when the ECU has no configured IP.
+        """
+        name = (ecu or "").upper()
+        for comp in self.components:
+            if comp.name.upper() == name:
+                ip = comp.properties.get("ip_address") if isinstance(comp.properties, dict) else None
+                return ip or getattr(comp, "ip_address", None)
+        return None
+
 
 class Component(BaseModel):
     component_id: str
