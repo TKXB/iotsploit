@@ -108,42 +108,6 @@ class ADB_Mgr:
             
         raise_err(f"ADB device '{device_identifier}' not found in target or missing required information")
 
-    def _get_target_property(self, prop_name, default=None):
-        """Get a property from the current target"""
-        # Try to get from target
-        current_target = self._target_manager.get_current_target()
-        
-        if current_target:
-            # Check in export_for_adb first
-            try:
-                adb_info = current_target.export_for_adb()
-                if prop_name in adb_info:
-                    logger.debug(f"Found {prop_name} in target export_for_adb: {adb_info[prop_name]}")
-                    return adb_info[prop_name]
-            except:
-                logger.debug(f"Error getting export_for_adb from target")
-                
-            # Check in target properties
-            if prop_name in current_target.properties:
-                logger.debug(f"Found {prop_name} in target properties: {current_target.properties[prop_name]}")
-                return current_target.properties[prop_name]
-                
-            # Check in components (for future extensibility)
-            if hasattr(current_target, 'components'):
-                for component in current_target.components:
-                    comp_props = component.properties
-                    if prop_name in comp_props:
-                        logger.debug(f"Found {prop_name} in component {component.name}: {comp_props[prop_name]}")
-                        return comp_props[prop_name]
-                    
-            # Check for direct attributes
-            if hasattr(current_target, prop_name):
-                logger.debug(f"Found {prop_name} as direct attribute: {getattr(current_target, prop_name)}")
-                return getattr(current_target, prop_name)
-        
-        logger.debug(f"Property {prop_name} not found in target, returning default: {default}")
-        return default
-
     def query_dhu_adb_serial_id(self):
         """Get DHU device serial ID from target or by USB device"""
         current_target = self._target_manager.get_current_target()

@@ -253,7 +253,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · record `(−N LOC)` whe
 Delete-only pass. No logic changes. Target: unused imports, unreachable code, commented-out blocks,
 orphan files, unused assets.
 - [x] Python: `ruff --select F401,F811,F841` (or `vulture`) across all modules; remove unused imports/vars (−220 LOC)
-- [ ] Python: find & remove dead functions/classes (grep for zero references)
+- [x] Python: find & remove dead functions/classes (grep for zero references) (−71 LOC)
 - [ ] Python: delete obviously stale scripts/`obd_test.py`-style scratch files after confirming they're unused
 - [ ] Flutter: `flutter analyze` → remove unused imports, dead code, unused fields
 - [ ] Flutter: remove unused assets/widgets (cross-check `pubspec.yaml` asset list vs. references)
@@ -301,8 +301,8 @@ Biggest LOC concentration. Start with the largest files.
 
 ## 7. You Are Here  📍  (update every session)
 
-**Current status:** Phase 1 Python unused-import/unused-variable cleanup is complete. Starting
-verification state remains partly red: only the root-run `iotsploit-core`, `iotsploit-fuzzer`, and
+**Current status:** Phase 1 Python dead function/class cleanup is complete. Starting verification
+state remains partly red: only the root-run `iotsploit-core`, `iotsploit-fuzzer`, and
 `iotsploit-mcp` pytest slices pass; Django still has its known import-without-settings failure, and
 some package test dirs collect no tests from the root environment. Flutter baseline remains red.
 
@@ -310,14 +310,15 @@ some package test dirs collect no tests from the root environment. Flutter basel
 
 | Area | Baseline | Current | Reduced | % | Target (≤) | Hit 20%? |
 |------|---------:|--------:|--------:|--:|-----------:|:--------:|
-| Python source | 57,924 | 57,704 | 220 | 0.4% | 46,339 | ❌ |
+| Python source | 57,924 | 57,633 | 291 | 0.5% | 46,339 | ❌ |
 | Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
 
-**Last completed step:** Phase 1 — Python `ruff --select F401,F811,F841` cleanup across tracked
-Python source roots (−220 LOC).
+**Last completed step:** Phase 1 — Python dead functions/classes cleanup across confirmed
+zero-reference private helpers (−71 LOC).
 
-**Next step:** Phase 1 → Python dead functions/classes: identify zero-reference candidates, produce
-a decision plan before deleting anything non-trivial, then remove only confirmed dead code.
+**Next step:** Phase 1 → Python stale scripts / `obd_test.py`-style scratch files: identify
+candidates, confirm they are unused, produce a decision plan before deleting anything non-trivial,
+then remove only confirmed stale code.
 
 **Tooling notes:**
 - Python: use Poetry (`poetry` 2.0.1). `poetry run python --version` reports Python 3.10.12, and
@@ -342,6 +343,12 @@ a decision plan before deleting anything non-trivial, then remove only confirmed
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Option A implemented for Phase 1 Python dead functions/classes: removed confirmed
+  zero-reference private helpers from `adb_mgr.py` and `web/views.py`, including one unreachable
+  block nested after a returned helper. Re-measured Python LOC 57,704 → 57,633 (−71). Verification:
+  `poetry run ruff check --no-cache --select F401,F811,F841 ...` passed; in-memory syntax compile
+  of touched files passed. `py_compile` was not usable because the existing package `__pycache__`
+  path is read-only in this shell.
 - 2026-07-10: Option A implemented for Phase 1 Python hygiene: added root dev `ruff`, cleaned
   `F401/F811/F841` across Python source roots, re-measured Python LOC 57,924 → 57,704 (−220).
   Verification: `poetry run ruff check --no-cache --select F401,F811,F841 ...` passed;

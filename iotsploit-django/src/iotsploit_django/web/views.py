@@ -1,7 +1,3 @@
-from django.http import HttpResponse
-
-
-
 from iotsploit_django.tools.sat_utils import *
 
 from django.views.decorators.csrf import csrf_exempt
@@ -64,37 +60,6 @@ def __expand_toc_list(tree_list, expand_list):
                 toc_dict["status"] = {"result": "失败","color": "red"}     
 
             expand_list.append(toc_dict)
-
-def __build_single_choice_dialog(title:str, choice_list:list, button_list:list):
-    single_choice_list = []
-    for choice in choice_list:
-        single_choice_list.append(str(choice))
-
-    single_choce_dict = { 
-        "type": "single_choice",
-        "single_choice": single_choice_list,
-        "buttonlist": button_list
-        }
-    logger.info("Build Single Choice Dialog:{}".format(single_choce_dict))
-    return single_choce_dict
-
-def __build_confirm_dialog(title:str, button_list:list):
-    confirm_dict = { 
-        "type": "confirm",
-        "confirm": title,
-        "buttonlist": button_list
-        }
-    logger.info("Build Confirm Dialog:{}".format(confirm_dict))
-    return confirm_dict
-
-
-    user_input_id = request.GET.get("id", "")
-    sub_func = sub_func_dict.get(user_input_id)
-    if sub_func != None:
-        return sub_func(request)
-    else:
-        logger.error("User Input ID:{} Invalid!".format(user_input_id))
-        return HttpResponse("User Input ID:{} Invalid!".format(user_input_id))
 
 def list_plugins(request):
     plugin_manager = get_exploit_plugin_manager()
