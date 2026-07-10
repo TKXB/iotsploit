@@ -247,7 +247,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · record `(−N LOC)` whe
 - [x] Write this guide + baseline
 - [x] Adopt the `coding-decision-plan` reporting workflow (§4a) as mandatory for non-trivial units
 - [x] Add/confirm tooling availability: `vulture`, `ruff`, `jscpd`, `flutter analyze` (note which exist in §7)
-- [ ] Run a full baseline verification pass (all pytest suites + `flutter analyze` + `flutter test`) and record the starting green/red state in §7
+- [x] Run a full baseline verification pass (all pytest suites + `flutter analyze` + `flutter test`) and record the starting green/red state in §7
 
 ### Phase 1 — Dead code & hygiene sweep  *(low risk, high reward)*
 Delete-only pass. No logic changes. Target: unused imports, unreachable code, commented-out blocks,
@@ -301,8 +301,9 @@ Biggest LOC concentration. Start with the largest files.
 
 ## 7. You Are Here  📍  (update every session)
 
-**Current status:** Guide created; no code reduced yet. Ready to start **Phase 0** (confirm tooling)
-then **Phase 1** (dead-code sweep).
+**Current status:** Baseline verification is recorded; no code reduced yet. Starting state is red:
+only `iotsploit-core` passes pytest, most Python module envs lack `pytest`, and the Flutter analyzer
+and test suite currently fail. Ready to start **Phase 1** (dead-code sweep) using this red baseline.
 
 ### Progress dashboard
 
@@ -311,13 +312,10 @@ then **Phase 1** (dead-code sweep).
 | Python source | 57,924 | 57,924 | 0 | 0.0% | 46,339 | ❌ |
 | Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
 
-**Last completed step:** Phase 0 — confirmed minimal tooling availability and preferred command
-wrappers.
+**Last completed step:** Phase 0 — ran the approved baseline verification pass.
 
-**Next step:** Phase 0 → run a full baseline verification pass to establish the starting green/red
-test state. Use `poetry run python -m pytest -q` for Python modules and `fvm flutter ...` for the UI
-when the `fvm` wrapper is available; this shell currently has the pinned SDK at
-`ui/.fvm/flutter_sdk/bin/flutter`.
+**Next step:** Phase 1 → start the delete-only hygiene sweep. Begin with low-risk analyzer/linter
+findings such as unused imports, but do not fix baseline infrastructure failures in the same unit.
 
 **Tooling notes:**
 - Python: use Poetry (`poetry` 2.0.1). `poetry run python --version` reports Python 3.10.12, and
@@ -328,7 +326,20 @@ when the `fvm` wrapper is available; this shell currently has the pinned SDK at
   default for project verification.
 - Dead-code / dup detectors: `ruff`, `vulture`, `jscpd`, and `radon` are not on PATH in this shell.
 
+**Baseline verification state (2026-07-10):**
+- Python pytest via `poetry run python -m pytest -q`:
+  - `iotsploit-core`: PASS (`4 passed`)
+  - `iotsploit-cli`, `iotsploit-django`, `iotsploit-fuzzer`, `iotsploit-mcp`,
+    `iotsploit-platforms`: FAIL before test collection (`No module named pytest` in each Poetry env)
+- Flutter via `ui/.fvm/flutter_sdk/bin/flutter`:
+  - `flutter analyze`: FAIL (`487 issues found`), including missing `flutter_lints` include,
+    unused imports, many `withOpacity` deprecations, missing cargokit build-tool dependencies, and
+    `test/widget_test.dart` referencing missing `MyApp`
+  - `flutter test`: FAIL (`test/widget_test.dart` does not compile because `MyApp` is undefined);
+    other listed widget tests continued running around that failure
+
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Option A baseline verification pass completed and recorded; no source changes.
 - 2026-07-10: Option A minimal tooling confirmation only; recorded Poetry/FVM command notes, no
   source changes and no full baseline verification yet.
 - _(init)_ Branch + guide created; baseline Python 57,924 / Dart 84,119 locked.
