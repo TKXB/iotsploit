@@ -1,12 +1,9 @@
 # Logic Analyzer Protocol Implementation
 # Contains shared code for the Enxor Logic Analyzer
 
-import os
-import sys
 import time
 import json
 import serial
-import threading
 from threading import Thread
 import serial.tools.list_ports
 

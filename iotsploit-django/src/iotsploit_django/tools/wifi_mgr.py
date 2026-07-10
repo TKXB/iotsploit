@@ -68,7 +68,7 @@ rsn_pairwise=CCMP
                 if sta_iface.name() == DeviceInfo.wifi_iface_name:
                     sta_proxy = sta_iface
                     break
-        except Exception as err:
+        except Exception:
             logger.error("WIFI STA Proxy Rebuild Fail!")
             return None
         

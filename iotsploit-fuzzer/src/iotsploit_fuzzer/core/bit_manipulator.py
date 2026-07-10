@@ -8,7 +8,7 @@ Author: IoT Security Testing Team
 Date: 2024
 """
 
-from typing import List, Union, Tuple
+from typing import List
 import re
 import logging
 

@@ -18,7 +18,6 @@ import os
 from typing import Optional
 
 from iotsploit_core.context import PluginContext
-from iotsploit_core.platforms.consts import LINUX
 from iotsploit_platforms.platforms import wifi_backend
 
 

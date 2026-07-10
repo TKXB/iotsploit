@@ -1,7 +1,7 @@
 import logging
 import threading
 import os
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from datetime import datetime
 import time
 
@@ -665,7 +665,7 @@ class OrchestratorAdapter:
 
         try:
             # Import real fuzzer components
-            from iotsploit_fuzzer.core.orchestrator import Orchestrator, CampaignConfig, EventType
+            from iotsploit_fuzzer.core.orchestrator import Orchestrator, CampaignConfig
             from iotsploit_fuzzer.generators.radamsa_generator import RadamsaGenerator
             from iotsploit_fuzzer.harnesses.can_harness import CANHarness
             from iotsploit_fuzzer.harnesses.uart_harness import UARTHarness
@@ -1412,4 +1412,4 @@ class MockGeneratorInstance:
 
 
 # Global instance
-_instance = None 
+_instance = None

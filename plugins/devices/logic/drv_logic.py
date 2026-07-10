@@ -1,17 +1,13 @@
 # File: plugins/devices/logic/drv_logic.py
 
 import os
-import sys
 import time
-import json
 import serial
-import threading
-from threading import Thread
 import serial.tools.list_ports
 import traceback
 
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
-from iotsploit_core.domain.device import Device, SerialDevice
+from iotsploit_core.domain.device import SerialDevice
 from iotsploit_core.utils import iots_logger
 from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 
@@ -25,12 +21,7 @@ from .protocol import (
     get_logic_analyzer_port,
     configure_logic_analyzer, 
     read_logic_analyzer_data_from_file,
-    write_logic_analyzer_data_to_file,
-    read_input_stream,
-    convert_sec_to_relevant_time,
-    # Constants
-    TRIGGER_RISING_EDGE,
-    TRIGGER_FALLING_EDGE
+    write_logic_analyzer_data_to_file
 )
 
 class EnxorLogicAnalyzerDriver(BaseDeviceDriver):

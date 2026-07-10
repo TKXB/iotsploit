@@ -1,6 +1,5 @@
 import logging
 logger = logging.getLogger(__name__)
-import time
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
 import netifaces

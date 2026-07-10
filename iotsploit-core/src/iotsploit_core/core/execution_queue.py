@@ -5,8 +5,7 @@ import time
 import threading
 import queue
 import logging
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Callable, Union
+from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from concurrent.futures import ThreadPoolExecutor, Future

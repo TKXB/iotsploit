@@ -1,10 +1,8 @@
 import usb.core
 import usb.util
 import logging
-import uuid
-import os
 from pathlib import Path
-from iotsploit_core.domain.device import Device, DeviceType, USBDevice
+from iotsploit_core.domain.device import DeviceType, USBDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.tool_service import get_firmware_service
 from iotsploit_drivers.greatfet.protocol import get_version_number

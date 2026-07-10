@@ -8,7 +8,6 @@ Platform-specific implementations should be provided in adapter modules.
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any, Tuple
 
-from iotsploit_core.utils.exceptions import NotSupportedError
 
 
 class WifiBackend(ABC):

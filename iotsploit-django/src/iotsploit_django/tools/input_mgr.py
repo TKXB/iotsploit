@@ -109,7 +109,7 @@ class Input_Mgr:
                 user_input = self.__shell_color_input("Please Input 1 ~ {}:".format(index))
                 try:
                     user_input_int = int(user_input)
-                except Exception as err:
+                except Exception:
                     logger.exception("User Input:{} Is Inavlid!".format(user_input))
                     continue
                 

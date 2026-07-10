@@ -3,7 +3,6 @@ logger = logging.getLogger(__name__)
 
 import os
 import importlib.util
-import sys
 import tempfile
 from pathlib import Path
 
@@ -91,7 +90,7 @@ class Python_SubModule_Mgr:
                 tmp_bash_file.write(test_step.command_detail)
                 tmp_bash_file.close()
 
-            except Exception as err:
+            except Exception:
                 logger.exception("Python Submodule Exec Fail! TEMP File:{} Write Fail!".format(Python_SubModule_Mgr.__temp_submodule_file_path))
                 return -1, "File:{} Write Fail!\n".format(Python_SubModule_Mgr.__temp_submodule_file_path), ""
             

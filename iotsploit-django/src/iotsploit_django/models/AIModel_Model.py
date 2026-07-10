@@ -1,6 +1,5 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-import json
 from cryptography.fernet import Fernet
 from django.conf import settings
 import base64

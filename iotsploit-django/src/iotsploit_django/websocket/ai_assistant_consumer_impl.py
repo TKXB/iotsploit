@@ -1,10 +1,6 @@
-import asyncio
 import json
-import threading
 import queue
 import sys
-import io
-from contextlib import redirect_stdout, redirect_stderr
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 import subprocess
@@ -325,7 +321,6 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         try:
             xlog.info("Attempting to import OpenAI library", "ai_assistant")
             from openai import AsyncOpenAI
-            import asyncio
             
             # Ollama stores /api as the base URL (for model listing), but its
             # OpenAI-compatible chat endpoint lives at /v1.
@@ -620,7 +615,6 @@ Always include a brief explanation before the tool_call block. Do NOT use MCP to
             
     def monitor_output(self):
         """监听输出队列并发送到WebSocket"""
-        from channels.db import database_sync_to_async
         from asgiref.sync import async_to_sync
         
         xlog.debug("Output monitor started", "ai_assistant")
@@ -692,4 +686,4 @@ Always include a brief explanation before the tool_call block. Do NOT use MCP to
                 pass
             finally:
                 self.assistant_process = None 
-                xlog.debug("Process cleanup completed", "ai_assistant") 
+                xlog.debug("Process cleanup completed", "ai_assistant")

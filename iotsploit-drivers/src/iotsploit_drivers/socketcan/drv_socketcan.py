@@ -1,14 +1,8 @@
-import socket
-import struct
-import threading
 import time
-import logging
-import uuid
 import can
-from iotsploit_core.core.device_spec import DevicePluginSpec
-from iotsploit_core.domain.device import Device, DeviceType, SocketCANDevice
+from iotsploit_core.domain.device import Device, SocketCANDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
-from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
+from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 from iotsploit_core.utils import iots_logger
 from typing import Optional, Dict, List
 

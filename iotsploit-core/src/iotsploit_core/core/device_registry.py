@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from iotsploit_core.core.device_config import DeviceConfigManager
 from iotsploit_core.core.device_scanner import CompositeDeviceScanner, PluginDeviceScanner

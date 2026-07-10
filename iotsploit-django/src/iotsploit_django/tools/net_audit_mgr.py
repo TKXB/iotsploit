@@ -177,7 +177,6 @@ class NetAudit_Mgr:
         results = []
         for host in root.iter('host'):
             ip = host.find('address').attrib['addr']
-            ports = {}
             for port in host.iter('port'):
                 # port_info = {
                 #     'protocol' : port.attrib['protocol'],
@@ -370,4 +369,3 @@ class NetAudit_Mgr:
 
 
 _instance = NetAudit_Mgr()
-

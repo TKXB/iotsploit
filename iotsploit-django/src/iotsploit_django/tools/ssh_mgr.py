@@ -6,7 +6,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 from pwn import process, ssh
-from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
 from iotsploit_django.tools.sat_utils import *
 
 
@@ -49,7 +48,7 @@ class SSH_Mgr:
 
             # self.__ssh_dict[id] = ssh_context
             return ssh_context
-        except Exception as err:
+        except Exception:
             logger.exception("SSH Connect {} Fail!".format(id))
             return None  
 
@@ -100,7 +99,7 @@ drwxr-xr-x 2 sat sat 4096 11月 9日 14:23 公共
             logger.info("SSH {} Run CMD {} Success. Result:\n{}".format(id, ssh_cmd, cmd_result))
             return cmd_result
         
-        except Exception as err:
+        except Exception:
             logger.exception("SSH {} Run CMD {} Fail!".format(id, ssh_cmd))
             return None
 

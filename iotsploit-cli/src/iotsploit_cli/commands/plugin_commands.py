@@ -5,8 +5,6 @@ from cmd2 import ansi
 from .base_commands import BaseCommands
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
-from iotsploit_django.adapters.django.plugins.models import Plugin
-from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree
 from iotsploit_core.utils import iots_logger
 
 logger = iots_logger.get_logger(__name__)

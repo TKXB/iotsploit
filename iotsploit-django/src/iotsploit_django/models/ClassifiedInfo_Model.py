@@ -2,7 +2,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 from django.db import models
-from django.contrib import admin
 
 class VehiclePIN(models.Model):
     VIN = models.CharField(max_length=128, unique=True)

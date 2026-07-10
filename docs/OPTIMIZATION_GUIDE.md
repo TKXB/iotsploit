@@ -252,7 +252,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · record `(−N LOC)` whe
 ### Phase 1 — Dead code & hygiene sweep  *(low risk, high reward)*
 Delete-only pass. No logic changes. Target: unused imports, unreachable code, commented-out blocks,
 orphan files, unused assets.
-- [ ] Python: `ruff --select F401,F811,F841` (or `vulture`) across all modules; remove unused imports/vars
+- [x] Python: `ruff --select F401,F811,F841` (or `vulture`) across all modules; remove unused imports/vars (−220 LOC)
 - [ ] Python: find & remove dead functions/classes (grep for zero references)
 - [ ] Python: delete obviously stale scripts/`obd_test.py`-style scratch files after confirming they're unused
 - [ ] Flutter: `flutter analyze` → remove unused imports, dead code, unused fields
@@ -301,21 +301,23 @@ Biggest LOC concentration. Start with the largest files.
 
 ## 7. You Are Here  📍  (update every session)
 
-**Current status:** Baseline verification is recorded; no code reduced yet. Starting state is red:
-only `iotsploit-core` passes pytest, most Python module envs lack `pytest`, and the Flutter analyzer
-and test suite currently fail. Ready to start **Phase 1** (dead-code sweep) using this red baseline.
+**Current status:** Phase 1 Python unused-import/unused-variable cleanup is complete. Starting
+verification state remains partly red: only the root-run `iotsploit-core`, `iotsploit-fuzzer`, and
+`iotsploit-mcp` pytest slices pass; Django still has its known import-without-settings failure, and
+some package test dirs collect no tests from the root environment. Flutter baseline remains red.
 
 ### Progress dashboard
 
 | Area | Baseline | Current | Reduced | % | Target (≤) | Hit 20%? |
 |------|---------:|--------:|--------:|--:|-----------:|:--------:|
-| Python source | 57,924 | 57,924 | 0 | 0.0% | 46,339 | ❌ |
+| Python source | 57,924 | 57,704 | 220 | 0.4% | 46,339 | ❌ |
 | Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
 
-**Last completed step:** Phase 0 — ran the approved baseline verification pass.
+**Last completed step:** Phase 1 — Python `ruff --select F401,F811,F841` cleanup across tracked
+Python source roots (−220 LOC).
 
-**Next step:** Phase 1 → start the delete-only hygiene sweep. Begin with low-risk analyzer/linter
-findings such as unused imports, but do not fix baseline infrastructure failures in the same unit.
+**Next step:** Phase 1 → Python dead functions/classes: identify zero-reference candidates, produce
+a decision plan before deleting anything non-trivial, then remove only confirmed dead code.
 
 **Tooling notes:**
 - Python: use Poetry (`poetry` 2.0.1). `poetry run python --version` reports Python 3.10.12, and
@@ -324,7 +326,8 @@ findings such as unused imports, but do not fix baseline infrastructure failures
   `fvm` is not on PATH, but `ui/.fvm/flutter_sdk/bin/flutter --version` works and reports Flutter
   3.27.4 / Dart 3.6.2. Raw system `flutter --version` reports Flutter 3.32.5 and should not be the
   default for project verification.
-- Dead-code / dup detectors: `ruff`, `vulture`, `jscpd`, and `radon` are not on PATH in this shell.
+- Dead-code / dup detectors: `ruff` is now available via `poetry run ruff` and is pinned in the root
+  dev dependency group. `vulture`, `jscpd`, and `radon` are not on PATH in this shell.
 
 **Baseline verification state (2026-07-10):**
 - Python pytest via `poetry run python -m pytest -q`:
@@ -339,6 +342,15 @@ findings such as unused imports, but do not fix baseline infrastructure failures
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Option A implemented for Phase 1 Python hygiene: added root dev `ruff`, cleaned
+  `F401/F811/F841` across Python source roots, re-measured Python LOC 57,924 → 57,704 (−220).
+  Verification: `poetry run ruff check --no-cache --select F401,F811,F841 ...` passed;
+  `poetry check --lock` passed with deprecation warnings; syntax-only compile of changed Python
+  files passed; root pytest slices passed for `iotsploit-core`, `iotsploit-fuzzer`, and
+  `iotsploit-mcp`; `iotsploit-cli`/`iotsploit-platforms` collected no tests; `iotsploit-django`
+  still fails `test_import_urls_without_django_setup` on missing Django settings.
+- 2026-07-10: Phase 1 Python hygiene decision plan posted for `F401/F811/F841` cleanup; no source
+  edits yet, waiting for user option.
 - 2026-07-10: Option A baseline verification pass completed and recorded; no source changes.
 - 2026-07-10: Option A minimal tooling confirmation only; recorded Poetry/FVM command notes, no
   source changes and no full baseline verification yet.

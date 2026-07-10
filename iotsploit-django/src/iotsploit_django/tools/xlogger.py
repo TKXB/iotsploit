@@ -1,7 +1,6 @@
 import logging
 import os
 import colorlog
-from typing import Optional
 from datetime import datetime
 
 class _ConsoleBufferWSHandler(logging.Handler):

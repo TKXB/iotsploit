@@ -1,19 +1,15 @@
-from django.http import JsonResponse, HttpResponse, FileResponse
+from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpRequest
 from django.core.paginator import Paginator
-from django.core.exceptions import ValidationError
-from django.db.models import Q, Count, Avg, Sum
-from django.conf import settings
+from django.db.models import Count, Avg, Sum
 from django.utils import timezone
 import json
 import logging
 import os
 import mimetypes
-from django.apps import apps
 
 from iotsploit_django.iot_fuzzer.service import (
-    IoTFuzzerBridge,
     IoTFuzzerManager,
     IoTFuzzerService,
     IoTProtocolAdapter,
@@ -22,7 +18,7 @@ from iotsploit_django.iot_fuzzer.service import (
 # Import Django models
 from iotsploit_django.adapters.django.iot_fuzzer.models import (
     FuzzingCampaign, TestGroup, TestCase, FuzzingResult, ConfigTemplate, LiveLog,
-    ProtocolConfiguration, FrameField, FuzzingRule, IoTConfiguration
+    ProtocolConfiguration, FrameField, IoTConfiguration
 )
 
 logger = logging.getLogger(__name__)

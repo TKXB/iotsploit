@@ -231,7 +231,7 @@ sudo hcitool leinfo {}
             #     logger.info("\t{}".format(remote_decs))
 
             remote_dev.disconnect()
-        except Exception as err:
+        except Exception:
             logger.exception("BlueTooth BLE Info Service Read Fail! MAC:{}  <<--".format(mac_addr))
 
         logger.info("BlueTooth BLE Info Scan Finish. MAC:{} Device Info:\n{}".format(mac_addr, dev_dict))

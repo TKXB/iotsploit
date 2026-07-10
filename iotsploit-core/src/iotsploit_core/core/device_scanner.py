@@ -1,4 +1,4 @@
-from typing import List, Dict, Type
+from typing import List
 import logging
 from iotsploit_core.domain.device import Device
 from iotsploit_core.core.device_store import DeviceStore

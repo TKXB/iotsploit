@@ -68,7 +68,6 @@ class TargetManager:
 
     def _migrate_schema(self):
         """Add any missing columns to existing tables (lightweight migration)."""
-        import sqlite3
         from sqlalchemy import inspect as sa_inspect
 
         inspector = sa_inspect(engine)

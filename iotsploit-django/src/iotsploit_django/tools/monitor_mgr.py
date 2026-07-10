@@ -4,7 +4,6 @@ import socket
 import psutil
 import netifaces
 from abc import ABC, abstractmethod
-import time
 import threading
 
 logger = logging.getLogger(__name__)

@@ -1,10 +1,7 @@
 import logging
-import subprocess
-import re
 import usb
 logger = logging.getLogger(__name__)
 
-from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
 
 class USB_Mgr:
 
@@ -43,7 +40,7 @@ class USB_Mgr:
         for usb_dev in usb.core.find(find_all=True):                
             try:
                 description = "{} {}".format(usb_dev.manufacturer, usb_dev.product)
-            except Exception as err:
+            except Exception:
                 description = "{}".format(str(usb_dev))
 
             devices.append(

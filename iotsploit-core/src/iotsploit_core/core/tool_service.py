@@ -3,12 +3,9 @@
 
 import json
 import logging
-import time
-from typing import Dict, List, Optional, Any, Union
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import Dict, List, Optional, Any
 
-from .tool_manager import get_tool_manager, ExecutionResult, ToolStatus
+from .tool_manager import get_tool_manager, ExecutionResult
 
 logger = logging.getLogger(__name__)
 
@@ -387,7 +384,7 @@ exit
             result = self.execute_tool('openocd', args, timeout=300)
             os.unlink(script_path)
             return result
-        except Exception as e:
+        except Exception:
             if os.path.exists(script_path):
                 os.unlink(script_path)
             raise
@@ -741,7 +738,6 @@ class FirmwareToolService(ToolService):
         manifest.
         """
         from contextlib import contextmanager, ExitStack
-        from pathlib import Path
 
         info = self.manifests.get(name)
         if info is None:

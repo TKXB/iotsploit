@@ -1,9 +1,7 @@
 import os
-import uuid
-import json
 import logging
 from datetime import datetime
-from django.http import JsonResponse, FileResponse, HttpResponse
+from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from ..tools.file_obfuscator_service import FileManager

@@ -9,10 +9,8 @@ Author: IoT Security Testing Team
 Date: 2024
 """
 
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any
 import random
-import struct
-import string
 from ..fuzzing_engine import FuzzingStrategy, FuzzingType, FuzzTestCase, MutationResult
 
 

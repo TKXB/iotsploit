@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 import uuid
+import importlib.util
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import redis
@@ -9,26 +10,6 @@ from django.conf import settings
 import json
 
 logger = logging.getLogger(__name__)
-
-class DependencyChecker:
-    """Simple dependency checker for IoT Fuzzer components"""
-    
-    def check_dependencies(self) -> Dict[str, Any]:
-        """Check if all required dependencies are available"""
-        try:
-            # Basic dependency checks
-            import redis
-            import json
-            
-            return {
-                'status': True,
-                'message': 'All dependencies available'
-            }
-        except ImportError as e:
-            return {
-                'status': False,
-                'message': f'Missing dependency: {e}'
-            }
 
 class IoTFuzzerManager:
     """
@@ -742,7 +723,7 @@ class IoTFuzzerManager:
             List[Dict]: List of test cases with their frame fields and fuzzing rules
         """
         try:
-            from iotsploit_django.adapters.django.iot_fuzzer.models import TestCase, FrameField, FuzzingRule
+            from iotsploit_django.adapters.django.iot_fuzzer.models import TestCase
             
             # Load test cases with related data using select_related and prefetch_related
             test_cases = TestCase.objects.filter(
@@ -962,27 +943,15 @@ class DependencyChecker:
     
     def _check_python_can(self) -> bool:
         """Check if python-can is available"""
-        try:
-            import can
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("can") is not None
     
     def _check_pyserial(self) -> bool:
         """Check if pyserial is available"""
-        try:
-            import serial
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("serial") is not None
     
     def _check_spidev(self) -> bool:
         """Check if spidev is available"""
-        try:
-            import spidev
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("spidev") is not None
     
     def _check_radamsa(self) -> bool:
         """Check if radamsa binary is available"""
@@ -995,4 +964,4 @@ class DependencyChecker:
 
 
 # Global instance
-_instance = None 
+_instance = None

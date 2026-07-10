@@ -2,20 +2,17 @@
 """Tool management: discovery, validation, and cross-platform execution."""
 
 import os
-import sys
 import shutil
 import subprocess
 import platform
 import json
 import logging
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 import threading
 import time
-from contextlib import contextmanager
 
 # Import ExecutionResult from execution_backend to avoid duplication
 from .execution_backend import ExecutionResult, get_execution_backend_manager

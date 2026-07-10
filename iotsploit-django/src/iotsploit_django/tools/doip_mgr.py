@@ -331,7 +331,7 @@ class DoIP_Mgr:
         if doip_vin != VIN:
             raise_err( "DoIP读取VIN:{} 和 待测车辆绑定VIN:{} 不匹配".format(doip_vin, VIN))
 
-        result = self.__opendebug(VIN, debug_mcu)
+        self.__opendebug(VIN, debug_mcu)
         self.disconnect()
         return 1
 
@@ -359,7 +359,7 @@ class DoIP_Mgr:
         if doip_vin != VIN:
             raise_err( "DoIP读取VIN:{} 和 待测车辆绑定VIN:{} 不匹配".format(doip_vin, VIN))
         
-        result = self.__closedebug(VIN, debug_mcu)
+        self.__closedebug(VIN, debug_mcu)
         self.disconnect()
         return 1
     
@@ -434,7 +434,7 @@ class DoIP_Mgr:
 
             self.send_heartbeat_data()
             return True     
-        except Exception as e:
+        except Exception:
             self.disconnect()
             self.__socket = None
             logger.exception("DoIP Connect Fail! IP:{} Port:{}".format(ip, port))
@@ -483,7 +483,7 @@ class DoIP_Mgr:
         try:
             self.__socket.close()
             logger.info("DoIP DisConnect Success.")
-        except Exception as e:
+        except Exception:
             logger.exception("DoIP DisConnect Fail!")
 
         # logger.info("Reset {} IP Start -->>".format(DeviceInfo.doip_eth_name))
@@ -497,4 +497,3 @@ class DoIP_Mgr:
 
 
 _instance = DoIP_Mgr()
-

@@ -3,8 +3,6 @@ logger = logging.getLogger(__name__)
 
 # from iotsploit_django.models.TestStep_Model import TestStep
 import os
-import importlib.util
-import sys
 import subprocess
 import tempfile
 from pathlib import Path
@@ -111,7 +109,7 @@ class Bash_Script_Mgr:
                     tmp_bash_file.write(single_line + "\n")
 
             logger.info("Bash Script Cmd Write To TEMP File Success. File:{}".format(tmp_path))
-        except Exception as err:
+        except Exception:
             logger.exception("Bash Script Cmd Exec Fail! TEMP File Write Fail! Dir:{}".format(str(Bash_Script_Mgr.__temp_dir)))
             return -1, "TEMP File Write Fail in Dir:{}\n".format(str(Bash_Script_Mgr.__temp_dir))
         
@@ -146,7 +144,7 @@ class Bash_Script_Mgr:
                         tmp_bash_file.write(single_line + "\n")
 
                 cmd_list = [tmp_path,]
-            except Exception as err:
+            except Exception:
                 logger.exception("Bash Script Exec Fail! TEMP File Write Fail! Dir:{}".format(str(Bash_Script_Mgr.__temp_dir)))
                 return -1, "TEMP File Write Fail in Dir:{}\n".format(str(Bash_Script_Mgr.__temp_dir)), ""
 

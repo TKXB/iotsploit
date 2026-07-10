@@ -1,8 +1,6 @@
 import logging
 import threading
-import json
-import asyncio
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, List, Callable
 from datetime import datetime
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync

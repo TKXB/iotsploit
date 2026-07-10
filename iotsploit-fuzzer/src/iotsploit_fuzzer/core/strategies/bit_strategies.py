@@ -9,7 +9,7 @@ Author: IoT Security Testing Team
 Date: 2024
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import random
 import itertools
 from ..fuzzing_engine import FuzzingStrategy, FuzzingType, FuzzTestCase, MutationResult

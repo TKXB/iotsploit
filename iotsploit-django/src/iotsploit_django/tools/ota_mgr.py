@@ -1,8 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-import os
-from pathlib import Path
 
 from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
 

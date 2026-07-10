@@ -3,7 +3,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpRequest, HttpResponse
 import json
 import logging
-from django.apps import apps
 
 from iotsploit_django.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from iotsploit_django.adapters.django.device_models import DeviceManager
@@ -156,7 +155,7 @@ def list_devices(request):
         
         # Perform device scan
         logger.info("Scanning for devices...")
-        discovered_devices = device_registry.scan_devices()
+        device_registry.scan_devices()
         
         # Get all devices and their sources
         all_devices = device_registry.device_store.devices

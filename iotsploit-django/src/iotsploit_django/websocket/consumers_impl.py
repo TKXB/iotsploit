@@ -3,7 +3,6 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 import asyncio
-from asgiref.sync import async_to_sync
 # Import the configured Celery app to ensure result backend is available
 from iotsploit_django.tasks.celery_app import app as celery_app
 from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction

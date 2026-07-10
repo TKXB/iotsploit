@@ -2,11 +2,8 @@ import logging
 logger = logging.getLogger(__name__)
 from iotsploit_django.tools.sat_utils import *
 import socket
-import os
-import types
 import struct
 import time 
-import random
 import traceback
 
 Shost = "169.254.19.1"
@@ -98,9 +95,9 @@ def resetuds():
     s.connect((Shost,Sport))
     s.settimeout(0.1)
     s.send(wakeupdata)
-    wakeupreq = s.recv(1024)
+    s.recv(1024)
     s.send(livedata)
-    livemsgreq = s.recv(1024)
+    s.recv(1024)
 
 def udssend(myid,targetid,udscmd,wait=0.3):
     buf = doipmake(myid,targetid,udscmd)
@@ -110,7 +107,7 @@ def udssend(myid,targetid,udscmd,wait=0.3):
         uds_live()
         s.send(buf)
         print('send:',buf.hex())
-        uds_ackflag = s.recv(1024)
+        s.recv(1024)
         time.sleep(wait) #不设置延迟有些命令会报7f 78响应繁忙
         #if udscmd[0]!=0x36:
         request = s.recv(1024)#uds_request
@@ -124,7 +121,6 @@ def udssend(myid,targetid,udscmd,wait=0.3):
     except Exception as e:
         logout('no request or no mcu or timeout:{}'.format(e))
         #print(traceback.format_exc())
-        errorcode = 10
         return 0
 
 def uds_init(fd = 1):         #建立连接
@@ -142,9 +138,9 @@ def uds_init(fd = 1):         #建立连接
         s.connect((Shost,Sport))
         # s.settimeout(0.1)
         s.send(wakeupdata)
-        wakeupreq = s.recv(1024)
+        s.recv(1024)
         s.send(livedata)
-        livemsgreq = s.recv(1024)
+        s.recv(1024)
     except Exception as e:
         logout('cannot connect .vgm uds error:{}'.format(e))
         errorcode = 0xff
@@ -155,7 +151,7 @@ def uds_live():
     livedata = bytes([0x02, 0xfd, 0x80, 0x01, 0x00, 0x00, 0x00, 0x06, 0x0e, 0x80, 0x1f, 0xff, 0x3e, 0x80])
     try:
       s.send(livedata)
-      livemsgreq = s.recv(1024)
+      s.recv(1024)
     except:
         logout('live error')
 
@@ -364,7 +360,7 @@ def newallid():
     try:
         s.send(buf)
         print('send:',buf.hex())
-        uds_ackflag = s.recv(1024)
+        s.recv(1024)
         while True:
             request += s.recv(1024)
     except:
@@ -390,8 +386,6 @@ def scanid(start,end):
 
 
 def test27():
-    data = b'\x10\x01'
-    pincode = bytes([0xFF,0xFF,0xFF,0xFF,0xFF])
     pincode2 = bytes([0x55,0x55,0x55,0x55,0x55])
     mcuid = 0x1b21
     i = 0
@@ -413,7 +407,6 @@ def test27():
             server27(mcuid, i ,pincode2)
             if errorcode ==6:
                 logout('punish !wait 10s try again')
-                prommod = 0
                 time.sleep(10)
                 trycount+=1
                 if(trycount!=howtry):
@@ -430,7 +423,6 @@ def test27():
             trycount=0
 
 def scan22(mcu,mode = 1):
-    n= 0
     readf0 = 0x0000
     if mode!=1:
         senddata = b'\x10'
@@ -446,7 +438,6 @@ def scan22(mcu,mode = 1):
         readf0+=1
 
 def scan2E(mcu,mode = 1):
-    n= 0
     readf0 = 0x0000
     if mode!=1:
         senddata = b'\x10'
@@ -464,7 +455,6 @@ def scan2E(mcu,mode = 1):
         readf0+=1
 
 def scan2EXX(mcu,xx,mode = 1):
-    n= 0
     readf0 = 0x00
     if mode!=1:
         senddata = b'\x10'
@@ -482,7 +472,6 @@ def scan2EXX(mcu,xx,mode = 1):
         readf0+=1
 
 def scan3101(mcu,mode = 1):
-    n= 0
     readf0 = 0x0000
     if mode!=1:
         senddata = b'\x10'
@@ -501,7 +490,6 @@ def scan3101(mcu,mode = 1):
 
 #2E可写命令长度测试
 def check2elen(mcu,did,mode = 1):
-    n= 0
     readf0 = 1
     if mode!=1:
         senddata = b'\x10'
@@ -536,9 +524,9 @@ def tcamopendebug(mcu = 0x1011,kg=1):
     pincode = bytes.fromhex('FFFFFFFFFF')
     server27(mcu,0x19,pincode)
     if kg == 1:
-       req = udssend(0x0e80,mcu,'3101DC01')
+       udssend(0x0e80,mcu,'3101DC01')
     else:
-       req = udssend(0x0e80,mcu,b'\x31\x02\x02\x32')
+       udssend(0x0e80,mcu,b'\x31\x02\x02\x32')
 
 #34命令测试功能
 def makedownloaddata(memaddr,memsize,compress):

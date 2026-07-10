@@ -1,6 +1,6 @@
 import abc
 import random
-from typing import Iterable, List
+from typing import Iterable
 
 
 class DataGenerator(abc.ABC):

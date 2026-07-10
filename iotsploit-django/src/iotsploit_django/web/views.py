@@ -1,12 +1,6 @@
 from django.http import HttpResponse
-from django.http import HttpRequest
-from django.shortcuts import redirect
 
-from iotsploit_django.tools.report_mgr import Report_Mgr
 
-from iotsploit_django.tools.monitor_mgr import Pi_Mgr
-from iotsploit_django.tools.ota_mgr import OTA_Mgr
-from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
 
 from iotsploit_django.tools.sat_utils import *
 
@@ -18,25 +12,18 @@ from iotsploit_django.composition_root.wiring import (
     get_device_driver_manager,
     get_exploit_plugin_manager,
 )
-from iotsploit_core.core.exploit_spec import ExploitResult
-from iotsploit_core.core.base_plugin import BasePlugin, BaseDeviceDriver
 ensure_stream_backend_configured()
 from iotsploit_django.adapters.django.plugins.models import Plugin
 
 from iotsploit_django.tools.xlogger import xlog
 
-import logging
 logger = xlog.get_logger('views')
 
 import json
-import datetime
 
 from iotsploit_django.adapters.django.target_models import TargetManager
-from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree, PluginSequence
-from iotsploit_django.adapters.django.device_models import DeviceManager
-from asgiref.sync import async_to_sync
+from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree
 
-import asyncio
 
 from celery.result import AsyncResult
 from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
@@ -1040,7 +1027,7 @@ def create_group(request):
             
             # Create the sequence entry
             from iotsploit_django.adapters.django.plugins.models import PluginSequence
-            plugin_seq = PluginSequence.objects.create(
+            PluginSequence.objects.create(
                 plugingroup=group,
                 plugin=plugin,
                 sequence=sequence,
@@ -1471,9 +1458,8 @@ def file_download(request, file_path=''):
     """
     try:
         import os
-        from django.http import FileResponse, HttpResponse
+        from django.http import FileResponse
         from django.utils.encoding import smart_str
-        from pathlib import Path
         
         # Base directory for firmware files
         firmware_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'firmware')

@@ -9,8 +9,6 @@ It replaces the previous Flask-based file obfuscation service.
 import os
 import uuid
 import logging
-import shutil
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

@@ -13,14 +13,13 @@ This allows plugins to choose the best execution method for their needs.
 """
 
 import os
-import sys
 import time
 import logging
 import subprocess
+import importlib.util
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -144,11 +143,7 @@ class InvokeBackend(ExecutionBackend):
     
     def _check_invoke(self) -> bool:
         """Check if invoke is available"""
-        try:
-            import invoke
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("invoke") is not None
     
     def execute(self, tool_path: str, args: List[str], 
                 working_dir: Optional[str] = None,
@@ -160,7 +155,7 @@ class InvokeBackend(ExecutionBackend):
             raise RuntimeError("Invoke backend not available")
         
         import invoke
-        from invoke.exceptions import CommandTimedOut, UnexpectedExit
+        from invoke.exceptions import CommandTimedOut
         
         command_str = f"{tool_path} {' '.join(args)}"
         exec_env = self._prepare_environment(env)
@@ -235,11 +230,7 @@ class ShBackend(ExecutionBackend):
     
     def _check_sh(self) -> bool:
         """Check if sh is available"""
-        try:
-            import sh
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("sh") is not None
     
     def execute(self, tool_path: str, args: List[str], 
                 working_dir: Optional[str] = None,
@@ -251,7 +242,7 @@ class ShBackend(ExecutionBackend):
             raise RuntimeError("sh backend not available")
         
         import sh
-        from sh import CommandNotFound, TimeoutException
+        from sh import TimeoutException
         
         command_str = f"{tool_path} {' '.join(args)}"
         exec_env = self._prepare_environment(env)
@@ -290,7 +281,7 @@ class ShBackend(ExecutionBackend):
                 metadata={'sh_result': result}
             )
             
-        except TimeoutException as e:
+        except TimeoutException:
             execution_time = time.time() - start_time
             return ExecutionResult(
                 success=False,
@@ -328,11 +319,7 @@ class SargeBackend(ExecutionBackend):
     
     def _check_sarge(self) -> bool:
         """Check if sarge is available"""
-        try:
-            import sarge
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("sarge") is not None
     
     def execute(self, tool_path: str, args: List[str], 
                 working_dir: Optional[str] = None,
@@ -469,4 +456,4 @@ def get_execution_backend_manager() -> ExecutionBackendManager:
     global _backend_manager
     if _backend_manager is None:
         _backend_manager = ExecutionBackendManager()
-    return _backend_manager 
+    return _backend_manager

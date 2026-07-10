@@ -53,6 +53,7 @@ iotsploit-exploits = {path = "iotsploit-exploits", develop = true}
 iotsploit-drivers = {path = "iotsploit-drivers", develop = true}
 iotsploit-django = {path = "iotsploit-django", develop = true}
 iotsploit-fuzzer = {path = "iotsploit-fuzzer", develop = true}
+ruff = "^0.15.20"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 import logging
 import time
-import os
-import shutil
 from typing import Optional, Dict, List, Any
-from pathlib import Path
-from iotsploit_core.core.device_spec import DevicePluginSpec
-from iotsploit_core.domain.device import Device, DeviceType, SerialDevice
+from iotsploit_core.domain.device import Device, DeviceType
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.tool_service import get_firmware_service
 

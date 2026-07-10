@@ -233,7 +233,7 @@ class DeviceCommands(BaseCommands):
             
             # 执行设备扫描
             logger.info(ansi.style("Scanning for devices...", fg=ansi.Fg.CYAN))
-            discovered_devices = device_registry.scan_devices()
+            device_registry.scan_devices()
             
             # 获取所有设备（包括已存储的和新发现的）
             all_devices = device_registry.device_store.devices

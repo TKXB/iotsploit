@@ -4,7 +4,6 @@ from iotsploit_core.utils import iots_logger
 from iotsploit_core.domain.device import Device, DeviceType, USBDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 import time
-from pyftdi.ftdi import Ftdi
 from pyftdi.serialext import serial_for_url
 from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
 import pyudev

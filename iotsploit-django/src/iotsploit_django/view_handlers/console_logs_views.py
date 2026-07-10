@@ -2,9 +2,7 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import logging
-from datetime import datetime, timedelta
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+from datetime import datetime
 from iotsploit_django.consumers import console_log_buffer, log_buffer_lock
 
 # Set up logging

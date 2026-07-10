@@ -3,7 +3,6 @@
 import cmd2
 from cmd2 import ansi
 from .base_commands import BaseCommands
-from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_core.core.tool_service import get_firmware_service
 from iotsploit_core.utils import iots_logger
 

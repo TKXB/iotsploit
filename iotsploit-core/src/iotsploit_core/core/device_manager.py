@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 from importlib import metadata as importlib_metadata
 import importlib.util
 import json
@@ -8,10 +7,10 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
-from iotsploit_core.core.device_spec import DevicePluginSpec, DeviceState
+from iotsploit_core.core.device_spec import DeviceState
 from iotsploit_core.domain.device import Device
 from iotsploit_core.ports.driver_state_repo import DriverStateRepository
 

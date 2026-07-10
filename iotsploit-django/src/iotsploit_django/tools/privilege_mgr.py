@@ -2,8 +2,6 @@ import os
 import logging
 import elevate
 from functools import wraps
-import pwd
-import grp
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +100,7 @@ class PrivilegeManager:
             the result was successfully retrieved from Redis.
         """
 
-        import subprocess, json, shlex, os, sys, uuid, time
+        import subprocess, json, os, sys, uuid, time
         import redis
         from django.conf import settings
 

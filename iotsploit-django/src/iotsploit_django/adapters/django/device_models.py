@@ -193,7 +193,6 @@ class DeviceManager:
         imported_count = 0
         for device in data.get("devices", []):
             device_type = DeviceType(device.get("device_type", "USB"))
-            device_class = self.devices.get(device_type, Device)
 
             device_data: Dict[str, Any] = {
                 "device_id": device.get("device_id"),
@@ -247,5 +246,4 @@ class DeviceDriverState(Base):
             "description": self.description,
             "last_updated": str(self.last_updated),
         }
-
 

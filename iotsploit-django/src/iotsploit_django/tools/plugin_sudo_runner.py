@@ -71,7 +71,6 @@ def main() -> None:
 
     try:
         from iotsploit_django.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
-        from iotsploit_core.core.exploit_spec import ExploitResult
         import redis
         from django.conf import settings
     except ImportError as e:  # pragma: no cover
@@ -158,4 +157,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main() 
+    main()

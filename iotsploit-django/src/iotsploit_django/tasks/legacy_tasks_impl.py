@@ -4,7 +4,6 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from iotsploit_django.adapters.django.target_models import TargetManager
 import asyncio
-import json
 import time
 import os
 from datetime import datetime

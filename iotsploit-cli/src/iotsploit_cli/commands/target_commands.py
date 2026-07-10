@@ -159,7 +159,6 @@ class TargetCommands(BaseCommands):
             
             else:
                 # Handle regular field editing
-                current_value = target.get(field, '')
                 new_value = Input_Mgr.Instance().string_input(
                     f"Enter new value for {field}"
                 )

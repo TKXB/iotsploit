@@ -11,7 +11,6 @@ from iotsploit_django.tools.usb_mgr import USB_Mgr
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
 from iotsploit_django.adapters.django.target_models import TargetManager
-from iotsploit_core.domain.target import ADBDevice
 
 from pwn import adb, context
 from pwnlib.exception import PwnlibException
@@ -274,7 +273,7 @@ class ADB_Mgr:
             else:
                 logger.error(f"ADB connection error: {str(e)}")
             return []
-        except Exception as err:
+        except Exception:
             logger.exception("ADB List Devices Fail!")
             return []
 
@@ -333,7 +332,7 @@ class ADB_Mgr:
             adb.wait_for_device()
             logger.info(f"ADB Connect Device Success: {target_dev}")
             
-        except Exception as err:
+        except Exception:
             logger.exception("ADB Connect Device Fail! Connect Abort")
             return None  
 
@@ -346,7 +345,7 @@ class ADB_Mgr:
                     sat_sleep(2)
                     logger.info("ADB Root Required. Restart ADBD As Root.")
                     self.__last_adb_root = True
-                except Exception as err:
+                except Exception:
                     logger.exception("ADB Root Fail! Connect Abort")
                     self.__last_adb_root = None
                     return None
@@ -361,7 +360,7 @@ class ADB_Mgr:
                         sat_sleep(2)
                         logger.info("ADB Root NOT Required. Restart ADBD As Shell.")
                         self.__last_adb_root = False
-                    except Exception as err:
+                    except Exception:
                         self.__last_adb_root = None
                         logger.exception("ADB UnRoot Request Fail! Connect Abort.")
                         return None
@@ -398,7 +397,7 @@ class ADB_Mgr:
             adb.pull(android_file_path, sat_file_path)
             logger.info(f"Device: {device_serial} Pull File {android_file_path} -> {sat_file_path} Success.")
             return 1
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Pull File {android_file_path} -> {sat_file_path} Fail!")
             return -2
     
@@ -424,7 +423,7 @@ class ADB_Mgr:
             adb.push(sat_file_path, android_file_path)
             logger.info(f"Device: {device_serial} Push File {sat_file_path} -> {android_file_path} Success.")
             return 1
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Push File {sat_file_path} -> {android_file_path} Fail!")
             return -2
 
@@ -450,7 +449,7 @@ class ADB_Mgr:
             logger.info(f"Device: {device_serial} List Installed APPs Success. APPs: {app_list}")
             return app_list
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} List Installed APPs Fail!")
             return None
 
@@ -490,7 +489,7 @@ class ADB_Mgr:
                 logger.info(f"Device: {device_serial} List Query Dir: {dir_path} Fail! Dir Not Exists.")
                 return []
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} List Query Dir: {dir_path} Fail! ADB Cmd Fail!")
             return None
 
@@ -575,7 +574,7 @@ class ADB_Mgr:
                     dirs.append(match[0] + "/")
                     
             return dirs
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} query mount Fail! ADB Cmd Fail!")
             return []
 
@@ -631,7 +630,7 @@ class ADB_Mgr:
             logger.info(f"Device: {device_serial} Query Dirs Permissions Success.")
             return dirs
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} query_dirs_permission Fail! ADB Cmd Fail!")
             return None
 
@@ -669,7 +668,7 @@ class ADB_Mgr:
             
             return files
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} query_files_permission Fail! ADB Cmd Fail!")
             return None
 
@@ -708,7 +707,7 @@ class ADB_Mgr:
             
             return files
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} query_files_permission Fail! ADB Cmd Fail!")
             return None
         
@@ -735,7 +734,7 @@ class ADB_Mgr:
             
             return items
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Query SUID Files Permissions Fail! ADB Cmd Fail!")
             return None
 
@@ -770,7 +769,7 @@ class ADB_Mgr:
             else:
                 logger.warning(f"Install APK failed: {apk_path}. Result: {result}")
                 return False
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Install APK Fail: {apk_path}")
             return False
     
@@ -793,7 +792,7 @@ class ADB_Mgr:
             adb.uninstall(package_id)
             logger.info(f"Device: {device_serial} UnInstall Package Finish: {package_id}")
             return True
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} UnInstall Package Fail: {package_id}")
             return False
 
@@ -815,7 +814,7 @@ class ADB_Mgr:
             selinux_status = adb.process(['getenforce']).recvall().decode('utf-8').strip()
             logger.info(f"Device: {device_serial} Query SeLinux Status Success. Status: {selinux_status}")
             return selinux_status == "Enforcing"
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Query SeLinux Status Fail! ADB Cmd Fail!")
             return None
 
@@ -837,7 +836,7 @@ class ADB_Mgr:
             security_patch = adb.process(['getprop', 'ro.build.version.security_patch']).recvall().decode('utf-8').strip()
             logger.info(f"Device: {device_serial} Query Security Patch Status Success. Status: {security_patch}")
             return security_patch
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Query Security Patch Status Fail!")
             return None
 
@@ -872,7 +871,7 @@ class ADB_Mgr:
                 
             return version
         
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} Dumpsys Packages Fail!")
             return None
 
@@ -902,6 +901,6 @@ class ADB_Mgr:
             
             logger.info(f"Device: {device_serial} List Installed Test APPs Success. APPs: {app_list}")
             return app_list
-        except Exception as err:
+        except Exception:
             logger.exception(f"Device: {device_serial} List Installed Test APPs Fail!")
             return None

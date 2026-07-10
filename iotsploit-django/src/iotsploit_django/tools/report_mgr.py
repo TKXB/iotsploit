@@ -4,7 +4,6 @@ logger = logging.getLogger(__name__)
 import datetime
 import os
 
-import shutil
 
 from iotsploit_django.tools.env_mgr import Env_Mgr
 
@@ -74,7 +73,7 @@ class Report_Mgr:
         self.__report_test_result_tree_list = None
         try:
             os.unlink(Report_Mgr.__log_root_dir + "/Audit_Report.html")
-        except Exception as err:
+        except Exception:
             pass
         
     def audit_status(self):
@@ -660,13 +659,13 @@ DESC:\t {desc}
             logger.info("Audit_Report.html Generate Success. Path:" + self.__currlog_dir + "/audit_report/Audit_Report.html")
             try:
                 os.unlink(Report_Mgr.__log_root_dir + "/Audit_Report.html")
-            except Exception as err:
+            except Exception:
                 pass
 
             try:
                 os.symlink(self.__currlog_dir + "/audit_report/Audit_Report.html", Report_Mgr.__log_root_dir + "/Audit_Report.html")
                 logger.info("Audit_Report.html LinkTo :{} Success.".format(Report_Mgr.__log_root_dir + "/Audit_Report.html"))
-            except Exception as err:
+            except Exception:
                 logger.exception("Audit_Report.html LinkTo :{} Fail!".format(Report_Mgr.__log_root_dir + "/Audit_Report.html"))
         
         if self.__root_log_file_handler != None:
