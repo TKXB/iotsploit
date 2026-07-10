@@ -246,7 +246,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · record `(−N LOC)` whe
 - [x] Create branch `refactor/code-optimization`
 - [x] Write this guide + baseline
 - [x] Adopt the `coding-decision-plan` reporting workflow (§4a) as mandatory for non-trivial units
-- [ ] Add/confirm tooling availability: `vulture`, `ruff`, `jscpd`, `flutter analyze` (note which exist in §7)
+- [x] Add/confirm tooling availability: `vulture`, `ruff`, `jscpd`, `flutter analyze` (note which exist in §7)
 - [ ] Run a full baseline verification pass (all pytest suites + `flutter analyze` + `flutter test`) and record the starting green/red state in §7
 
 ### Phase 1 — Dead code & hygiene sweep  *(low risk, high reward)*
@@ -311,18 +311,26 @@ then **Phase 1** (dead-code sweep).
 | Python source | 57,924 | 57,924 | 0 | 0.0% | 46,339 | ❌ |
 | Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
 
-**Last completed step:** Phase 0 — created branch + wrote this guide & baseline.
+**Last completed step:** Phase 0 — confirmed minimal tooling availability and preferred command
+wrappers.
 
-**Next step:** Phase 0 → confirm which tools are available (`ruff`, `vulture`, `jscpd`, `radon`,
-`flutter analyze`), record them below, then run a full baseline verification pass to establish the
-starting green/red test state.
+**Next step:** Phase 0 → run a full baseline verification pass to establish the starting green/red
+test state. Use `poetry run python -m pytest -q` for Python modules and `fvm flutter ...` for the UI
+when the `fvm` wrapper is available; this shell currently has the pinned SDK at
+`ui/.fvm/flutter_sdk/bin/flutter`.
 
-**Tooling notes:** _(fill in: which linters/detectors are installed)_
-- Python tests: per-module `pytest` (dirs: cli, core, django, fuzzer, mcp, platforms)
-- Flutter: `flutter analyze`, `flutter test` (5 test files in `ui/test`), `flutter_lints` enabled
-- Dead-code / dup detectors: _TBD — check `ruff`, `vulture`, `jscpd`_
+**Tooling notes:**
+- Python: use Poetry (`poetry` 2.0.1). `poetry run python --version` reports Python 3.10.12, and
+  `poetry run python -m pytest --version` reports pytest 7.4.4 from `iotsploit-core`.
+- Flutter: prefer `fvm flutter analyze` / `fvm flutter test` per project workflow. In this shell,
+  `fvm` is not on PATH, but `ui/.fvm/flutter_sdk/bin/flutter --version` works and reports Flutter
+  3.27.4 / Dart 3.6.2. Raw system `flutter --version` reports Flutter 3.32.5 and should not be the
+  default for project verification.
+- Dead-code / dup detectors: `ruff`, `vulture`, `jscpd`, and `radon` are not on PATH in this shell.
 
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Option A minimal tooling confirmation only; recorded Poetry/FVM command notes, no
+  source changes and no full baseline verification yet.
 - _(init)_ Branch + guide created; baseline Python 57,924 / Dart 84,119 locked.
 
 ---
@@ -350,6 +358,6 @@ find iotsploit-* libiotsploit -name '*.py' -not -path '*/__pycache__/*' -not -pa
   | xargs wc -l | sort -rn | head -20
 
 # Verify
-cd ui && flutter analyze && flutter test
-cd iotsploit-core && python -m pytest -q
+cd ui && fvm flutter analyze && fvm flutter test
+cd iotsploit-core && poetry run python -m pytest -q
 ```
