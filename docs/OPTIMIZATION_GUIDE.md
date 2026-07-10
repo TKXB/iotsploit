@@ -254,7 +254,7 @@ Delete-only pass. No logic changes. Target: unused imports, unreachable code, co
 orphan files, unused assets.
 - [x] Python: `ruff --select F401,F811,F841` (or `vulture`) across all modules; remove unused imports/vars (−220 LOC)
 - [x] Python: find & remove dead functions/classes (grep for zero references) (−71 LOC)
-- [ ] Python: delete obviously stale scripts/`obd_test.py`-style scratch files after confirming they're unused
+- [x] Python: delete obviously stale scripts/`obd_test.py`-style scratch files after confirming they're unused (−795 LOC)
 - [ ] Flutter: `flutter analyze` → remove unused imports, dead code, unused fields
 - [ ] Flutter: remove unused assets/widgets (cross-check `pubspec.yaml` asset list vs. references)
 - [ ] Remove stale root-level docs/plans that are already completed (coordinate; don't delete active ones)
@@ -301,7 +301,7 @@ Biggest LOC concentration. Start with the largest files.
 
 ## 7. You Are Here  📍  (update every session)
 
-**Current status:** Phase 1 Python dead function/class cleanup is complete. Starting verification
+**Current status:** Phase 1 Python stale script cleanup is complete. Starting verification
 state remains partly red: only the root-run `iotsploit-core`, `iotsploit-fuzzer`, and
 `iotsploit-mcp` pytest slices pass; Django still has its known import-without-settings failure, and
 some package test dirs collect no tests from the root environment. Flutter baseline remains red.
@@ -310,15 +310,14 @@ some package test dirs collect no tests from the root environment. Flutter basel
 
 | Area | Baseline | Current | Reduced | % | Target (≤) | Hit 20%? |
 |------|---------:|--------:|--------:|--:|-----------:|:--------:|
-| Python source | 57,924 | 57,633 | 291 | 0.5% | 46,339 | ❌ |
+| Python source | 57,924 | 56,838 | 1,086 | 1.9% | 46,339 | ❌ |
 | Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
 
-**Last completed step:** Phase 1 — Python dead functions/classes cleanup across confirmed
-zero-reference private helpers (−71 LOC).
+**Last completed step:** Phase 1 — Python stale script cleanup removed the confirmed unused
+`iotsploit_django/tools/obd_test.py` scratch diagnostic helper (−795 LOC).
 
-**Next step:** Phase 1 → Python stale scripts / `obd_test.py`-style scratch files: identify
-candidates, confirm they are unused, produce a decision plan before deleting anything non-trivial,
-then remove only confirmed stale code.
+**Next step:** Phase 1 → Flutter `flutter analyze` unused imports/dead code cleanup: produce a
+decision plan if the cleanup touches non-trivial UI behavior; otherwise keep it mechanical.
 
 **Tooling notes:**
 - Python: use Poetry (`poetry` 2.0.1). `poetry run python --version` reports Python 3.10.12, and
@@ -343,6 +342,13 @@ then remove only confirmed stale code.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Option B implemented for Phase 1 Python stale scripts: removed confirmed unused
+  `iotsploit-django/src/iotsploit_django/tools/obd_test.py` after a focused reference audit found no
+  imports, package metadata, docs, UI/API, or tooling references outside this tracker. Re-measured
+  Python LOC 57,633 → 56,838 (−795). Verification: `poetry run ruff check --no-cache --select
+  F401,F811,F841 ...` passed; Django package import smoke passed for `iotsploit_django.tools` with
+  `PYTHONDONTWRITEBYTECODE=1`; full Django tests were not rerun because the tracker baseline already
+  records the known Django settings failure in this environment.
 - 2026-07-10: Option A implemented for Phase 1 Python dead functions/classes: removed confirmed
   zero-reference private helpers from `adb_mgr.py` and `web/views.py`, including one unreachable
   block nested after a returned helper. Re-measured Python LOC 57,704 → 57,633 (−71). Verification:
