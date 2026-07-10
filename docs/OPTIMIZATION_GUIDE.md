@@ -1,0 +1,355 @@
+# Code Optimization Guide & Tracker
+
+> **Purpose:** A long-term, iterative ("circular") effort to reduce code size by **at least 20%**,
+> and to improve logic, data models, and UX/UI across the Python backend and the Flutter UI.
+>
+> **This file is both the playbook and the live progress tracker.** Every LLM session that works on
+> this effort MUST read this file first, do one small unit of work, update the tracker, and commit.
+>
+> **Branch:** `refactor/code-optimization`
+
+---
+
+## 0. How to use this document (read this first, every session)
+
+1. Read **§1 Baseline**, **§2 Principles**, and **§3 Method**.
+2. Go to **§7 "You Are Here"** — it tells you the current state and the *next* step.
+3. Pick the next unchecked item in the **§6 TODO list** (respect ordering: low-risk first).
+4. **Report first, then implement** — for any non-trivial unit, run the **`coding-decision-plan`
+   skill** and produce a decision report (§4a): analysis → options → comparison table →
+   recommendation → get the user's decision. Do NOT jump straight to editing files.
+5. Do **one small unit** of work (one file / one duplication / one dead-code sweep). Do NOT batch
+   many unrelated refactors into one change.
+6. **Verify** (§4) before you commit. Safety is the top priority — no behavior regressions.
+7. **Re-measure** (§3.2) and record the delta.
+8. Update **§6** (check the box, note LOC delta) and **§7** ("You Are Here").
+9. Commit with a clear message (§5). Then stop, or continue with the next unit.
+
+**Golden rules**
+- Safety first: never sacrifice correctness for line count. A working 100-line function beats a
+  broken 60-line one.
+- Low-risk first: delete dead code, dedupe, and simplify UI before touching core logic/data models.
+- Small steps: one reviewable change at a time, each independently verifiable and revertible.
+- Never edit generated files (see §1). They do not count toward the target.
+- `20%` is a **floor, not a cap.** Keep improving past it where it stays safe and sensible.
+
+---
+
+## 1. Baseline metrics (locked)
+
+Captured on `refactor/code-optimization` at branch creation. These are the fixed denominators for
+the 20% target. **Do not recompute the baseline** — only recompute *current* LOC to measure progress.
+
+| Area | Baseline LOC | 20% reduction (floor) | Target (≤) |
+|------|-------------:|----------------------:|-----------:|
+| **Python source** | 57,924 | 11,585 | **46,339** |
+| **Flutter (hand-written Dart)** | 84,119 | 16,824 | **67,295** |
+| Flutter generated (excluded) | 6,780 | — | (do not touch) |
+
+### Exact measurement commands
+
+Python source (excludes virtualenvs, caches, DB migrations):
+```bash
+find iotsploit-cli iotsploit-core iotsploit-django iotsploit-drivers iotsploit-exploits \
+     iotsploit-fuzzer iotsploit-mcp iotsploit-platforms libiotsploit plugins \
+     -name '*.py' -not -path '*/__pycache__/*' -not -path '*/migrations/*' -not -path '*/env3.8/*' \
+  | xargs wc -l | tail -1
+```
+
+Flutter hand-written Dart (excludes generated code — these files DO NOT count and MUST NOT be edited):
+```bash
+find ui/lib -name '*.dart' \
+     -not -name 'frb_generated.dart' -not -name '*.freezed.dart' -not -name '*.g.dart' \
+     -not -name '*.gr.dart' -not -name '*.config.dart' -not -name '*.mocks.dart' \
+  | xargs wc -l | tail -1
+```
+
+> **Generated files are off-limits:** `frb_generated.dart`, `*.freezed.dart`, `*.g.dart`,
+> `*.gr.dart`, `*.config.dart`, `*.mocks.dart`. To shrink these, change the *source* (the Rust
+> bridge, the `@freezed`/`json_serializable` model) and regenerate — never hand-edit output.
+
+---
+
+## 2. Principles — what "optimize" means here
+
+Optimization is measured in **four dimensions**, not just line count:
+
+1. **Code size (−20% floor).** Achieved by, in priority order:
+   - **Delete dead code** — unused functions, imports, commented-out blocks, orphan files, unused assets.
+   - **De-duplicate** — extract repeated blocks into shared helpers/mixins/base classes/widgets.
+   - **Simplify** — collapse needless abstraction, replace boilerplate with idiomatic constructs
+     (comprehensions, `dataclass`, Dart collection-if/spread, const constructors).
+   - **Decompose god-files** — split 1,000+ line files; this may not reduce total LOC by itself, but
+     it exposes duplication and dead code that then can be removed.
+
+2. **Logic.** Reduce cyclomatic complexity, flatten nesting, remove redundant state, unify error
+   handling, kill race conditions, replace polling with events where already available.
+
+3. **Data model.** Consolidate duplicated/parallel type definitions, introduce typed models where
+   raw dicts/maps are passed around, align backend serializers with frontend models, remove fields
+   that are never read. (Flutter `lib/models` is only ~560 LOC vs. 49k of screens — much data shape
+   currently lives inline in the UI. Pulling it into typed models is a major win.)
+
+4. **UX/UI.** Consistent components, shared theme tokens, remove one-off styling, unify dialogs and
+   list/table patterns, accessibility and responsive fixes. Never regress existing behavior.
+
+### What is OFF-LIMITS
+- Behavior changes visible to users, unless explicitly requested and covered by a test.
+- Editing generated code (§1).
+- Public API / route / DB schema changes without an explicit note and migration.
+- "Big bang" rewrites. Everything is incremental.
+
+---
+
+## 3. Method — the per-unit loop
+
+### 3.1 Pick a target
+Follow the TODO ordering (§6). Within a phase, prefer the **largest file** or the **most-duplicated
+pattern** — biggest safe win first.
+
+### 3.2 Measure before & after
+```bash
+# before
+wc -l <file(s)>
+# ...do the work...
+# after
+wc -l <file(s)>
+```
+Record `before → after (−N)` in the TODO item.
+
+### 3.3 Find duplication (helpers)
+```bash
+# Python: find near-duplicate function bodies / repeated literals
+grep -rn "def " iotsploit-django/src | sort | ...    # eyeball repeats
+# Dart: repeated widget trees
+grep -rn "Widget build" ui/lib | wc -l
+```
+Consider tools if available: `jscpd` (copy-paste detector), `vulture` (dead Python), `flutter analyze`
+(dead Dart / unused imports), `ruff --select F401` for unused imports.
+
+### 3.4 Decompose safely
+- Extract a widget/function/class, keep the public signature identical.
+- Move, don't rewrite. Then delete what's now unused.
+- Keep each extraction in its own commit so it's easy to review and revert.
+
+---
+
+## 4a. Reporting before implementation — the `coding-decision-plan` skill
+
+**Every non-trivial optimization unit MUST be reported as a decision plan before any file is edited.**
+This effort is architect-first: understand, present options, let the user decide, *then* code.
+
+Use the project skill at `/home/tkxb/skills/skills/coding-decision-plan` (invoke the
+**`coding-decision-plan`** skill). It enforces an analysis-first workflow and separates **facts** from
+**recommendations** from **decision**.
+
+### What "non-trivial" means here
+- **Trivial (no report needed):** mechanical dead-code/unused-import removal caught by a linter,
+  pure formatting, a one-line dedupe. Just do it, verify, and log it.
+- **Non-trivial (report required):** decomposing a god-file, extracting shared components/base
+  classes, changing a data model, merging duplicated managers, anything touching backend logic or
+  public shapes. Report first.
+
+### The report format (produce this, then wait for the user's decision)
+
+1. **Repository analysis (facts only)** — current implementation of the target, its dependencies,
+   who references it, existing tests, and limitations. No patches yet.
+2. **Problem understanding** — what specifically is bloated/duplicated/over-complex, with the LOC
+   and reference counts to back it.
+3. **Implementation options** — usually drawn from the skill's catalog:
+   - Option A – Minimal change
+   - Option B – Optimization (dedupe / simplify)
+   - Option C – Refactor / redesign
+   - Option D – Remove code
+4. **Comparison table** — required whenever more than one option is viable:
+
+   | Criteria | Option A | Option B | Option C |
+   |---|---|---|---|
+   | Approach | | | |
+   | Main Goal | | | |
+   | Code Impact | Low/Med/High | Low/Med/High | Low/Med/High |
+   | Files Changed | | | |
+   | Est. LOC delta | | | |
+   | Development Effort | Low/Med/High | Low/Med/High | Low/Med/High |
+   | Implementation Risk | Low/Med/High | Low/Med/High | Low/Med/High |
+   | Compatibility Impact | | | |
+   | Testing Requirement | | | |
+   | Maintenance / Future Extension | | | |
+   | Recommended When | | | |
+
+5. **Recommendation** — the preferred option, reasons, and the trade-off you accept.
+6. **User decision gate** — end with the checklist and **wait for the user to pick** before editing:
+   ```
+   Please select:
+   [ ] Option A - Minimal Change
+   [ ] Option B - Optimization
+   [ ] Option C - Refactor
+   [ ] Option D - Remove Code
+   [ ] Need more investigation
+   After confirmation, implementation can start.
+   ```
+
+### After the user decides
+Implement only the chosen option, one small unit, then go to §4 (Verify) → §3.2 (Re-measure) →
+§6/§7 (update tracker) → §5 (commit). Record the chosen option in the §7 session log so the decision
+trail is auditable.
+
+> **Why this matters for a −20% effort:** most regressions come from silent, unreviewed refactors of
+> shared logic. The decision report makes the blast radius explicit *before* the edit and keeps the
+> user owning every meaningful architectural call.
+
+---
+
+## 4. Verification (safety-first — mandatory before every commit)
+
+A change is not done until it is verified. Minimum bar per change:
+
+**Python**
+```bash
+# Per affected module (each has its own pyproject/pytest):
+cd iotsploit-<module> && python -m pytest -q
+# Import smoke check for touched modules:
+python -c "import <module.path>"
+```
+Modules with test dirs: `iotsploit-cli`, `iotsploit-core`, `iotsploit-django`, `iotsploit-fuzzer`,
+`iotsploit-mcp`, `iotsploit-platforms`. If a touched area has **no** test, add a minimal one or do a
+manual smoke run and note it in the commit.
+
+**Flutter**
+```bash
+cd ui
+flutter analyze            # must not add new warnings/errors
+flutter test               # existing widget/unit tests must pass
+dart format --output=none --set-exit-if-changed lib   # formatting sanity (optional)
+```
+
+**Rule:** if you cannot verify a change, reduce its scope until you can. Never commit an unverified
+refactor of core logic or data models.
+
+---
+
+## 5. Commit convention
+
+- One logical change per commit. Reference this effort.
+- Format: `refactor(<area>): <what> (−N LOC)` — e.g. `refactor(ui/showcase): split component demos into files (−1200 LOC)`.
+- **Do NOT add a Co-Authored-By / Claude trailer** (project rule).
+- Update this file (§6 + §7) in the *same* commit as the code change, or in an immediately following
+  tracker commit — never let the tracker drift from reality.
+
+---
+
+## 6. TODO list (ordering: low-risk → high-risk)
+
+Legend: `[ ]` todo · `[~]` in progress · `[x]` done · record `(−N LOC)` when done.
+
+### Phase 0 — Setup & instrumentation  *(low risk)*
+- [x] Create branch `refactor/code-optimization`
+- [x] Write this guide + baseline
+- [x] Adopt the `coding-decision-plan` reporting workflow (§4a) as mandatory for non-trivial units
+- [ ] Add/confirm tooling availability: `vulture`, `ruff`, `jscpd`, `flutter analyze` (note which exist in §7)
+- [ ] Run a full baseline verification pass (all pytest suites + `flutter analyze` + `flutter test`) and record the starting green/red state in §7
+
+### Phase 1 — Dead code & hygiene sweep  *(low risk, high reward)*
+Delete-only pass. No logic changes. Target: unused imports, unreachable code, commented-out blocks,
+orphan files, unused assets.
+- [ ] Python: `ruff --select F401,F811,F841` (or `vulture`) across all modules; remove unused imports/vars
+- [ ] Python: find & remove dead functions/classes (grep for zero references)
+- [ ] Python: delete obviously stale scripts/`obd_test.py`-style scratch files after confirming they're unused
+- [ ] Flutter: `flutter analyze` → remove unused imports, dead code, unused fields
+- [ ] Flutter: remove unused assets/widgets (cross-check `pubspec.yaml` asset list vs. references)
+- [ ] Remove stale root-level docs/plans that are already completed (coordinate; don't delete active ones)
+
+### Phase 2 — Flutter UI de-duplication & decomposition  *(low–medium risk)*
+Biggest LOC concentration. Start with the largest files.
+- [ ] `screens/component_showcase/component_showcase_page.dart` (5,947) — split per-component demos into files; this is a demo page, low risk
+- [ ] `screens/utils/utils_page.dart` (3,363) — extract sub-tools into widgets
+- [ ] `screens/utils/usbtmc/usbtmc_control_panel.dart` (2,885) — decompose, extract shared instrument-control widgets
+- [ ] `screens/tasks/components/ssh_client_screen.dart` (2,227) & `ft2232_uart_screen.dart` (1,974) — extract shared terminal/console widget
+- [ ] `screens/plugins/plugins_page.dart` (1,996) — extract list/detail widgets
+- [ ] `screens/iot_fuzzer/**` (management_controller 1,501, configuration_page 1,218) — dedupe controller/page logic
+- [ ] `screens/targets/targets_page.dart` (1,285) + `target_edit_dialog.dart` (1,146) — unify with shared form/table components
+- [ ] `widgets/tab_grid.dart` (1,082) and `widgets/` broadly — build a shared component library; replace one-off styling with theme tokens
+
+### Phase 3 — Flutter data model & state  *(medium risk)*
+- [ ] Inventory inline data shapes (Maps/dynamic) passed through screens; promote to typed models in `lib/models`
+- [ ] Align models with backend serializers (see §Phase 5); one source of truth per entity
+- [ ] Consolidate duplicated provider/service state; remove redundant state mirrors
+
+### Phase 4 — Python backend view de-duplication & decomposition  *(medium risk)*
+- [ ] `iot_fuzzer/views.py` (2,384) — split by resource; extract shared request/response/validation helpers
+- [ ] `web/views.py` (2,048) — same treatment; dedupe against iot_fuzzer views
+- [ ] `tools/iot_protocol_adapter.py` (1,414) — decompose by protocol; remove duplicated adapters
+- [ ] `tools/iot_fuzzer_service.py` (1,198) & `iot_fuzzer_manager.py` (997) — unify overlapping lifecycle logic
+- [ ] `tools/adb_mgr.py` (907), `report_mgr.py` (725) — extract shared manager base
+
+### Phase 5 — Python core managers & data model  *(higher risk — most verification)*
+- [ ] `iotsploit-core`: unify `tool_service.py` (1,036) / `tool_manager.py` (903) / `device_manager.py` (942) / `exploit_manager.py` (728) — extract a common manager base class for shared lifecycle/registry logic
+- [ ] `libiotsploit/host/pyiotsploit/comms.py` (1,322) — decompose transport layers; remove duplication
+- [ ] Consolidate duplicated data models across Django adapters (`adapters/django/iot_fuzzer/models.py` 821) and core; align with Flutter models (Phase 3)
+- [ ] Replace raw dict passing with dataclasses/typed structures in core APIs
+
+### Phase 6 — Logic & UX polish  *(ongoing)*
+- [ ] Flatten deep nesting / reduce complexity in hottest functions (measure with `radon cc` if available)
+- [ ] Unify error handling and logging patterns
+- [ ] UX consistency pass: dialogs, tables, spacing/theme tokens, responsive behavior
+- [ ] Accessibility pass on primary screens
+
+### Phase 7 — Re-baseline & continue  *(circular)*
+- [ ] When both targets hit 20%, re-measure, update §7, and set the next floor (30%?) — the work is circular; keep going.
+
+---
+
+## 7. You Are Here  📍  (update every session)
+
+**Current status:** Guide created; no code reduced yet. Ready to start **Phase 0** (confirm tooling)
+then **Phase 1** (dead-code sweep).
+
+### Progress dashboard
+
+| Area | Baseline | Current | Reduced | % | Target (≤) | Hit 20%? |
+|------|---------:|--------:|--------:|--:|-----------:|:--------:|
+| Python source | 57,924 | 57,924 | 0 | 0.0% | 46,339 | ❌ |
+| Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
+
+**Last completed step:** Phase 0 — created branch + wrote this guide & baseline.
+
+**Next step:** Phase 0 → confirm which tools are available (`ruff`, `vulture`, `jscpd`, `radon`,
+`flutter analyze`), record them below, then run a full baseline verification pass to establish the
+starting green/red test state.
+
+**Tooling notes:** _(fill in: which linters/detectors are installed)_
+- Python tests: per-module `pytest` (dirs: cli, core, django, fuzzer, mcp, platforms)
+- Flutter: `flutter analyze`, `flutter test` (5 test files in `ui/test`), `flutter_lints` enabled
+- Dead-code / dup detectors: _TBD — check `ruff`, `vulture`, `jscpd`_
+
+**Session log** (newest first — one line per work session):
+- _(init)_ Branch + guide created; baseline Python 57,924 / Dart 84,119 locked.
+
+---
+
+## 8. Quick reference — one-liners
+
+```bash
+# Re-measure Python
+find iotsploit-cli iotsploit-core iotsploit-django iotsploit-drivers iotsploit-exploits \
+     iotsploit-fuzzer iotsploit-mcp iotsploit-platforms libiotsploit plugins \
+     -name '*.py' -not -path '*/__pycache__/*' -not -path '*/migrations/*' -not -path '*/env3.8/*' \
+  | xargs wc -l | tail -1
+
+# Re-measure Flutter (hand-written)
+find ui/lib -name '*.dart' -not -name 'frb_generated.dart' -not -name '*.freezed.dart' \
+     -not -name '*.g.dart' -not -name '*.gr.dart' -not -name '*.config.dart' -not -name '*.mocks.dart' \
+  | xargs wc -l | tail -1
+
+# Largest hand-written Dart files
+find ui/lib -name '*.dart' -not -name 'frb_generated.dart' -not -name '*.freezed.dart' \
+     -not -name '*.g.dart' | xargs wc -l | sort -rn | head -20
+
+# Largest Python source files
+find iotsploit-* libiotsploit -name '*.py' -not -path '*/__pycache__/*' -not -path '*/migrations/*' \
+  | xargs wc -l | sort -rn | head -20
+
+# Verify
+cd ui && flutter analyze && flutter test
+cd iotsploit-core && python -m pytest -q
+```
