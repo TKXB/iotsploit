@@ -255,7 +255,7 @@ orphan files, unused assets.
 - [x] Python: `ruff --select F401,F811,F841` (or `vulture`) across all modules; remove unused imports/vars (−220 LOC)
 - [x] Python: find & remove dead functions/classes (grep for zero references) (−71 LOC)
 - [x] Python: delete obviously stale scripts/`obd_test.py`-style scratch files after confirming they're unused (−795 LOC)
-- [ ] Flutter: `flutter analyze` → remove unused imports, dead code, unused fields
+- [~] Flutter: `flutter analyze` → remove unused imports, dead code, unused fields
 - [ ] Flutter: remove unused assets/widgets (cross-check `pubspec.yaml` asset list vs. references)
 - [ ] Remove stale root-level docs/plans that are already completed (coordinate; don't delete active ones)
 
@@ -301,10 +301,12 @@ Biggest LOC concentration. Start with the largest files.
 
 ## 7. You Are Here  📍  (update every session)
 
-**Current status:** Phase 1 Python stale script cleanup is complete. Starting verification
-state remains partly red: only the root-run `iotsploit-core`, `iotsploit-fuzzer`, and
-`iotsploit-mcp` pytest slices pass; Django still has its known import-without-settings failure, and
-some package test dirs collect no tests from the root environment. Flutter baseline remains red.
+**Current status:** Phase 1 Python stale script cleanup is complete. Phase 1 Flutter analyzer
+hygiene is in decision-plan state; no Flutter source files have been edited in this session.
+Starting verification state remains partly red: only the root-run `iotsploit-core`,
+`iotsploit-fuzzer`, and `iotsploit-mcp` pytest slices pass; Django still has its known
+import-without-settings failure, and some package test dirs collect no tests from the root
+environment. Flutter baseline remains red.
 
 ### Progress dashboard
 
@@ -316,8 +318,94 @@ some package test dirs collect no tests from the root environment. Flutter basel
 **Last completed step:** Phase 1 — Python stale script cleanup removed the confirmed unused
 `iotsploit_django/tools/obd_test.py` scratch diagnostic helper (−795 LOC).
 
-**Next step:** Phase 1 → Flutter `flutter analyze` unused imports/dead code cleanup: produce a
-decision plan if the cleanup touches non-trivial UI behavior; otherwise keep it mechanical.
+**Next step:** Waiting for user choice on the Phase 1 Flutter analyzer hygiene decision plan below.
+After approval, implement only the selected option and keep the first source-edit unit small.
+
+### Pending decision plan — Phase 1 Flutter analyzer hygiene
+
+#### 1. Repository analysis (facts only)
+
+- `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub` currently reports **487 diagnostics**.
+- Machine-readable analyzer breakdown: **151 errors**, **44 warnings**, **292 infos**.
+- Top diagnostic families:
+  - `deprecated_member_use`: 291
+  - `undefined_identifier`: 47
+  - `undefined_method`: 40
+  - `uri_does_not_exist`: 24
+  - `unused_import`: 21
+  - `unused_element`: 13
+  - `unused_field`: 5
+  - `unused_local_variable`: 1
+  - `unnecessary_import`: 1
+- Directly mechanical Phase 1 cleanup slice: **41 diagnostics** across unused imports,
+  unnecessary imports, unused private declarations, unused fields, and one unused local variable.
+- Analyzer infrastructure/build blockers are separate from the cleanup slice:
+  - `analysis_options.yaml` includes `package:flutter_lints/flutter.yaml`, but `flutter_lints`
+    is not listed in `dev_dependencies`.
+  - Code references packages not declared in `pubspec.yaml`, including Syncfusion chart/gauge
+    packages, `github`, `version`, and `titlebar_buttons`.
+  - `rust_builder/cargokit/build_tool/**` is currently analyzed and reports missing build-tool
+    package dependencies.
+  - `test/widget_test.dart` still references missing `MyApp`.
+  - Some widget code also has package/API drift, for example `searchable_listview` parameter names
+    in `robot_preferences.dart`.
+- Largest deprecated-use clusters are in `component_showcase_page.dart` (50),
+  `ssh_client_screen.dart` (36), `ft2232_uart_screen.dart` (25), and `utils_page.dart` (14).
+
+#### 2. Problem understanding
+
+The next TODO asks for Flutter analyzer cleanup of unused imports, dead code, and unused fields.
+That cleanup can reduce warning noise and remove a small amount of dead UI code, but it will **not**
+make `flutter analyze` green by itself because the analyzer is also failing on missing dependencies,
+analyzed vendored/build-tool code, stale test entry points, and package API drift. The source-edit
+risk is low for unused imports, but medium for deleting private methods/fields because some are in
+large stateful screens where stale declarations may reveal abandoned UX paths.
+
+#### 3. Implementation options
+
+| Criteria | Option A | Option B | Option C | Option D |
+|---|---|---|---|---|
+| Approach | Remove unused/unnecessary imports only | Full focused Phase 1 analyzer hygiene: imports, unused private elements, unused fields, one unused local | Fix analyzer/build foundations first: lint dependency, package declarations/exclusions, stale test target, API drift | Remove larger stale UI widgets/assets after a separate reference audit |
+| Main Goal | Smallest safe cleanup | Complete the current TODO's intended cleanup scope | Make analyzer capable of becoming green before source hygiene | Bigger dead-code reduction beyond analyzer-only findings |
+| Code Impact | Low | Low-Medium | Medium-High | Medium |
+| Files Changed | ~16 Dart files | ~25 Dart files | `pubspec.yaml`, `analysis_options.yaml`, tests, and affected widgets/build-tool config | Unknown until asset/widget reference audit |
+| Est. LOC delta | Small, likely −20 to −30 | Small-Medium, likely −80 to −180 | Near zero or positive | Potentially larger, unknown |
+| Development Effort | Low | Medium | High | Medium-High |
+| Implementation Risk | Low | Low-Medium | Medium-High | Medium |
+| Compatibility Impact | None expected | None expected if private unused references are verified | Possible dependency/license/build impact | Possible UI navigation/asset impact |
+| Testing Requirement | Rerun analyzer and format touched files | Rerun analyzer, format touched files, smoke high-touch screens if feasible | Rerun analyzer, `flutter test`, and dependency resolution | Reference audit, analyzer, asset load smoke checks |
+| Maintenance / Future Extension | Leaves most analyzer hygiene debt | Clears the current TODO's mechanical cleanup slice while keeping scope bounded | Establishes a better verification baseline for later cleanup | Best for LOC reduction, but belongs to the next TODO |
+| Recommended When | User wants the safest first edit | User wants to complete the current TODO efficiently | User wants analyzer green as the priority before LOC reduction | User wants to move to unused assets/widgets cleanup |
+
+#### 4. Recommendation
+
+Recommended option: **Option B — Full focused Phase 1 analyzer hygiene**.
+
+Reasons:
+- It matches the current unchecked TODO more closely than imports-only cleanup.
+- The scope is still bounded to analyzer-confirmed unused code and should not alter user-visible
+  behavior.
+- It avoids mixing hygiene cleanup with dependency/package decisions that need separate review.
+
+Trade-off:
+- `flutter analyze` will remain red after Option B because the existing dependency/config/test/API
+  blockers are outside this TODO.
+- LOC reduction will be modest; this is primarily a safety/noise-reduction step before larger UI
+  decomposition.
+
+#### 5. User decision gate
+
+Please select:
+
+```
+[ ] Option A - Minimal Change
+[ ] Option B - Optimization
+[ ] Option C - Refactor
+[ ] Option D - Remove Code
+[ ] Need more investigation
+
+After confirmation, implementation can start.
+```
 
 **Tooling notes:**
 - Python: use Poetry (`poetry` 2.0.1). `poetry run python --version` reports Python 3.10.12, and
@@ -342,6 +430,10 @@ decision plan if the cleanup touches non-trivial UI behavior; otherwise keep it 
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Phase 1 Flutter analyzer hygiene decision plan posted; no Flutter source edits yet.
+  Current analyzer state from `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub`: 487 diagnostics
+  (151 errors, 44 warnings, 292 infos). The mechanical cleanup slice is 41 diagnostics, but
+  analyzer remains blocked by separate missing dependency/config/test/API issues.
 - 2026-07-10: Option B implemented for Phase 1 Python stale scripts: removed confirmed unused
   `iotsploit-django/src/iotsploit_django/tools/obd_test.py` after a focused reference audit found no
   imports, package metadata, docs, UI/API, or tooling references outside this tracker. Re-measured
