@@ -6,7 +6,7 @@ import netifaces
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.input_mgr import Input_Mgr
-from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
+from iotsploit_platforms import get_shared_wifi_backend
 from iotsploit_django.tools.net_audit_mgr import NetAudit_Mgr
 from iotsploit_django.tools.doip_mgr import DoIP_Mgr
 from iotsploit_django.tools.ssh_mgr import SSH_Mgr
@@ -131,15 +131,15 @@ def _resolve_live_ip(ecu: str):
     Raise SAT_Exception
     """
     p = _profile(ecu)
-    wifi_status = WiFi_Mgr.Instance().status()
-    if wifi_status["WIFI_MODE"] == "STA":
+    wifi_status = get_shared_wifi_backend().status()
+    if wifi_status["wifi_mode"] == "STA":
         if p.ap_ip_env:
             ap_ip = Env_Mgr.Instance().query(p.ap_ip_env)
             if ap_ip != None:
                 logger.info("Vehicle model configured {} hotspot LAN IP: {}".format(p.display, ap_ip))
                 return ap_ip
 
-        sat_ip = wifi_status.get("sta_status", []).get("ip_address")
+        sat_ip = wifi_status.get("sta_status", {}).get("ip_address")
         if sat_ip == None:
             raise_err("SAT failed to obtain an IP address; SAT failed to connect to the {} hotspot!".format(p.display))
 
@@ -150,7 +150,7 @@ def _resolve_live_ip(ecu: str):
         logger.info("SAT connected to the {} hotspot successfully, GW IP: {}".format(p.display, gw_ip))
         return gw_ip
 
-    elif wifi_status["WIFI_MODE"] == "AP":
+    elif wifi_status["wifi_mode"] == "AP":
         sta_mac = Env_Mgr.Instance().query(p.sta_mac_env) if p.sta_mac_env else None
         if sta_mac != None:
             for client in wifi_status["client_list"]:
@@ -166,7 +166,7 @@ def _resolve_live_ip(ecu: str):
                 logger.info("{} has no STA MAC configured. Selecting the first device on the SAT hotspot as {}: {}".format(p.display, p.display, client))
                 return client["ip"]
     else:
-        raise_err("SAT network state '{}' does not support querying {} IP".format(wifi_status["WIFI_MODE"], p.display))
+        raise_err("SAT network state '{}' does not support querying {} IP".format(wifi_status["wifi_mode"], p.display))
 
 
 def open_ecu_ssh(ecu: str):
@@ -205,6 +205,19 @@ def _save_wifi_info(profile: EcuProfile, vehicle_profile, ssid, passwd):
     vehicle_profile.save_wifi_info(*args)
 
 
+def _sta_connect(ssid, passwd):
+    """Best-effort STA connect.
+
+    The WiFi backend blocks until the connection activates (or times out) and
+    raises on failure; the callers below poll ``status()`` for an assigned IP
+    and drive their own retry/UX, so we swallow errors here to preserve that
+    flow (matching the old non-raising ``sta_connect_wifi``)."""
+    try:
+        get_shared_wifi_backend().sta_connect(str(ssid), str(passwd))
+    except Exception as e:
+        logger.warning("STA connect to '{}' failed: {}".format(ssid, e))
+
+
 def connect_ecu_wifi(ecu: str):
     p = _profile(ecu)
     if not p.supports_wifi:
@@ -214,13 +227,13 @@ def connect_ecu_wifi(ecu: str):
     cached_passwd = Env_Mgr.Instance().query(p.wifi_passwd_env)
     if cached_ssid != None:
         logger.info("SAT cache has {} hotspot info {} {}, auto-connecting".format(p.display, cached_ssid, cached_passwd))
-        ssid_list = WiFi_Mgr.Instance().query_wifi_info_by_ssid(cached_ssid)
+        ssid_list = get_shared_wifi_backend().query_wifi_info_by_ssid(cached_ssid)
         if ssid_list != None and len(ssid_list) != 0:
-            WiFi_Mgr.Instance().sta_connect_wifi(cached_ssid, cached_passwd)
+            _sta_connect(cached_ssid, cached_passwd)
             for i in range(30):
                 sat_sleep(1)
                 logger.info("SAT waiting for {} hotspot to assign an IP: {}".format(p.display, i))
-                sta_status = WiFi_Mgr.Instance().status().get("sta_status", {})
+                sta_status = get_shared_wifi_backend().status().get("sta_status", {})
                 if sta_status.get("ip_address") != None:
                     raise_ok("SAT connected to {} device {} hotspot successfully. Connection info: {}".format(p.display, cached_ssid, sta_status))
 
@@ -230,11 +243,11 @@ def connect_ecu_wifi(ecu: str):
 
         if user_select == "Hotspot is on, info is correct":
             logger.info("SAT cache has {} hotspot info {} {}, auto-connecting again".format(p.display, cached_ssid, cached_passwd))
-            WiFi_Mgr.Instance().sta_connect_wifi(cached_ssid, cached_passwd)
+            _sta_connect(cached_ssid, cached_passwd)
             for i in range(30):
                 sat_sleep(1)
                 logger.info("SAT waiting for {} hotspot to assign an IP: {}".format(p.display, i))
-                sta_status = WiFi_Mgr.Instance().status().get("sta_status", {})
+                sta_status = get_shared_wifi_backend().status().get("sta_status", {})
                 if sta_status.get("ip_address") != None:
                     raise_ok("SAT connected to the {} hotspot successfully. Connection info: {}".format(p.display, sta_status))
             raise_err("SAT failed to connect to the {} hotspot.".format(p.display))
@@ -249,10 +262,10 @@ def connect_ecu_wifi(ecu: str):
     cached_ssid = None
     for i in range(5):
         ssid_choice_list = []
-        ssid_list = WiFi_Mgr.Instance().query_wifi_info_by_ssid(None)
+        ssid_list = get_shared_wifi_backend().query_wifi_info_by_ssid(None)
         if ssid_list != None and len(ssid_list) != 0:
             for wifi_info in ssid_list:
-                ssid_choice_list.append(wifi_info.ssid)
+                ssid_choice_list.append(wifi_info["ssid"])
         ssid_choice_list = list(set(ssid_choice_list))
         ssid_choice_list.append("Rescan hotspots")
         ssid_choice_list.append("Cancel hotspot connection")
@@ -272,11 +285,11 @@ def connect_ecu_wifi(ecu: str):
     cached_passwd = Input_Mgr.Instance().string_input(
                 "Please enter the WiFi password for the {} WiFi hotspot: {}".format(p.display, cached_ssid))
     for retry_passwd in range(5):
-        WiFi_Mgr.Instance().sta_connect_wifi(cached_ssid, cached_passwd)
+        _sta_connect(cached_ssid, cached_passwd)
         for i in range(30):
             sat_sleep(1)
             logger.info("SAT waiting for the hotspot to assign an IP: {}".format(i))
-            sta_status = WiFi_Mgr.Instance().status().get("sta_status", {})
+            sta_status = get_shared_wifi_backend().status().get("sta_status", {})
             if sta_status.get("ip_address") != None:
                 Env_Mgr.Instance().set(p.wifi_ssid_env, cached_ssid)
                 Env_Mgr.Instance().set(p.wifi_passwd_env, cached_passwd)

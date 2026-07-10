@@ -4,7 +4,7 @@ import cmd2
 from cmd2 import ansi
 import time
 from .base_commands import BaseCommands
-from iotsploit_django.tools.wifi_mgr import WiFi_Mgr
+from iotsploit_platforms import get_shared_wifi_backend
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_core.utils import iots_logger
 
@@ -27,10 +27,14 @@ class NetworkCommands(BaseCommands):
         
         # Attempt to connect
         logger.info(ansi.style(f"Attempting to connect to {ssid}...", fg=ansi.Fg.CYAN))
-        WiFi_Mgr.Instance().sta_connect_wifi(ssid, password)
-        
+        wifi_backend = get_shared_wifi_backend()
+        try:
+            wifi_backend.sta_connect(str(ssid), str(password))
+        except Exception as e:
+            logger.error(ansi.style(f"WiFi connection failed: {e}", fg=ansi.Fg.RED))
+
         # Wait for connection to establish
         time.sleep(2)
-        
+
         # Show connection status
-        WiFi_Mgr.Instance().status()
+        wifi_backend.status()

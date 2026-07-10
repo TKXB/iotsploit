@@ -37,12 +37,11 @@ networks = backend.scan()
 
 ## Platform Support
 
-- **Linux**: Full WiFi backend implementation using pywifi, hostapd, and dnsmasq
+- **Linux**: Full WiFi backend implementation using NetworkManager (libnm via GObject Introspection, with DBus for hotspot/AP mode)
 - **Windows**: Placeholder implementation (not yet implemented)
 - **Darwin (macOS)**: Placeholder implementation (not yet implemented)
 
 ## Dependencies
 
 - `iotsploit-core`: Core interfaces and utilities
-- `pywifi`: WiFi operations on Linux
-- `netifaces`: Network interface information
+- NetworkManager + `python3-gi` (libnm) and `dbus-python`: WiFi operations on Linux

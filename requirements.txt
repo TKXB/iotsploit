@@ -62,7 +62,6 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-slugify==8.0.4
 pyusb==1.2.1
-pywifi==1.1.12
 PyYAML==6.0.2
 qrcode==7.4.2
 repath==0.9.0

@@ -94,6 +94,39 @@ def get_wifi_backend(
 
 
 # =============================================================================
+# Shared (per-process) Backend Instances
+# =============================================================================
+
+_shared_wifi_backend: Optional["wifi_backend"] = None
+
+
+def get_shared_wifi_backend(
+    wifi_iface_name: Optional[str] = None,
+    forward_eth_name: Optional[str] = None
+) -> wifi_backend:
+    """
+    Return a process-wide shared WiFi backend instance (lazy singleton).
+
+    The WiFi backend tracks mode/connection state on the instance itself
+    (e.g. ``_wifi_mode``), so every consumer in a process must share the same
+    instance to observe a consistent view. This is the replacement for the old
+    ``WiFi_Mgr.Instance()`` singleton and is also what ``build_context()`` uses,
+    so plugins (via ``ctx.wifi``) and utility code share one backend.
+
+    The instance is created on first call using the same configuration source
+    as :func:`get_wifi_backend`. Override arguments only take effect on the
+    first call that constructs the instance.
+    """
+    global _shared_wifi_backend
+    if _shared_wifi_backend is None:
+        _shared_wifi_backend = get_wifi_backend(
+            wifi_iface_name=wifi_iface_name,
+            forward_eth_name=forward_eth_name,
+        )
+    return _shared_wifi_backend
+
+
+# =============================================================================
 # Context Builder (Main Entry Point)
 # =============================================================================
 
@@ -125,7 +158,7 @@ def build_context() -> PluginContext:
         >>> # Plugin can access ctx.wifi, ctx.bluetooth, etc.
     """
     return PluginContext(
-        wifi=get_wifi_backend(),  # Uses env vars automatically
+        wifi=get_shared_wifi_backend(),  # Uses env vars automatically; shared per-process instance
         # bluetooth=get_bluetooth_backend(),  # TODO: Add when implemented
         # camera=get_camera_backend(),        # TODO: Add when implemented
     )
