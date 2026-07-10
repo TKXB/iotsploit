@@ -325,10 +325,10 @@ After approval, implement only the selected option and keep the first source-edi
 
 #### 1. Repository analysis (facts only)
 
-- `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub` currently reports **487 diagnostics**.
-- Machine-readable analyzer breakdown: **151 errors**, **44 warnings**, **292 infos**.
+- `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub` currently reports **484 diagnostics**.
+- Analyzer breakdown: **151 errors**, **44 warnings**, **289 infos**.
 - Top diagnostic families:
-  - `deprecated_member_use`: 291
+  - `deprecated_member_use`: 288
   - `undefined_identifier`: 47
   - `undefined_method`: 40
   - `uri_does_not_exist`: 24
@@ -430,6 +430,10 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-10: Phase 1 Flutter analyzer hygiene decision plan revalidated; no Flutter source edits
+  yet. Current analyzer state from `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub`: 484
+  diagnostics (151 errors, 44 warnings, 289 infos). The mechanical cleanup slice is 41 diagnostics,
+  but analyzer remains blocked by separate missing dependency/config/test/API issues.
 - 2026-07-10: Phase 1 Flutter analyzer hygiene decision plan posted; no Flutter source edits yet.
   Current analyzer state from `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub`: 487 diagnostics
   (151 errors, 44 warnings, 292 infos). The mechanical cleanup slice is 41 diagnostics, but
