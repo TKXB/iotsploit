@@ -14,6 +14,7 @@ if not apps.ready:
     django.setup()
 
 from iotsploit_django.iot_fuzzer import views
+from iotsploit_django.iot_fuzzer import views_campaign
 
 
 ENDPOINT_METHODS = {
@@ -122,7 +123,7 @@ class TestIoTFuzzerCampaignResponses(SimpleTestCase):
             (views.reset_campaign, manager.reset_campaign, "reset", "Campaign reset successfully"),
         )
 
-        with patch.object(views.IoTFuzzerManager, "get_instance", return_value=manager):
+        with patch.object(views_campaign.IoTFuzzerManager, "get_instance", return_value=manager):
             for view, operation, state, message in cases:
                 with self.subTest(view=view.__name__):
                     response = view(
@@ -143,7 +144,7 @@ class TestIoTFuzzerCampaignResponses(SimpleTestCase):
         manager = Mock()
         manager.get_campaign_status.return_value = {"state": "running", "progress": 25}
 
-        with patch.object(views.IoTFuzzerManager, "get_instance", return_value=manager):
+        with patch.object(views_campaign.IoTFuzzerManager, "get_instance", return_value=manager):
             response = views.get_campaign_status(self.factory.get("/", {"campaign_id": "campaign-1"}))
 
         self.assertEqual(response.status_code, 200)
