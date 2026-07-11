@@ -290,7 +290,7 @@ behavior. Implement one independently verifiable resource or responsibility at a
 - [x] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — stored-data/live-runtime APIs verified disjoint; duplicate frame serialization removed
 - [x] `tools/adb_mgr.py` 870 → 807 (−63) — consolidated permission scans behind one tested helper
 - [x] `tools/report_mgr.py` 724 → 684 (−40) — consolidated tested report-tree initialization
-- [ ] Run the full Python test gate, re-measure Python LOC, update §7, and close Phase 4
+- [x] Run the full Python test gate, re-measure Python LOC, update §7, and close Phase 4
 
 > Current Phase 4 target footprint: 9,553 production LOC. Do not introduce a shared base for
 > `ADB_Mgr` and `Report_Mgr`; their singleton construction is insufficient common behavior to
@@ -315,25 +315,25 @@ behavior. Implement one independently verifiable resource or responsibility at a
 
 ## 7. You Are Here  📍  (update every session)
 
-**Current status:** Phase 1 Python stale script cleanup is complete. Phase 1 Flutter analyzer
-hygiene is in decision-plan state; no Flutter source files have been edited in this session.
-Starting verification state remains partly red: only the root-run `iotsploit-core`,
-`iotsploit-fuzzer`, and `iotsploit-mcp` pytest slices pass; Django still has its known
-import-without-settings failure, and some package test dirs collect no tests from the root
-environment. Flutter baseline remains red.
+**Current status:** Phase 4 is complete. Backend god-files were decomposed behind compatibility
+facades, shared request/frame/manager logic was deduplicated, and route/response/architecture
+contracts were added. The full Python test gate is green: Ruff passes and all 28 tests pass.
+Flutter baseline remains red as documented in the pending Phase 1 decision plan below.
 
 ### Progress dashboard
 
 | Area | Baseline | Current | Reduced | % | Target (≤) | Hit 20%? |
 |------|---------:|--------:|--------:|--:|-----------:|:--------:|
-| Python source | 57,924 | 56,838 | 1,086 | 1.9% | 46,339 | ❌ |
+| Python source | 57,924 | 48,829 | 9,095 | 15.7% | 46,339 | ❌ |
 | Flutter (hand-written) | 84,119 | 84,119 | 0 | 0.0% | 67,295 | ❌ |
 
-**Last completed step:** Phase 1 — Python stale script cleanup removed the confirmed unused
-`iotsploit_django/tools/obd_test.py` scratch diagnostic helper (−795 LOC).
+**Last completed step:** Phase 4 — Python backend view de-duplication and decomposition. The
+original 9,553 production-LOC target footprint is now 9,642 (+89 structural LOC); decomposition
+intentionally traded a small LOC increase for resource boundaries while targeted deduplication
+removed 256 production lines. Compatibility contracts and focused tests were added separately.
 
-**Next step:** Waiting for user choice on the Phase 1 Flutter analyzer hygiene decision plan below.
-After approval, implement only the selected option and keep the first source-edit unit small.
+**Next step:** Resume the tracker-ordered Phase 1 Flutter analyzer hygiene decision, or explicitly
+select another pending phase.
 
 ### Pending decision plan — Phase 1 Flutter analyzer hygiene
 
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 completed. Final full gate: Ruff pass, 28 tests pass. Current Python source
+  remeasurement is 48,829 (baseline 57,924; −9,095 / 15.7%). Phase 4 production target footprint
+  is 9,642 vs. 9,553 (+89 structural LOC), with all public routes/imports preserved by contracts.
 - 2026-07-11: Phase 4 HTTP/service boundary unit centralized all 22 JSON-body parses and added an
   architecture test proving stored-data service operations and live-runtime manager operations
   have disjoint public APIs. The earlier duplicate frame serializer remains removed.
