@@ -282,9 +282,9 @@ Preserve public URLs, route names, import locations, status codes, response shap
 behavior. Implement one independently verifiable resource or responsibility at a time.
 
 - [x] Pin all 43 IoT Fuzzer HTTP route names and paths with an exact contract test (−0 production LOC)
-- [~] Add response characterization tests and isolate external services/hardware (campaign contracts added)
-- [ ] Extract shared request parsing, method validation, and response helpers without changing API envelopes
-- [ ] `iot_fuzzer/views.py` (2,380) — split campaign, configuration, management, and results resources
+- [x] Add response characterization tests and isolate external services/hardware (43 method contracts + campaign behavior)
+- [~] Extract shared request parsing, method validation, and response helpers without changing API envelopes (method helper done)
+- [~] `iot_fuzzer/views.py` 2,380 → 2,253 — shared method responses extracted; resource split remains
 - [ ] `web/views.py` (1,999) — finish migration into existing `web/api` resource modules; retain only required compatibility exports
 - [ ] `tools/iot_protocol_adapter.py` (1,415) — split registry, validation, orchestration, monitoring, generation, interfaces, and mocks
 - [~] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — duplicate frame serialization removed; broader boundary audit remains
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 HTTP contract/helper unit pinned the 405 status and exact error envelope for
+  all 43 IoT Fuzzer endpoints, then replaced all duplicated method-error blocks with one helper.
+  `views.py` plus `http.py` totals 2,261 vs. 2,380 (−119); focused tests pass.
 - 2026-07-11: Phase 4 service/runtime overlap unit replaced duplicate frame-field serializers in
   the protocol adapter and fuzzer manager with one tested `frame_data_from_fields` utility.
   Combined affected production LOC 2,382 → 2,348 (−34); broader ownership work remains.

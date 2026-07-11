@@ -14,6 +14,7 @@ from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerService,
     IoTProtocolAdapter,
 )
+from iotsploit_django.iot_fuzzer.http import method_not_allowed
 
 # Import Django models
 from iotsploit_django.adapters.django.iot_fuzzer.models import (
@@ -32,10 +33,7 @@ def start_campaign(request: HttpRequest):
     Supports test_group_ids parameter for group-based filtering
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -146,10 +144,7 @@ def stop_campaign(request: HttpRequest):
     Stop a running fuzzing campaign
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -189,10 +184,7 @@ def pause_campaign(request: HttpRequest):
     Pause a running fuzzing campaign
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -232,10 +224,7 @@ def reset_campaign(request: HttpRequest):
     Reset a fuzzing campaign state
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -275,10 +264,7 @@ def get_campaign_status(request: HttpRequest):
     Get current campaign status and progress
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -310,10 +296,7 @@ def get_campaign_statistics(request: HttpRequest):
     Return AFL++-aligned runtime statistics (fixed key set)
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
 
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -375,10 +358,7 @@ def get_test_groups(request: HttpRequest):
     Get test groups with enhanced information for group selection
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -462,10 +442,7 @@ def get_protocol_types(request: HttpRequest):
     Get available protocol types and their parameters
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         protocol_adapter = IoTProtocolAdapter.get_instance()
@@ -489,10 +466,7 @@ def get_protocol_config(request: HttpRequest):
     Get current protocol configuration
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         config_id = request.GET.get('config_id')
@@ -519,10 +493,7 @@ def save_protocol_config(request: HttpRequest):
     Save protocol configuration to database
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -621,10 +592,7 @@ def get_saved_config(request: HttpRequest):
     Get saved configuration from database
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         # Get protocol type from query parameters
@@ -666,10 +634,7 @@ def test_protocol_connection(request: HttpRequest):
     Test protocol connection
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -707,10 +672,7 @@ def get_generator_types(request: HttpRequest):
     Get available generator types and their parameters
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         protocol_adapter = IoTProtocolAdapter.get_instance()
@@ -734,10 +696,7 @@ def get_generator_config(request: HttpRequest):
     Get current generator configuration
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         config_id = request.GET.get('config_id')
@@ -764,10 +723,7 @@ def save_generator_config(request: HttpRequest):
     Save generator configuration
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -801,10 +757,7 @@ def get_templates_list(request: HttpRequest):
     Return available configuration templates
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         category = request.GET.get('category')
@@ -854,10 +807,7 @@ def load_template(request: HttpRequest):
     Load selected template configuration
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -902,10 +852,7 @@ def save_template(request: HttpRequest):
     Save current configuration as template
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -946,10 +893,7 @@ def delete_template(request: HttpRequest):
     Delete a configuration template by id
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
 
     try:
         data = json.loads(request.body)
@@ -996,10 +940,7 @@ def validate_configuration(request: HttpRequest):
     Validate complete configuration
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1037,10 +978,7 @@ def get_test_groups_list(request: HttpRequest):
     Return all test groups with metadata
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -1087,10 +1025,7 @@ def create_test_group(request: HttpRequest):
     Create new test group
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1165,10 +1100,7 @@ def update_test_group(request: HttpRequest, group_id):
     Update test group properties
     """
     if request.method != 'PUT':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only PUT method is allowed"
-        }, status=405)
+        return method_not_allowed("PUT")
     
     try:
         data = json.loads(request.body)
@@ -1217,10 +1149,7 @@ def delete_test_group(request: HttpRequest, group_id):
     Delete test group and associated test cases
     """
     if request.method != 'DELETE':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only DELETE method is allowed"
-        }, status=405)
+        return method_not_allowed("DELETE")
     
     try:
         test_group = TestGroup.objects.get(id=group_id)
@@ -1250,10 +1179,7 @@ def get_test_cases_list(request: HttpRequest):
     Return test cases with group assignment
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         group_id = request.GET.get('group_id')
@@ -1321,10 +1247,7 @@ def create_test_case(request: HttpRequest):
     Create new test case
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1459,10 +1382,7 @@ def update_test_case(request: HttpRequest, case_id):
     Update test case properties
     """
     if request.method != 'PUT':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only PUT method is allowed"
-        }, status=405)
+        return method_not_allowed("PUT")
     
     try:
         data = json.loads(request.body)
@@ -1560,10 +1480,7 @@ def delete_test_case(request: HttpRequest, case_id):
     Delete test case
     """
     if request.method != 'DELETE':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only DELETE method is allowed"
-        }, status=405)
+        return method_not_allowed("DELETE")
     
     try:
         test_case = TestCase.objects.get(id=case_id)
@@ -1597,10 +1514,7 @@ def move_test_case(request: HttpRequest):
     Move test case between groups
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1686,10 +1600,7 @@ def build_protocol_frame(request: HttpRequest):
     Build protocol frame from field specifications
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1722,10 +1633,7 @@ def validate_protocol_frame(request: HttpRequest):
     Validate protocol frame structure
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1757,10 +1665,7 @@ def get_protocol_frame_templates(request: HttpRequest):
     Return protocol frame templates
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         protocol_type = request.GET.get('protocol_type')
@@ -1788,10 +1693,7 @@ def export_test_data(request: HttpRequest):
     Export test groups and cases
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1824,10 +1726,7 @@ def import_test_data(request: HttpRequest):
     Import test groups and cases
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -1865,10 +1764,7 @@ def get_files_tree(request: HttpRequest):
     Return file tree structure
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -1894,10 +1790,7 @@ def get_file_content(request: HttpRequest, file_id):
     Return file content
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -1921,10 +1814,7 @@ def download_file(request: HttpRequest, file_id):
     Download file
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -1961,10 +1851,7 @@ def get_logs_list(request: HttpRequest):
     Return test logs with filtering
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -2027,10 +1914,7 @@ def filter_logs(request: HttpRequest):
     Filter logs by criteria
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -2109,10 +1993,7 @@ def get_results_summary(request: HttpRequest):
     Return comprehensive result summary
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -2218,10 +2099,7 @@ def get_results_charts(request: HttpRequest):
     Return chart data for visualization
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
@@ -2291,10 +2169,7 @@ def export_results(request: HttpRequest):
     Export results and analysis
     """
     if request.method != 'POST':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only POST method is allowed"
-        }, status=405)
+        return method_not_allowed("POST")
     
     try:
         data = json.loads(request.body)
@@ -2327,10 +2202,7 @@ def get_artifacts(request: HttpRequest):
     Return crash artifacts and interesting findings
     """
     if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
+        return method_not_allowed("GET")
     
     try:
         campaign_id = request.GET.get('campaign_id')
