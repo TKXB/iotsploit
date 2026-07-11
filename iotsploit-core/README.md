@@ -47,8 +47,8 @@ print(mgr.list_plugins())
 ```
 
 Default exploit plugin dir:
-- `IOTSPLOIT_EXPLOIT_PLUGINS_DIR` (or legacy `SAT_EXPLOIT_PLUGINS_DIR`)
-- fallback: `./plugins/exploits`
+- `IOTSPLOIT_EXPLOIT_PLUGINS_DIR`
+- fallback: `None` (entry-point discovery only)
 
 ### Device drivers (manager)
 

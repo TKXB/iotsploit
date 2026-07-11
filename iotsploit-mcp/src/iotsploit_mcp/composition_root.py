@@ -13,11 +13,12 @@ from iotsploit_mcp.adapters.http_plugin_meta_repo import HttpPluginMetaRepositor
 from iotsploit_mcp.adapters.task_runner_local import LocalTaskRunner
 
 
-def _default_exploit_plugins_dir() -> Path:
-    env = os.getenv("IOTSPLOIT_EXPLOIT_PLUGINS_DIR") or os.getenv("SAT_EXPLOIT_PLUGINS_DIR")
+def _default_exploit_plugins_dir() -> Path | None:
+    """Return legacy plugin directory from env var, or None for entry-point-only discovery."""
+    env = os.getenv("IOTSPLOIT_EXPLOIT_PLUGINS_DIR")
     if env:
         return Path(env)
-    return Path.cwd() / "plugins" / "exploits"
+    return None
 
 
 def build_device_manager(

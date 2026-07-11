@@ -1,2 +1,0 @@
-"""Ubertooth device plugin package."""
-
