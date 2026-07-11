@@ -12,7 +12,7 @@ import mimetypes
 from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerService,
 )
-from iotsploit_django.iot_fuzzer.http import method_not_allowed
+from iotsploit_django.iot_fuzzer.http import method_not_allowed, parse_json_body
 
 # Import Django models
 from iotsploit_django.adapters.django.iot_fuzzer.models import (
@@ -181,7 +181,7 @@ def filter_logs(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         filter_criteria = data.get('filter_criteria', {})
         
         logs = LiveLog.objects.select_related('campaign')
@@ -435,7 +435,7 @@ def export_results(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         export_config = data.get('export_config', {})
         
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -513,4 +513,3 @@ def get_artifacts(request: HttpRequest):
             "status": "error",
             "message": f"Failed to get artifacts: {str(e)}"
         }, status=500)
-

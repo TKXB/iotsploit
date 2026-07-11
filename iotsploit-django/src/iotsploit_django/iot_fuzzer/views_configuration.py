@@ -8,7 +8,7 @@ from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerService,
     IoTProtocolAdapter,
 )
-from iotsploit_django.iot_fuzzer.http import method_not_allowed
+from iotsploit_django.iot_fuzzer.http import method_not_allowed, parse_json_body
 
 # Import Django models
 from iotsploit_django.adapters.django.iot_fuzzer.models import (
@@ -79,7 +79,7 @@ def save_protocol_config(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         config_data = data.get('config', {})
         
         # Extract configuration components
@@ -218,7 +218,7 @@ def test_protocol_connection(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         config_data = data.get('config', {})
         
         protocol_adapter = IoTProtocolAdapter.get_instance()
@@ -301,7 +301,7 @@ def save_generator_config(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         config_data = data.get('config', {})
         
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -384,7 +384,7 @@ def load_template(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         template_id = data.get('template_id')
         
         if not template_id:
@@ -429,7 +429,7 @@ def save_template(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         template_data = data.get('template', {})
         
         template = ConfigTemplate.objects.create(
@@ -470,7 +470,7 @@ def delete_template(request: HttpRequest):
         return method_not_allowed("POST")
 
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         template_id = data.get('template_id')
 
         if not template_id:
@@ -516,7 +516,7 @@ def validate_configuration(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         config_data = data.get('config', {})
         
         protocol_adapter = IoTProtocolAdapter.get_instance()
@@ -538,4 +538,3 @@ def validate_configuration(request: HttpRequest):
             "status": "error",
             "message": f"Failed to validate configuration: {str(e)}"
         }, status=500)
-

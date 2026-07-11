@@ -7,7 +7,7 @@ import logging
 from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerService,
 )
-from iotsploit_django.iot_fuzzer.http import method_not_allowed
+from iotsploit_django.iot_fuzzer.http import method_not_allowed, parse_json_body
 
 # Import Django models
 from iotsploit_django.adapters.django.iot_fuzzer.models import (
@@ -74,7 +74,7 @@ def create_test_group(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         
         # Handle both nested and flat data formats
         if 'group' in data:
@@ -149,7 +149,7 @@ def update_test_group(request: HttpRequest, group_id):
         return method_not_allowed("PUT")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         group_data = data.get('group', {})
         
         test_group = TestGroup.objects.get(id=group_id)
@@ -295,7 +295,7 @@ def create_test_case(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         # Support both nested (case: {}) and flat data formats
         case_data = data.get('case', data)
 
@@ -430,7 +430,7 @@ def update_test_case(request: HttpRequest, case_id):
         return method_not_allowed("PUT")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         case_data = data.get('case', {})
 
         print(f"update test_case_data: {case_data}")
@@ -562,7 +562,7 @@ def move_test_case(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         # Support both case_id and test_case_id field names
         case_id = data.get('case_id') or data.get('test_case_id')
         target_group_id = data.get('target_group_id')
@@ -647,7 +647,7 @@ def build_protocol_frame(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         frame_spec = data.get('frame_spec', {})
         
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -680,7 +680,7 @@ def validate_protocol_frame(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         frame_data = data.get('frame_data', {})
         
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -739,7 +739,7 @@ def export_test_data(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         export_config = data.get('export_config', {})
         
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -772,7 +772,7 @@ def import_test_data(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         import_data = data.get('import_data', {})
         
         fuzzer_service = IoTFuzzerService.get_instance()
@@ -794,4 +794,3 @@ def import_test_data(request: HttpRequest):
             "status": "error",
             "message": f"Failed to import test data: {str(e)}"
         }, status=500)
-

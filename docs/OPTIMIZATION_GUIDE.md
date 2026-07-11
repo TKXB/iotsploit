@@ -283,11 +283,11 @@ behavior. Implement one independently verifiable resource or responsibility at a
 
 - [x] Pin all 43 IoT Fuzzer HTTP route names and paths with an exact contract test (−0 production LOC)
 - [x] Add response characterization tests and isolate external services/hardware (43 method contracts + campaign behavior)
-- [~] Extract shared request parsing, method validation, and response helpers without changing API envelopes (method helper done)
+- [x] Extract shared request parsing and method responses without changing API envelopes (43 method checks, 22 JSON parses)
 - [x] `iot_fuzzer/views.py` (2,380) — split into a 103-line compatibility facade plus campaign (427), configuration (541), management (797), and results (516) modules
 - [x] `web/views.py` (1,999) — migrated to resource handlers behind an 83-line compatibility facade (2,170 total, +171 structural LOC)
 - [x] `tools/iot_protocol_adapter.py` (1,415) — split into registry/validation (645), runtime orchestration/monitoring/generation (607), and interfaces/mocks (175); 1,427 total (+12 structural LOC)
-- [~] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — duplicate frame serialization removed; broader boundary audit remains
+- [x] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — stored-data/live-runtime APIs verified disjoint; duplicate frame serialization removed
 - [x] `tools/adb_mgr.py` 870 → 807 (−63) — consolidated permission scans behind one tested helper
 - [x] `tools/report_mgr.py` 724 → 684 (−40) — consolidated tested report-tree initialization
 - [ ] Run the full Python test gate, re-measure Python LOC, update §7, and close Phase 4
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 HTTP/service boundary unit centralized all 22 JSON-body parses and added an
+  architecture test proving stored-data service operations and live-runtime manager operations
+  have disjoint public APIs. The earlier duplicate frame serializer remains removed.
 - 2026-07-11: Phase 4 protocol decomposition completed by moving orchestration, monitoring, and
   generation into a runtime module. Final split: registry/validation 645, runtime 607,
   interfaces/mocks 175; 1,427 total vs. 1,415 (+12 structural LOC). Contracts pass.

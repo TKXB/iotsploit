@@ -8,7 +8,7 @@ import logging
 from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerManager,
 )
-from iotsploit_django.iot_fuzzer.http import method_not_allowed
+from iotsploit_django.iot_fuzzer.http import method_not_allowed, parse_json_body
 
 # Import Django models
 
@@ -27,7 +27,7 @@ def start_campaign(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         
         # Ensure data is a dictionary
         if not isinstance(data, dict):
@@ -138,7 +138,7 @@ def stop_campaign(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         campaign_id = data.get('campaign_id')
         
         if not campaign_id:
@@ -178,7 +178,7 @@ def pause_campaign(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         campaign_id = data.get('campaign_id')
         
         if not campaign_id:
@@ -218,7 +218,7 @@ def reset_campaign(request: HttpRequest):
         return method_not_allowed("POST")
     
     try:
-        data = json.loads(request.body)
+        data = parse_json_body(request)
         campaign_id = data.get('campaign_id')
         
         if not campaign_id:
@@ -424,4 +424,3 @@ def _calculate_group_strategy_distribution(group):
     except Exception as e:
         logger.error(f"Error calculating strategy distribution for group {group.id}: {e}")
         return {'bit_level': 0, 'field_level': 0, 'total_rules': 0}
-
