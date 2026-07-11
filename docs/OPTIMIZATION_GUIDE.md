@@ -276,11 +276,24 @@ Biggest LOC concentration. Start with the largest files.
 - [ ] Consolidate duplicated provider/service state; remove redundant state mirrors
 
 ### Phase 4 — Python backend view de-duplication & decomposition  *(medium risk)*
-- [ ] `iot_fuzzer/views.py` (2,384) — split by resource; extract shared request/response/validation helpers
-- [ ] `web/views.py` (2,048) — same treatment; dedupe against iot_fuzzer views
-- [ ] `tools/iot_protocol_adapter.py` (1,414) — decompose by protocol; remove duplicated adapters
-- [ ] `tools/iot_fuzzer_service.py` (1,198) & `iot_fuzzer_manager.py` (997) — unify overlapping lifecycle logic
-- [ ] `tools/adb_mgr.py` (907), `report_mgr.py` (725) — extract shared manager base
+
+**Approved approach:** Option B — incremental, contract-first decomposition and de-duplication.
+Preserve public URLs, route names, import locations, status codes, response shapes, and hardware
+behavior. Implement one independently verifiable resource or responsibility at a time.
+
+- [ ] Establish Django route/response characterization tests and isolate the known baseline failure
+- [ ] Extract shared request parsing, method validation, and response helpers without changing API envelopes
+- [ ] `iot_fuzzer/views.py` (2,380) — split campaign, configuration, management, and results resources
+- [ ] `web/views.py` (1,999) — finish migration into existing `web/api` resource modules; retain only required compatibility exports
+- [ ] `tools/iot_protocol_adapter.py` (1,415) — split registry, validation, orchestration, monitoring, generation, interfaces, and mocks
+- [ ] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` (967) — separate stored-data operations from live campaign lifecycle and remove concrete overlap
+- [ ] `tools/adb_mgr.py` (870) — locally consolidate permission scans and command/result handling
+- [ ] `tools/report_mgr.py` (724) — locally consolidate report-tree and before/after record handling
+- [ ] Run the full Python test gate, re-measure Python LOC, update §7, and close Phase 4
+
+> Current Phase 4 target footprint: 9,553 production LOC. Do not introduce a shared base for
+> `ADB_Mgr` and `Report_Mgr`; their singleton construction is insufficient common behavior to
+> justify coupling them.
 
 ### Phase 5 — Python core managers & data model  *(higher risk — most verification)*
 - [ ] `iotsploit-core`: unify `tool_service.py` (1,036) / `tool_manager.py` (903) / `device_manager.py` (942) / `exploit_manager.py` (728) — extract a common manager base class for shared lifecycle/registry logic
@@ -430,6 +443,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 Option B approved. Restored and refined the missing Phase 4 tracker using
+  current LOC (9,553 across seven target files) and a contract-first, resource-by-resource
+  sequence. No production code changed; Phase 1 remains the tracker-ordered implementation step.
 - 2026-07-10: Phase 1 Flutter analyzer hygiene decision plan revalidated; no Flutter source edits
   yet. Current analyzer state from `ui/.fvm/flutter_sdk/bin/flutter analyze --no-pub`: 484
   diagnostics (151 errors, 44 warnings, 289 infos). The mechanical cleanup slice is 41 diagnostics,
