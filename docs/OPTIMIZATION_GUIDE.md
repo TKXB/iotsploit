@@ -288,7 +288,7 @@ behavior. Implement one independently verifiable resource or responsibility at a
 - [ ] `web/views.py` (1,999) — finish migration into existing `web/api` resource modules; retain only required compatibility exports
 - [ ] `tools/iot_protocol_adapter.py` (1,415) — split registry, validation, orchestration, monitoring, generation, interfaces, and mocks
 - [ ] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` (967) — separate stored-data operations from live campaign lifecycle and remove concrete overlap
-- [ ] `tools/adb_mgr.py` (870) — locally consolidate permission scans and command/result handling
+- [x] `tools/adb_mgr.py` 870 → 807 (−63) — consolidated permission scans behind one tested helper
 - [ ] `tools/report_mgr.py` (724) — locally consolidate report-tree and before/after record handling
 - [ ] Run the full Python test gate, re-measure Python LOC, update §7, and close Phase 4
 
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 ADB unit consolidated the three readable/writable file/directory scans into
+  one private implementation while preserving public signatures, commands, mount filtering, and
+  result filtering. Added focused delegation/command tests; `adb_mgr.py` 870 → 807 (−63).
 - 2026-07-11: Phase 4 response characterization started with campaign control/status contracts:
   method rejection, malformed JSON, required IDs, success envelopes, and manager delegation are
   pinned behind mocks. Five focused tests pass; no production code changed.

@@ -1,8 +1,10 @@
 import os
+
 # Disable pwntools terminal mode before importing to prevent fileno() errors in non-TTY environments
 os.environ.setdefault("PWNLIB_NOTERM", "1")
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 import re
@@ -19,7 +21,7 @@ from pwnlib.exception import PwnlibException
 class ADB_Mgr:
     """
     ADB Manager for interacting with Android devices.
-    
+
     Usage with target model:
     1. Define ADB devices in the target JSON:
        - Use 'adb_device' as the component type
@@ -34,15 +36,15 @@ class ADB_Mgr:
            "usb_vendor_id": "0x18d1",
            "usb_product_id": "0x4ee7"
          }
-    
+
     2. Access devices by name or type:
        - Use the device name (e.g., "DHU", "TCAM", "MyDevice")
        - Or direct serial id if known
     """
-    
+
     # File paths
     __temp_script_file_path = "/data/local/tmp/iotsploit/tmp_bash_script.sh"
-    
+
     # Singleton pattern implementation
     _instance = None
     _lock = threading.Lock()
@@ -54,19 +56,19 @@ class ADB_Mgr:
                     cls._instance = super(ADB_Mgr, cls).__new__(cls)
                     cls._instance._initialized = False
         return cls._instance
-    
+
     @staticmethod
     def Instance():
         return ADB_Mgr()
-        
+
     def __init__(self):
-        if not hasattr(self, '_initialized') or not self._initialized:
+        if not hasattr(self, "_initialized") or not self._initialized:
             logger.info("Initializing ADB_Mgr singleton")
             self.__last_connect_serial = None
             self.__last_adb_root = None
             self._target_manager = TargetManager.get_instance()
             self._initialized = True
-        
+
     def init_adb_service(self):
         """ADB_mgr must be initialized in the main thread"""
         logger.info("Init ADB Services As Root")
@@ -75,37 +77,33 @@ class ADB_Mgr:
     def query_adb_serial_id(self, device_identifier):
         """
         Get ADB serial ID for any ADB device by name or type
-        
+
         Args:
             device_identifier: Device name or type
-            
+
         Returns:
             ADB serial ID string
         """
         current_target = self._target_manager.get_current_target()
         if not current_target:
             raise_err("No current target set. Cannot query ADB serial ID.")
-        
+
         # First try by name (for backward compatibility with DHU_NAME/TCAM_NAME)
         adb_device = current_target.get_adb_device_by_name(device_identifier)
-        
+
         # If not found by name, try by type
         if not adb_device:
             adb_device = current_target.get_adb_device_by_type(device_identifier)
-            
+
         if adb_device and adb_device.adb_serial_id:
             logger.info(f"ADB device '{device_identifier}' serial ID found: {adb_device.adb_serial_id}")
             return adb_device.adb_serial_id
-            
+
         # If we have USB IDs, use them to find the device
         if adb_device and adb_device.usb_vendor_id and adb_device.usb_product_id:
             logger.info(f"Using USB IDs to find ADB device '{device_identifier}'")
-            return self._find_device_by_usb_ids(
-                adb_device.usb_vendor_id, 
-                adb_device.usb_product_id, 
-                device_identifier
-            )
-            
+            return self._find_device_by_usb_ids(adb_device.usb_vendor_id, adb_device.usb_product_id, device_identifier)
+
         raise_err(f"ADB device '{device_identifier}' not found in target or missing required information")
 
     def query_dhu_adb_serial_id(self):
@@ -113,16 +111,16 @@ class ADB_Mgr:
         current_target = self._target_manager.get_current_target()
         if not current_target:
             raise_err("No current target set. Cannot query DHU ADB serial ID.")
-        
+
         # Get DHU from components
         dhu_device = current_target.get_adb_device_by_name("DHU")
-        
+
         if dhu_device and dhu_device.adb_serial_id:
             logger.info(f"DHU ADB SERIAL ID Found: {dhu_device.adb_serial_id}")
             return dhu_device.adb_serial_id
 
         logger.info("DHU ADB SERIAL ID NOT Found! Use usb_vendor_id AND usb_product_id Instead")
-        
+
         # Try to get vendor/product ID from DHU component
         if dhu_device and dhu_device.usb_vendor_id and dhu_device.usb_product_id:
             return self._find_device_by_usb_ids(dhu_device.usb_vendor_id, dhu_device.usb_product_id, "DHU")
@@ -134,16 +132,16 @@ class ADB_Mgr:
         current_target = self._target_manager.get_current_target()
         if not current_target:
             raise_err("No current target set. Cannot query TCAM ADB serial ID.")
-        
+
         # Get TCAM from components
         tcam_device = current_target.get_adb_device_by_name("TCAM")
-        
+
         if tcam_device and tcam_device.adb_serial_id:
             logger.info(f"TCAM ADB SERIAL ID Found: {tcam_device.adb_serial_id}")
             return tcam_device.adb_serial_id
-        
+
         logger.info("TCAM ADB SERIAL ID NOT Found! Use usb_vendor_id AND usb_product_id Instead")
-        
+
         # Try to get vendor/product ID from TCAM component
         if tcam_device and tcam_device.usb_vendor_id and tcam_device.usb_product_id:
             return self._find_device_by_usb_ids(tcam_device.usb_vendor_id, tcam_device.usb_product_id, "TCAM")
@@ -156,7 +154,7 @@ class ADB_Mgr:
             if usb["idVendor"] == int(vendor_id, 16) and usb["idProduct"] == int(product_id, 16):
                 logger.info(f"Find {device_name} USB In USB List: {usb}")
                 return usb["iSerialNumber"]
-            
+
         raise_err(f"{device_name} ADB Serial ID 查询失败! 连接的USB设备中没有找到匹配设备")
 
     def __recheck_device_serial(self, device_serial):
@@ -167,7 +165,7 @@ class ADB_Mgr:
         elif device_serial == "TCAM":
             device_serial = self.query_tcam_adb_serial_id()
         # Try to resolve as an ADB device from the target model
-        elif not (device_serial and re.match(r'[A-Za-z0-9.:]+$', device_serial)):
+        elif not (device_serial and re.match(r"[A-Za-z0-9.:]+$", device_serial)):
             try:
                 device_serial = self.query_adb_serial_id(device_serial)
             except Exception as e:
@@ -176,7 +174,7 @@ class ADB_Mgr:
 
         if device_serial is None:
             raise_err(f"Device Serial: {device_serial} Invalid!")
-        
+
         return device_serial
 
     def check_connect_status(self, device_serial):
@@ -186,7 +184,7 @@ class ADB_Mgr:
 
         # Find the actual device serial if a placeholder was provided
         device_serial_checked = None
-        
+
         # For backwards compatibility
         if device_serial == "DHU":
             try:
@@ -201,7 +199,7 @@ class ADB_Mgr:
                 logger.info("TCAM ADB device not found")
                 return False
         # General device lookup by name or type
-        elif not re.match(r'[A-Za-z0-9.:]+$', device_serial):
+        elif not re.match(r"[A-Za-z0-9.:]+$", device_serial):
             try:
                 device_serial_checked = self.query_adb_serial_id(device_serial)
             except Exception:
@@ -216,14 +214,14 @@ class ADB_Mgr:
             if dev.serial == device_serial_checked:
                 logger.info(f"Find Serial IN ADB: {dev}")
                 return True
-                
+
         logger.info(f"Serial: {device_serial_checked} Not Found IN ADB Devices")
         return False
 
     def list_devices(self):
         """
         Check ADB connection status
-        
+
         Returns:
             List of ADB devices
         """
@@ -244,17 +242,17 @@ class ADB_Mgr:
     def connect_dev(self, device_serial, root_require=False, force_unroot=False):
         """
         Connect to a device via ADB and optionally request root access
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             root_require: Whether root access is required
             force_unroot: Force non-root access even if previously rooted
-            
+
         Returns:
             Device serial if connected successfully, None otherwise
         """
         device_serial_checked = self.__recheck_device_serial(device_serial)
-        
+
         # Check if reconnection is needed
         need_reconnect = False
         if device_serial_checked != self.__last_connect_serial:
@@ -265,14 +263,18 @@ class ADB_Mgr:
             need_reconnect = True
 
         if not need_reconnect:
-            logger.info(f"Current: {self.__last_connect_serial}_{self.__last_adb_root} "
-                      f"Need: {device_serial_checked}_{root_require}_{force_unroot} "
-                      f"Match requirements. Skip")
+            logger.info(
+                f"Current: {self.__last_connect_serial}_{self.__last_adb_root} "
+                f"Need: {device_serial_checked}_{root_require}_{force_unroot} "
+                f"Match requirements. Skip"
+            )
             return self.__last_connect_serial
 
-        logger.info(f"Current: {self.__last_connect_serial}_{self.__last_adb_root} "
-                  f"Need: {device_serial_checked}_{root_require}_{force_unroot} "
-                  f"ADB Connect Start")
+        logger.info(
+            f"Current: {self.__last_connect_serial}_{self.__last_adb_root} "
+            f"Need: {device_serial_checked}_{root_require}_{force_unroot} "
+            f"ADB Connect Start"
+        )
 
         # Reset connection state
         self.__last_connect_serial = None
@@ -286,7 +288,7 @@ class ADB_Mgr:
                 if dev.serial == device_serial_checked:
                     target_dev = dev
                     break
-            
+
             if target_dev is None:
                 logger.error(f"ADB Find Device Fail! Serial: {device_serial_checked} Not Found")
                 return None
@@ -295,10 +297,10 @@ class ADB_Mgr:
             context.device = device_serial_checked
             adb.wait_for_device()
             logger.info(f"ADB Connect Device Success: {target_dev}")
-            
+
         except Exception:
             logger.exception("ADB Connect Device Fail! Connect Abort")
-            return None  
+            return None
 
         # Handle root requirements
         if root_require:
@@ -320,7 +322,7 @@ class ADB_Mgr:
                 logger.info("ADB Force UnRoot Required.")
                 if self.__last_adb_root is not False:
                     try:
-                        adb.unroot() 
+                        adb.unroot()
                         sat_sleep(2)
                         logger.info("ADB Root NOT Required. Restart ADBD As Shell.")
                         self.__last_adb_root = False
@@ -335,19 +337,19 @@ class ADB_Mgr:
                 if self.__last_adb_root is None:
                     logger.info("Default ADB Treat As Shell.")
                     self.__last_adb_root = False
-    
+
         self.__last_connect_serial = device_serial_checked
         return self.__last_connect_serial
 
     def pull_file(self, device_serial, android_file_path, sat_file_path):
         """
         Pull a file from an Android device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             android_file_path: Path to file on Android device
             sat_file_path: Path to save file on host
-            
+
         Returns:
             1: Success
             -1: Device connect fail
@@ -364,16 +366,16 @@ class ADB_Mgr:
         except Exception:
             logger.exception(f"Device: {device_serial} Pull File {android_file_path} -> {sat_file_path} Fail!")
             return -2
-    
+
     def push_file(self, device_serial, sat_file_path, android_file_path):
         """
         Push a file to an Android device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             sat_file_path: Path to file on host
             android_file_path: Path to save file on Android device
-            
+
         Returns:
             1: Success
             -1: Device connect fail
@@ -394,25 +396,25 @@ class ADB_Mgr:
     def list_installed_apps(self, device_serial):
         """
         List installed apps on an Android device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
-            
+
         Returns:
             List of package names or None on failure
         """
         con_dev = self.connect_dev(device_serial)
         if con_dev is None:
             raise_err(f"Device {device_serial} Connect Fail!")
-        
+
         try:
             app_list = []
-            packages = adb.process(['pm', 'list', 'packages']).recvall().decode('utf-8')
+            packages = adb.process(["pm", "list", "packages"]).recvall().decode("utf-8")
             for package_line in packages.splitlines():
                 app_list.append(package_line.replace("package:", ""))
             logger.info(f"Device: {device_serial} List Installed APPs Success. APPs: {app_list}")
             return app_list
-        
+
         except Exception:
             logger.exception(f"Device: {device_serial} List Installed APPs Fail!")
             return None
@@ -420,31 +422,27 @@ class ADB_Mgr:
     def query_dir_status(self, device_serial, dir_path):
         """
         Get directory listing details from an Android device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             dir_path: Directory path to list
-            
+
         Returns:
             List of directory contents (permissions, owner, name) or None on failure
         """
         con_dev = self.connect_dev(device_serial, True)
         if con_dev is None:
             raise_err(f"Device {device_serial} Connect Fail!")
-        
+
         try:
             result_list = []
-            results = adb.process(['ls', '-l', dir_path]).recvall().decode('utf-8')
+            results = adb.process(["ls", "-l", dir_path]).recvall().decode("utf-8")
             if results.startswith("total "):
                 for line in results.splitlines()[1:]:
                     # Split by whitespace but handle multiword filenames
                     parts = line.split()
                     if len(parts) >= 8:
-                        item_dict = {
-                            "type": parts[0],
-                            "owner": f"{parts[2]}:{parts[3]}",
-                            "name": parts[-1]
-                        }
+                        item_dict = {"type": parts[0], "owner": f"{parts[2]}:{parts[3]}", "name": parts[-1]}
                         result_list.append(item_dict)
 
                 logger.info(f"Device: {device_serial} List Query Dir: {dir_path} Success. Dir Status: {result_list}")
@@ -452,7 +450,7 @@ class ADB_Mgr:
             else:
                 logger.info(f"Device: {device_serial} List Query Dir: {dir_path} Fail! Dir Not Exists.")
                 return []
-        
+
         except Exception:
             logger.exception(f"Device: {device_serial} List Query Dir: {dir_path} Fail! ADB Cmd Fail!")
             return None
@@ -460,12 +458,12 @@ class ADB_Mgr:
     def shell_cmd(self, device_serial, cmd, root_required=True):
         """
         Execute a shell command on an Android device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             cmd: Shell command to execute
             root_required: Whether root access is required
-            
+
         Returns:
             Command output as string
         """
@@ -473,18 +471,18 @@ class ADB_Mgr:
             con_dev = self.connect_dev(device_serial, True)
         else:
             con_dev = self.connect_dev(device_serial, False)
-            
+
         if con_dev is None:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         logger.info(f"Device: {device_serial} Execute Shell CMD: {cmd} Start -->>")
-        
+
         # Create temp script file
         adb.makedirs(os.path.dirname(self.__temp_script_file_path))
         adb.write(self.__temp_script_file_path, cmd)
-        
+
         # Execute command
-        results = adb.process(["sh", self.__temp_script_file_path]).recvall().decode('utf-8')
+        results = adb.process(["sh", self.__temp_script_file_path]).recvall().decode("utf-8")
         logger.info(f"Device: {device_serial} Execute Shell CMD: {cmd} Finish -->>")
 
         return results
@@ -499,22 +497,22 @@ class ADB_Mgr:
                 path = path + "/"
                 item["dirpath"] = path
                 del item["filepath"]
-                
+
             # Filter by path prefixes (exclude virtual directories)
             if any(path.startswith(excluded) for excluded in passdirs):
                 continue
-                
+
             # Filter by mount points
             if allowdirs:
                 if not any(path.startswith(allowed) for allowed in allowdirs):
                     continue
-                    
+
             # Filter by SELinux context
             if hasSelinux and any(passsid in item["sid"] for passsid in passsids):
                 continue
-                
+
             filtered_items.append(item)
-            
+
         return filtered_items
 
     def query_writable_mount_dirs(self, device_serial):
@@ -524,11 +522,13 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            cmd = ("mount | grep rw | grep -v function | grep -v tmpfs | grep -v bpf | "
-                   "grep -v binder | grep -v configfs | grep -v tracefs | "
-                   "grep -v cgroup | grep -v selinuxfs | grep -v proc | grep -v devpts | grep -v sysfs")
+            cmd = (
+                "mount | grep rw | grep -v function | grep -v tmpfs | grep -v bpf | "
+                "grep -v binder | grep -v configfs | grep -v tracefs | "
+                "grep -v cgroup | grep -v selinuxfs | grep -v proc | grep -v devpts | grep -v sysfs"
+            )
             results = self.shell_cmd(device_serial, cmd)
-            
+
             # Extract mount points
             dirs = []
             itemre = re.compile(r"on\s+(\S+)")
@@ -536,7 +536,7 @@ class ADB_Mgr:
                 match = itemre.findall(line)
                 if match:
                     dirs.append(match[0] + "/")
-                    
+
             return dirs
         except Exception:
             logger.exception(f"Device: {device_serial} query mount Fail! ADB Cmd Fail!")
@@ -549,155 +549,88 @@ class ADB_Mgr:
         for line in results.splitlines():
             match = itemregx.findall(line)
             if match:
-                items.append({
-                    "rwx": match[0][0],
-                    "owner": match[0][1],
-                    "group": match[0][2],
-                    "sid": match[0][3],
-                    "filepath": match[0][4]
-                })
+                items.append(
+                    {
+                        "rwx": match[0][0],
+                        "owner": match[0][1],
+                        "group": match[0][2],
+                        "sid": match[0][3],
+                        "filepath": match[0][4],
+                    }
+                )
         return items
 
-    def query_dirs_permission_writable_by_any_user(self, device_serial, finddir, namefilter="", passdirs=[], passsids=[]):
-        """
-        Find directories writable by any user
-        
-        Args:
-            device_serial: Device serial ID or placeholder
-            finddir: Directory to search in
-            namefilter: Optional name pattern filter
-            passdirs: Directories to exclude
-            passsids: SELinux contexts to exclude
-            
-        Returns:
-            List of writable directories with details
-        """
+    def _query_permissions(self, device_serial, finddir, permission, item_type, namefilter, passdirs, passsids):
         con_dev = self.connect_dev(device_serial, True)
         if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")            
+            raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            # Build the find command
+            directory_args = "-d " if item_type == "d" else ""
+            name_arg = ""
             if namefilter:
-                cmd = f'find {finddir} -perm -2 -type d -name "{namefilter}" -print0 2>/dev/null | xargs -0 -r ls -d -l -Z 2>/dev/null'
-            else:
-                cmd = f'find {finddir} -perm -2 -type d -print0 2>/dev/null | xargs -0 -r ls -d -l -Z 2>/dev/null'
-                
+                name_arg = f' -name "{namefilter}"'
+            cmd = (
+                f"find {finddir} -perm -{permission} -type {item_type}{name_arg} "
+                f"-print0 2>/dev/null | xargs -0 -r ls {directory_args}-l -Z 2>/dev/null"
+            )
             results = self.shell_cmd(device_serial, cmd)
-            
-            # Parse and filter results
             hasSelinux = self.query_android_selinux_status(device_serial)
-            allowdirs = self.query_writable_mount_dirs(device_serial)
+            allowdirs = self.query_writable_mount_dirs(device_serial) if permission == 2 else None
             items = self._parse_permission_listings(results)
-            dirs = self._filter_file_items(items, passdirs, passsids, hasSelinux, allowdirs, True)
-            
-            logger.info(f"Device: {device_serial} Query Dirs Permissions Success.")
-            return dirs
-        
+            return self._filter_file_items(
+                items,
+                passdirs,
+                passsids,
+                hasSelinux,
+                allowdirs,
+                is_dir=item_type == "d",
+            )
         except Exception:
-            logger.exception(f"Device: {device_serial} query_dirs_permission Fail! ADB Cmd Fail!")
+            logger.exception(f"Device: {device_serial} query_{item_type}_permission Fail! ADB Cmd Fail!")
             return None
 
-    def query_files_permission_readable_by_any_user(self, device_serial, finddir, namefilter="", passdirs=[], passsids=[]):
-        """
-        Find files readable by any user
-        
-        Args:
-            device_serial: Device serial ID or placeholder
-            finddir: Directory to search in
-            namefilter: Optional name pattern filter
-            passdirs: Directories to exclude
-            passsids: SELinux contexts to exclude
-            
-        Returns:
-            List of readable files with details
-        """
-        con_dev = self.connect_dev(device_serial, True)
-        if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")     
-            
-        try:
-            # Build the find command
-            if namefilter:
-                cmd = f'find {finddir} -perm -4 -type f -name "{namefilter}" -print0 2>/dev/null | xargs -0 -r ls -l -Z 2>/dev/null'
-            else:
-                cmd = f'find {finddir} -perm -4 -type f -print0 2>/dev/null | xargs -0 -r ls -l -Z 2>/dev/null'
-                
-            results = self.shell_cmd(device_serial, cmd)
-            
-            # Parse and filter results
-            hasSelinux = self.query_android_selinux_status(device_serial)
-            items = self._parse_permission_listings(results)
-            files = self._filter_file_items(items, passdirs, passsids, hasSelinux)
-            
-            return files
-        
-        except Exception:
-            logger.exception(f"Device: {device_serial} query_files_permission Fail! ADB Cmd Fail!")
-            return None
+    def query_dirs_permission_writable_by_any_user(
+        self, device_serial, finddir, namefilter="", passdirs=[], passsids=[]
+    ):
+        """Find directories writable by any user."""
+        return self._query_permissions(device_serial, finddir, 2, "d", namefilter, passdirs, passsids)
 
-    def query_files_permission_writable_by_any_user(self, device_serial, finddir, namefilter="", passdirs=[], passsids=[]):
-        """
-        Find files writable by any user
-        
-        Args:
-            device_serial: Device serial ID or placeholder
-            finddir: Directory to search in
-            namefilter: Optional name pattern filter
-            passdirs: Directories to exclude
-            passsids: SELinux contexts to exclude
-            
-        Returns:
-            List of writable files with details
-        """
-        con_dev = self.connect_dev(device_serial, True)
-        if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")     
+    def query_files_permission_readable_by_any_user(
+        self, device_serial, finddir, namefilter="", passdirs=[], passsids=[]
+    ):
+        """Find files readable by any user."""
+        return self._query_permissions(device_serial, finddir, 4, "f", namefilter, passdirs, passsids)
 
-        try:
-            # Build the find command
-            if namefilter:
-                cmd = f'find {finddir} -perm -2 -type f -name "{namefilter}" -print0 2>/dev/null | xargs -0 -r ls -l -Z 2>/dev/null'
-            else:
-                cmd = f'find {finddir} -perm -2 -type f -print0 2>/dev/null | xargs -0 -r ls -l -Z 2>/dev/null'
-                
-            results = self.shell_cmd(device_serial, cmd)
-            
-            # Parse and filter results
-            hasSelinux = self.query_android_selinux_status(device_serial)
-            allowdirs = self.query_writable_mount_dirs(device_serial)
-            items = self._parse_permission_listings(results)
-            files = self._filter_file_items(items, passdirs, passsids, hasSelinux, allowdirs)
-            
-            return files
-        
-        except Exception:
-            logger.exception(f"Device: {device_serial} query_files_permission Fail! ADB Cmd Fail!")
-            return None
-        
+    def query_files_permission_writable_by_any_user(
+        self, device_serial, finddir, namefilter="", passdirs=[], passsids=[]
+    ):
+        """Find files writable by any user."""
+        return self._query_permissions(device_serial, finddir, 2, "f", namefilter, passdirs, passsids)
+
     def query_files_permission_suid(self, device_serial):
         """
         Find SUID files on the device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
-            
+
         Returns:
             List of SUID files with details
         """
         con_dev = self.connect_dev(device_serial, True)
         if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")     
+            raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            cmd = 'find / -perm -4000 -print0 2>/dev/null | xargs -0 -r ls -l -Z 2>/dev/null'
+            cmd = "find / -perm -4000 -print0 2>/dev/null | xargs -0 -r ls -l -Z 2>/dev/null"
             results = self.shell_cmd(device_serial, cmd)
-            
+
             # Just parse, no filtering
             items = self._parse_permission_listings(results)
-            
+
             return items
-        
+
         except Exception:
             logger.exception(f"Device: {device_serial} Query SUID Files Permissions Fail! ADB Cmd Fail!")
             return None
@@ -711,22 +644,22 @@ class ADB_Mgr:
     def install_apk(self, device_serial, apk_path):
         """
         Install an APK on the device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             apk_path: Path to APK file
-            
+
         Returns:
             True if installation was successful, False otherwise
         """
         con_dev = self.connect_dev(device_serial)
         if con_dev is None:
             raise_err(f"Device {device_serial} Connect Fail!")
-            
+
         try:
             real_device_serial = self.__recheck_device_serial(device_serial)
             _, result = Bash_Script_Mgr.Instance().exec_cmd(f"adb -s {real_device_serial} install {apk_path}")
-            
+
             if "success" in result.lower():
                 logger.info(f"Install APK Finish: {apk_path}")
                 return True
@@ -736,22 +669,22 @@ class ADB_Mgr:
         except Exception:
             logger.exception(f"Device: {device_serial} Install APK Fail: {apk_path}")
             return False
-    
+
     def uninstall_apk(self, device_serial, package_id):
         """
         Uninstall an app from the device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             package_id: Package name to uninstall
-            
+
         Returns:
             True if uninstallation was successful, False otherwise
         """
         con_dev = self.connect_dev(device_serial, True)
         if con_dev is None:
             raise_err(f"Device {device_serial} Connect Fail!")
-        
+
         try:
             adb.uninstall(package_id)
             logger.info(f"Device: {device_serial} UnInstall Package Finish: {package_id}")
@@ -763,19 +696,19 @@ class ADB_Mgr:
     def query_android_selinux_status(self, device_serial):
         """
         Check SELinux status on the device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
-            
+
         Returns:
             True if SELinux is enforcing, False if permissive/disabled, None on error
         """
         con_dev = self.connect_dev(device_serial)
         if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")    
+            raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            selinux_status = adb.process(['getenforce']).recvall().decode('utf-8').strip()
+            selinux_status = adb.process(["getenforce"]).recvall().decode("utf-8").strip()
             logger.info(f"Device: {device_serial} Query SeLinux Status Success. Status: {selinux_status}")
             return selinux_status == "Enforcing"
         except Exception:
@@ -785,19 +718,21 @@ class ADB_Mgr:
     def query_android_security_patch_status(self, device_serial):
         """
         Get Android security patch level
-        
+
         Args:
             device_serial: Device serial ID or placeholder
-            
+
         Returns:
             Security patch date as string, or None on error
         """
         con_dev = self.connect_dev(device_serial)
         if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")    
+            raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            security_patch = adb.process(['getprop', 'ro.build.version.security_patch']).recvall().decode('utf-8').strip()
+            security_patch = (
+                adb.process(["getprop", "ro.build.version.security_patch"]).recvall().decode("utf-8").strip()
+            )
             logger.info(f"Device: {device_serial} Query Security Patch Status Success. Status: {security_patch}")
             return security_patch
         except Exception:
@@ -807,34 +742,36 @@ class ADB_Mgr:
     def query_android_webview_version(self, device_serial):
         """
         Get WebView version on the device
-        
+
         Args:
             device_serial: Device serial ID or placeholder
-            
+
         Returns:
             WebView version as string, or None on error
         """
         con_dev = self.connect_dev(device_serial)
         if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")    
-            
+            raise_err(f"Device {device_serial} Connect Fail!")
+
         try:
             # Try Android WebView
             result1 = self.shell_cmd(device_serial, "dumpsys package com.android.webview | grep versionName", False)
             logger.info(f"Device: {device_serial} Query Package com.android.webview Finish. Result: {result1}")
 
             # Try Google WebView
-            result2 = self.shell_cmd(device_serial, "dumpsys package com.google.android.webview | grep versionName", False)
+            result2 = self.shell_cmd(
+                device_serial, "dumpsys package com.google.android.webview | grep versionName", False
+            )
             logger.info(f"Device: {device_serial} Query Package com.google.android.webview Finish. Result: {result2}")
 
             # Return the first valid result
             version = result1 if result1 else result2
-            
+
             if not version:
                 raise_err("未找到webview")
-                
+
             return version
-        
+
         except Exception:
             logger.exception(f"Device: {device_serial} Dumpsys Packages Fail!")
             return None
@@ -842,18 +779,18 @@ class ADB_Mgr:
     def list_debug_apps(self, device_serial, keylist):
         """
         Find apps matching debug/test keywords
-        
+
         Args:
             device_serial: Device serial ID or placeholder
             keylist: List of keywords to search for in package names
-            
+
         Returns:
             List of matching package names, or None on error
         """
         con_dev = self.connect_dev(device_serial)
         if con_dev is None:
-            raise_err(f"Device {device_serial} Connect Fail!")    
-        
+            raise_err(f"Device {device_serial} Connect Fail!")
+
         try:
             app_list = []
             for key in keylist:
@@ -862,7 +799,7 @@ class ADB_Mgr:
                     package_item = package_line.replace("package:", "")
                     if package_item and package_item not in app_list:
                         app_list.append(package_item)
-            
+
             logger.info(f"Device: {device_serial} List Installed Test APPs Success. APPs: {app_list}")
             return app_list
         except Exception:
