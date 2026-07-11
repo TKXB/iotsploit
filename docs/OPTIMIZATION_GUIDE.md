@@ -287,7 +287,7 @@ behavior. Implement one independently verifiable resource or responsibility at a
 - [ ] `iot_fuzzer/views.py` (2,380) — split campaign, configuration, management, and results resources
 - [ ] `web/views.py` (1,999) — finish migration into existing `web/api` resource modules; retain only required compatibility exports
 - [ ] `tools/iot_protocol_adapter.py` (1,415) — split registry, validation, orchestration, monitoring, generation, interfaces, and mocks
-- [ ] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` (967) — separate stored-data operations from live campaign lifecycle and remove concrete overlap
+- [~] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — duplicate frame serialization removed; broader boundary audit remains
 - [x] `tools/adb_mgr.py` 870 → 807 (−63) — consolidated permission scans behind one tested helper
 - [x] `tools/report_mgr.py` 724 → 684 (−40) — consolidated tested report-tree initialization
 - [ ] Run the full Python test gate, re-measure Python LOC, update §7, and close Phase 4
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 service/runtime overlap unit replaced duplicate frame-field serializers in
+  the protocol adapter and fuzzer manager with one tested `frame_data_from_fields` utility.
+  Combined affected production LOC 2,382 → 2,348 (−34); broader ownership work remains.
 - 2026-07-11: Phase 4 report unit extracted the common test-stand/group/case tree initializer,
   preserving root/nested placement, timestamps, project references, and initial status. Three
   focused tree tests pass; `report_mgr.py` 724 → 684 (−40).

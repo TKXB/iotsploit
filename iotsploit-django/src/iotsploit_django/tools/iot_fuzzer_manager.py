@@ -1,4 +1,6 @@
 import logging
+
+from iotsploit_django.tools.frame_utils import frame_data_from_fields
 import threading
 import time
 import uuid
@@ -821,7 +823,7 @@ class IoTFuzzerManager:
             fuzz_test_cases = []
             for test_case_data in test_cases:
                 # Create frame data from fields
-                frame_data = self._create_frame_data_from_fields(test_case_data['frame_fields'])
+                frame_data = frame_data_from_fields(test_case_data['frame_fields'])
                 
                 # Create FuzzTestCase from test case data
                 fuzz_test_case = FuzzTestCase(
@@ -847,37 +849,6 @@ class IoTFuzzerManager:
             logger.error(f"Error preparing fuzzing engine: {str(e)}")
             return None
     
-    def _create_frame_data_from_fields(self, frame_fields: List[Dict[str, Any]]) -> bytes:
-        """
-        Create frame data from frame fields
-        
-        Args:
-            frame_fields: List of frame field dictionaries
-            
-        Returns:
-            bytes: Frame data as bytes
-        """
-        try:
-            frame_data = b''
-            for field in frame_fields:
-                value = field.get('value', '')
-                if value:
-                    # Convert hex string to bytes
-                    if value.startswith('0x'):
-                        value = value[2:]
-                    try:
-                        field_bytes = bytes.fromhex(value)
-                        frame_data += field_bytes
-                    except ValueError:
-                        # If not valid hex, treat as string
-                        frame_data += value.encode('utf-8')
-            
-            return frame_data
-            
-        except Exception as e:
-            logger.error(f"Error creating frame data: {e}")
-            return b''
-
 
 class DependencyChecker:
     """
