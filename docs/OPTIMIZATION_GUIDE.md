@@ -286,7 +286,7 @@ behavior. Implement one independently verifiable resource or responsibility at a
 - [~] Extract shared request parsing, method validation, and response helpers without changing API envelopes (method helper done)
 - [x] `iot_fuzzer/views.py` (2,380) — split into a 103-line compatibility facade plus campaign (427), configuration (541), management (797), and results (516) modules
 - [ ] `web/views.py` (1,999) — finish migration into existing `web/api` resource modules; retain only required compatibility exports
-- [ ] `tools/iot_protocol_adapter.py` (1,415) — split registry, validation, orchestration, monitoring, generation, interfaces, and mocks
+- [~] `tools/iot_protocol_adapter.py` 1,415 → 1,237 — interfaces/mocks moved to a 175-line component module; registry/orchestration split remains
 - [~] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — duplicate frame serialization removed; broader boundary audit remains
 - [x] `tools/adb_mgr.py` 870 → 807 (−63) — consolidated permission scans behind one tested helper
 - [x] `tools/report_mgr.py` 724 → 684 (−40) — consolidated tested report-tree initialization
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 protocol decomposition moved the base transport, five concrete protocol
+  interfaces, and three fallback mocks into `iot_protocol_components.py`. Adapter/component total
+  is 1,412 vs. 1,415 (−3); focused contracts pass and registry/orchestration separation remains.
 - 2026-07-11: Phase 4 IoT Fuzzer view decomposition mechanically moved unchanged handlers into
   campaign/configuration/management/results modules and retained all public names through a
   103-line compatibility facade. Exact 43-route and response contracts pass. Decomposition totals
