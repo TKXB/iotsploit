@@ -99,14 +99,6 @@ from iotsploit_django.tools.report_mgr import Report_Mgr
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog as logger
 from iotsploit_core.utils import iots_logger
-from pwnlib import term
-# The TUI's REPL is driven by cmd2, which owns the terminal. pwnlib must NOT
-# take it over. Forcing term_mode=True (without a matching term.init()) enables
-# pwnlib's animated-spinner logging path against an uninitialized terminal
-# buffer, which crashes any pwntools progress call (e.g. ssh/adb "Connecting…")
-# with `IndexError: list index out of range`. Keep it off so both the TUI and
-# the Flutter/HTTP frontend use pwnlib's plain-text logging path.
-term.term_mode = False
 
 def global_exception_handler(exctype, value, traceback):
     logger.error("Unhandled exception", exc_info=(exctype, value, traceback))

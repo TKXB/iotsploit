@@ -1,21 +1,33 @@
-import os
-
-# Disable pwntools terminal mode before importing to prevent fileno() errors in non-TTY environments
-os.environ.setdefault("PWNLIB_NOTERM", "1")
-
 import logging
+import os
+import re
+import subprocess
+import tempfile
+import threading
+import uuid
+from typing import NamedTuple
+
+from iotsploit_django.tools.usb_mgr import USB_Mgr
+from iotsploit_django.tools.sat_utils import *
+from iotsploit_django.adapters.django.target_models import TargetManager
 
 logger = logging.getLogger(__name__)
 
-import re
-import threading
-from iotsploit_django.tools.usb_mgr import USB_Mgr
-from iotsploit_django.tools.sat_utils import *
-from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
-from iotsploit_django.adapters.django.target_models import TargetManager
 
-from pwn import adb, context
-from pwnlib.exception import PwnlibException
+class _ADBDevice(NamedTuple):
+    """Compatibility record for ``adb devices`` output.
+
+    Exposes ``.serial`` so existing callers that check ``dev.serial``
+    continue to work after the pwntools removal.
+    """
+
+    serial: str
+    state: str
+    transport_id: str = ""
+    usb: str = ""
+    product: str = ""
+    model: str = ""
+    device: str = ""
 
 
 class ADB_Mgr:
@@ -42,8 +54,11 @@ class ADB_Mgr:
        - Or direct serial id if known
     """
 
-    # File paths
-    __temp_script_file_path = "/data/local/tmp/iotsploit/tmp_bash_script.sh"
+    # Remote directory for temporary scripts on the device
+    __temp_script_dir = "/data/local/tmp/iotsploit"
+
+    # Default timeout for ADB commands (seconds)
+    __adb_timeout = 30
 
     # Singleton pattern implementation
     _instance = None
@@ -66,8 +81,35 @@ class ADB_Mgr:
             logger.info("Initializing ADB_Mgr singleton")
             self.__last_connect_serial = None
             self.__last_adb_root = None
+            self.__root_states = {}  # per-serial root state: True/False/None
+            self.__adb_lock = threading.Lock()  # guards root/unroot transitions
             self._target_manager = TargetManager.get_instance()
             self._initialized = True
+
+    def _run_adb(self, args, *, serial=None, timeout=None):
+        """Run an adb command as an argument list.
+
+        Never uses ``shell=True`` — all values are passed as list elements
+        to prevent host-shell injection.
+
+        Args:
+            args: list of adb sub-command arguments (e.g. ["shell", "ls"])
+            serial: device serial; when set, ``-s <serial>`` is inserted
+            timeout: command timeout in seconds (default: ``__adb_timeout``)
+
+        Returns:
+            ``subprocess.CompletedProcess`` with ``stdout``/``stderr`` as text.
+        """
+        cmd = ["adb"]
+        if serial:
+            cmd.extend(["-s", serial])
+        cmd.extend(args)
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout or self.__adb_timeout,
+        )
 
     def init_adb_service(self):
         """ADB_mgr must be initialized in the main thread"""
@@ -220,24 +262,66 @@ class ADB_Mgr:
 
     def list_devices(self):
         """
-        Check ADB connection status
+        Check ADB connection status.
 
         Returns:
-            List of ADB devices
+            List of ``_ADBDevice`` records in ``device`` state.
         """
         try:
-            device_list = adb.devices()
-            logger.info(f"Curr ADB Devices Count: {len(device_list)}\n{device_list}")
-            return device_list
-        except PwnlibException as e:
-            if "'./adb' does not exist" in str(e):
-                logger.error("ADB not found. Please install ADB and add it to your PATH")
-            else:
-                logger.error(f"ADB connection error: {str(e)}")
+            result = self._run_adb(["devices", "-l"])
+        except FileNotFoundError:
+            logger.error("ADB not found. Please install ADB and add it to your PATH")
+            return []
+        except subprocess.TimeoutExpired:
+            logger.error("ADB devices command timed out")
             return []
         except Exception:
             logger.exception("ADB List Devices Fail!")
             return []
+
+        devices = []
+        in_device_list = False
+        for line in result.stdout.splitlines():
+            stripped = line.strip()
+            # Skip daemon startup messages and blank lines
+            if not stripped:
+                continue
+            if stripped.startswith("List of devices attached"):
+                in_device_list = True
+                continue
+            if not in_device_list:
+                continue
+
+            parts = stripped.split()
+            if len(parts) < 2:
+                continue  # malformed row
+            serial = parts[0]
+            state = parts[1]
+            if state != "device":
+                logger.debug(f"ADB device {serial} state={state}, skipping")
+                continue
+
+            # Parse key=value detail fields (usb:, product:, model:, device:, transport_id:)
+            details = {}
+            for token in parts[2:]:
+                if ":" in token:
+                    k, v = token.split(":", 1)
+                    details[k] = v
+
+            devices.append(
+                _ADBDevice(
+                    serial=serial,
+                    state=state,
+                    transport_id=details.get("transport_id", ""),
+                    usb=details.get("usb", ""),
+                    product=details.get("product", ""),
+                    model=details.get("model", ""),
+                    device=details.get("device", ""),
+                )
+            )
+
+        logger.info(f"Curr ADB Devices Count: {len(devices)}\n{devices}")
+        return devices
 
     def connect_dev(self, device_serial, root_require=False, force_unroot=False):
         """
@@ -293,11 +377,13 @@ class ADB_Mgr:
                 logger.error(f"ADB Find Device Fail! Serial: {device_serial_checked} Not Found")
                 return None
 
-            # Connect to device
-            context.device = device_serial_checked
-            adb.wait_for_device()
+            # Wait for device to be ready (replaces pwntools context.device + adb.wait_for_device)
+            self._run_adb(["wait-for-device"], serial=device_serial_checked)
             logger.info(f"ADB Connect Device Success: {target_dev}")
 
+        except FileNotFoundError:
+            logger.error("ADB not found. Please install ADB and add it to your PATH")
+            return None
         except Exception:
             logger.exception("ADB Connect Device Fail! Connect Abort")
             return None
@@ -307,8 +393,9 @@ class ADB_Mgr:
             logger.info("ADB Root Required.")
             if self.__last_adb_root is not True:
                 try:
-                    adb.root()
+                    self._run_adb(["root"], serial=device_serial_checked)
                     sat_sleep(2)
+                    self.__root_states[device_serial_checked] = True
                     logger.info("ADB Root Required. Restart ADBD As Root.")
                     self.__last_adb_root = True
                 except Exception:
@@ -322,8 +409,9 @@ class ADB_Mgr:
                 logger.info("ADB Force UnRoot Required.")
                 if self.__last_adb_root is not False:
                     try:
-                        adb.unroot()
+                        self._run_adb(["unroot"], serial=device_serial_checked)
                         sat_sleep(2)
+                        self.__root_states[device_serial_checked] = False
                         logger.info("ADB Root NOT Required. Restart ADBD As Shell.")
                         self.__last_adb_root = False
                     except Exception:
@@ -360,7 +448,7 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            adb.pull(android_file_path, sat_file_path)
+            self._run_adb(["pull", android_file_path, sat_file_path], serial=con_dev)
             logger.info(f"Device: {device_serial} Pull File {android_file_path} -> {sat_file_path} Success.")
             return 1
         except Exception:
@@ -386,7 +474,7 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            adb.push(sat_file_path, android_file_path)
+            self._run_adb(["push", sat_file_path, android_file_path], serial=con_dev)
             logger.info(f"Device: {device_serial} Push File {sat_file_path} -> {android_file_path} Success.")
             return 1
         except Exception:
@@ -409,7 +497,8 @@ class ADB_Mgr:
 
         try:
             app_list = []
-            packages = adb.process(["pm", "list", "packages"]).recvall().decode("utf-8")
+            result = self._run_adb(["shell", "pm", "list", "packages"], serial=con_dev)
+            packages = result.stdout
             for package_line in packages.splitlines():
                 app_list.append(package_line.replace("package:", ""))
             logger.info(f"Device: {device_serial} List Installed APPs Success. APPs: {app_list}")
@@ -436,7 +525,8 @@ class ADB_Mgr:
 
         try:
             result_list = []
-            results = adb.process(["ls", "-l", dir_path]).recvall().decode("utf-8")
+            result = self._run_adb(["shell", "ls", "-l", dir_path], serial=con_dev)
+            results = result.stdout
             if results.startswith("total "):
                 for line in results.splitlines()[1:]:
                     # Split by whitespace but handle multiword filenames
@@ -477,15 +567,58 @@ class ADB_Mgr:
 
         logger.info(f"Device: {device_serial} Execute Shell CMD: {cmd} Start -->>")
 
-        # Create temp script file
-        adb.makedirs(os.path.dirname(self.__temp_script_file_path))
-        adb.write(self.__temp_script_file_path, cmd)
+        # Use a per-call unique remote script name to prevent concurrent overwrites
+        script_name = f"tmp_{uuid.uuid4().hex}.sh"
+        remote_script_path = f"{self.__temp_script_dir}/{script_name}"
 
-        # Execute command
-        results = adb.process(["sh", self.__temp_script_file_path]).recvall().decode("utf-8")
-        logger.info(f"Device: {device_serial} Execute Shell CMD: {cmd} Finish -->>")
+        local_fd = None
+        local_path = None
+        try:
+            # Write script content to a local temp file
+            local_fd, local_path = tempfile.mkstemp(suffix=".sh")
+            with os.fdopen(local_fd, "w") as f:
+                f.write(cmd)
+            local_fd = None  # file handle closed by the context manager
 
-        return results
+            # Ensure remote directory exists
+            self._run_adb(["shell", "mkdir", "-p", self.__temp_script_dir], serial=con_dev)
+
+            # Push script to device
+            self._run_adb(["push", local_path, remote_script_path], serial=con_dev)
+
+            # Execute script remotely
+            result = self._run_adb(["shell", "sh", remote_script_path], serial=con_dev)
+            results = result.stdout
+            logger.info(f"Device: {device_serial} Execute Shell CMD: {cmd} Finish -->>")
+
+            return results
+
+        except FileNotFoundError:
+            logger.error("ADB not found. Please install ADB and add it to your PATH")
+            return None
+        except subprocess.TimeoutExpired:
+            logger.error(f"Device: {device_serial} Shell CMD timed out: {cmd}")
+            return None
+        except Exception:
+            logger.exception(f"Device: {device_serial} Execute Shell CMD Fail! CMD: {cmd}")
+            return None
+        finally:
+            # Clean up local temp file
+            if local_fd is not None:
+                try:
+                    os.close(local_fd)
+                except OSError:
+                    pass
+            if local_path and os.path.exists(local_path):
+                try:
+                    os.remove(local_path)
+                except OSError:
+                    pass
+            # Clean up remote temp script (best-effort)
+            try:
+                self._run_adb(["shell", "rm", "-f", remote_script_path], serial=con_dev, timeout=5)
+            except Exception:
+                pass
 
     def _filter_file_items(self, items, passdirs, passsids, hasSelinux, allowdirs=None, is_dir=False):
         """Helper function to filter file listings by path and SELinux context"""
@@ -657,14 +790,14 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            real_device_serial = self.__recheck_device_serial(device_serial)
-            _, result = Bash_Script_Mgr.Instance().exec_cmd(f"adb -s {real_device_serial} install {apk_path}")
+            result = self._run_adb(["install", apk_path], serial=con_dev)
+            output = (result.stdout or "") + (result.stderr or "")
 
-            if "success" in result.lower():
+            if "success" in output.lower():
                 logger.info(f"Install APK Finish: {apk_path}")
                 return True
             else:
-                logger.warning(f"Install APK failed: {apk_path}. Result: {result}")
+                logger.warning(f"Install APK failed: {apk_path}. Result: {output}")
                 return False
         except Exception:
             logger.exception(f"Device: {device_serial} Install APK Fail: {apk_path}")
@@ -686,7 +819,7 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            adb.uninstall(package_id)
+            self._run_adb(["uninstall", package_id], serial=con_dev)
             logger.info(f"Device: {device_serial} UnInstall Package Finish: {package_id}")
             return True
         except Exception:
@@ -708,7 +841,8 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            selinux_status = adb.process(["getenforce"]).recvall().decode("utf-8").strip()
+            result = self._run_adb(["shell", "getenforce"], serial=con_dev)
+            selinux_status = result.stdout.strip()
             logger.info(f"Device: {device_serial} Query SeLinux Status Success. Status: {selinux_status}")
             return selinux_status == "Enforcing"
         except Exception:
@@ -730,9 +864,8 @@ class ADB_Mgr:
             raise_err(f"Device {device_serial} Connect Fail!")
 
         try:
-            security_patch = (
-                adb.process(["getprop", "ro.build.version.security_patch"]).recvall().decode("utf-8").strip()
-            )
+            result = self._run_adb(["shell", "getprop", "ro.build.version.security_patch"], serial=con_dev)
+            security_patch = result.stdout.strip()
             logger.info(f"Device: {device_serial} Query Security Patch Status Success. Status: {security_patch}")
             return security_patch
         except Exception:

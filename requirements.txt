@@ -46,8 +46,6 @@ paramiko==3.4.0
 pluggy==1.5.0
 plumbum==1.8.3
 psutil==6.0.0
-pwnlib==8.6.8.6
-pwntools==4.12.0
 pycparser==2.22
 pydantic==2.8.2
 pydantic-core==2.20.1

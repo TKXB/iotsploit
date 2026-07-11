@@ -35,7 +35,6 @@ iotsploit-drivers = "*"
 iotsploit-exploits = "*"
 iotsploit-mcp = "*"
 cmd2 = "^2.4"
-pwntools = "^4.12"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
