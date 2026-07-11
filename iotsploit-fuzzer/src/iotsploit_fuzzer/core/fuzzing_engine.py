@@ -154,7 +154,7 @@ class StrategyRegistry:
             ValueError: If strategy is invalid or name conflicts
         """
         if not issubclass(strategy_class, FuzzingStrategy):
-            raise ValueError(f"Strategy class must inherit from FuzzingStrategy")
+            raise ValueError("Strategy class must inherit from FuzzingStrategy")
         
         # Create a temporary instance to get the name
         try:
@@ -164,7 +164,7 @@ class StrategyRegistry:
             raise ValueError(f"Could not instantiate strategy class: {e}")
         
         if not strategy_name:
-            raise ValueError(f"Strategy must have a non-empty name")
+            raise ValueError("Strategy must have a non-empty name")
         
         if strategy_name in self._strategies:
             self.logger.warning(f"Overriding existing strategy: {strategy_name}")

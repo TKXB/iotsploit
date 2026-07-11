@@ -118,7 +118,7 @@ def select_target(request):
             if hasattr(current_target, 'get_adb_devices'):
                 adb_devices = current_target.get_adb_devices()
                 if adb_devices:
-                    logger.debug(f"select_target: Available ADB devices in target:")
+                    logger.debug("select_target: Available ADB devices in target:")
                     for name, device in adb_devices.items():
                         logger.debug(f"  {name}: {device.adb_serial_id}")
                 else:

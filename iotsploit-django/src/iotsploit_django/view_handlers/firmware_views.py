@@ -381,7 +381,7 @@ def firmware_download(request: HttpRequest) -> JsonResponse:
         if result_path:
             return JsonResponse({
                 'status': 'success',
-                'message': f'Successfully downloaded firmware',
+                'message': 'Successfully downloaded firmware',
                 'path': result_path
             })
         else:

@@ -451,8 +451,8 @@ class SAT_Shell(SAT_Shell_Base):
                 logger.info(f"  Device: {current_device.name}")
                 logger.info(f"  State: {state.value}")
             else:
-                logger.info(f"  Device: No device connected")
-                logger.info(f"  State: unknown")
+                logger.info("  Device: No device connected")
+                logger.info("  State: unknown")
                 
             commands = self.device_driver_manager.get_supported_commands(driver_name)
             if commands:

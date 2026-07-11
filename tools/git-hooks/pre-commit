@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook — invokes the canonical Python test gate.
+#
+# Enable in your working copy:
+#   git config core.hooksPath tools/git-hooks
+#
+# The hook delegates to tools/testing/test-python-full.sh so that local
+# enforcement uses exactly the same checks as the AI agent policy and
+# any future CI workflow.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+exec "$REPO_ROOT/tools/testing/test-python-full.sh"

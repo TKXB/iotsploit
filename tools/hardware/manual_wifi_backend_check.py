@@ -1,12 +1,40 @@
 #!/usr/bin/env python3
 """
-Safe Test Script for NetworkManager WiFi Backend
+Manual WiFi Backend Diagnostic — NOT a pytest test.
 
-This script provides safe, interactive testing of the Linux WiFi Backend
-without disrupting existing network connections.
+This script is an interactive hardware diagnostic for the NetworkManager
+WiFi backend. It can read network state, scan for access points, and — with
+explicit user confirmation — connect, disconnect, start, or stop an access
+point on the specified wireless interface.
 
-Usage:
-    python test_wifi_backend_safe.py [--interface wlan0]
+SAFETY REQUIREMENTS
+-------------------
+
+* This script MUST be invoked manually by a human operator.
+* It MUST NOT be collected or executed by any automated test runner.
+* Several operations mutate real network state (connect, disconnect, AP
+  start/stop). The script prompts for confirmation before each mutating
+  action, but the operator is responsible for understanding the impact.
+* Do not run this script on a production interface unless you are prepared
+  to lose connectivity.
+* This file is excluded from pytest discovery by virtue of living outside
+  every ``testpaths`` entry. It must not be moved back into a ``tests/``
+  directory.
+
+Manual Invocation
+------------------
+
+::
+
+    poetry run python tools/hardware/manual_wifi_backend_check.py \
+        --interface wlan0
+
+    # read-only scan + status only (no prompts for mutating actions)
+    poetry run python tools/hardware/manual_wifi_backend_check.py \
+        --interface wlan0 --safe-only
+
+Exit codes: 0 = all selected operations passed, 1 = at least one failed,
+130 = interrupted by the operator (Ctrl-C).
 """
 
 import argparse
@@ -33,48 +61,48 @@ except ImportError as e:
 
 class SafeWiFiTester:
     """Safe WiFi Backend Tester with interactive prompts."""
-    
+
     def __init__(self, interface: str = "wlan0"):
         """Initialize tester with WiFi interface."""
         self.interface = interface
         self.backend: Optional[LinuxWifiBackend] = None
         self.original_connection_state = None
-        
+
     def print_header(self, title: str):
         """Print a formatted header."""
         print("\n" + "=" * 60)
         print(f"  {title}")
         print("=" * 60)
-    
+
     def print_success(self, message: str):
         """Print success message."""
         print(f"✅ {message}")
-    
+
     def print_error(self, message: str):
         """Print error message."""
         print(f"❌ {message}")
-    
+
     def print_warning(self, message: str):
         """Print warning message."""
         print(f"⚠️  {message}")
-    
+
     def print_info(self, message: str):
         """Print info message."""
         print(f"ℹ️  {message}")
-    
+
     def confirm_action(self, message: str) -> bool:
         """Ask user to confirm an action."""
         response = input(f"\n{message} (yes/no): ").strip().lower()
         return response in ('yes', 'y')
-    
+
     def test_initialization(self) -> bool:
         """Test 1: Initialize backend."""
         self.print_header("Test 1: Backend Initialization")
-        
+
         try:
             self.print_info(f"Initializing WiFi backend for interface: {self.interface}")
             self.backend = LinuxWifiBackend(wifi_iface_name=self.interface)
-            self.print_success(f"Backend initialized successfully!")
+            self.print_success("Backend initialized successfully!")
             self.print_info(f"Hardware address: {self.backend._device.get_hw_address()}")
             self.print_info(f"Device state: {self.backend._device.get_state().value_nick}")
             return True
@@ -86,19 +114,19 @@ class SafeWiFiTester:
             import traceback
             traceback.print_exc()
             return False
-    
+
     def test_scan(self) -> bool:
         """Test 2: Scan for networks (read-only, safe)."""
         self.print_header("Test 2: Network Scanning (Safe - Read Only)")
-        
+
         if not self.backend:
             self.print_error("Backend not initialized. Run test_initialization() first.")
             return False
-        
+
         try:
             self.print_info("Starting network scan...")
             networks = self.backend.scan()
-            
+
             if networks:
                 self.print_success(f"Scan completed! Found {len(networks)} networks:")
                 print("\n" + "-" * 60)
@@ -117,25 +145,25 @@ class SafeWiFiTester:
             else:
                 self.print_warning("Scan completed but no networks found.")
                 return True  # Still a success, just no networks
-                
+
         except Exception as e:
             self.print_error(f"Scan failed: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
+
     def test_status(self) -> bool:
         """Test 3: Get status (read-only, safe)."""
         self.print_header("Test 3: Status Query (Safe - Read Only)")
-        
+
         if not self.backend:
             self.print_error("Backend not initialized. Run test_initialization() first.")
             return False
-        
+
         try:
             self.print_info("Querying WiFi status...")
             status = self.backend.status()
-            
+
             self.print_success("Status retrieved successfully!")
             print("\nStatus Details:")
             print("-" * 60)
@@ -151,21 +179,21 @@ class SafeWiFiTester:
                     print(f"  {key}: {value}")
             print("-" * 60)
             return True
-            
+
         except Exception as e:
             self.print_error(f"Status query failed: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
+
     def test_sta_connect(self) -> bool:
         """Test 4: Connect to WiFi (requires user confirmation)."""
         self.print_header("Test 4: STA Mode Connection (⚠️  Will Disconnect Current Connection)")
-        
+
         if not self.backend:
             self.print_error("Backend not initialized.")
             return False
-        
+
         # Get current status first
         try:
             current_status = self.backend.status()
@@ -173,30 +201,30 @@ class SafeWiFiTester:
                 current_ssid = current_status.get("sta_conn_wifi_ssid", "Unknown")
                 self.print_warning(f"Currently connected to: {current_ssid}")
                 self.print_warning("This test will disconnect the current connection!")
-        except:
+        except Exception:
             pass
-        
+
         if not self.confirm_action("Do you want to test STA connection? This will disconnect current WiFi."):
             self.print_info("Test skipped by user.")
             return None  # Skipped, not failed
-        
+
         # Get network info from user
         print("\nPlease provide network information:")
         ssid = input("  SSID: ").strip()
         if not ssid:
             self.print_error("SSID cannot be empty.")
             return False
-        
+
         passwd = input("  Password (press Enter for open network): ").strip()
-        
+
         try:
             self.print_info(f"Connecting to {ssid}...")
             self.backend.sta_connect(ssid, passwd)
-            
+
             # Wait a bit and check status
             time.sleep(2)
             status = self.backend.status()
-            
+
             if status.get("wifi_mode") == "STA":
                 self.print_success(f"Successfully connected to {ssid}!")
                 if "sta_status" in status:
@@ -207,35 +235,35 @@ class SafeWiFiTester:
             else:
                 self.print_error("Connection may have failed. Check status.")
                 return False
-                
+
         except Exception as e:
             self.print_error(f"Connection failed: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
+
     def test_sta_disconnect(self) -> bool:
         """Test 5: Disconnect from WiFi."""
         self.print_header("Test 5: STA Mode Disconnect")
-        
+
         if not self.backend:
             self.print_error("Backend not initialized.")
             return False
-        
+
         status = self.backend.status()
         if status.get("wifi_mode") != "STA":
             self.print_warning("Not currently connected. Nothing to disconnect.")
             return True  # Not an error, just nothing to do
-        
+
         if not self.confirm_action("Do you want to disconnect from current WiFi?"):
             self.print_info("Test skipped by user.")
             return None
-        
+
         try:
             self.print_info("Disconnecting...")
             self.backend.sta_disconnect()
             time.sleep(1)
-            
+
             status = self.backend.status()
             if status.get("wifi_mode") == "IDLE":
                 self.print_success("Successfully disconnected!")
@@ -243,42 +271,42 @@ class SafeWiFiTester:
             else:
                 self.print_warning(f"Disconnect completed, but mode is: {status.get('wifi_mode')}")
                 return True
-                
+
         except Exception as e:
             self.print_error(f"Disconnect failed: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
+
     def test_ap_start(self) -> bool:
         """Test 6: Start AP mode (requires user confirmation)."""
         self.print_header("Test 6: AP Mode Start (⚠️  Will Create Hotspot)")
-        
+
         if not self.backend:
             self.print_error("Backend not initialized.")
             return False
-        
+
         self.print_warning("This will start an access point (hotspot) on your WiFi interface.")
         self.print_warning("This will disconnect any existing WiFi connection!")
-        
+
         if not self.confirm_action("Do you want to start AP mode?"):
             self.print_info("Test skipped by user.")
             return None
-        
+
         # Get AP configuration
         print("\nAP Configuration (press Enter for defaults):")
         ssid = input("  SSID (default: auto-generated): ").strip() or None
         passwd = input("  Password (default: 12345678): ").strip() or None
-        
+
         try:
             self.print_info("Starting AP mode...")
             actual_ssid, actual_passwd = self.backend.ap_start(ssid=ssid, passwd=passwd)
-            
+
             time.sleep(2)
             status = self.backend.status()
-            
+
             if status.get("wifi_mode") == "AP":
-                self.print_success(f"AP started successfully!")
+                self.print_success("AP started successfully!")
                 self.print_info(f"  SSID: {actual_ssid}")
                 self.print_info(f"  Password: {actual_passwd}")
                 self.print_info(f"  Clients: {len(status.get('client_list', []))}")
@@ -286,7 +314,7 @@ class SafeWiFiTester:
             else:
                 self.print_error("AP may not have started correctly.")
                 return False
-                
+
         except NotSupportedError as e:
             self.print_error(f"AP mode not supported: {e}")
             return False
@@ -295,29 +323,29 @@ class SafeWiFiTester:
             import traceback
             traceback.print_exc()
             return False
-    
+
     def test_ap_stop(self) -> bool:
         """Test 7: Stop AP mode."""
         self.print_header("Test 7: AP Mode Stop")
-        
+
         if not self.backend:
             self.print_error("Backend not initialized.")
             return False
-        
+
         status = self.backend.status()
         if status.get("wifi_mode") != "AP":
             self.print_warning("AP mode is not active. Nothing to stop.")
             return True
-        
+
         if not self.confirm_action("Do you want to stop AP mode?"):
             self.print_info("Test skipped by user.")
             return None
-        
+
         try:
             self.print_info("Stopping AP mode...")
             self.backend.ap_stop()
             time.sleep(1)
-            
+
             status = self.backend.status()
             if status.get("wifi_mode") == "IDLE":
                 self.print_success("AP stopped successfully!")
@@ -325,46 +353,46 @@ class SafeWiFiTester:
             else:
                 self.print_warning(f"AP stop completed, but mode is: {status.get('wifi_mode')}")
                 return True
-                
+
         except Exception as e:
             self.print_error(f"AP stop failed: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
+
     def run_safe_tests(self):
         """Run only safe, read-only tests."""
         self.print_header("Running Safe Tests (Read-Only Operations)")
-        
+
         results = {}
-        
+
         # Test 1: Initialization
         results['initialization'] = self.test_initialization()
         if not results['initialization']:
             self.print_error("Cannot continue without initialization.")
             return results
-        
+
         # Test 2: Scan (safe)
         results['scan'] = self.test_scan()
-        
+
         # Test 3: Status (safe)
         results['status'] = self.test_status()
-        
+
         return results
-    
+
     def run_interactive_tests(self):
         """Run interactive tests with user confirmation."""
         self.print_header("Running Interactive Tests")
-        
+
         results = {}
-        
+
         # First run safe tests
         safe_results = self.run_safe_tests()
         results.update(safe_results)
-        
+
         if not results.get('initialization'):
             return results
-        
+
         # Interactive tests
         print("\n" + "=" * 60)
         print("  Interactive Tests (Require User Confirmation)")
@@ -376,9 +404,9 @@ class SafeWiFiTester:
         print("  4. AP Stop")
         print("  5. Run all interactive tests")
         print("  0. Exit")
-        
+
         choice = input("\nSelect test (0-5): ").strip()
-        
+
         if choice == "1":
             results['sta_connect'] = self.test_sta_connect()
         elif choice == "2":
@@ -398,23 +426,23 @@ class SafeWiFiTester:
             self.print_info("Exiting...")
         else:
             self.print_error("Invalid choice.")
-        
+
         return results
-    
+
     def print_summary(self, results: dict):
         """Print test summary."""
         self.print_header("Test Summary")
-        
+
         total = len(results)
         passed = sum(1 for v in results.values() if v is True)
         failed = sum(1 for v in results.values() if v is False)
         skipped = sum(1 for v in results.values() if v is None)
-        
+
         print(f"\nTotal tests: {total}")
         print(f"✅ Passed: {passed}")
         print(f"❌ Failed: {failed}")
         print(f"⏭️  Skipped: {skipped}")
-        
+
         print("\nDetailed Results:")
         print("-" * 60)
         for test_name, result in results.items():
@@ -429,9 +457,9 @@ class SafeWiFiTester:
 
 
 def main():
-    """Main test function."""
+    """Main diagnostic function."""
     parser = argparse.ArgumentParser(
-        description="Safe test script for NetworkManager WiFi Backend"
+        description="Manual WiFi backend diagnostic (interactive hardware check)"
     )
     parser.add_argument(
         '--interface',
@@ -443,31 +471,31 @@ def main():
         action='store_true',
         help='Run only safe read-only tests'
     )
-    
+
     args = parser.parse_args()
-    
+
     print("=" * 60)
-    print("  NetworkManager WiFi Backend - Safe Test Script")
+    print("  NetworkManager WiFi Backend - Manual Diagnostic")
     print("=" * 60)
     print(f"\nInterface: {args.interface}")
     print(f"Mode: {'Safe-only (read-only)' if args.safe_only else 'Interactive'}")
-    
+
     tester = SafeWiFiTester(interface=args.interface)
-    
+
     try:
         if args.safe_only:
             results = tester.run_safe_tests()
         else:
             results = tester.run_interactive_tests()
-        
+
         tester.print_summary(results)
-        
+
         # Exit with appropriate code
         if any(v is False for v in results.values()):
             sys.exit(1)
         else:
             sys.exit(0)
-            
+
     except KeyboardInterrupt:
         print("\n\n⚠️  Test interrupted by user.")
         sys.exit(130)

@@ -161,7 +161,7 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
         天然按会话隔离，避免旧 WS 桥共享 stdio 子进程的并发串台问题。
         """
         try:
-            xlog.info(f"=== MCP TOOL CALL START ===", "ai_assistant")
+            xlog.info("=== MCP TOOL CALL START ===", "ai_assistant")
             xlog.info(f"Tool Name: {tool_name}", "ai_assistant")
             xlog.info(f"Arguments: {arguments}", "ai_assistant")
             xlog.info(f"Connecting to MCP HTTP endpoint: {self.mcp_http_url}", "ai_assistant")
@@ -180,17 +180,17 @@ class AIAssistantConsumer(AsyncWebsocketConsumer):
 
             if result.isError:
                 xlog.error(f"MCP tool error: {extracted}", "ai_assistant")
-                xlog.info(f"=== MCP TOOL CALL ERROR ===", "ai_assistant")
+                xlog.info("=== MCP TOOL CALL ERROR ===", "ai_assistant")
                 return f"Tool error: {extracted}"
 
             xlog.info(f"Extracted result: {extracted}", "ai_assistant")
-            xlog.info(f"=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
+            xlog.info("=== MCP TOOL CALL SUCCESS ===", "ai_assistant")
             return extracted
 
         except Exception as e:
             xlog.error(f"Error executing MCP tool: {str(e)}", "ai_assistant")
             xlog.error(f"Exception details: {repr(e)}", "ai_assistant")
-            xlog.info(f"=== MCP TOOL CALL EXCEPTION ===", "ai_assistant")
+            xlog.info("=== MCP TOOL CALL EXCEPTION ===", "ai_assistant")
             return f"Error executing MCP tool: {str(e)}"
     
     def _extract_mcp_text(self, result) -> str:

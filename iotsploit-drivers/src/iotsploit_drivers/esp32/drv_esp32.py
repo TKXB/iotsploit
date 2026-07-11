@@ -361,7 +361,7 @@ class ESP32Driver(BaseDeviceDriver):
             )
             
             if result.success:
-                success_msg = f"ESP32-S3 chip info retrieved successfully"
+                success_msg = "ESP32-S3 chip info retrieved successfully"
                 logger.info(success_msg)
                 return {
                     "status": "success", 

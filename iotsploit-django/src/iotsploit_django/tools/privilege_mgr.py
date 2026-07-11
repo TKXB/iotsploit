@@ -100,7 +100,12 @@ class PrivilegeManager:
             the result was successfully retrieved from Redis.
         """
 
-        import subprocess, json, os, sys, uuid, time
+        import subprocess
+        import json
+        import os
+        import sys
+        import uuid
+        import time
         import redis
         from django.conf import settings
 
@@ -138,7 +143,7 @@ class PrivilegeManager:
             python_executable = sys.executable
             logger.info(f"Using Python executable: {python_executable}")
 
-        logger.debug(f"Environment variables being passed:")
+        logger.debug("Environment variables being passed:")
         logger.debug(f"  TASK_ID={task_id}")
         logger.debug(f"  TARGET_JSON={target_json[:100]}{'...' if len(target_json) > 100 else ''}")
         logger.debug(f"  PARAMS_JSON={params_json[:100]}{'...' if len(params_json) > 100 else ''}")

@@ -368,7 +368,7 @@ class ToolConfigManager:
             
             # Check required fields
             if not config.name:
-                issues['missing_required_fields'].append(f"Tool missing name")
+                issues['missing_required_fields'].append("Tool missing name")
             
             # Check for duplicates
             if config.name in seen_names:

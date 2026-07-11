@@ -47,7 +47,7 @@ def _inject_context_in_worker(plugin_instance):
                     )
         
         plugin_instance._iots_ctx_injected = True
-        logger.debug(f"Injected backend context into plugin in Celery worker")
+        logger.debug("Injected backend context into plugin in Celery worker")
         
     except Exception as e:
         logger.warning(
