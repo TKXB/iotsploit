@@ -32,13 +32,13 @@ def active_channels(request):
         stream_manager = StreamManager()
         active_channels = stream_manager.get_active_channels()
         broadcast_channels = stream_manager.get_broadcast_channels()
-        
+
         return JsonResponse({
             "status": "success",
             "active_channels": active_channels,
             "broadcast_channels": broadcast_channels
         })
-        
+
     except Exception as e:
         logger.error(f"Error retrieving active channels: {str(e)}")
         return JsonResponse({
@@ -79,7 +79,7 @@ def list_urls(request):
             return out
 
         url_patterns = _walk(list(api_urls.urlpatterns))
-        
+
         # Group endpoints by category based on their names or patterns
         categorized_endpoints = {
             'device': [],
@@ -89,7 +89,7 @@ def list_urls(request):
             'group': [],
             'misc': []
         }
-        
+
         for pattern in url_patterns:
             name = pattern['name']
             if 'device' in name:
@@ -104,13 +104,13 @@ def list_urls(request):
                 categorized_endpoints['group'].append(pattern)
             else:
                 categorized_endpoints['misc'].append(pattern)
-        
+
         return JsonResponse({
             'status': 'success',
             'message': f'Found {len(url_patterns)} endpoints',
             'endpoints': categorized_endpoints
         })
-        
+
     except Exception as e:
         logger.error(f"Error listing URLs: {str(e)}")
         return JsonResponse({
@@ -123,7 +123,7 @@ def set_log_level(request):
     """
     POST
     Set the logging level for all xloggers
-    
+
     Expected JSON body:
     {
         "level": "DEBUG|INFO|WARNING|ERROR|CRITICAL"
@@ -134,42 +134,41 @@ def set_log_level(request):
             "status": "error",
             "message": "Only POST method is allowed"
         }, status=405)
-        
+
     try:
         data = json.loads(request.body)
         level = data.get('level', '').upper()
-        
+
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-        
+
         if not level:
             return JsonResponse({
                 "status": "error",
                 "message": "Log level is required",
                 "valid_levels": valid_levels
             }, status=400)
-            
+
         if level not in valid_levels:
             return JsonResponse({
                 "status": "error",
                 "message": f"Invalid log level. Must be one of: {', '.join(valid_levels)}",
                 "valid_levels": valid_levels
             }, status=400)
-            
+
         # Set the log level for all loggers
         for logger_name in xlog._loggers.keys():
             xlog.set_level(level, name=logger_name)
-        
+
         return JsonResponse({
             "status": "success",
             "message": f"Log level set to {level} for all loggers",
             "level": level,
             "affected_loggers": list(xlog._loggers.keys())
         })
-        
+
     except Exception as e:
         xlog.error(f"Error setting log level: {str(e)}", name="views")
         return JsonResponse({
             "status": "error",
             "message": f"Failed to set log level: {str(e)}"
         }, status=500)
-

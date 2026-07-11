@@ -25,30 +25,30 @@ def start_campaign(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
-        
+
         # Ensure data is a dictionary
         if not isinstance(data, dict):
             return JsonResponse({
                 "status": "error",
                 "message": "Invalid JSON format: expected object"
             }, status=400)
-        
+
         campaign_config = data.get('campaign_config', {})
-        
+
         # Extract and validate test_group_ids if provided
         test_group_ids = campaign_config.get('test_group_ids', [])
         if test_group_ids:
             logger.info(f"Starting campaign with test groups: {test_group_ids}")
-        
+
         fuzzer_manager = IoTFuzzerManager.get_instance()
         campaign_id = fuzzer_manager.start_campaign(campaign_config)
-        
+
         # Get enhanced campaign information
         campaign_state = fuzzer_manager._get_campaign_state(campaign_id)
-        
+
         # Prepare enhanced response with strategy statistics
         response_data = {
             "status": "success",
@@ -92,7 +92,7 @@ def start_campaign(request: HttpRequest):
                 logger.warning(f"Unable to persist campaign_uuid: {e}")
         except Exception as e:
             logger.warning(f"start_campaign DB persist skipped: {e}")
-        
+
         # Add strategy statistics if available
         if campaign_state:
             strategy_distribution = campaign_state.get('strategy_distribution', {})
@@ -106,9 +106,9 @@ def start_campaign(request: HttpRequest):
                 "test_groups_processed": len(test_group_ids),
                 "fuzzing_engine_available": campaign_state.get('fuzzing_engine_available', False)
             })
-        
+
         return JsonResponse(response_data)
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -136,26 +136,26 @@ def stop_campaign(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         campaign_id = data.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         fuzzer_manager = IoTFuzzerManager.get_instance()
         result = fuzzer_manager.stop_campaign(campaign_id)
-        
+
         return JsonResponse({
             "status": "success",
             "result": result,
             "message": "Campaign stopped successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -176,26 +176,26 @@ def pause_campaign(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         campaign_id = data.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         fuzzer_manager = IoTFuzzerManager.get_instance()
         result = fuzzer_manager.pause_campaign(campaign_id)
-        
+
         return JsonResponse({
             "status": "success",
             "result": result,
             "message": "Campaign paused successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -216,26 +216,26 @@ def reset_campaign(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         campaign_id = data.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         fuzzer_manager = IoTFuzzerManager.get_instance()
         result = fuzzer_manager.reset_campaign(campaign_id)
-        
+
         return JsonResponse({
             "status": "success",
             "result": result,
             "message": "Campaign reset successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -255,24 +255,24 @@ def get_campaign_status(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         fuzzer_manager = IoTFuzzerManager.get_instance()
         status = fuzzer_manager.get_campaign_status(campaign_id)
-        
+
         return JsonResponse({
             "status": "success",
             "campaign_status": status
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting campaign status: {str(e)}")
         return JsonResponse({
@@ -349,24 +349,24 @@ def get_test_groups(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         # Get test groups from database with enhanced information
         from iotsploit_django.adapters.django.iot_fuzzer.models import TestGroup
         from django.db.models import Count, Q
-        
+
         # Query test groups with test case counts and strategy information
         test_groups = TestGroup.objects.filter(enabled=True).annotate(
             test_cases_count=Count('test_cases', filter=Q(test_cases__enabled=True))
         ).order_by('name')
-        
+
         groups_data = []
         for group in test_groups:
             # Calculate strategy distribution for this group
             strategy_stats = _calculate_group_strategy_distribution(group)
-            
+
             groups_data.append({
                 'id': group.id,
                 'name': group.name,
@@ -381,13 +381,13 @@ def get_test_groups(request: HttpRequest):
                 'has_field_level_rules': strategy_stats.get('field_level', 0) > 0,
                 'campaign_id': campaign_id
             })
-        
+
         return JsonResponse({
             "status": "success",
             "test_groups": groups_data,
             "total_groups": len(groups_data)
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting test groups: {str(e)}")
         return JsonResponse({
@@ -399,28 +399,28 @@ def _calculate_group_strategy_distribution(group):
     """Calculate strategy distribution for a test group"""
     try:
         from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingRule
-        
+
         # Get fuzzing rules for this group's test cases
         rules = FuzzingRule.objects.filter(
             test_case__group=group,
             test_case__enabled=True,
             enabled=True
         )
-        
+
         strategy_counts = {
             'bit_level': 0,
             'field_level': 0,
             'total_rules': rules.count()
         }
-        
+
         for rule in rules:
             if rule.target_type == 'bit':
                 strategy_counts['bit_level'] += 1
             elif rule.target_type == 'field':
                 strategy_counts['field_level'] += 1
-        
+
         return strategy_counts
-        
+
     except Exception as e:
         logger.error(f"Error calculating strategy distribution for group {group.id}: {e}")
         return {'bit_level': 0, 'field_level': 0, 'total_rules': 0}

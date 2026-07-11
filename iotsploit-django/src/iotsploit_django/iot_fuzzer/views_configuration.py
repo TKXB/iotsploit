@@ -26,16 +26,16 @@ def get_protocol_types(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         protocol_adapter = IoTProtocolAdapter.get_instance()
         protocol_types = protocol_adapter.get_supported_protocols()
-        
+
         return JsonResponse({
             "status": "success",
             "protocol_types": protocol_types
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting protocol types: {str(e)}")
         return JsonResponse({
@@ -50,18 +50,18 @@ def get_protocol_config(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         config_id = request.GET.get('config_id')
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         config = fuzzer_service.get_protocol_config(config_id)
-        
+
         return JsonResponse({
             "status": "success",
             "config": config
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting protocol config: {str(e)}")
         return JsonResponse({
@@ -77,11 +77,11 @@ def save_protocol_config(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         config_data = data.get('config', {})
-        
+
         # Extract configuration components
         protocol_type = config_data.get('protocol_type', 'uart')
         protocol_settings = {
@@ -89,38 +89,38 @@ def save_protocol_config(request: HttpRequest):
             'baud_rate': config_data.get('baud_rate', '115200'),
             'timeout': config_data.get('timeout', 1000),
         }
-        
+
         generator_type = config_data.get('generator_type', 'radamsa')
         generator_settings = {
             'mutation_rate': config_data.get('mutation_rate', 0.5),
             'coverage_feedback': config_data.get('coverage_feedback', True),
             'radamsa_path': config_data.get('radamsa_path', '/usr/bin/radamsa'),
         }
-        
+
         campaign_settings = {
             'total_iterations': config_data.get('total_iterations', 1000),
             'delay_between_tests': config_data.get('delay_between_tests', 100),
             'crash_detection': config_data.get('crash_detection', True),
             'save_artifacts': config_data.get('save_artifacts', True),
         }
-        
+
         monitoring_settings = {
             'log_level': config_data.get('log_level', 'info'),
             'output_directory': config_data.get('output_directory', '/tmp/fuzzer_output'),
             'realtime_monitoring': config_data.get('realtime_monitoring', True),
             'performance_metrics': config_data.get('performance_metrics', True),
         }
-        
+
         # Create or update IoTConfiguration
         config_name = config_data.get('name', f'{protocol_type.upper()} Configuration')
         config_description = config_data.get('description', f'Auto-generated {protocol_type} configuration')
-        
+
         # Try to find existing active configuration for this protocol type
         existing_config = IoTConfiguration.objects.filter(
             protocol_type=protocol_type,
             is_active=True
         ).first()
-        
+
         if existing_config:
             # Update existing configuration
             existing_config.name = config_name
@@ -148,13 +148,13 @@ def save_protocol_config(request: HttpRequest):
             )
             config_id = new_config.id
             logger.info(f"Created new IoT configuration {config_id}")
-        
+
         return JsonResponse({
             "status": "success",
             "config_id": config_id,
             "message": "Configuration saved to database successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -175,32 +175,32 @@ def get_saved_config(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         # Get protocol type from query parameters
         protocol_type = request.GET.get('protocol_type', 'uart')
-        
+
         # Find active configuration for this protocol type
         config = IoTConfiguration.objects.filter(
             protocol_type=protocol_type,
             is_active=True
         ).first()
-        
+
         if not config:
             return JsonResponse({
                 "status": "error",
                 "message": f"No active configuration found for protocol type: {protocol_type}"
             }, status=404)
-        
+
         # Convert to dictionary format
         config_data = config.to_dict()
-        
+
         return JsonResponse({
             "status": "success",
             "config": config_data,
             "message": "Configuration retrieved successfully"
         })
-        
+
     except Exception as e:
         logger.error(f"Error retrieving configuration from database: {str(e)}")
         return JsonResponse({
@@ -216,19 +216,19 @@ def test_protocol_connection(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         config_data = data.get('config', {})
-        
+
         protocol_adapter = IoTProtocolAdapter.get_instance()
         test_result = protocol_adapter.test_connection(config_data)
-        
+
         return JsonResponse({
             "status": "success",
             "test_result": test_result
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -248,16 +248,16 @@ def get_generator_types(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         protocol_adapter = IoTProtocolAdapter.get_instance()
         generator_types = protocol_adapter.get_supported_generators()
-        
+
         return JsonResponse({
             "status": "success",
             "generator_types": generator_types
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting generator types: {str(e)}")
         return JsonResponse({
@@ -272,18 +272,18 @@ def get_generator_config(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         config_id = request.GET.get('config_id')
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         config = fuzzer_service.get_generator_config(config_id)
-        
+
         return JsonResponse({
             "status": "success",
             "config": config
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting generator config: {str(e)}")
         return JsonResponse({
@@ -299,20 +299,20 @@ def save_generator_config(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         config_data = data.get('config', {})
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         config_id = fuzzer_service.save_generator_config(config_data)
-        
+
         return JsonResponse({
             "status": "success",
             "config_id": config_id,
             "message": "Generator configuration saved successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -332,14 +332,14 @@ def get_templates_list(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         category = request.GET.get('category')
-        
+
         templates = ConfigTemplate.objects.all()
         if category:
             templates = templates.filter(category=category)
-        
+
         templates_data = []
         for template in templates:
             item = {
@@ -361,12 +361,12 @@ def get_templates_list(request: HttpRequest):
                 item['monitoring_config'] = template.monitoring_config
 
             templates_data.append(item)
-        
+
         return JsonResponse({
             "status": "success",
             "templates": templates_data
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting templates list: {str(e)}")
         return JsonResponse({
@@ -382,26 +382,26 @@ def load_template(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         template_id = data.get('template_id')
-        
+
         if not template_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Template ID is required"
             }, status=400)
-        
+
         template = ConfigTemplate.objects.get(id=template_id)
         template.increment_usage()
-        
+
         return JsonResponse({
             "status": "success",
             "config": template.get_full_config(),
             "message": "Template loaded successfully"
         })
-        
+
     except ConfigTemplate.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -427,11 +427,11 @@ def save_template(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         template_data = data.get('template', {})
-        
+
         template = ConfigTemplate.objects.create(
             name=template_data.get('name', ''),
             description=template_data.get('description', ''),
@@ -441,13 +441,13 @@ def save_template(request: HttpRequest):
             monitoring_config=template_data.get('monitoring_config', {}),
             is_default=template_data.get('is_default', False)
         )
-        
+
         return JsonResponse({
             "status": "success",
             "template_id": template.id,
             "message": "Template saved successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -514,19 +514,19 @@ def validate_configuration(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         config_data = data.get('config', {})
-        
+
         protocol_adapter = IoTProtocolAdapter.get_instance()
         validation_result = protocol_adapter.validate_configuration(config_data)
-        
+
         return JsonResponse({
             "status": "success",
             "validation_result": validation_result
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",

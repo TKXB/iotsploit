@@ -25,15 +25,15 @@ def get_test_groups_list(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         test_groups = TestGroup.objects.select_related('campaign').prefetch_related('test_cases')
-        
+
         if campaign_id:
             test_groups = test_groups.filter(campaign_id=campaign_id)
-        
+
         groups_data = []
         for group in test_groups:
             groups_data.append({
@@ -51,12 +51,12 @@ def get_test_groups_list(request: HttpRequest):
                 'completion_percentage': group.get_completion_percentage(),
                 'created_at': group.created_at.isoformat()
             })
-        
+
         return JsonResponse({
             "status": "success",
             "test_groups": groups_data
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting test groups list: {str(e)}")
         return JsonResponse({
@@ -72,16 +72,16 @@ def create_test_group(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
-        
+
         # Handle both nested and flat data formats
         if 'group' in data:
             group_data = data.get('group', {})
         else:
             group_data = data
-        
+
         campaign_id = group_data.get('campaign_id')
         if not campaign_id:
             # Create or get default campaign if none provided
@@ -106,7 +106,7 @@ def create_test_group(request: HttpRequest):
                     "status": "error",
                     "message": f"Invalid campaign ID format: {campaign_id}"
                 }, status=400)
-        
+
         test_group = TestGroup.objects.create(
             name=group_data.get('name', ''),
             description=group_data.get('description', ''),
@@ -115,13 +115,13 @@ def create_test_group(request: HttpRequest):
             enabled=group_data.get('enabled', True),
             protocol_type=group_data.get('protocol_type', campaign.protocol_type)
         )
-        
+
         return JsonResponse({
             "status": "success",
             "group_id": test_group.id,
             "message": "Test group created successfully"
         })
-        
+
     except FuzzingCampaign.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -147,13 +147,13 @@ def update_test_group(request: HttpRequest, group_id):
     """
     if request.method != 'PUT':
         return method_not_allowed("PUT")
-    
+
     try:
         data = parse_json_body(request)
         group_data = data.get('group', {})
-        
+
         test_group = TestGroup.objects.get(id=group_id)
-        
+
         # Update fields
         if 'name' in group_data:
             test_group.name = group_data['name']
@@ -163,14 +163,14 @@ def update_test_group(request: HttpRequest, group_id):
             test_group.priority = group_data['priority']
         if 'enabled' in group_data:
             test_group.enabled = group_data['enabled']
-        
+
         test_group.save()
-        
+
         return JsonResponse({
             "status": "success",
             "message": "Test group updated successfully"
         })
-        
+
     except TestGroup.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -196,16 +196,16 @@ def delete_test_group(request: HttpRequest, group_id):
     """
     if request.method != 'DELETE':
         return method_not_allowed("DELETE")
-    
+
     try:
         test_group = TestGroup.objects.get(id=group_id)
         test_group.delete()
-        
+
         return JsonResponse({
             "status": "success",
             "message": "Test group deleted successfully"
         })
-        
+
     except TestGroup.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -225,28 +225,28 @@ def get_test_cases_list(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         group_id = request.GET.get('group_id')
         campaign_id = request.GET.get('campaign_id')
-        
+
         test_cases = TestCase.objects.select_related('group', 'group__campaign', 'protocol_config').prefetch_related('frame_fields', 'fuzzing_rules')
-        
+
         if group_id:
             test_cases = test_cases.filter(group_id=group_id)
         elif campaign_id:
             test_cases = test_cases.filter(group__campaign_id=campaign_id)
-        
+
         cases_data = []
         for case in test_cases:
             # Build protocol frame from frame fields for backward compatibility
             protocol_frame = {}
             for field in case.frame_fields.order_by('field_order'):
                 protocol_frame[field.field_id] = field.value
-            
+
             # Get fuzzing rules summary
             fuzzing_targets = case.get_fuzzing_targets()
-            
+
             cases_data.append({
                 'id': case.id,
                 'name': case.name,
@@ -272,12 +272,12 @@ def get_test_cases_list(request: HttpRequest):
                 'last_result': case.last_result,
                 'created_at': case.created_at.isoformat()
             })
-        
+
         return JsonResponse({
             "status": "success",
             "test_cases": cases_data
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting test cases list: {str(e)}")
         return JsonResponse({
@@ -293,21 +293,21 @@ def create_test_case(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         # Support both nested (case: {}) and flat data formats
         case_data = data.get('case', data)
 
         print(f"test_case_data: {case_data}")
-        
+
         group_id = case_data.get('group_id')
         if not group_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Group ID is required"
             }, status=400)
-        
+
         # Handle both string and integer group IDs
         try:
             # Try to find by integer ID first
@@ -327,7 +327,7 @@ def create_test_case(request: HttpRequest):
                             'status': 'idle'
                         }
                     )
-                    
+
                     # Create the group if it doesn't exist
                     group, created = TestGroup.objects.get_or_create(
                         name=case_data.get('name', 'Default Group'),
@@ -349,12 +349,12 @@ def create_test_case(request: HttpRequest):
                 "status": "error",
                 "message": f"Test group with ID {group_id} not found"
             }, status=404)
-        
+
         # Convert timeout from milliseconds to seconds if needed
         timeout_value = case_data.get('timeout', case_data.get('timeout_seconds', 1.0))
         if timeout_value > 100:  # Assume it's in milliseconds if > 100
             timeout_value = timeout_value / 1000.0
-        
+
         # Get or create a default protocol configuration
         protocol_type = (case_data.get('protocol_type') or group.protocol_type or '').lower()
         default_settings = {'default': True}
@@ -368,7 +368,7 @@ def create_test_case(request: HttpRequest):
             protocol_type=protocol_type,
             defaults={'settings': default_settings}
         )
-        
+
         test_case = TestCase.objects.create(
             name=case_data.get('name', ''),
             description=case_data.get('description', ''),
@@ -382,7 +382,7 @@ def create_test_case(request: HttpRequest):
             timeout_seconds=timeout_value,
             iterations=case_data.get('iterations', 100)
         )
-        
+
         # Create frame fields from protocol_frame data (for backward compatibility)
         protocol_frame = case_data.get('protocol_frame', {})
         if protocol_frame:
@@ -398,16 +398,16 @@ def create_test_case(request: HttpRequest):
                     is_required=(field_id in ['service_id', 'sid', 'id'])
                 )
                 field_order += 1
-        
+
         # Update group statistics
         group.update_statistics()
-        
+
         return JsonResponse({
             "status": "success",
             "case_id": test_case.id,
             "message": "Test case created successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -428,15 +428,15 @@ def update_test_case(request: HttpRequest, case_id):
     """
     if request.method != 'PUT':
         return method_not_allowed("PUT")
-    
+
     try:
         data = parse_json_body(request)
         case_data = data.get('case', {})
 
         print(f"update test_case_data: {case_data}")
-        
+
         test_case = TestCase.objects.get(id=case_id)
-        
+
         # Update fields
         if 'name' in case_data:
             test_case.name = case_data['name']
@@ -456,7 +456,7 @@ def update_test_case(request: HttpRequest, case_id):
             test_case.timeout_seconds = case_data['timeout_seconds']
         if 'iterations' in case_data:
             test_case.iterations = case_data['iterations']
-        
+
         # Handle protocol_type updates
         if 'protocol_type' in case_data:
             protocol_type = case_data['protocol_type']
@@ -466,14 +466,14 @@ def update_test_case(request: HttpRequest, case_id):
                 defaults={'settings': {}}
             )
             test_case.protocol_config = protocol_config
-        
+
         # Handle protocol_frame updates by updating frame fields
         if 'protocol_frame' in case_data:
             protocol_frame = case_data['protocol_frame']
-            
+
             # Update existing frame fields or create new ones
             existing_fields = {f.field_id: f for f in test_case.frame_fields.all()}
-            
+
             field_order = 1
             for field_id, value in protocol_frame.items():
                 if field_id in existing_fields:
@@ -493,14 +493,14 @@ def update_test_case(request: HttpRequest, case_id):
                         is_required=(field_id in ['service_id', 'sid', 'id'])
                     )
                 field_order += 1
-        
+
         test_case.save()
-        
+
         return JsonResponse({
             "status": "success",
             "message": "Test case updated successfully"
         })
-        
+
     except TestCase.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -526,20 +526,20 @@ def delete_test_case(request: HttpRequest, case_id):
     """
     if request.method != 'DELETE':
         return method_not_allowed("DELETE")
-    
+
     try:
         test_case = TestCase.objects.get(id=case_id)
         group = test_case.group
         test_case.delete()
-        
+
         # Update group statistics
         group.update_statistics()
-        
+
         return JsonResponse({
             "status": "success",
             "message": "Test case deleted successfully"
         })
-        
+
     except TestCase.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -560,25 +560,25 @@ def move_test_case(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         # Support both case_id and test_case_id field names
         case_id = data.get('case_id') or data.get('test_case_id')
         target_group_id = data.get('target_group_id')
-        
+
         if not case_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Test case ID is required"
             }, status=400)
-        
+
         if not target_group_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Target group ID is required"
             }, status=400)
-        
+
         try:
             test_case = TestCase.objects.get(id=case_id)
         except TestCase.DoesNotExist:
@@ -586,7 +586,7 @@ def move_test_case(request: HttpRequest):
                 "status": "error",
                 "message": "Test case not found"
             }, status=404)
-        
+
         try:
             # Handle both string and integer group IDs
             if isinstance(target_group_id, str) and target_group_id.isdigit():
@@ -603,28 +603,28 @@ def move_test_case(request: HttpRequest):
                 "status": "error",
                 "message": "Target group not found"
             }, status=404)
-        
+
         old_group = test_case.group
-        
+
         # Validate group compatibility
         if old_group.campaign != new_group.campaign:
             return JsonResponse({
                 "status": "error",
                 "message": "Cannot move test case to different campaign"
             }, status=400)
-        
+
         test_case.group = new_group
         test_case.save()
-        
+
         # Update statistics for both groups
         old_group.update_statistics()
         new_group.update_statistics()
-        
+
         return JsonResponse({
             "status": "success",
             "message": "Test case moved successfully"
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -645,19 +645,19 @@ def build_protocol_frame(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         frame_spec = data.get('frame_spec', {})
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         frame_data = fuzzer_service.build_protocol_frame(frame_spec)
-        
+
         return JsonResponse({
             "status": "success",
             "frame_data": frame_data
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -678,19 +678,19 @@ def validate_protocol_frame(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         frame_data = data.get('frame_data', {})
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         validation_result = fuzzer_service.validate_protocol_frame(frame_data)
-        
+
         return JsonResponse({
             "status": "success",
             "validation_result": validation_result
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -710,18 +710,18 @@ def get_protocol_frame_templates(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         protocol_type = request.GET.get('protocol_type')
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         templates = fuzzer_service.get_protocol_frame_templates(protocol_type)
-        
+
         return JsonResponse({
             "status": "success",
             "templates": templates
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting protocol frame templates: {str(e)}")
         return JsonResponse({
@@ -737,19 +737,19 @@ def export_test_data(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         export_config = data.get('export_config', {})
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         export_result = fuzzer_service.export_test_data(export_config)
-        
+
         return JsonResponse({
             "status": "success",
             "export_result": export_result
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -770,19 +770,19 @@ def import_test_data(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         import_data = data.get('import_data', {})
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         import_result = fuzzer_service.import_test_data(import_data)
-        
+
         return JsonResponse({
             "status": "success",
             "import_result": import_result
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",

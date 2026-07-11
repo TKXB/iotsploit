@@ -30,18 +30,18 @@ def get_files_tree(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         file_tree = fuzzer_service.get_files_tree(campaign_id)
-        
+
         return JsonResponse({
             "status": "success",
             "file_tree": file_tree
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting files tree: {str(e)}")
         return JsonResponse({
@@ -56,16 +56,16 @@ def get_file_content(request: HttpRequest, file_id):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         fuzzer_service = IoTFuzzerService.get_instance()
         file_content = fuzzer_service.get_file_content(file_id)
-        
+
         return JsonResponse({
             "status": "success",
             "file_content": file_content
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting file content: {str(e)}")
         return JsonResponse({
@@ -80,28 +80,28 @@ def download_file(request: HttpRequest, file_id):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         fuzzer_service = IoTFuzzerService.get_instance()
         file_path = fuzzer_service.get_file_path(file_id)
-        
+
         if not os.path.exists(file_path):
             return JsonResponse({
                 "status": "error",
                 "message": "File not found"
             }, status=404)
-        
+
         file_name = os.path.basename(file_path)
         content_type, _ = mimetypes.guess_type(file_path)
-        
+
         response = FileResponse(
             open(file_path, 'rb'),
             content_type=content_type or 'application/octet-stream'
         )
         response['Content-Disposition'] = f'attachment; filename="{file_name}"'
-        
+
         return response
-        
+
     except Exception as e:
         logger.error(f"Error downloading file: {str(e)}")
         return JsonResponse({
@@ -116,25 +116,25 @@ def get_logs_list(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
         category = request.GET.get('category')
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 50))
-        
+
         logs = LiveLog.objects.select_related('campaign')
-        
+
         if campaign_id:
             logs = logs.filter(campaign_id=campaign_id)
         if category:
             logs = logs.filter(category=category)
-        
+
         logs = logs.order_by('-timestamp')
-        
+
         paginator = Paginator(logs, page_size)
         page_obj = paginator.get_page(page)
-        
+
         logs_data = []
         for log in page_obj:
             item = {
@@ -150,7 +150,7 @@ def get_logs_list(request: HttpRequest):
                 'is_error': log.is_error()
             }
             logs_data.append(item)
-        
+
         return JsonResponse({
             "status": "success",
             "logs": logs_data,
@@ -163,7 +163,7 @@ def get_logs_list(request: HttpRequest):
                 "has_previous": page_obj.has_previous()
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting logs list: {str(e)}")
         return JsonResponse({
@@ -179,13 +179,13 @@ def filter_logs(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         filter_criteria = data.get('filter_criteria', {})
-        
+
         logs = LiveLog.objects.select_related('campaign')
-        
+
         # Apply filters
         if 'campaign_id' in filter_criteria:
             logs = logs.filter(campaign_id=filter_criteria['campaign_id'])
@@ -199,16 +199,16 @@ def filter_logs(request: HttpRequest):
             logs = logs.filter(timestamp__gte=filter_criteria['date_from'])
         if 'date_to' in filter_criteria:
             logs = logs.filter(timestamp__lte=filter_criteria['date_to'])
-        
+
         logs = logs.order_by('-timestamp')
-        
+
         # Pagination
         page = int(filter_criteria.get('page', 1))
         page_size = int(filter_criteria.get('page_size', 50))
-        
+
         paginator = Paginator(logs, page_size)
         page_obj = paginator.get_page(page)
-        
+
         logs_data = []
         for log in page_obj:
             item = {
@@ -224,7 +224,7 @@ def filter_logs(request: HttpRequest):
                 'is_error': log.is_error()
             }
             logs_data.append(item)
-        
+
         return JsonResponse({
             "status": "success",
             "logs": logs_data,
@@ -237,7 +237,7 @@ def filter_logs(request: HttpRequest):
                 "has_previous": page_obj.has_previous()
             }
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -257,7 +257,7 @@ def get_results_summary(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
 
@@ -343,7 +343,7 @@ def get_results_summary(request: HttpRequest):
             "status": "success",
             "summary": summary
         })
-        
+
     except FuzzingCampaign.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -363,22 +363,22 @@ def get_results_charts(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
         chart_type = request.GET.get('chart_type', 'all')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         campaign = FuzzingCampaign.objects.get(id=campaign_id)
         results = FuzzingResult.objects.filter(campaign=campaign)
-        
+
         charts_data = {}
-        
+
         if chart_type in ['all', 'status_distribution']:
             # Status distribution pie chart
             status_counts = results.values('status').annotate(count=Count('status'))
@@ -386,33 +386,33 @@ def get_results_charts(request: HttpRequest):
                 'labels': [item['status'] for item in status_counts],
                 'data': [item['count'] for item in status_counts]
             }
-        
+
         if chart_type in ['all', 'timeline']:
             # Timeline chart
             timeline_data = results.extra(
                 select={'hour': 'strftime("%%Y-%%m-%%d %%H:00:00", executed_at)'}
             ).values('hour').annotate(count=Count('id')).order_by('hour')
-            
+
             charts_data['timeline'] = {
                 'labels': [item['hour'] for item in timeline_data],
                 'data': [item['count'] for item in timeline_data]
             }
-        
+
         if chart_type in ['all', 'response_time']:
             # Response time distribution
             response_times = results.filter(
                 response_time_ms__isnull=False
             ).values_list('response_time_ms', flat=True)
-            
+
             charts_data['response_time'] = {
                 'data': list(response_times)
             }
-        
+
         return JsonResponse({
             "status": "success",
             "charts_data": charts_data
         })
-        
+
     except FuzzingCampaign.DoesNotExist:
         return JsonResponse({
             "status": "error",
@@ -433,19 +433,19 @@ def export_results(request: HttpRequest):
     """
     if request.method != 'POST':
         return method_not_allowed("POST")
-    
+
     try:
         data = parse_json_body(request)
         export_config = data.get('export_config', {})
-        
+
         fuzzer_service = IoTFuzzerService.get_instance()
         export_result = fuzzer_service.export_results(export_config)
-        
+
         return JsonResponse({
             "status": "success",
             "export_result": export_result
         })
-        
+
     except json.JSONDecodeError:
         return JsonResponse({
             "status": "error",
@@ -465,22 +465,22 @@ def get_artifacts(request: HttpRequest):
     """
     if request.method != 'GET':
         return method_not_allowed("GET")
-    
+
     try:
         campaign_id = request.GET.get('campaign_id')
-        
+
         if not campaign_id:
             return JsonResponse({
                 "status": "error",
                 "message": "Campaign ID is required"
             }, status=400)
-        
+
         # Get interesting results (crashes, anomalies, etc.)
         results = FuzzingResult.objects.filter(
             campaign_id=campaign_id,
             status__in=['crash', 'anomaly']
         ).select_related('campaign', 'test_case')
-        
+
         artifacts_data = []
         for result in results:
             artifacts_data.append({
@@ -501,12 +501,12 @@ def get_artifacts(request: HttpRequest):
                 'has_response': result.has_response(),
                 'is_interesting': result.is_interesting()
             })
-        
+
         return JsonResponse({
             "status": "success",
             "artifacts": artifacts_data
         })
-        
+
     except Exception as e:
         logger.error(f"Error getting artifacts: {str(e)}")
         return JsonResponse({
