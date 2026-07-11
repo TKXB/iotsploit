@@ -187,25 +187,30 @@ Vehicle ATTRIBUTES:
     def __format_toc_title(self, str_input):
         return str(str_input).replace("|", "\|")
 
-    def record_TestStand_before_audit(self, record_dict:dict):
+    def __record_before_audit(self, record_dict, kind, project_key, parent_kind=None):
         if self.__report_toc_tree_list == None:
             return
 
-        record_dict["ts_before_teststand"] = datetime.datetime.now()
-        record_dict["teststand_toc"] = record_dict["toc_level"]
+        record_dict[f"ts_before_{kind}"] = datetime.datetime.now()
+        record_dict[f"{kind}_toc"] = record_dict["toc_level"]
+        nodes = (
+            ["", []],
+            ["", []],
+            [{"test_project": record_dict[project_key], "toc_level": record_dict["toc_level"], "status": "进行中"}, []],
+        )
+        record_dict[f"active_{kind}_list"] = nodes
 
-        toc_active_teststand_list = ["", []]
-        detail_active_teststand_list = ["", []]
-        result_active_teststand_list = [{"test_project":record_dict["test_stand"], "toc_level":record_dict["teststand_toc"], "status":"进行中"}, []]
+        if parent_kind and record_dict["toc_level"] != 0:
+            parent_nodes = record_dict[f"active_{parent_kind}_list"]
+            for parent, node in zip(parent_nodes, nodes):
+                parent[1].append(node)
+        else:
+            self.__report_toc_tree_list.append(nodes[0])
+            self.__report_detail_tree_list.append(nodes[1])
+            self.__report_test_result_tree_list.append(nodes[2])
 
-        record_dict["active_teststand_list"] = (toc_active_teststand_list, detail_active_teststand_list, result_active_teststand_list)
-        
-        #测试stand一定是根目录执行
-        self.__report_toc_tree_list.append(toc_active_teststand_list)
-        self.__report_detail_tree_list.append(detail_active_teststand_list)
-        self.__report_test_result_tree_list.append(result_active_teststand_list)
-
-        return
+    def record_TestStand_before_audit(self, record_dict:dict):
+        self.__record_before_audit(record_dict, "teststand", "test_stand")
         
     def record_TestStand_after_audit(self, record_dict:dict):
         if self.__report_toc_tree_list == None:
@@ -269,29 +274,7 @@ TestGroups List (Total Count:{count}):
 
 #######################
     def record_TestGroup_before_audit(self, record_dict:dict):
-        if self.__report_toc_tree_list == None:
-            return
-
-        record_dict["ts_before_testgroup"] = datetime.datetime.now()
-        record_dict["testgroup_toc"] = record_dict["toc_level"]
-
-        toc_active_testgroup_list = ["", []]
-        detail_active_testgroup_list = ["", []]
-        result_active_testgroup_list = [{"test_project":record_dict["test_group"], "toc_level":record_dict["testgroup_toc"], "status":"进行中"}, []]
-
-        record_dict["active_testgroup_list"] = (toc_active_testgroup_list, detail_active_testgroup_list, result_active_testgroup_list)
-
-        if record_dict["toc_level"] == 0:
-            self.__report_toc_tree_list.append(toc_active_testgroup_list)
-            self.__report_detail_tree_list.append(detail_active_testgroup_list)
-            self.__report_test_result_tree_list.append(result_active_testgroup_list)
-
-        else:
-            record_dict["active_teststand_list"][0][1].append(toc_active_testgroup_list)
-            record_dict["active_teststand_list"][1][1].append(detail_active_testgroup_list)
-            record_dict["active_teststand_list"][2][1].append(result_active_testgroup_list)
-
-        return
+        self.__record_before_audit(record_dict, "testgroup", "test_group", "teststand")
         
     def record_TestGroup_after_audit(self, record_dict:dict):
         if self.__report_toc_tree_list == None:
@@ -364,29 +347,7 @@ TestCases List (Total Count:{test_cases_count}):
 
 #######################
     def record_TestCase_before_audit(self, record_dict:dict):     
-        if self.__report_toc_tree_list == None:
-            return
-
-        record_dict["ts_before_testcase"] = datetime.datetime.now()
-        record_dict["testcase_toc"] = record_dict["toc_level"]
-
-        toc_active_testcase_list = ["", []]
-        detail_active_testcase_list = ["", []]
-        result_active_testcase_list = [{"test_project":record_dict["test_case"], "toc_level":record_dict["testcase_toc"], "status":"进行中"}, []]
-
-        record_dict["active_testcase_list"] = (toc_active_testcase_list, detail_active_testcase_list, result_active_testcase_list)
-
-        if record_dict["toc_level"] == 0:
-            self.__report_toc_tree_list.append(toc_active_testcase_list)
-            self.__report_detail_tree_list.append(detail_active_testcase_list)
-            self.__report_test_result_tree_list.append(result_active_testcase_list)
-
-        else:
-            record_dict["active_testgroup_list"][0][1].append(toc_active_testcase_list)
-            record_dict["active_testgroup_list"][1][1].append(detail_active_testcase_list)
-            record_dict["active_testgroup_list"][2][1].append(result_active_testcase_list)
-
-        return
+        self.__record_before_audit(record_dict, "testcase", "test_case", "testgroup")
     
     def record_TestCase_after_audit(self, record_dict:dict):
         if self.__report_toc_tree_list == None:
@@ -721,4 +682,3 @@ DESC:\t {desc}
 
 
 _instance = Report_Mgr()
-
