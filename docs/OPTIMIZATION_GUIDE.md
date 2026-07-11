@@ -282,7 +282,7 @@ Preserve public URLs, route names, import locations, status codes, response shap
 behavior. Implement one independently verifiable resource or responsibility at a time.
 
 - [x] Pin all 43 IoT Fuzzer HTTP route names and paths with an exact contract test (−0 production LOC)
-- [ ] Add response characterization tests and isolate external services/hardware
+- [~] Add response characterization tests and isolate external services/hardware (campaign contracts added)
 - [ ] Extract shared request parsing, method validation, and response helpers without changing API envelopes
 - [ ] `iot_fuzzer/views.py` (2,380) — split campaign, configuration, management, and results resources
 - [ ] `web/views.py` (1,999) — finish migration into existing `web/api` resource modules; retain only required compatibility exports
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 response characterization started with campaign control/status contracts:
+  method rejection, malformed JSON, required IDs, success envelopes, and manager delegation are
+  pinned behind mocks. Five focused tests pass; no production code changed.
 - 2026-07-11: Phase 4 Option B safety-net unit pinned all 43 IoT Fuzzer HTTP route names and
   paths with an exact contract assertion. Focused Ruff and contract tests passed; no production
   code changed. Response characterization remains the next Phase 4 unit.
