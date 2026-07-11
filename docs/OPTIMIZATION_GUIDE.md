@@ -286,7 +286,7 @@ behavior. Implement one independently verifiable resource or responsibility at a
 - [~] Extract shared request parsing, method validation, and response helpers without changing API envelopes (method helper done)
 - [x] `iot_fuzzer/views.py` (2,380) — split into a 103-line compatibility facade plus campaign (427), configuration (541), management (797), and results (516) modules
 - [x] `web/views.py` (1,999) — migrated to resource handlers behind an 83-line compatibility facade (2,170 total, +171 structural LOC)
-- [~] `tools/iot_protocol_adapter.py` 1,415 → 1,237 — interfaces/mocks moved to a 175-line component module; registry/orchestration split remains
+- [x] `tools/iot_protocol_adapter.py` (1,415) — split into registry/validation (645), runtime orchestration/monitoring/generation (607), and interfaces/mocks (175); 1,427 total (+12 structural LOC)
 - [~] `tools/iot_fuzzer_service.py` (1,198) and `iot_fuzzer_manager.py` 967 → 938 — duplicate frame serialization removed; broader boundary audit remains
 - [x] `tools/adb_mgr.py` 870 → 807 (−63) — consolidated permission scans behind one tested helper
 - [x] `tools/report_mgr.py` 724 → 684 (−40) — consolidated tested report-tree initialization
@@ -444,6 +444,9 @@ After confirmation, implementation can start.
     other listed widget tests continued running around that failure
 
 **Session log** (newest first — one line per work session):
+- 2026-07-11: Phase 4 protocol decomposition completed by moving orchestration, monitoring, and
+  generation into a runtime module. Final split: registry/validation 645, runtime 607,
+  interfaces/mocks 175; 1,427 total vs. 1,415 (+12 structural LOC). Contracts pass.
 - 2026-07-11: Phase 4 legacy web decomposition moved unchanged handlers into plugin, misc,
   firmware, tools, and recovery resource modules; `web/views.py` is now an 83-line compatibility
   facade. Import/route contracts pass. Total is 2,170 vs. 1,999 (+171 structural LOC).
