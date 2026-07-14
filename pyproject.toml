@@ -8,6 +8,7 @@ package-mode = false
 [tool.poetry.dependencies]
 python = "^3.10"
 cmd2 = "2.4.3"
+prompt-toolkit = "3.0.48"
 colorlog = "6.8.2"
 cryptography = "43.0.0"
 Django = "4.2.14"
@@ -62,6 +63,7 @@ testpaths = [
     "iotsploit-django/src/iotsploit_django/tests",
     "iotsploit-fuzzer/tests",
     "iotsploit-mcp/tests",
+    "iotsploit-cli/tests",
 ]
 markers = [
     "unit: isolated, deterministic behavior",

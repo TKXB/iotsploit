@@ -37,3 +37,6 @@ build/
 
 # Tool detection runtime cache (machine-specific; never commit)
 **/.tools_cache.json
+
+# Machine-specific AI context
+.agents/local.md
