@@ -89,6 +89,20 @@ ensure_database_initialized()
 # Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
+
+# Command palette imports (prompt-toolkit based live command discovery).
+# Wrapped in try/except so the shell still works if prompt-toolkit is missing.
+try:
+    from iotsploit_cli.command_palette import (
+        CommandCatalog,
+        Cmd2CompletionAdapter,
+        CommandPaletteCompleter,
+        PaletteInputSession,
+    )
+    _PALETTE_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _PALETTE_AVAILABLE = False
+
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_core.domain.target import Vehicle
 from iotsploit_django.composition_root.wiring import get_device_driver_manager, get_exploit_plugin_manager
@@ -257,6 +271,74 @@ class SAT_Shell(SAT_Shell_Base):
             'sll': 'Shell Commands',
             'stop_server': 'Shell Commands',
         })
+
+        # -- Command palette initialization (TTY-only) --------------------- #
+        # The palette uses prompt-toolkit for live command discovery.
+        # It is only initialized when stdin/stdout are TTYs so that non-interactive
+        # use (pipes, scripts, tests) bypasses it entirely.
+        self._palette_session = None
+        if (
+            _PALETTE_AVAILABLE
+            and sys.stdin.isatty()
+            and sys.stdout.isatty()
+        ):
+            try:
+                catalog = CommandCatalog(self)
+                adapter = Cmd2CompletionAdapter(self)
+                completer = CommandPaletteCompleter(self, catalog, adapter)
+                self._palette_session = PaletteInputSession(self, completer)
+            except Exception:
+                self._palette_session = None
+
+    def read_input(
+        self,
+        prompt: str,
+        *,
+        history=None,
+        completion_mode=cmd2.utils.CompletionMode.NONE,
+        preserve_quotes=False,
+        choices=None,
+        choices_provider=None,
+        completer=None,
+        parser=None,
+    ) -> str:
+        """Override cmd2's ``read_input`` to use the palette for top-level prompts.
+
+        Only intercepts when:
+        * ``completion_mode`` is ``COMMANDS`` (the top-level interactive prompt)
+        * stdin and stdout are TTYs
+        * ``use_rawinput`` is True
+        * the palette session was successfully initialized
+        * we are not at a continuation prompt
+
+        Everything else delegates to ``super().read_input()`` unchanged.
+        """
+        if (
+            completion_mode == cmd2.utils.CompletionMode.COMMANDS
+            and self._palette_session is not None
+            and not getattr(self, "_at_continuation_prompt", False)
+            and sys.stdin.isatty()
+            and sys.stdout.isatty()
+            and self.use_rawinput
+        ):
+            try:
+                return self._palette_session.prompt(prompt)
+            except (KeyboardInterrupt, EOFError):
+                raise
+            except Exception:
+                # Safe fallback: use cmd2's default input on any unexpected error
+                pass
+
+        return super().read_input(
+            prompt,
+            history=history,
+            completion_mode=completion_mode,
+            preserve_quotes=preserve_quotes,
+            choices=choices,
+            choices_provider=choices_provider,
+            completer=completer,
+            parser=parser,
+        )
 
     def emptyline(self):
         self.onecmd("help")
