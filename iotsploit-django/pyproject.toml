@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-django"
-version = "0.0.7"
+version = "0.0.8"
 description = "IoTSploit Django ring package (HTTP/WS/ORM/Celery + composition root)"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"

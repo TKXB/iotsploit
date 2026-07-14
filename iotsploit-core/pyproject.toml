@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-core"
-version = "0.0.7"
+version = "0.0.8"
 description = "IoTSploit core library (domain + ports + core) - IoT security testing framework"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
