@@ -6,19 +6,22 @@ IoTSploit is a comprehensive cybersecurity testing framework that modularizes te
 
 ## 📋 About This Repository
 
-This repository contains the **core Python server-side code** of IoTSploit, which includes:
-- The main testing framework and plugin system
-- All security testing plugins and exploits
-- Device drivers and protocol implementations
-- Command-line interface (CLI) shell
-- Web API and backend services
+This repository is the **single source for all IoTSploit packages**, which are published to [PyPI](https://pypi.org/). It contains:
+- The main testing framework and plugin system (`iotsploit-core`)
+- All security testing plugins and exploits (`iotsploit-exploits`)
+- Device drivers and protocol implementations (`iotsploit-drivers`)
+- Command-line interface (CLI) shell (`iotsploit-cli`)
+- Web API and backend services (`iotsploit-django`)
+- MCP runtime for agent integration (`iotsploit-mcp`)
+
+**For most users, installing from PyPI is all you need** — see [Installation & Setup](#-installation--setup) below. Clone this repository only if you want to modify IoTSploit itself or develop plugins against the source tree.
 
 **Two ways to use IoTSploit:**
 
-1. **Command-Line Interface** (included in this repo): Use the built-in Python shell for direct interaction with the framework
-2. **Graphical User Interface** (separate download): Download the Flutter desktop/mobile apps that connect to this Python backend
+1. **Command-Line Interface**: Install `iotsploit-cli` from PyPI and run the interactive `iotsploit` shell
+2. **Graphical User Interface** (separate download): Download the Flutter desktop/mobile apps that connect to the running Python backend
 
-The GUI applications provide a user-friendly interface but require this Python core to be running as the backend server.
+The GUI applications provide a user-friendly interface but require the Python core to be running as the backend server.
 
 ## 🚀 Features
 
@@ -104,7 +107,16 @@ IoTSploit is distributed as several packages on [PyPI](https://pypi.org/). The u
 | **`iotsploit-drivers`** | Official device drivers (registered via `iotsploit.device_drivers` entry points) | `iotsploit-drivers/` |
 | **`iotsploit-exploits`** | Official security-testing plugins (registered via `iotsploit.exploit_plugins` entry points) | `iotsploit-exploits/` |
 
-For day-to-day use you only need **`pip install iotsploit-cli`**; dependency resolution brings in the rest. Advanced integrations can depend on individual packages (for example `iotsploit-core` plus `iotsploit-django` only).
+For day-to-day use you only need **`pip install iotsploit-cli`**; dependency resolution brings in the rest. Advanced integrations can depend on individual packages (for example `iotsploit-core` plus `iotsploit-django` only):
+
+```bash
+pip install iotsploit-cli      # interactive shell (pulls in the rest)
+pip install iotsploit-core      # core framework & plugin system
+pip install iotsploit-django     # HTTP/WebSocket backend
+pip install iotsploit-mcp        # MCP runtime
+pip install iotsploit-drivers    # official device drivers
+pip install iotsploit-exploits   # official security-testing plugins
+```
 
 ## 🛠️ Installation & Setup
 
@@ -171,7 +183,7 @@ If you want to use the Flutter GUI or other remote clients, start the backend se
 From inside the shell:
 
 ```text
-<IoX_SHELL> runserver
+<IoX_SHELL> service start
 ```
 
 Or directly from your terminal:
@@ -200,49 +212,37 @@ poetry run iotsploit
 
 Once the application is running, you can interact with it using the IoTSploit Shell:
 
-#### System Commands
-- **exploit**: Execute all plugins in the IoTSploit System
-- **exit**: Exit the IoTSploit Shell
+IoTSploit commands follow a `resource action` grammar. The public resources
+are `host`, `device`, `driver`, `firmware`, `plugin`, `target`, `service`,
+`wifi`, and `config`.
 
-#### Device Commands
-- **device_info**: Show Device Info
-- **list_devices**: List all devices stored in the database
-- **list_device_drivers**: List all available device plugins
+```text
+device list
+driver status
+plugin run <plugin>
+plugin run-all
+target select
+service start
+config set --log-level DEBUG
+```
 
-#### Network Commands
-- **connect_lab_wifi**: Connect to Lab WiFi
-
-#### Django Commands
-- **runserver**: Start Django development server, Daphne WebSocket server, and Celery worker
-- **stop_server**: Stop all servers and workers
-
-#### Plugin Commands
-- **list_plugins**: List all available plugins
-- **execute_plugin**: Execute a specific plugin
-- **flash_plugins**: Refresh and reload all plugins
-- **create_group**: Create a plugin group
-- **execute_group**: Execute plugins in a group
-- **list_groups**: List all available plugin groups
-
-#### Target Commands
-- **list_targets**: List all targets stored in the database
-- **target_select**: Select a target from available targets
-- **edit_target**: Edit an existing target
-
-#### Test Commands
-- **test_select**: Select Test Project
-- **run_test**: Start Test Project
-- **quick_test**: Run Test Project quickly
-
-#### Utility Commands
-- **help**: List available commands or get detailed help
-- **set_log_level**: Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- **ls**: List directory contents
-- **lsusb**: List USB devices
+Use `help` for the public overview, `help <resource>` for action and argument
+details, and `help --all` for advanced cmd2 commands and legacy replacements.
+Old command names remain executable during the compatibility window and print
+a deprecation warning.
 
 ### Example Plugin Usage
 
+A single `.py` file with a `BasePlugin` subclass is all you need — see [Creating Plugins](#-creating-plugins) for how to load it.
+
 ```python
+import pluggy
+from iotsploit_core.core.base_plugin import BasePlugin
+from iotsploit_core.core.exploit_spec import ExploitResult
+
+hookimpl = pluggy.HookimplMarker("exploit_mgr")
+
+
 class AdbSecurityCheckPlugin(BasePlugin):
     def __init__(self):
         super().__init__({
@@ -328,8 +328,37 @@ We welcome contributions from the community! Here's how you can help improve IoT
 
 ### 🔌 Creating Plugins
 
-1. **Plugin Structure**: Follow the existing plugin structure in `plugins/exploits/`
-2. **Base Class**: Inherit from `BasePlugin` and implement required methods
+IoTSploit discovers plugins through **two mechanisms**, so you can pick the one that fits your workflow.
+
+#### Option 1 — Load custom plugins from a directory (environment variable)
+
+Point IoTSploit at any folder of `.py` files and it will auto-discover classes that inherit from `BasePlugin` (exploits) or `BaseDeviceDriver` (drivers). This is the fastest way to iterate on a plugin locally:
+
+```bash
+# Exploit plugins
+export IOTSPLOIT_EXPLOIT_PLUGINS_DIR=/path/to/my/plugins
+
+# Device drivers (optional, legacy alias: SAT_DEVICE_PLUGINS_DIR)
+export IOTSPLOIT_DEVICE_PLUGINS_DIR=/path/to/my/drivers
+```
+
+Each `.py` file (except `__init__.py`) is scanned recursively for a `BasePlugin` / `BaseDeviceDriver` subclass. See [Example Plugin Usage](#example-plugin-usage) above for a minimal plugin file.
+
+#### Option 2 — Publish as an installable package (entry points)
+
+For plugins you want to distribute or reuse across machines, create a Python package and register it under the `iotsploit.exploit_plugins` (or `iotsploit.device_drivers`) entry-point group in your `pyproject.toml`:
+
+```toml
+[tool.poetry.plugins."iotsploit.exploit_plugins"]
+my_plugin = "my_pkg.my_module:MyPlugin"
+```
+
+Then `pip install` your package and IoTSploit will discover it automatically. The official packages `iotsploit-exploits` and `iotsploit-drivers` use exactly this mechanism — see [`iotsploit-exploits/pyproject.toml`](iotsploit-exploits/pyproject.toml) for a working example.
+
+#### Plugin checklist
+
+1. **Base class**: Inherit from `BasePlugin` and implement the `execute()` hook
+2. **Metadata**: Provide `Name`, `Description`, `Parameters`, etc. in the `super().__init__()` info dict
 3. **Documentation**: Include clear parameter descriptions and usage examples
 4. **Testing**: Test your plugin thoroughly with different target configurations
 
