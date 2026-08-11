@@ -177,13 +177,8 @@ class SAT_Shell(SAT_Shell_Base):
     prompt = ansi.style('<IoX_SHELL> ', fg=ansi.Fg.BLUE)
 
     def __init__(self):
-        # Initialize the command categories dictionary before calling super().__init__()
-        self._cmd_to_category = {}
-        
-        # Now call the parent class initialization
         super().__init__()
-        
-        # Rest of your initialization code...
+
         self.django_server_process = None
         self.daphne_server_process = None
         self.mcp_bridge_process = None
@@ -236,47 +231,6 @@ class SAT_Shell(SAT_Shell_Base):
             logger.info("No devices found in database. Devices will be auto-discovered by drivers.")
             logger.info("You can also use 'device_import conf/devices.json' to import from JSON file.")
 
-
-        # Customize help display
-        self.help_category_header = ansi.style("\n{:-^80}\n", fg=ansi.Fg.BLUE)
-        self.help_category_footer = "\n"
-        
-        # Group all commands under Shell Commands
-        self._cmd_to_category.update({
-            'alias': 'Shell Commands',
-            'connect_wifi': 'Shell Commands',
-            'device_info': 'Shell Commands',
-            'edit': 'Shell Commands',
-            'execute_plugin': 'Shell Commands',
-            'exec': 'Shell Commands',
-            'exit': 'Shell Commands',
-            'exploit': 'Shell Commands',
-            'help': 'Shell Commands',
-            'history': 'Shell Commands',
-            'list_device_drivers': 'Shell Commands',
-            'list_devices': 'Shell Commands',
-            'list_plugins': 'Shell Commands',
-            'list_targets': 'Shell Commands',
-            'ls': 'Shell Commands',
-            'lsdev': 'Shell Commands',
-            'lsdrv': 'Shell Commands',
-            'lsp': 'Shell Commands',
-            'lst': 'Shell Commands',
-            'lsusb': 'Shell Commands',
-            'macro': 'Shell Commands',
-            'quit': 'Shell Commands',
-            'run_pyscript': 'Shell Commands',
-            'run_script': 'Shell Commands',
-            'runserver': 'Shell Commands',
-            'set': 'Shell Commands',
-            'set_log_format': 'Shell Commands',
-            'set_log_level': 'Shell Commands',
-            'shell': 'Shell Commands',
-            'shortcuts': 'Shell Commands',
-            'slf': 'Shell Commands',
-            'sll': 'Shell Commands',
-            'stop_server': 'Shell Commands',
-        })
 
         # -- Command palette initialization (TTY-only) --------------------- #
         # The palette uses prompt-toolkit for live command discovery.
@@ -400,31 +354,6 @@ class SAT_Shell(SAT_Shell_Base):
         if cmd_func and cmd_func.__doc__:
             return cmd_func.__doc__.split('\n')[0]
         return ''
-
-    def get_all_commands_by_category(self):
-        """Return a dict mapping category names to lists of command names."""
-        categories = {}
-        
-        # Get all command names (methods starting with 'do_')
-        command_names = [attr[3:] for attr in dir(self) if attr.startswith('do_')]
-        
-        for cmd_name in command_names:
-            # Get the command function
-            cmd_func = getattr(self, 'do_' + cmd_name)
-            
-            # Get category from cmd2's category decorator or from our manual mapping
-            if hasattr(cmd_func, 'category'):
-                category = cmd_func.category
-            else:
-                # Check our manual mapping or default to 'Uncategorized'
-                category = self._cmd_to_category.get(cmd_name, 'Uncategorized')
-            
-            # Add command to appropriate category list
-            if category not in categories:
-                categories[category] = []
-            categories[category].append(cmd_name)
-        
-        return categories
 
     def _select_device(self, selected_plugin=None):
         """Helper method to handle device selection process"""
