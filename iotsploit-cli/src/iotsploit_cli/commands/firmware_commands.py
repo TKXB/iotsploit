@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import shlex
+
 import cmd2
 from cmd2 import ansi
 from .base_commands import BaseCommands
@@ -62,7 +64,7 @@ class FirmwareCommands(BaseCommands):
         'Add new firmware to the system'
         try:
             # Parse arguments
-            args = arg.split()
+            args = shlex.split(arg)
             if len(args) < 4:
                 self.poutput(ansi.style("Usage: add_firmware <name> <path> <device_type> <version> [flash_options_json]", fg=ansi.Fg.YELLOW))
                 self.poutput("Example: add_firmware my_esp32 /path/to/firmware.bin esp32 1.0.0")
@@ -102,7 +104,7 @@ class FirmwareCommands(BaseCommands):
         'Flash firmware to a device'
         try:
             # Parse arguments
-            args = arg.split()
+            args = shlex.split(arg)
             if len(args) < 2:
                 self.poutput(ansi.style("Usage: flash_firmware <firmware_name> <device_name> [options_json]", fg=ansi.Fg.YELLOW))
                 self.poutput("Example: flash_firmware esp32s3_wifi_penetration_tool esp32")
@@ -191,7 +193,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput("Example: download_firmware https://example.com/firmware.bin")
                 return
             
-            args = arg.split()
+            args = shlex.split(arg)
             url = args[0]
             output_path = args[1] if len(args) > 1 else None
             

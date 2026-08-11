@@ -51,6 +51,8 @@ class TargetCommands(BaseCommands):
                 logger.info(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
                 return
 
+            requested_target = arg.strip() if arg else None
+
             # Create list of target choices for display
             # Show all targets with their type, and IP if available
             target_choices = []
@@ -58,14 +60,29 @@ class TargetCommands(BaseCommands):
                 ip_part = f" - {t['ip_address']}" if t.get('ip_address') else ""
                 target_choices.append(f"{t['name']} ({t['type']}){ip_part}")
             
-            # Use Input_Mgr for target selection
-            selected_choice = Input_Mgr.Instance().single_choice(
-                "Select target for operation:",
-                target_choices
-            )
-            
-            # Find the index of the selected choice
-            selected_index = target_choices.index(selected_choice)
+            if requested_target:
+                selected_index = next(
+                    (
+                        index
+                        for index, target in enumerate(targets)
+                        if requested_target in (target.get('name'), target.get('target_id'))
+                    ),
+                    None,
+                )
+                if selected_index is None:
+                    logger.error(
+                        ansi.style(
+                            f"Target '{requested_target}' not found. Use 'target list' to view targets.",
+                            fg=ansi.Fg.RED,
+                        )
+                    )
+                    return
+            else:
+                selected_choice = Input_Mgr.Instance().single_choice(
+                    "Select target for operation:",
+                    target_choices
+                )
+                selected_index = target_choices.index(selected_choice)
             
             # Convert the selected target dictionary to a Vehicle instance using create_target_instance
             selected_target_dict = targets[selected_index]
@@ -89,18 +106,31 @@ class TargetCommands(BaseCommands):
                 logger.warning(ansi.style("No targets available to edit.", fg=ansi.Fg.YELLOW))
                 return
 
-            # Create list of target choices
-            target_choices = [f"{t['name']} ({t['target_id']})" for t in targets]
-            
-            # Let user select a target
-            selected = Input_Mgr.Instance().single_choice(
-                "Select target to edit",
-                target_choices
-            )
-            
-            # Get target ID from selection (take the last parentheses group)
-            target_id = selected.split('(')[-1].split(')')[0]
-            target = next(t for t in targets if t['target_id'] == target_id)
+            requested_target = arg.strip() if arg else None
+            if requested_target:
+                target = next(
+                    (
+                        item for item in targets
+                        if requested_target in (item.get('name'), item.get('target_id'))
+                    ),
+                    None,
+                )
+                if target is None:
+                    logger.error(
+                        ansi.style(
+                            f"Target '{requested_target}' not found. Use 'target list' to view targets.",
+                            fg=ansi.Fg.RED,
+                        )
+                    )
+                    return
+            else:
+                target_choices = [f"{t['name']} ({t['target_id']})" for t in targets]
+                selected = Input_Mgr.Instance().single_choice(
+                    "Select target to edit",
+                    target_choices
+                )
+                target_id = selected.split('(')[-1].split(')')[0]
+                target = next(t for t in targets if t['target_id'] == target_id)
             
             # Fields that can be edited
             editable_fields = {

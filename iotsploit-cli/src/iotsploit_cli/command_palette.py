@@ -33,6 +33,12 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.history import InMemoryHistory
 
+from iotsploit_cli.command_registry import (
+    ESSENTIAL_COMMANDS,
+    action_entries,
+    resource_entries,
+)
+
 # --------------------------------------------------------------------------- #
 #  Constants
 # --------------------------------------------------------------------------- #
@@ -99,6 +105,8 @@ class CommandCatalog:
         """
         if not prefix:
             return []
+        if getattr(self._shell, "_canonical_command_registry", False):
+            return self._get_canonical_top_level_entries(prefix)
         prefix_lower = prefix.lower()
         entries: List[CommandPaletteEntry] = []
 
@@ -151,6 +159,44 @@ class CommandCatalog:
         entries.sort(
             key=lambda e: (e.name.lower() != prefix_lower, e.name.lower())
         )
+        return entries
+
+    def get_context_entries(self, text: str) -> List[CommandPaletteEntry]:
+        """Return canonical resource actions for the current input context.
+
+        Non-canonical shells return an empty list so the cmd2 completion
+        adapter remains the compatibility path in tests and embedded use.
+        """
+        if not getattr(self._shell, "_canonical_command_registry", False):
+            return []
+        stripped = text.lstrip()
+        parts = stripped.split()
+        if not parts or " " not in stripped:
+            return []
+        resource = parts[0].lower()
+        prefix = "" if stripped.endswith(" ") else parts[-1]
+        if len(parts) > 2 or (len(parts) == 2 and stripped.endswith(" ")):
+            return []
+        entries = [
+            CommandPaletteEntry(name, description, resource)
+            for name, description in action_entries(resource, prefix)
+        ]
+        entries.sort(key=lambda entry: (entry.name != prefix.lower(), entry.name))
+        return entries
+
+    def _get_canonical_top_level_entries(self, prefix: str) -> List[CommandPaletteEntry]:
+        prefix_lower = prefix.lower()
+        candidates = list(resource_entries(prefix_lower))
+        candidates.extend(
+            (name, description)
+            for name, description in ESSENTIAL_COMMANDS
+            if name.startswith(prefix_lower)
+        )
+        entries = [
+            CommandPaletteEntry(name, description, "IoTSploit")
+            for name, description in candidates
+        ]
+        entries.sort(key=lambda entry: (entry.name != prefix_lower, entry.name))
         return entries
 
     @staticmethod
@@ -302,6 +348,19 @@ class CommandPaletteCompleter(Completer):
                 yield Completion(
                     entry.name,
                     start_position=-len(first_word),
+                    display=entry.name,
+                    display_meta=entry.description,
+                )
+        # -- canonical resource actions ---------------------------------- #
+        # Only claim the completion when the catalog actually has actions for
+        # this context; otherwise fall through so cmd2 still owns argument
+        # completion (argparse choices, file paths, custom completers).
+        elif action_entries_for_context := self._catalog.get_context_entries(text):
+            current_word = "" if not text or text.endswith(" ") else text.split()[-1]
+            for entry in action_entries_for_context:
+                yield Completion(
+                    entry.name,
+                    start_position=-len(current_word),
                     display=entry.name,
                     display_meta=entry.description,
                 )

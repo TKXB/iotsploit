@@ -89,6 +89,12 @@ ensure_database_initialized()
 # Now it's safe to import Django and other modules
 import cmd2
 from cmd2 import ansi
+from iotsploit_cli.command_registry import (
+    ADVANCED_COMMANDS,
+    ESSENTIAL_COMMANDS,
+    LEGACY_REPLACEMENTS,
+    RESOURCE_SPECS,
+)
 
 # Command palette imports (prompt-toolkit based live command discovery).
 # Wrapped in try/except so the shell still works if prompt-toolkit is missing.
@@ -277,6 +283,7 @@ class SAT_Shell(SAT_Shell_Base):
         # It is only initialized when stdin/stdout are TTYs so that non-interactive
         # use (pipes, scripts, tests) bypasses it entirely.
         self._palette_session = None
+        self._canonical_command_registry = True
         if (
             _PALETTE_AVAILABLE
             and sys.stdin.isatty()
@@ -343,40 +350,49 @@ class SAT_Shell(SAT_Shell_Base):
     def emptyline(self):
         self.onecmd("help")
 
+    def do_quit(self, arg):
+        """Deprecated alias for exit which preserves cleanup behavior."""
+        return self.do_exit(arg)
+
+    def precmd(self, statement):
+        """Warn when an executable compatibility command is used directly."""
+        statement = super().precmd(statement)
+        replacement = LEGACY_REPLACEMENTS.get(statement.command)
+        if replacement:
+            self.pwarning(
+                f"'{statement.command}' is deprecated; use '{replacement}'."
+            )
+        return statement
+
     def do_help(self, arg):
         'List available commands with "help" or detailed help with "help cmd".'
-        if arg:
+        requested = str(arg).strip()
+        if requested and requested != "--all":
             # Show help for specific command
-            super().do_help(arg)
+            super().do_help(requested)
             return
 
-        self.poutput(ansi.style("\nAvailable Commands:", fg=ansi.Fg.GREEN, bold=True))
-        self.poutput(ansi.style("Use 'help <command>' for detailed information about a command.\n", fg=ansi.Fg.YELLOW))
+        self.poutput(ansi.style("\nIoTSploit Commands", fg=ansi.Fg.GREEN, bold=True))
+        self.poutput("Use 'help <resource>' for actions and arguments.\n")
+        width = max(len(resource.name) for resource in RESOURCE_SPECS) + 2
+        for resource in RESOURCE_SPECS:
+            self.poutput(
+                ansi.style(f"  {resource.name:<{width}}", fg=ansi.Fg.CYAN)
+                + resource.summary
+            )
 
-        cmds_by_category = self.get_all_commands_by_category()
-        
-        categories = sorted([cat for cat in cmds_by_category.keys() if cat != 'Shell Commands'])
-        if 'Shell Commands' in cmds_by_category:
-            categories.append('Shell Commands')
-        
-        for category in categories:
-            if category == 'Uncategorized':
-                continue
-            
-            self.poutput(self.help_category_header.format(f" {category} "))
-            cmd_list = sorted(cmds_by_category[category])
-            
-            max_cmd_length = max(len(cmd) for cmd in cmd_list) + 2
-            
-            for cmd in cmd_list:
-                doc = self.get_command_doc(cmd)
-                padded_cmd = f"  {cmd:<{max_cmd_length}}"
-                self.poutput(ansi.style(padded_cmd, fg=ansi.Fg.CYAN) + 
-                            ansi.style(f"- {doc}", fg=ansi.Fg.WHITE))
-            self.poutput(self.help_category_footer)
+        self.poutput(ansi.style("\nShell Commands", fg=ansi.Fg.GREEN, bold=True))
+        for name, summary in ESSENTIAL_COMMANDS:
+            self.poutput(ansi.style(f"  {name:<11}", fg=ansi.Fg.CYAN) + summary)
 
-        total_commands = sum(len(cmds) for cat, cmds in cmds_by_category.items() if cat != 'Uncategorized')
-        self.poutput(ansi.style(f"\nTotal commands: {total_commands}", fg=ansi.Fg.GREEN))
+        if requested == "--all":
+            self.poutput(ansi.style("\nAdvanced cmd2 Commands", fg=ansi.Fg.GREEN, bold=True))
+            self.poutput("  " + ", ".join(ADVANCED_COMMANDS))
+            self.poutput(ansi.style("\nDeprecated Compatibility Commands", fg=ansi.Fg.YELLOW, bold=True))
+            for legacy, replacement in sorted(LEGACY_REPLACEMENTS.items()):
+                self.poutput(f"  {legacy:<24} -> {replacement}")
+        else:
+            self.poutput("\nUse 'help --all' to show advanced and deprecated commands.")
 
     def get_command_doc(self, cmd_name):
         """Get the first line of the command's docstring."""
@@ -410,7 +426,7 @@ class SAT_Shell(SAT_Shell_Base):
         
         return categories
 
-    def _select_device(self):
+    def _select_device(self, selected_plugin=None):
         """Helper method to handle device selection process"""
         try:
             available_plugins = [
@@ -422,10 +438,21 @@ class SAT_Shell(SAT_Shell_Base):
                 logger.error(ansi.style("No initialized devices available", fg=ansi.Fg.RED))
                 return False
 
-            selected_plugin = Input_Mgr.Instance().single_choice(
-                "Select device plugin",
-                available_plugins
-            )
+            if selected_plugin:
+                if selected_plugin not in available_plugins:
+                    logger.error(
+                        ansi.style(
+                            f"Device '{selected_plugin}' is not initialized. "
+                            f"Available devices: {', '.join(available_plugins)}",
+                            fg=ansi.Fg.RED,
+                        )
+                    )
+                    return False
+            else:
+                selected_plugin = Input_Mgr.Instance().single_choice(
+                    "Select device plugin",
+                    available_plugins
+                )
 
             device = self.connected_devices.get(selected_plugin)
             if not device:
