@@ -32,21 +32,41 @@ iotsploit --runserver
 `IOTSPLOIT_EXPLOIT_PLUGINS_DIR` can be used for user custom exploit plugins.
 `IOTSPLOIT_DEVICE_PLUGINS_DIR` can be used for user custom device plugins.
 
+## Command standard
+
+Application commands use a predictable `resource action` grammar:
+
+```text
+device list
+driver status
+firmware flash <firmware> <device>
+plugin run <plugin>
+target export [file]
+service status
+```
+
+The top-level resources are `host`, `device`, `driver`, `firmware`, `plugin`,
+`target`, `service`, `wifi`, and `config`. Run `help` for the concise public
+surface, `help <resource>` for its actions, or `help --all` for advanced cmd2
+commands and the legacy-name migration table.
+
+Previous command names and abbreviations remain executable during the
+migration. They print a deprecation warning with the canonical replacement.
+
 ## Command Palette
 
-The IoTSploit shell includes a live command palette for all commands.  When
-you type any character at the top-level interactive prompt, a menu appears
-immediately showing every eligible command matching that prefix with a short
-description beside each entry.
+The IoTSploit shell includes a live command palette for the canonical command
+surface. When you type at the top-level prompt, a menu shows matching resources
+with a short explanation. After a resource and a space, it shows that
+resource's actions.
 
 ### How it works
 
 1. Start typing any character at the empty prompt.
-2. The menu lists all visible commands matching the typed prefix (e.g. `e`
-   shows `edit`, `exploit`, `exit`, `execute_plugin`; `h` shows `help`,
-   `history`).
-3. Additional characters filter the list in real time (e.g. `ex` narrows to
-   `exit`, `execute_plugin`, `exploit`).
+2. The menu lists canonical resources and essential shell commands matching
+   the typed prefix (for example, `d` shows `device` and `driver`).
+3. Type a resource and a space to see its actions (for example, `plugin `
+   shows `list`, `run`, `run-all`, and `refresh`).
 4. Navigate the list, insert a selection, or dismiss the menu.
 
 ### Keyboard controls
@@ -60,7 +80,8 @@ description beside each entry.
 | Enter | Accept the selected command and submit through cmd2 dispatch |
 | Escape | Close the menu and retain the current input text |
 | Backspace to empty | Close the menu |
-| Space after a command | Close the menu and allow argument entry |
+| Space after a resource | Show the resource's actions |
+| Space after an action | Close the menu and allow argument entry |
 | Ctrl+C | Cancel the current input (normal shell behavior) |
 | Ctrl+D on empty line | Exit the shell (normal EOF behavior) |
 
@@ -69,8 +90,8 @@ description beside each entry.
 - The palette is **TTY-only**.  Non-interactive use (piped input, startup
   scripts, non-TTY stdin) bypasses the palette entirely and uses the normal
   cmd2 input path.
-- The command list is derived dynamically from the runtime command registry,
-  so newly loaded command modules appear without editing the palette.
+- The command list comes from the same canonical registry as help and the
+  argparse command definitions, so names and explanations stay aligned.
 - Tab completion for arguments (after a space) still uses cmd2's existing
   completion engine, including argument-specific completers and argparse
   completers.

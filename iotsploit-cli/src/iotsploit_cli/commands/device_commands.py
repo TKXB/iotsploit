@@ -117,7 +117,7 @@ class DeviceCommands(BaseCommands):
             logger.error(ansi.style(f"Error sending command: {str(e)}", fg=ansi.Fg.RED))
             logger.debug("Detailed error:", exc_info=True)
 
-    def _select_device(self):
+    def _select_device(self, selected_plugin=None):
         """Helper method to handle device selection process"""
         try:
             # Get available device plugins with connected devices
@@ -131,10 +131,21 @@ class DeviceCommands(BaseCommands):
                 return False
 
             # Let user select a plugin
-            selected_plugin = Input_Mgr.Instance().single_choice(
-                "Select device plugin",
-                available_plugins
-            )
+            if selected_plugin:
+                if selected_plugin not in available_plugins:
+                    logger.error(
+                        ansi.style(
+                            f"Device '{selected_plugin}' is not initialized. "
+                            f"Available devices: {', '.join(available_plugins)}",
+                            fg=ansi.Fg.RED,
+                        )
+                    )
+                    return False
+            else:
+                selected_plugin = Input_Mgr.Instance().single_choice(
+                    "Select device plugin",
+                    available_plugins
+                )
 
             # Get the already connected device
             device = self.connected_devices.get(selected_plugin)
@@ -158,7 +169,8 @@ class DeviceCommands(BaseCommands):
     @cmd2.with_category('Device Commands')
     def do_select_device(self, arg):
         'Select a device for subsequent commands'
-        if self._select_device():
+        selected_plugin = arg.strip() if arg else None
+        if self._select_device(selected_plugin):
             logger.info(ansi.style("Device selected successfully. Use 'execute_device_command' to send commands.", fg=ansi.Fg.GREEN))
         else:
             logger.error(ansi.style("Device selection failed.", fg=ansi.Fg.RED))
@@ -197,11 +209,22 @@ class DeviceCommands(BaseCommands):
                 logger.error(ansi.style("No device plugins available", fg=ansi.Fg.RED))
                 return
 
-            # Let user select a plugin
-            selected_plugin = Input_Mgr.Instance().single_choice(
-                "Select device plugin",
-                available_plugins
-            )
+            selected_plugin = arg.strip() if arg else None
+            if selected_plugin:
+                if selected_plugin not in available_plugins:
+                    logger.error(
+                        ansi.style(
+                            f"Driver '{selected_plugin}' not found. "
+                            f"Available drivers: {', '.join(available_plugins)}",
+                            fg=ansi.Fg.RED,
+                        )
+                    )
+                    return
+            else:
+                selected_plugin = Input_Mgr.Instance().single_choice(
+                    "Select device plugin",
+                    available_plugins
+                )
 
             # Get commands for the selected plugin
             commands = self.device_driver_manager.get_plugin_commands(selected_plugin)
