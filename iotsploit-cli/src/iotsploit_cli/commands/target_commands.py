@@ -40,6 +40,24 @@ def _detail_of(entry, header_fields):
     return ', '.join(p for p in parts if p)
 
 
+def _compact(value):
+    """Render an observation value without JSON noise.
+
+    Null is spelled the way it was stored rather than as Python's None: an
+    absent UDS negative-response code is the difference between "the ECU
+    answered" and "it refused", so it has to read unambiguously.
+    """
+    if isinstance(value, dict):
+        return ', '.join(f"{k}={_compact(v)}" for k, v in value.items())
+    if isinstance(value, list):
+        return ', '.join(_compact(v) for v in value)
+    if value is None:
+        return 'null'
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    return str(value)
+
+
 def _fit(columns, rows, minimums):
     """Size each column to its widest cell, floored at the header width."""
     for index, column in enumerate(columns):
@@ -94,7 +112,92 @@ class TargetCommands(BaseCommands):
 
     do_lst = do_list_targets
 
+    @cmd2.with_category('Target Commands')
+    def do_target_observations(self, arg):
+        """Show what scans have discovered about a target.
+
+        target observations         facts for the active target
+        target observations <id>    facts for a named target
+
+        Shows the current view: the latest successful complete scan for each
+        tool and scope. Failed and partial scans are excluded, so nothing here
+        is an artifact of a scan that did not finish.
+        """
+        try:
+            wanted = (arg or '').strip()
+            if wanted:
+                target = next(
+                    (t for t in self.target_manager.get_all_targets()
+                     if wanted in (t.get('target_id'), t.get('name'))),
+                    None,
+                )
+                if target is None:
+                    logger.error(
+                        ansi.style(f"Target '{wanted}' not found. Use 'target list' to view targets.", fg=ansi.Fg.RED)
+                    )
+                    return
+                target_id, target_name = target['target_id'], target.get('name')
+            else:
+                current = self.target_manager.get_current_target()
+                if current is None:
+                    logger.error(
+                        ansi.style("No target selected. Use 'target select' or pass a target id.", fg=ansi.Fg.RED)
+                    )
+                    return
+                target_id, target_name = current.target_id, current.name
+
+            records = self._observation_repository().current(target_id)
+            self._print_observations(target_id, target_name, records)
+
+        except Exception as e:
+            logger.error(ansi.style(f"Error reading observations: {str(e)}", fg=ansi.Fg.RED))
+
+    do_obs = do_target_observations
+
+    @staticmethod
+    def _observation_repository():
+        # Imported lazily: the CLI starts without touching the observation
+        # database unless this command is actually used.
+        from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+        return ObservationRepository()
+
     # ---------------- rendering helpers ----------------
+
+    def _print_observations(self, target_id, target_name, records):
+        header = ansi.style(f"\nObservations — {target_name or target_id}", fg=ansi.Fg.CYAN, bold=True)
+        self.poutput(header + ansi.style(f"  [{target_id}]", fg=ansi.Fg.LIGHT_GRAY))
+
+        if not records:
+            self.poutput(ansi.style("  No scan has recorded anything for this target yet.", fg=ansi.Fg.YELLOW))
+            return
+
+        sources = sorted({r.source for r in records})
+        self.poutput(
+            ansi.style(f"  {len(records)} current facts from {len(sources)} tools: {', '.join(sources)}",
+                       fg=ansi.Fg.LIGHT_GRAY)
+        )
+
+        ordered = sorted(
+            records,
+            key=lambda r: (r.component_id or '', r.source, r.protocol, r.subject_kind, r.subject_id or ''),
+        )
+        columns = [Column('COMPONENT'), Column('SOURCE'), Column('FACT'), Column('VALUE'), Column('OBSERVED')]
+        rows = [
+            [
+                r.component_id or '(target)',
+                r.source,
+                r.display_key,
+                _compact(r.value),
+                r.observed_at.strftime('%Y-%m-%d %H:%M') if r.observed_at else '',
+            ]
+            for r in ordered
+        ]
+        _fit(columns, rows, minimums=[9, 6, 10, 5, 16])
+        columns[3].width = min(columns[3].width, 44)
+
+        self.poutput('')
+        self.poutput(SimpleTable(columns).generate_table(rows, row_spacing=0))
 
     def _print_target_table(self, targets, current_id):
         columns = [

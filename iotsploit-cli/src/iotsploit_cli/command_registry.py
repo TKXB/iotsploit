@@ -66,6 +66,7 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
         _action("list", "List available targets", "list_targets", "lst"),
         _action("select", "Select the active target", "target_select"),
         _action("edit", "Edit a target", "edit_target", "et"),
+        _action("observations", "Show what scans discovered about a target", "target_observations", "obs"),
         _action("import", "Import targets from JSON", "target_import"),
         _action("export", "Export targets to JSON", "target_export"),
     )),

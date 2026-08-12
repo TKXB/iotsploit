@@ -7,6 +7,7 @@ being visible at all.
 """
 
 import io
+from datetime import datetime
 
 import cmd2
 import pytest
@@ -66,7 +67,9 @@ class FakeTargetManager:
     def get_current_target(self):
         if self._current_id is None:
             return None
-        return type("T", (), {"target_id": self._current_id})()
+        selected = next((t for t in self._targets if t["target_id"] == self._current_id), None)
+        name = selected["name"] if selected else self._current_id
+        return type("T", (), {"target_id": self._current_id, "name": name})()
 
 
 class TargetShell(cmd2.Cmd, TargetCommands, ResourceCommands):
@@ -145,3 +148,85 @@ def test_empty_database_reports_cleanly():
 
 def test_legacy_alias_still_works():
     assert "Targets (2)" in output("list_targets")
+
+
+# ---------------- target observations ----------------
+
+
+class FakeRecord:
+    def __init__(self, component_id, source, display_key, value, observed_at=None):
+        self.component_id = component_id
+        self.source = source
+        self.display_key = display_key
+        self.value = value
+        self.observed_at = observed_at or datetime(2026, 8, 12, 18, 19)
+        self.protocol, self.subject_kind, self.subject_id = display_key.split(".")[:3]
+
+
+RECORDS = [
+    FakeRecord(None, "ip_scan", "ip.host.198.18.34.1.alive", True),
+    FakeRecord("comp_tcam_001", "doip_did_enum", "uds.did.F190.response",
+               {"nrc": None, "len": 17, "security": False}),
+    FakeRecord("comp_vgm_001", "doip_did_enum", "uds.did.F1A0.response",
+               {"nrc": "0x33", "len": 0, "security": True}),
+]
+
+
+class ObservationShell(TargetShell):
+    def __init__(self, records=RECORDS, **kwargs):
+        super().__init__(**kwargs)
+        self._records = records
+
+    def _observation_repository(self):
+        records = self._records
+
+        class Repo:
+            @staticmethod
+            def current(_target_id):
+                return records
+
+        return Repo()
+
+
+def obs_output(command, **kwargs):
+    shell = ObservationShell(**kwargs)
+    shell.stdout = io.StringIO()
+    shell.onecmd_plus_hooks(command)
+    return cmd2.ansi.strip_style(shell.stdout.getvalue())
+
+
+def test_observations_show_facts_with_component_and_source():
+    text = obs_output("target observations zeekr_demo_001")
+
+    assert "3 current facts from 2 tools" in text
+    assert "uds.did.F190.response" in text
+    assert "comp_tcam_001" in text and "comp_vgm_001" in text
+    assert "(target)" in text  # target-level fact has no component
+
+
+def test_observations_spell_null_and_booleans_unambiguously():
+    """'nrc=None' would read as a Python artifact; the ECU either answered or did not."""
+    text = obs_output("target observations zeekr_demo_001")
+
+    assert "nrc=null" in text
+    assert "nrc=0x33" in text
+    assert "security=false" in text and "security=true" in text
+    assert "None" not in text
+
+
+def test_observations_default_to_the_active_target():
+    assert "3 current facts" in obs_output("target observations")
+
+
+def test_observations_without_a_selected_target_explain_what_to_do():
+    text = obs_output("target observations", current_id=None)
+    assert "current facts" not in text
+
+
+def test_observations_report_an_empty_target_clearly():
+    text = obs_output("target observations zeekr_demo_001", records=[])
+    assert "No scan has recorded anything" in text
+
+
+def test_observations_alias_still_works():
+    assert "3 current facts" in obs_output("target_observations zeekr_demo_001")
