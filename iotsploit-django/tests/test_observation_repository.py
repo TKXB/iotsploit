@@ -160,6 +160,27 @@ def test_subject_id_is_required_for_addressable_subjects():
         Fact(protocol="uds", subject_kind="did", observed_property="response", value=None)
 
 
+def test_nmap_host_entries_reduce_to_a_bare_address():
+    """nmap prints "name (1.2.3.4)" only when reverse DNS answers, and the name
+    differs per machine. Recording both forms would make one host look like it
+    vanished and a different one appeared."""
+    from iotsploit_exploits.ip_scan.ip_scan import canonical_host
+
+    assert canonical_host("localhost (127.0.0.1)") == "127.0.0.1"
+    assert canonical_host("tkxb-MS-7C95 (10.99.99.1)") == "10.99.99.1"
+    assert canonical_host("198.18.34.1") == "198.18.34.1"
+    assert canonical_host("  198.18.34.1  ") == "198.18.34.1"
+
+
+def test_host_specs_split_on_commas_and_spaces():
+    from iotsploit_exploits.ip_scan.ip_scan import parse_hosts
+
+    assert parse_hosts("127.0.0.1,10.0.0.0/8") == ["127.0.0.1", "10.0.0.0/8"]
+    assert parse_hosts("127.0.0.1 10.0.0.1") == ["127.0.0.1", "10.0.0.1"]
+    assert parse_hosts("") == []
+    assert parse_hosts(None) == []
+
+
 def test_self_subjects_reject_a_subject_id():
     with pytest.raises(ValueError):
         Fact(
