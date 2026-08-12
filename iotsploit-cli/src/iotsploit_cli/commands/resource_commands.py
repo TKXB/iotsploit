@@ -83,7 +83,9 @@ plugin_sub.add_parser("refresh", help="refresh installed plugins").set_defaults(
 
 target_parser = _parser("Select, edit, import, and export targets")
 target_sub = _subcommands(target_parser)
-target_sub.add_parser("list", help="list available targets").set_defaults(handler="do_list_targets")
+target_list = target_sub.add_parser("list", help="list available targets")
+target_list.add_argument("target", nargs="?", help="show full detail for one target, or 'all'")
+target_list.set_defaults(handler="do_list_targets", argument="target")
 target_select = target_sub.add_parser("select", help="select the active target")
 target_select.add_argument("target", nargs="?")
 target_select.set_defaults(handler="do_target_select", argument="target")
