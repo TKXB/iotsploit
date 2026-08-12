@@ -18,7 +18,13 @@ from typing import Iterable, List, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from iotsploit_core.domain.observation import Fact, ObservationRecord, ScanStatus
+from iotsploit_core.domain.observation import (
+    Fact,
+    ObservationRecord,
+    ObservationScope,
+    ScanStatus,
+    StartedScan,
+)
 from iotsploit_django.adapters.django.observation_models import (
     ObservationDBModel,
     ScanRunDBModel,
@@ -86,6 +92,47 @@ class ObservationRepository:
         except SQLAlchemyError as exc:
             session.rollback()
             raise ObservationPersistenceError(f"could not start scan for target '{target_id}': {exc}") from exc
+        finally:
+            session.close()
+
+    def start_scans(
+        self,
+        *,
+        run_id: str,
+        target_id: str,
+        source: str,
+        scopes: List[ObservationScope],
+    ) -> List[StartedScan]:
+        """Open every declared scope of one run in a single transaction.
+
+        Either the whole run is recorded as started or none of it is, so a
+        partially-opened run can never be mistaken for scopes that were skipped.
+        """
+        started: List[StartedScan] = []
+        session = self._session_factory()
+        try:
+            for scope in scopes:
+                scan_id = uuid.uuid4().hex
+                session.add(
+                    ScanRunDBModel(
+                        scan_id=scan_id,
+                        run_id=run_id,
+                        target_id=target_id,
+                        component_id=scope.component_id,
+                        source=source,
+                        scope_key=scope.scope_key,
+                        status=ScanStatus.RUNNING.value,
+                        is_complete=False,
+                        facts_count=0,
+                        started_at=datetime.now(),
+                    )
+                )
+                started.append(StartedScan(scan_id=scan_id, scope=scope))
+            session.commit()
+            return started
+        except SQLAlchemyError as exc:
+            session.rollback()
+            raise ObservationPersistenceError(f"could not start scans for target '{target_id}': {exc}") from exc
         finally:
             session.close()
 

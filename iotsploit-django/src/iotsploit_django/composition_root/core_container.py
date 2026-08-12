@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,9 @@ from iotsploit_django.ports_impl.task_runner import CeleryTaskRunner
 from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverStateRepository
 from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
 from iotsploit_django.config import DEVICE_PLUGINS_DIR
+
+logger = logging.getLogger(__name__)
+
 
 def _context_factory():
     """
@@ -53,7 +57,23 @@ def build_exploit_plugin_manager(
         task_runner=runner,
         plugins_dir=plugins_dir,
         context_factory=_context_factory,
+        observation_sink=_build_observation_sink(),
     )
+
+
+def _build_observation_sink():
+    """Persistence for scan observations, or None if it cannot be reached.
+
+    Returning None degrades to "observations are not recorded"; it must never
+    stop plugins from running.
+    """
+    try:
+        from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+        return ObservationRepository()
+    except Exception as exc:  # pragma: no cover - defensive wiring
+        logger.warning("Observation sink unavailable, scans will not be recorded: %s", exc)
+        return None
 
 
 def build_device_driver_manager(

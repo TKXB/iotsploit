@@ -75,6 +75,22 @@ class Fact(BaseModel):
         return ".".join(parts)
 
 
+class ObservationScope(BaseModel):
+    """The population one scan covers.
+
+    Two scans are comparable only when their scope matches, which is what stops
+    a fast scan from reporting everything outside its range as disappeared.
+    ``scope_key`` must never contain credentials -- it is stored and displayed.
+    """
+
+    scope_key: str = Field(min_length=1, max_length=128)
+    component_id: Optional[str] = None
+
+    @property
+    def identity(self) -> tuple:
+        return (self.component_id, self.scope_key)
+
+
 class ObservationBatch(BaseModel):
     """The complete result of one plugin scan scope.
 
@@ -86,6 +102,17 @@ class ObservationBatch(BaseModel):
     component_id: Optional[str] = None
     facts: List[Fact] = Field(default_factory=list)
     is_complete: bool = True
+
+    @property
+    def scope(self) -> ObservationScope:
+        return ObservationScope(scope_key=self.scope_key, component_id=self.component_id)
+
+
+class StartedScan(BaseModel):
+    """A scan row that exists and is waiting for its result."""
+
+    scan_id: str
+    scope: ObservationScope
 
 
 class ObservationRecord(BaseModel):

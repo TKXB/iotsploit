@@ -3,7 +3,6 @@ from celery.utils.log import get_task_logger
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from iotsploit_django.adapters.django.target_models import TargetManager
-import asyncio
 import time
 import os
 from datetime import datetime
@@ -21,25 +20,18 @@ def execute_plugin_task(self, plugin_name, target=None, parameters=None):
             target_manager = TargetManager.get_instance()
             target = target_manager.create_target_instance(target)
         
-        plugin_instance = plugin_manager.get_plugin(plugin_name)
-        
-        raw_result = plugin_instance.execute_async(target, parameters)
-        
-        if asyncio.iscoroutine(raw_result):
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            raw_result = loop.run_until_complete(raw_result)
-        
+        # Route through the manager rather than the plugin's execute_async, so the
+        # queued path records the same scan lifecycle as synchronous execution.
+        raw_result, provenance = plugin_manager.run_plugin_in_process(plugin_name, target, parameters)
+
         result = {
             'status': 'success',
             'message': str(raw_result.message) if hasattr(raw_result, 'message') else 'Completed',
             'data': raw_result.data if hasattr(raw_result, 'data') else None,
             'progress': raw_result.progress if hasattr(raw_result, 'progress') else 100
         }
-        
+        result.update(provenance)
+
         send_task_status(self.request.id, result)
         return result
 
