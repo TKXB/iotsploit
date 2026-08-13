@@ -12,3 +12,7 @@ class IoTSploitDjangoConfig(AppConfig):
         from iotsploit_django.adapters.django.observation_models import initialize_observation_schema
 
         initialize_observation_schema()
+
+        # Register protocol facets before any target is hydrated, or stored
+        # facets load as RawFacet and typed access silently returns nothing.
+        from iotsploit_django.tools import doip_facet  # noqa: F401

@@ -18,8 +18,18 @@ class DoIP_Mgr:
     __wakeupdata = bytes([0x02,0xfd,0x00,0x05,0x00,0x00,0x00,0x07,0x0e,0x80,0x00,0x00,0x00,0x00,0x00])
     __heartbeatdata = bytes([0x02, 0xfd, 0x80, 0x01, 0x00, 0x00, 0x00, 0x06, 0x0e, 0x80, 0x1f, 0xff, 0x3e, 0x80])
 
+    # Built-in defaults, used only when the ECU component has no "doip" facet.
+    # Configure the facet on the target instead of editing these.
     DHU_Addr = 0x1201
     TCAM_Addr = 0x1011
+
+    @staticmethod
+    def addr_of(ecu: str) -> int:
+        """DoIP address for an ECU: the target's facet first, else the default."""
+        from iotsploit_django.tools.doip_facet import logical_address_for
+
+        defaults = {"dhu": DoIP_Mgr.DHU_Addr, "tcam": DoIP_Mgr.TCAM_Addr}
+        return logical_address_for(ecu, defaults[ecu.lower()])
 
     @staticmethod
     def Instance():
@@ -147,12 +157,12 @@ class DoIP_Mgr:
             if DHU_PIN == None:
                 raise_err( "测试车辆没有绑定DHU_PIN!")
 
-            if self.__unlock_mcu(DoIP_Mgr.DHU_Addr, DHU_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("dhu"), DHU_PIN) != True:
                 logger.error("Open Debug Mode Fail! Unlock DHU Fail!")
                 return False
             logger.info("Unlock DHU Success.")
 
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.DHU_Addr, b'\x2e\xc0\x3e\x01')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("dhu"), b'\x2e\xc0\x3e\x01')
             if resp_buf[-3] != 0x6e:
                 logger.error("Open Debug Mode Fail! Open Debug For DHU Fail!")
             else:
@@ -163,18 +173,18 @@ class DoIP_Mgr:
             TCAM_PIN = Env_Mgr.Instance().get("__SAT_ENV__VehicleInfo_TCAM_PIN")
             if TCAM_PIN == None:
                 raise_err( "测试车辆没有绑定TCAM_PIN!")
-            if self.__unlock_mcu(DoIP_Mgr.TCAM_Addr, TCAM_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("tcam"), TCAM_PIN) != True:
                 logger.error("Open Debug Mode Fail! Unlock TCAM Fail!")
                 return False
             logger.info("Unlock TCAM Success.")
 
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x01\x02\x32')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x01\x02\x32')
             if resp_buf[-5] == 0x71:
                 logger.info("Open Debug For TCAM Success. 1st Cmd")
                 return True
             else:
                 logger.info("Open Debug For TCAM Fail! Send 2nd Cmd.")
-                resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x01\xDC\x01')
+                resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x01\xDC\x01')
                 if resp_buf[-5] == 0x71:
                     logger.info("Open Debug For TCAM Success. 2nd Cmd")
                     return True
@@ -190,12 +200,12 @@ class DoIP_Mgr:
             if DHU_PIN == None:
                 raise_err( "测试车辆没有绑定DHU_PIN!")
             #DHU close debug        
-            if self.__unlock_mcu(DoIP_Mgr.DHU_Addr, DHU_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("dhu"), DHU_PIN) != True:
                 logger.error("Close Debug Mode Fail! Unlock DHU Fail!")
                 return False
             logger.info("Unlock DHU Success.")        
             
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.DHU_Addr, b'\x2e\xc0\x3e\x00')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("dhu"), b'\x2e\xc0\x3e\x00')
             if resp_buf[-3] != 0x6e:
                 logger.error("Close Debug Mode Fail! Close Debug For DHU Fail!")
             else:
@@ -207,18 +217,18 @@ class DoIP_Mgr:
             TCAM_PIN = Env_Mgr.Instance().get("__SAT_ENV__VehicleInfo_TCAM_PIN")
             if TCAM_PIN == None:
                 raise_err( "测试车辆没有绑定TCAM_PIN!")
-            if self.__unlock_mcu(DoIP_Mgr.TCAM_Addr, TCAM_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("tcam"), TCAM_PIN) != True:
                 logger.error("Close Debug Mode Fail! Unlock TCAM Fail!")
                 return False
             logger.info("Unlock TCAM Success.")       
 
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x02\x02\x32')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x02\x02\x32')
             if resp_buf[-5] == 0x71:
                 logger.info("Close Debug For TCAM Success. 1st Cmd")
                 return True
             else:
                 logger.info("Close Debug For TCAM Fail! Send 2nd Cmd.")
-                resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x02\xDC\x01')
+                resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x02\xDC\x01')
                 if resp_buf[-5] == 0x71:
                     logger.info("Close Debug For TCAM Success. 2nd Cmd")
                     return True
@@ -297,8 +307,8 @@ class DoIP_Mgr:
         """
         DoIP读取汽车VIN
         """
-        vin_in_dhu = self.send_uds_cmd(DoIP_Mgr.DHU_Addr, b'\x22\xf1\x90')[-17:].decode() #dhu 
-        vin_in_tcam = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x22\xf1\x90')[-17:].decode() #tcam
+        vin_in_dhu = self.send_uds_cmd(DoIP_Mgr.addr_of("dhu"), b'\x22\xf1\x90')[-17:].decode() #dhu 
+        vin_in_tcam = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x22\xf1\x90')[-17:].decode() #tcam
         if vin_in_dhu != vin_in_tcam:
             logger.error("Read VIN Fail! VIN@DHU:{} Not Match VIN@TCAM:{}".format(vin_in_dhu, vin_in_tcam))
             return ""
