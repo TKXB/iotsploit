@@ -385,4 +385,26 @@ def get_target_types(request):
         })
     except Exception as e:
         logger.error(f"Error getting target types: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500) 
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def get_facet_schemas(request):
+    """
+    GET
+    JSON Schema for every registered facet key, so a client can render typed,
+    labelled fields instead of untyped key/value boxes.
+
+    A key absent from this map is not an error: it means no loaded plugin owns
+    it, and its payload is stored verbatim. Clients must show such facets
+    read-only rather than dropping them.
+    """
+    try:
+        from iotsploit_core.domain.facet import FacetRegistry
+
+        return JsonResponse({
+            'status': 'success',
+            'facet_schemas': FacetRegistry.schemas(),
+        })
+    except Exception as e:
+        logger.error(f"Error getting facet schemas: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
