@@ -36,6 +36,8 @@ def _apply_target(model: "TargetDBModel", target: Target) -> None:
     model.location = target.location
     model.components = [comp.model_dump() for comp in target.components]
     model.interfaces = [intf.model_dump() for intf in target.interfaces]
+    model.buses = [bus.model_dump() for bus in target.buses]
+    model.edges = [edge.model_dump() for edge in target.edges]
 
 
 class TargetDBModel(Base):
@@ -50,6 +52,8 @@ class TargetDBModel(Base):
     location = Column(String, nullable=True)
     components = Column(JSON, nullable=True)
     interfaces = Column(JSON, nullable=True)
+    buses = Column(JSON, nullable=True)
+    edges = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=func.now(), nullable=True)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=True)
 
@@ -87,6 +91,8 @@ class TargetManager:
         migrations = {
             "created_at": "DATETIME",
             "updated_at": "DATETIME",
+            "buses": "JSON",
+            "edges": "JSON",
         }
 
         with engine.connect() as conn:
@@ -149,6 +155,8 @@ class TargetManager:
                     "location": t.location,
                     "components": t.components or [],
                     "interfaces": t.interfaces or [],
+                    "buses": t.buses or [],
+                    "edges": t.edges or [],
                     "created_at": t.created_at.isoformat() if t.created_at else None,
                     "updated_at": t.updated_at.isoformat() if t.updated_at else None,
                 }
@@ -239,6 +247,8 @@ class TargetManager:
             location=target_data.get("location"),
             components=components,
             interfaces=target_data.get("interfaces") or [],
+            buses=target_data.get("buses") or [],
+            edges=target_data.get("edges") or [],
         )
 
     def create_target_instance(self, target_data: Dict[str, Any]) -> Target:

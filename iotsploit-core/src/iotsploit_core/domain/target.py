@@ -3,7 +3,9 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any, Dict, List, Optional, Type
 
-from pydantic import BaseModel, Field, SerializeAsAny
+from pydantic import BaseModel, Field, SerializeAsAny, field_validator, model_validator
+
+from iotsploit_core.domain.facet import Facet, resolve_facets
 
 
 class Target(BaseModel, ABC):
@@ -19,6 +21,32 @@ class Target(BaseModel, ABC):
     # which is why every caller used to re-dump the items one by one.
     components: SerializeAsAny[List["Component"]] = Field(default_factory=list)
     interfaces: SerializeAsAny[List["Interface"]] = Field(default_factory=list)
+    # Plane T. The graph is projected from these on demand, never stored as one.
+    buses: List["Bus"] = Field(default_factory=list)
+    edges: List["Edge"] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_edge_endpoints(self) -> "Target":
+        """Every edge endpoint must resolve to something on this target.
+
+        An edge to a deleted component is not a harmless leftover: it is a
+        topology claim that reads as true and answers reachability questions
+        wrongly. Better to reject the write than to store a lie.
+        """
+        if not self.edges:
+            return self
+        known = {self.target_id}
+        known.update(comp.component_id for comp in self.components)
+        known.update(intf.interface_id for intf in self.interfaces)
+        known.update(bus.bus_id for bus in self.buses)
+        for edge in self.edges:
+            for role, endpoint in (("source", edge.source), ("target", edge.target)):
+                if endpoint not in known:
+                    raise ValueError(
+                        f"edge {edge.relation!r} has unknown {role} {endpoint!r}; "
+                        f"known ids: {sorted(known)}"
+                    )
+        return self
 
     def get_info(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -44,7 +72,20 @@ class Component(BaseModel):
     name: str
     type: str
     status: str = "active"
+    # Typed, protocol-specific configuration, keyed by facet name. Open by
+    # design: core registers none of these, plugins register their own.
+    facets: SerializeAsAny[Dict[str, Facet]] = Field(default_factory=dict)
+    # Unstructured leftovers only. Anything a driver acts on belongs in a facet.
     properties: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("facets", mode="before")
+    @classmethod
+    def _resolve_facets(cls, value: Any) -> Any:
+        return resolve_facets(value)
+
+    def facet(self, key: str) -> Optional[Facet]:
+        """The facet stored under ``key``, or None. Never raises."""
+        return self.facets.get(key)
 
     def get_info(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -131,6 +172,39 @@ class Interface(BaseModel):
     name: str
     type: str
     status: str = "active"
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+    def get_info(self) -> Dict[str, Any]:
+        return self.model_dump()
+
+
+class Bus(BaseModel):
+    """A shared medium: a CAN bus, an Ethernet segment, a VLAN.
+
+    A bus is a *scope*, not an endpoint -- you do not query it by id, things
+    live on it. CAN messages anchor here rather than to a component, because a
+    frame has one sender and many receivers. Catalog rows need a stable bus id
+    to point at, which is why this exists before any DBC import.
+    """
+
+    bus_id: str
+    name: str
+    type: str  # "can" | "ethernet" | "vlan"
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+    def get_info(self) -> Dict[str, Any]:
+        return self.model_dump()
+
+
+class Edge(BaseModel):
+    """A typed relationship between two things on a target.
+
+    Endpoints are ids of a component, interface, bus, or the target itself.
+    """
+
+    source: str
+    target: str
+    relation: str  # "connects" | "hosts" | "bus_member" | "reachable_from"
     properties: Dict[str, Any] = Field(default_factory=dict)
 
     def get_info(self) -> Dict[str, Any]:

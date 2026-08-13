@@ -87,3 +87,35 @@ def test_the_caller_chooses_the_class(hydrate):
     Vehicle and GenericTarget, the JSON import path honours registered types."""
     assert isinstance(hydrate(PAYLOAD, Vehicle), Vehicle)
     assert isinstance(hydrate({**PAYLOAD, "type": "ecu"}, GenericTarget), GenericTarget)
+
+
+def test_topology_hydrates_from_stored_dicts(hydrate):
+    """buses/edges arrive as plain dicts from the JSON columns."""
+    payload = {
+        **PAYLOAD,
+        "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}],
+        "buses": [{"bus_id": "bus_can_b", "name": "CAN-B", "type": "can"}],
+        "edges": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}],
+    }
+    target = hydrate(payload, Vehicle)
+
+    assert target.buses[0].name == "CAN-B"
+    assert target.edges[0].relation == "bus_member"
+
+
+def test_targets_without_topology_hydrate_to_empty(hydrate):
+    target = hydrate(PAYLOAD, Vehicle)
+
+    assert target.buses == [] and target.edges == []
+
+
+def test_facets_hydrate_from_stored_dicts(hydrate):
+    payload = {
+        **PAYLOAD,
+        "components": [
+            {"component_id": "c_tcam", "name": "TCAM", "type": "ecu", "facets": {"doip": {"logical_address": 4113}}}
+        ],
+    }
+    target = hydrate(payload, Vehicle)
+
+    assert target.components[0].facet("doip").logical_address == 4113
