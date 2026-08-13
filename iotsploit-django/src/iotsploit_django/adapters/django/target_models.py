@@ -21,6 +21,23 @@ engine = _db.engine
 SessionLocal = _db.SessionLocal
 
 
+def _apply_target(model: "TargetDBModel", target: Target) -> None:
+    """Copy the domain fields onto an ORM row.
+
+    Insert and update used to repeat this list separately, so a new field had to
+    be added in two places and silently went missing from updates if it was not.
+    """
+    model.target_id = target.target_id
+    model.name = target.name
+    model.type = target.type
+    model.status = target.status
+    model.properties = target.properties
+    model.ip_address = target.ip_address
+    model.location = target.location
+    model.components = [comp.model_dump() for comp in target.components]
+    model.interfaces = [intf.model_dump() for intf in target.interfaces]
+
+
 class TargetDBModel(Base):
     __tablename__ = "targets"
 
@@ -37,15 +54,7 @@ class TargetDBModel(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=True)
 
     def __init__(self, target: Target):
-        self.target_id = target.target_id
-        self.name = target.name
-        self.type = target.type
-        self.status = target.status
-        self.properties = target.properties
-        self.ip_address = target.ip_address
-        self.location = target.location
-        self.components = [comp.model_dump() for comp in target.components]
-        self.interfaces = [intf.model_dump() for intf in target.interfaces]
+        _apply_target(self, target)
 
 
 class TargetManager:
@@ -109,14 +118,7 @@ class TargetManager:
         try:
             existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()
             if existing_target:
-                existing_target.name = target.name
-                existing_target.type = target.type
-                existing_target.status = target.status
-                existing_target.properties = target.properties
-                existing_target.ip_address = target.ip_address
-                existing_target.location = target.location
-                existing_target.components = [comp.model_dump() for comp in target.components]
-                existing_target.interfaces = [intf.model_dump() for intf in target.interfaces]
+                _apply_target(existing_target, target)
                 session.commit()
             else:
                 target_model = TargetDBModel(target)
@@ -215,43 +217,38 @@ class TargetManager:
 
     # ---------------- hydrate / update helpers ----------------
 
+    @staticmethod
+    def _hydrate_target(target_data: Dict[str, Any], target_class: Type[Target]) -> Target:
+        """Build a domain Target from a dict payload.
+
+        Class selection stays with the caller on purpose: the JSON import path
+        honours registered target types, while the request path knows only
+        Vehicle and GenericTarget. Only the field hydration is shared.
+        """
+        components = [
+            ComponentFactory.create_component(c) if isinstance(c, dict) else c
+            for c in target_data.get("components") or []
+        ]
+        return target_class(
+            target_id=target_data.get("target_id", ""),
+            name=target_data.get("name", ""),
+            type=target_data.get("type", "vehicle"),
+            status=target_data.get("status", "active"),
+            properties=target_data.get("properties") or {},
+            ip_address=target_data.get("ip_address"),
+            location=target_data.get("location"),
+            components=components,
+            interfaces=target_data.get("interfaces") or [],
+        )
+
     def create_target_instance(self, target_data: Dict[str, Any]) -> Target:
         """
         Create a domain Target instance from a dict (as returned by get_all_targets or request payloads).
         All target types now share the same fields (ip_address, location, components, interfaces).
         """
-        target_type = target_data.get("type", "vehicle")
-
-        # Re-hydrate components/interfaces using the domain factory when possible
-        raw_components = target_data.get("components") or []
-        components = []
-        for c in raw_components:
-            if isinstance(c, dict):
-                components.append(ComponentFactory.create_component(c))
-            else:
-                # already a pydantic model
-                components.append(c)
-
-        interfaces = target_data.get("interfaces") or []
-
-        common_kwargs: Dict[str, Any] = {
-            "target_id": target_data.get("target_id", ""),
-            "name": target_data.get("name", ""),
-            "type": target_type,
-            "status": target_data.get("status", "active"),
-            "properties": target_data.get("properties", {}) or {},
-            "ip_address": target_data.get("ip_address"),
-            "location": target_data.get("location"),
-            "components": components,
-            "interfaces": interfaces,
-        }
-
-        # Use Vehicle class for vehicle type (has ADB helper methods)
-        # Use GenericTarget for all other types
-        if target_type == "vehicle":
-            return Vehicle(**common_kwargs)
-
-        return GenericTarget(**common_kwargs)
+        # Vehicle has the ADB helper methods; everything else is generic.
+        target_class = Vehicle if target_data.get("type", "vehicle") == "vehicle" else GenericTarget
+        return self._hydrate_target(target_data, target_class)
 
     def update_target(self, target_data: Dict[str, Any]) -> bool:
         """
@@ -364,24 +361,8 @@ class TargetManager:
                 skipped_count += 1
                 continue
 
-            target_type = target.get("type", "vehicle")
-            target_class = self.targets.get(target_type, Vehicle)
-
-            # Re-hydrate components/interfaces using the domain factory
-            components = [ComponentFactory.create_component(c) for c in target.get("components", [])]
-            interfaces = target.get("interfaces", [])
-
-            target_instance = target_class(
-                target_id=target_id,
-                name=target.get("name", ""),
-                type=target_type,
-                status=target.get("status", "active"),
-                properties=target.get("properties", {}),
-                ip_address=target.get("ip_address"),
-                location=target.get("location"),
-                components=components,
-                interfaces=interfaces,
-            )
+            target_class = self.targets.get(target.get("type", "vehicle"), Vehicle)
+            target_instance = self._hydrate_target(target, target_class)
             self.save_target(target_instance)
             self.current_target = target_instance
             imported_count += 1
