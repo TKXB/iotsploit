@@ -64,6 +64,7 @@ testpaths = [
     "iotsploit-fuzzer/tests",
     "iotsploit-mcp/tests",
     "iotsploit-cli/tests",
+    "iotsploit-exploits/tests",
 ]
 markers = [
     "unit: isolated, deterministic behavior",
