@@ -14,11 +14,19 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from pydantic import Field
+
 from iotsploit_core.domain.facet import Facet, register_facet
 
 logger = logging.getLogger(__name__)
 
 FACET_KEY = "doip"
+
+# Stored as an int, written and read by humans as hex. An editor that only knew
+# the JSON type would make you type 4113 for an address every document in the
+# field calls 0x1011. The facet that knows the convention declares it; core
+# stays ignorant of what any protocol's numbers mean.
+HEX = {"format": "hex"}
 
 
 @register_facet(FACET_KEY)
@@ -31,8 +39,8 @@ class DoipFacet(Facet):
     ClassifiedInfo/Env_Mgr rather than being copied into a JSON column.
     """
 
-    logical_address: int
-    tester_address: int = 0x0E80
+    logical_address: int = Field(json_schema_extra=HEX)
+    tester_address: int = Field(default=0x0E80, json_schema_extra=HEX)
     host: Optional[str] = None
     port: int = 13400
 

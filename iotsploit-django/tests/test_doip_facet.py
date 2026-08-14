@@ -17,6 +17,8 @@ if not apps.ready:
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
     django.setup()
 
+from pydantic import ValidationError  # noqa: E402
+
 from iotsploit_core.domain.facet import FacetRegistry  # noqa: E402
 from iotsploit_core.domain.target import Component, Vehicle  # noqa: E402
 from iotsploit_django.tools import doip_facet as mod  # noqa: E402
@@ -102,6 +104,25 @@ def test_the_address_is_an_int_not_a_string(current):
     current(vehicle(ecu("TCAM", doip={"logical_address": "4113"})))
 
     assert doip_facet_for("tcam").logical_address == 4113
+
+
+def test_the_addresses_declare_themselves_as_hex():
+    """An editor built from the schema would otherwise ask for 4113.
+
+    Nothing downstream may guess this from the field name -- the facet that
+    knows the convention is the one that states it.
+    """
+    schema = DoipFacet.model_json_schema()["properties"]
+
+    assert schema["logical_address"]["format"] == "hex"
+    assert schema["tester_address"]["format"] == "hex"
+    assert "format" not in schema["port"], "a TCP port is written in decimal"
+
+
+def test_the_address_is_still_required():
+    """Attaching display metadata must not quietly hand it a default."""
+    with pytest.raises(ValidationError):
+        DoipFacet()
 
 
 def test_the_facet_carries_no_secret():
