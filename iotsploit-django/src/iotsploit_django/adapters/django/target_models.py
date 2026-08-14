@@ -12,7 +12,13 @@ from sqlalchemy import Column, JSON, String, DateTime, text as sqlalchemy_text
 from sqlalchemy.sql import func
 
 from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-from iotsploit_core.domain.target import ComponentFactory, GenericTarget, Target, Vehicle
+from iotsploit_core.domain.target import (
+    ComponentFactory,
+    GenericTarget,
+    Target,
+    Vehicle,
+    fold_legacy_interfaces,
+)
 from iotsploit_django.tools.xlogger import xlog
 
 _db = get_default_sqlalchemy_db()
@@ -35,7 +41,9 @@ def _apply_target(model: "TargetDBModel", target: Target) -> None:
     model.ip_address = target.ip_address
     model.location = target.location
     model.components = [comp.model_dump() for comp in target.components]
-    model.interfaces = [intf.model_dump() for intf in target.interfaces]
+    # Drained, not left in place: the fold on read is idempotent, but a stale
+    # list here would keep being folded into a target that already holds it.
+    model.interfaces = []
     model.buses = [bus.model_dump() for bus in target.buses]
     model.edges = [edge.model_dump() for edge in target.edges]
 
@@ -144,7 +152,6 @@ class TargetManager:
             targets = session.query(TargetDBModel).filter(TargetDBModel.target_id != "__settings__").all()
             result = []
             for t in targets:
-                # All targets now have full fields (ip_address, location, components, interfaces)
                 target_info: Dict[str, Any] = {
                     "target_id": t.target_id,
                     "name": t.name,
@@ -160,7 +167,9 @@ class TargetManager:
                     "created_at": t.created_at.isoformat() if t.created_at else None,
                     "updated_at": t.updated_at.isoformat() if t.updated_at else None,
                 }
-                result.append(target_info)
+                # Callers see one list of endpoints. Rows stored under the old
+                # key move across here and are written back folded on next save.
+                result.append(fold_legacy_interfaces(target_info))
             return result
         finally:
             session.close()
@@ -233,6 +242,7 @@ class TargetManager:
         honours registered target types, while the request path knows only
         Vehicle and GenericTarget. Only the field hydration is shared.
         """
+        target_data = fold_legacy_interfaces(target_data)
         components = [
             ComponentFactory.create_component(c) if isinstance(c, dict) else c
             for c in target_data.get("components") or []
@@ -246,7 +256,6 @@ class TargetManager:
             ip_address=target_data.get("ip_address"),
             location=target_data.get("location"),
             components=components,
-            interfaces=target_data.get("interfaces") or [],
             buses=target_data.get("buses") or [],
             edges=target_data.get("edges") or [],
         )
@@ -254,7 +263,7 @@ class TargetManager:
     def create_target_instance(self, target_data: Dict[str, Any]) -> Target:
         """
         Create a domain Target instance from a dict (as returned by get_all_targets or request payloads).
-        All target types now share the same fields (ip_address, location, components, interfaces).
+        All target types now share the same fields (ip_address, location, components).
         """
         # Vehicle has the ADB helper methods; everything else is generic.
         target_class = Vehicle if target_data.get("type", "vehicle") == "vehicle" else GenericTarget

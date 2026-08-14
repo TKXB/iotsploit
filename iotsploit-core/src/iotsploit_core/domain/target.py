@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field, SerializeAsAny, field_validator, model_va
 
 from iotsploit_core.domain.facet import Facet, resolve_facets
 
+#: Where interfaces used to live on a stored target. Read, never written.
+LEGACY_INTERFACES_KEY = "interfaces"
+
 
 class Target(BaseModel, ABC):
     target_id: str
@@ -19,8 +22,12 @@ class Target(BaseModel, ABC):
     # SerializeAsAny keeps subclass fields: without it pydantic serializes these
     # against the *declared* type and silently drops adb_serial_id and friends,
     # which is why every caller used to re-dump the items one by one.
+    # An ethernet port and an ECU are both endpoints: same id, name, type,
+    # status, and both carry protocol config. They were two lists until the
+    # split started doing harm -- an interface could not hold a facet, so the
+    # host and port of the protocol it carries had to be stored on some
+    # component instead. ``type`` says which kind a row is.
     components: SerializeAsAny[List["Component"]] = Field(default_factory=list)
-    interfaces: SerializeAsAny[List["Interface"]] = Field(default_factory=list)
     # Plane T. The graph is projected from these on demand, never stored as one.
     buses: List["Bus"] = Field(default_factory=list)
     edges: List["Edge"] = Field(default_factory=list)
@@ -37,7 +44,6 @@ class Target(BaseModel, ABC):
             return self
         known = {self.target_id}
         known.update(comp.component_id for comp in self.components)
-        known.update(intf.interface_id for intf in self.interfaces)
         known.update(bus.bus_id for bus in self.buses)
         for edge in self.edges:
             for role, endpoint in (("source", edge.source), ("target", edge.target)):
@@ -167,15 +173,42 @@ class ComponentFactory:
         return list(cls._component_types.keys())
 
 
-class Interface(BaseModel):
-    interface_id: str
-    name: str
-    type: str
-    status: str = "active"
-    properties: Dict[str, Any] = Field(default_factory=dict)
+def fold_legacy_interfaces(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Move a stored target's ``interfaces`` into its ``components``.
 
-    def get_info(self) -> Dict[str, Any]:
-        return self.model_dump()
+    Interfaces were a parallel list with a component's shape minus facets.
+    Nothing ever branched on which list a row was in; the one real difference
+    was that an interface could not carry protocol config.
+
+    Ids were already unique across both lists -- edge validation pooled them
+    into one namespace -- so an interface keeps its id and every edge goes on
+    pointing at the same thing. Folding twice is a no-op, which is what makes
+    this safe to run on every read.
+
+    Returns a new dict; the argument is left alone.
+    """
+    if LEGACY_INTERFACES_KEY not in data:
+        return data
+
+    legacy = data.get(LEGACY_INTERFACES_KEY) or []
+    folded = dict(data)
+    components = list(folded.get("components") or [])
+    taken = {c.get("component_id") for c in components if isinstance(c, dict)}
+
+    for raw in legacy:
+        if not isinstance(raw, dict):
+            continue
+        item = dict(raw)
+        item["component_id"] = item.pop("interface_id", None) or item.get("component_id") or ""
+        if item["component_id"] in taken:
+            continue
+        item.setdefault("type", "interface")
+        components.append(item)
+        taken.add(item["component_id"])
+
+    folded["components"] = components
+    folded.pop(LEGACY_INTERFACES_KEY, None)
+    return folded
 
 
 class Bus(BaseModel):

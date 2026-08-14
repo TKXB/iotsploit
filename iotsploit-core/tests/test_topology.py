@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from iotsploit_core.domain.target import Bus, Component, Edge, GenericTarget, Interface, Vehicle
+from iotsploit_core.domain.target import Bus, Component, Edge, GenericTarget, Vehicle
 
 pytestmark = pytest.mark.unit
 
@@ -22,8 +22,8 @@ def target(cls=Vehicle, **kwargs):
         components=[
             Component(component_id="c_vgm", name="VGM", type="ecu"),
             Component(component_id="c_tcam", name="TCAM", type="ecu"),
+            Component(component_id="i_eth0", name="eth0", type="ethernet"),
         ],
-        interfaces=[Interface(interface_id="i_eth0", name="eth0", type="ethernet")],
         buses=[Bus(bus_id="bus_can_b", name="CAN-B", type="can")],
     )
     base.update(kwargs)

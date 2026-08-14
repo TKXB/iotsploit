@@ -16,7 +16,6 @@ from iotsploit_core.domain.target import (
     ComponentFactory,
     ECUComponent,
     GenericTarget,
-    Interface,
     NetworkComponent,
     Vehicle,
 )
@@ -36,8 +35,8 @@ def build(cls=Vehicle):
             ADBDevice(component_id="c_dhu", name="DHU", type="adb_device", adb_serial_id="ABC123"),
             NetworkComponent(component_id="c_tcam", name="TCAM", type="network", ip_address="198.18.34.1"),
             ECUComponent(component_id="c_vgm", name="VGM", type="ecu", address="0x1011"),
+            Component(component_id="i1", name="eth0", type="ethernet"),
         ],
-        interfaces=[Interface(interface_id="i1", name="eth0", type="ethernet")],
     )
 
 
@@ -58,7 +57,8 @@ def test_get_info_is_the_full_dump(cls):
 
     assert info == target.model_dump()
     assert {"target_id", "name", "type", "status", "properties", "ip_address", "location"} <= set(info)
-    assert len(info["components"]) == 3 and len(info["interfaces"]) == 1
+    assert len(info["components"]) == 4
+    assert "interfaces" not in info, "one list of endpoints, not two"
 
 
 def test_component_get_info_keeps_its_own_fields():

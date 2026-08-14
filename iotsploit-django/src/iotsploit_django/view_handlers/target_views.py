@@ -93,13 +93,6 @@ def select_target(request):
         else:
             logger.debug("  No components found")
         
-        # Log interfaces if available
-        if selected_target.get('interfaces'):
-            logger.debug(f"  Interfaces ({len(selected_target['interfaces'])}):")
-            for i, intf in enumerate(selected_target['interfaces']):
-                logger.debug(f"    [{i+1}] {intf.get('name', 'Unknown')} ({intf.get('type', 'Unknown')})")
-        else:
-            logger.debug("  No interfaces found")
         
         # Create a target instance and set it as current
         logger.debug("select_target: Creating target instance")
@@ -185,7 +178,9 @@ def edit_target(request):
         # Log the incoming updates for debugging
         logger.debug(f"Received updates for target {target_id}: {updates}")
         
-        # Apply updates to the target
+        # Apply updates to the target. 'interfaces' is still accepted so an
+        # older client's payload is folded into components on hydration rather
+        # than dropped without a word.
         for key, value in updates.items():
             if key in ['name', 'status', 'ip_address', 'location', 'components', 'interfaces']:
                 target[key] = value
@@ -197,11 +192,8 @@ def edit_target(request):
         
         logger.debug(f"Final target data before database update: {target}")
         
-        # Special handling for components and interfaces to ensure they're properly formatted
         if 'components' in target:
             logger.debug(f"Components to update: {target['components']}")
-        if 'interfaces' in target:
-            logger.debug(f"Interfaces to update: {target['interfaces']}")
         
         # Update the target in the database
         success = target_manager.update_target(target)

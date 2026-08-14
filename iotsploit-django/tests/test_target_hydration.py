@@ -70,7 +70,7 @@ def test_scalar_fields_round_trip(hydrate):
 def test_missing_collections_default_to_empty(hydrate):
     target = hydrate({"target_id": "t1", "name": "T", "type": "vehicle"}, Vehicle)
 
-    assert target.components == [] and target.interfaces == []
+    assert target.components == []
     assert target.properties == {}
 
 
