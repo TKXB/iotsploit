@@ -90,3 +90,19 @@ class CanFacet(Facet):
     # its own rows again after the component has been renamed.
     node: Optional[str] = None
     messages: List[CanMessage] = Field(default_factory=list)
+
+
+def canonical_frame_id(frame_id: int, is_extended: bool = False) -> str:
+    """The string form of a frame id, as an observation's ``subject_id``.
+
+    Fixed here rather than at each call site because reconciliation joins on
+    this string: "0x1A0", "1a0" and "01A0" are three different keys, and the
+    mismatch does not fail loudly -- it silently matches nothing, which reads
+    as "the catalog knows nothing about this frame".
+
+    Uppercase hex without the 0x, zero-padded to the width of the id space:
+    three digits for a standard 11-bit id, eight for a 29-bit extended one.
+    The width is what keeps a standard 0x123 distinct from an extended 0x123,
+    which are different frames sharing a wire.
+    """
+    return f"{frame_id:0{8 if is_extended else 3}X}"
