@@ -66,10 +66,6 @@ def facet_of(target, component_id):
 # ── parsing ───────────────────────────────────────────────────────────
 
 
-def test_the_version_is_read():
-    assert parse_dbc(DBC).version == "1.0"
-
-
 def test_nodes_come_back_in_declaration_order():
     """Also proves nothing else on a line beginning with a keyword is mistaken
     for a node: BA_DEF_ and friends would show up here if they were."""
@@ -148,10 +144,10 @@ def test_a_frame_with_no_transmitter_is_not_given_one():
 
 def test_signals_do_not_leak_between_frames():
     contents = parse_dbc(DBC)
+    sent = [m for node in contents.nodes for m in node.messages]
 
-    assert contents.message_count == 3
+    assert [len(m.signals) for m in sent] == [3, 1]
     assert [len(m.signals) for m in contents.unsent] == [1]
-    assert contents.signal_count == 5
 
 
 def test_the_no_sender_placeholder_is_not_a_node_even_when_declared():

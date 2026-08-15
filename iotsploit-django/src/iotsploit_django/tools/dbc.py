@@ -30,7 +30,6 @@ NO_SENDER = "Vector__XXX"
 #: A frame id with bit 31 set is a 29-bit extended id; the rest is the id.
 _EXTENDED_FLAG = 0x80000000
 
-_VERSION_RE = re.compile(r'^VERSION\s+"([^"]*)"')
 _NODES_RE = re.compile(r"^BU_\s*:\s*(.*)$")
 _MESSAGE_RE = re.compile(r"^BO_\s+(\d+)\s+(\w+)\s*:\s*(\d+)\s+(\S+)")
 _SIGNAL_RE = re.compile(
@@ -57,20 +56,10 @@ class DbcNode:
 class DbcContents:
     """Everything read out of a DBC that the target model has a home for."""
 
-    version: str = ""
     nodes: List[DbcNode] = field(default_factory=list)
     #: Frames whose transmitter is ``Vector__XXX``. They belong to the bus
     #: rather than to any component -- see ``apply_dbc``.
     unsent: List[CanMessage] = field(default_factory=list)
-
-    @property
-    def message_count(self) -> int:
-        return sum(len(node.messages) for node in self.nodes) + len(self.unsent)
-
-    @property
-    def signal_count(self) -> int:
-        sent = sum(len(m.signals) for node in self.nodes for m in node.messages)
-        return sent + sum(len(m.signals) for m in self.unsent)
 
 
 def parse_dbc(text: str) -> DbcContents:
@@ -93,11 +82,6 @@ def parse_dbc(text: str) -> DbcContents:
     current: Optional[CanMessage] = None
 
     for line in text.splitlines():
-        version = _VERSION_RE.match(line)
-        if version:
-            contents.version = version.group(1)
-            continue
-
         nodes = _NODES_RE.match(line)
         if nodes:
             declared = nodes.group(1).split()
