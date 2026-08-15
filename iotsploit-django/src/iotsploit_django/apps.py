@@ -15,4 +15,4 @@ class IoTSploitDjangoConfig(AppConfig):
 
         # Register protocol facets before any target is hydrated, or stored
         # facets load as RawFacet and typed access silently returns nothing.
-        from iotsploit_django.tools import doip_facet  # noqa: F401
+        from iotsploit_django.tools import can_facet, doip_facet  # noqa: F401

@@ -1,0 +1,317 @@
+{
+  "targets": [
+    {
+      "target_id": "vw_golf_gte",
+      "name": "VW Golf GTE",
+      "type": "vehicle",
+      "status": "active",
+      "properties": {
+        "model": "Golf GTE (Mk7 PHEV)",
+        "dbc_source": "https://github.com/jamiejones85/DBC-files/blob/master/VW_GOLF_GTE.dbc"
+      },
+      "buses": [
+        {
+          "bus_id": "bus_hybrid_can",
+          "name": "Hybrid CAN",
+          "type": "can",
+          "properties": {}
+        }
+      ],
+      "components": [
+        {
+          "component_id": "c_hv_battery_hybridcan",
+          "name": "HV_Battery_HybridCan",
+          "type": "ecu",
+          "status": "active",
+          "facets": {
+            "can": {
+              "bus_id": "bus_hybrid_can",
+              "node": "HV_Battery_HybridCan",
+              "messages": [
+                {
+                  "frame_id": 151,
+                  "name": "BMS_Monitoring",
+                  "dlc": 0,
+                  "is_extended": false,
+                  "signals": [
+                    {
+                      "name": "BMS_EMRG_COOLING",
+                      "start_bit": 63,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_STATUS_VOLTAGE_APPLIED",
+                      "start_bit": 61,
+                      "length": 2,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_STATUS_SERVICEDISCONNECT",
+                      "start_bit": 60,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_FUSE",
+                      "start_bit": 59,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_PILOT",
+                      "start_bit": 58,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_COLD_START_POWER",
+                      "start_bit": 57,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_ISOLATION",
+                      "start_bit": 56,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_POWERREDUCTION",
+                      "start_bit": 55,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_CONTACTOR_OPEN",
+                      "start_bit": 54,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_CONTACTOR_WELD",
+                      "start_bit": 53,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_HV_SHUTDOWN",
+                      "start_bit": 52,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ERROR_HV_SHUTDOWN_REQ",
+                      "start_bit": 51,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_EMRG_SHUTDOWN_PILOT",
+                      "start_bit": 50,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_EMRG_SHUTDOWN_CRASH",
+                      "start_bit": 49,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_INIT_COMPLETE",
+                      "start_bit": 41,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_ISOLATION_MEASURE_ACTIVE",
+                      "start_bit": 40,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_SLEEP_INDICATOR",
+                      "start_bit": 39,
+                      "length": 1,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_STATUS",
+                      "start_bit": 36,
+                      "length": 3,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_VOLTAGE",
+                      "start_bit": 24,
+                      "length": 12,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    },
+                    {
+                      "name": "BMS_CURRENT",
+                      "start_bit": 12,
+                      "length": 12,
+                      "byte_order": "little",
+                      "signed": false,
+                      "factor": 1.0,
+                      "offset": 0.0,
+                      "minimum": null,
+                      "maximum": null,
+                      "unit": "",
+                      "multiplexer": null
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "properties": {
+            "description": "Messages coming out from nodes within the HV battery on the Hybrid Can"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "source": "c_hv_battery_hybridcan",
+          "target": "bus_hybrid_can",
+          "relation": "bus_member",
+          "properties": {}
+        }
+      ]
+    }
+  ]
+}

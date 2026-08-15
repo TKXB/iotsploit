@@ -50,6 +50,22 @@ def test_a_schema_carries_types_and_required_fields():
     assert "logical_address" in schema["required"]
 
 
+def test_the_registered_can_facet_is_published():
+    """Nothing consumes the CAN facet yet, so only the app's ready() hook
+    imports it. Without that, a stored facet loads as RawFacet and the editor
+    shows a target's frames as an unrecognised blob."""
+    assert "can" in fetch()["facet_schemas"]
+
+
+def test_a_list_of_frames_is_published_as_an_array():
+    """What the editor keys off to show the frames instead of handing them a
+    text box that would overwrite them."""
+    schema = fetch()["facet_schemas"]["can"]
+
+    assert schema["properties"]["messages"]["type"] == "array"
+    assert "bus_id" in schema["required"]
+
+
 def test_a_newly_registered_facet_appears_without_a_restart():
     """Registration happens at plugin load, so the endpoint must read the
     registry live rather than a snapshot taken at import."""
