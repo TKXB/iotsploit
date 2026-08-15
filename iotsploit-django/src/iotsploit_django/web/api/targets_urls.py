@@ -7,6 +7,7 @@ from iotsploit_django.view_handlers.target_views import (
     get_component_types,
     get_current_target,
     get_facet_schemas,
+    get_target,
     get_target_types,
     list_targets,
     select_target,
@@ -15,6 +16,7 @@ from iotsploit_django.view_handlers.target_views import (
 
 urlpatterns = [
     path("list_targets/", list_targets, name="list_targets"),
+    path("get_target/<str:target_id>/", get_target, name="get_target"),
     path("select_target/", select_target, name="select_target"),
     path("edit_target/", edit_target, name="edit_target"),
     path("create_target/", create_target, name="create_target"),

@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from iotsploit_django.adapters.django.target_models import TargetManager
+from iotsploit_core.domain.summary import summarize_target
 from iotsploit_core.domain.target import ComponentFactory, TARGET_TYPES
 from iotsploit_django.tools.xlogger import xlog
 import json
@@ -10,15 +11,23 @@ logger = xlog.get_logger('target_views')
 def list_targets(request):
     """
     GET
-    Returns a list of all targets
+    Returns a summary row per target: identity, topology shape and counts.
+
+    Facet bulk is omitted -- a DBC-imported target is almost entirely CAN
+    signals, and returning every one of them made listing the inventory a
+    multi-hundred-kilobyte request for data no listing displays. Each row
+    carries ``summary: true`` and the sizes of what was left out.
+
+    A caller that needs the whole object asks ``get_target`` for one. Nothing
+    here may be written back with ``edit_target``: it is missing fields.
     """
     target_manager = TargetManager.get_instance()
     all_targets = target_manager.get_all_targets()
-    
+
     if all_targets:
         result = {
             "status": "success",
-            "targets": all_targets
+            "targets": [summarize_target(t) for t in all_targets]
         }
     else:
         result = {
@@ -26,8 +35,28 @@ def list_targets(request):
             "targets": [],
             "message": "No targets available."
         }
-    
+
     return JsonResponse(result)
+
+
+def get_target(request, target_id):
+    """
+    GET
+    Returns one target in full, including every facet payload.
+
+    This is the read that ``list_targets`` deliberately no longer performs for
+    every row at once. Editors and detail views call it for the one target the
+    user actually opened.
+    """
+    try:
+        target_manager = TargetManager.get_instance()
+        for stored in target_manager.get_all_targets():
+            if stored.get("target_id") == target_id:
+                return JsonResponse({"status": "success", "target": stored})
+        return JsonResponse({"error": f"Target '{target_id}' not found"}, status=404)
+    except Exception as e:
+        logger.error(f"Error getting target {target_id}: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 def select_target(request):

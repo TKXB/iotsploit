@@ -14,21 +14,37 @@ logger = logging.getLogger(__name__)
 
 def get_current_observations(request):
     """
-    GET ?target_id=<id>
+    GET ?target_id=<id>[&component_id=][&source=][&protocol=][&subject_kind=]
     Current observed facts for one target.
 
     Each record carries its own provenance -- which tool, which scope, which
     scan, when -- because two tools may report on the same subject and the
     caller has to be able to tell them apart.
+
+    ``component_id`` and ``source`` narrow the query itself: they are scan-run
+    columns. ``protocol`` and ``subject_kind`` describe individual facts, so
+    they are applied to the records afterwards -- the same answer, but it does
+    not pretend to save the database any work.
     """
     target_id = request.GET.get('target_id')
     if not target_id:
         return JsonResponse({'error': 'target_id is required'}, status=400)
 
+    protocol = request.GET.get('protocol')
+    subject_kind = request.GET.get('subject_kind')
+
     try:
         from iotsploit_django.adapters.django.observation_repository import ObservationRepository
 
-        records = ObservationRepository().current(target_id)
+        records = ObservationRepository().current(
+            target_id,
+            component_id=request.GET.get('component_id'),
+            source=request.GET.get('source'),
+        )
+        if protocol:
+            records = [r for r in records if r.protocol == protocol]
+        if subject_kind:
+            records = [r for r in records if r.subject_kind == subject_kind]
     except Exception as e:
         logger.error(f"Error reading observations for {target_id}: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)

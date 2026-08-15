@@ -144,9 +144,22 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
 
     @mcp.tool()
     def list_targets() -> dict[str, Any]:
-        """List configured IoTSploit targets."""
+        """List configured IoTSploit targets, one summary row each.
+
+        Facet bulk (CAN frames and the like) is omitted and reported as counts.
+        Call get_target for the whole object.
+        """
 
         return _call("list_targets", lambda: client().get("/api/list_targets/"))
+
+    @mcp.tool()
+    def get_target(target_id: str) -> dict[str, Any]:
+        """Return one IoTSploit target in full, including every facet payload."""
+
+        return _call(
+            "get_target",
+            lambda: client().get(f"/api/get_target/{quote(target_id, safe='')}/"),
+        )
 
     @mcp.tool()
     def get_current_target() -> dict[str, Any]:
