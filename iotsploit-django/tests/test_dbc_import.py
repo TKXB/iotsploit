@@ -154,6 +154,17 @@ def test_signals_do_not_leak_between_frames():
     assert contents.signal_count == 5
 
 
+def test_the_no_sender_placeholder_is_not_a_node_even_when_declared():
+    """Real files list Vector__XXX in BU_. Taking that at face value put every
+    unsent frame on a component and on the bus, the same frame twice."""
+    text = 'BU_: BMS Vector__XXX\nBO_ 16 X: 1 Vector__XXX\n   SG_ S : 0|1@1+ (1,0) [0|0] "" Vector__XXX\n'
+
+    contents = parse_dbc(text)
+
+    assert [n.name for n in contents.nodes] == ["BMS"]
+    assert [m.name for m in contents.unsent] == ["X"]
+
+
 def test_an_undeclared_transmitter_still_becomes_a_node():
     """A malformed DBC, but "BO_ ... : 8 GATEWAY" says what it means."""
     text = "BU_: BMS\nBO_ 16 Gw_Status: 1 GATEWAY\n"

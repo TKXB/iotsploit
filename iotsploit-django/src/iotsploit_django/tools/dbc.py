@@ -132,7 +132,12 @@ def parse_dbc(text: str) -> DbcContents:
 
     # Declaration order first, then any transmitter the file used without
     # declaring -- a malformed DBC, but its intent is unambiguous.
-    ordered = declared + [s for s in by_sender if s not in declared and s != NO_SENDER]
+    #
+    # Vector__XXX is dropped even when the BU_ line names it, which real files
+    # do: it is the placeholder for "no node", so treating it as one would put
+    # every unsent frame on a component *and* on the bus, twice over.
+    ordered = [n for n in declared if n != NO_SENDER]
+    ordered += [s for s in by_sender if s not in declared and s != NO_SENDER]
     for name in ordered:
         contents.nodes.append(
             DbcNode(
