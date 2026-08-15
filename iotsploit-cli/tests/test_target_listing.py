@@ -2,8 +2,8 @@
 
 The listing is how an operator confirms which vehicle they are pointed at before
 running anything against it, so the parts asserted here are the ones that cause
-real mistakes when wrong: the active-target marker, and components/interfaces
-being visible at all.
+real mistakes when wrong: the active-target marker, and the configuration a
+plugin will actually read being visible at all.
 """
 
 import io
@@ -30,16 +30,15 @@ TARGETS = [
             {
                 "component_id": "comp_tcam_001", "name": "TCAM", "type": "adb_device", "status": "active",
                 "adb_serial_id": "ZK2025TCAM000001", "properties": {"ip_address": "198.18.34.1"},
+                "facets": {"doip": {"logical_address": 4113, "tester_address": 3712, "port": 13400}},
             },
             {
                 "component_id": "comp_vgm_001", "name": "VGM", "type": "ecu", "status": "inactive",
                 "properties": {"doip_logical_address": "0x1001"},
             },
         ],
-        "interfaces": [
-            {"interface_id": "intf_obd_001", "name": "OBD-II", "type": "diagnostic", "status": "active",
-             "properties": {"protocol": "DoIP"}},
-        ],
+        "buses": [{"bus_id": "bus_can_b", "name": "CAN-B", "type": "can", "properties": {"baud": 500000}}],
+        "edges": [{"source": "comp_tcam_001", "target": "bus_can_b", "relation": "bus_member"}],
         "updated_at": "2026-08-12T10:19:33",
     },
     {
@@ -51,9 +50,44 @@ TARGETS = [
         "location": None,
         "properties": {},
         "components": [],
-        "interfaces": [],
     },
 ]
+
+#: A DBC import, in the shape it comes back out of the database. The facet is
+#: the case that used to render as four kilobytes of dict repr.
+GOLF = {
+    "target_id": "vw_golf_gte",
+    "name": "VW Golf GTE",
+    "type": "vehicle",
+    "status": "active",
+    "ip_address": None,
+    "location": None,
+    "properties": {"model": "Golf GTE (Mk7 PHEV)"},
+    "components": [
+        {
+            "component_id": "c_hv_battery_hybridcan",
+            "name": "HV_Battery_HybridCan",
+            "type": "ecu",
+            "status": "active",
+            "properties": {"description": "Messages from the HV battery"},
+            "facets": {
+                "can": {
+                    "bus_id": "bus_hybrid_can",
+                    "node": "HV_Battery_HybridCan",
+                    "messages": [
+                        {
+                            "frame_id": 151,
+                            "name": "BMS_Monitoring",
+                            "signals": [{"name": f"S{i}", "start_bit": i} for i in range(20)],
+                        }
+                    ],
+                }
+            },
+        }
+    ],
+    "buses": [{"bus_id": "bus_hybrid_can", "name": "Hybrid CAN", "type": "can", "properties": {}}],
+    "edges": [{"source": "c_hv_battery_hybridcan", "target": "bus_hybrid_can", "relation": "bus_member"}],
+}
 
 
 class FakeTargetManager:
@@ -92,7 +126,8 @@ def test_summary_lists_every_target_with_counts():
 
     assert "Targets (2)" in text
     assert "zeekr_demo_001" in text and "bare_001" in text
-    # component/interface counts belong in the summary; the old listing omitted them
+    # Components and buses: the two lists a target is made of. The interface
+    # count that used to sit here counted a list that no longer exists.
     zeekr_row = next(line for line in text.splitlines() if "zeekr_demo_001" in line)
     assert zeekr_row.split()[-2:] == ["2", "1"]
 
@@ -112,16 +147,53 @@ def test_summary_shows_a_placeholder_for_missing_ip_and_location():
     assert " - " in bare_row
 
 
-def test_detail_shows_components_and_interfaces():
+def test_detail_shows_components():
     text = output("target list zeekr_demo_001")
 
     assert "Components (2)" in text
     assert "TCAM" in text and "comp_tcam_001" in text
     assert "ZK2025TCAM000001" in text  # type-specific field
     assert "ip_address=198.18.34.1" in text  # free-form property
-    assert "Interfaces (1)" in text
-    assert "OBD-II" in text and "protocol=DoIP" in text
     assert "model_year" in text
+
+
+def test_detail_shows_the_configuration_a_driver_will_read():
+    """A facet is what DoIP_Mgr actually looks up, so it needs to be visible
+    before a plugin is run, not only in the UI."""
+    text = output("target list zeekr_demo_001")
+
+    assert "Facets (1)" in text
+    assert "doip" in text
+    assert "logical_address=4113" in text
+
+
+def test_detail_shows_the_buses_and_how_things_are_wired():
+    text = output("target list zeekr_demo_001")
+
+    assert "Buses (1)" in text
+    assert "CAN-B" in text and "bus_can_b" in text
+    assert "Links (1)" in text
+    assert "comp_tcam_001  --bus_member->  bus_can_b" in text
+
+
+def test_a_target_with_no_topology_says_nothing_about_it():
+    """Otherwise every listing carries three empty sections."""
+    text = output("target list bare_001")
+
+    assert "Facets" not in text
+    assert "Buses" not in text
+    assert "Links" not in text
+
+
+def test_an_imported_network_is_summarised_rather_than_dumped():
+    """Twenty signals rendered as a dict filled the column with Python syntax
+    and were then cut off mid-token."""
+    text = output("target list vw_golf_gte", targets=[GOLF], current_id="vw_golf_gte")
+
+    assert "can" in text
+    assert "bus_id=bus_hybrid_can" in text
+    assert "messages=1 item" in text
+    assert "'signals'" not in text and "frame_id" not in text
 
 
 def test_detail_accepts_a_name_as_well_as_an_id():
