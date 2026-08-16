@@ -210,8 +210,14 @@ def edit_target(request):
         # Apply updates to the target. 'interfaces' is still accepted so an
         # older client's payload is folded into components on hydration rather
         # than dropped without a word.
+        #
+        # 'type' is here because create_target already accepts it and the edit
+        # dialog already sends it: leaving it out meant a user changed a
+        # target's type, was told the target had been updated, and it had not.
+        # Silently discarding a field while reporting success is worse than
+        # rejecting it.
         for key, value in updates.items():
-            if key in ['name', 'status', 'ip_address', 'location', 'components', 'interfaces']:
+            if key in ['name', 'type', 'status', 'ip_address', 'location', 'components', 'interfaces']:
                 target[key] = value
                 logger.debug(f"Updated {key}: {value}")
             elif key == 'properties' and isinstance(value, dict):

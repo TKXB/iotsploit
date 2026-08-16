@@ -79,9 +79,13 @@ def manager(monkeypatch):
 
 
 def post(components):
+    return post_updates({"components": components})
+
+
+def post_updates(updates):
     request = RequestFactory().post(
         "/api/edit_target/",
-        data=json.dumps({"target_id": TARGET_ID, "updates": {"components": components}}),
+        data=json.dumps({"target_id": TARGET_ID, "updates": updates}),
         content_type="application/json",
     )
     return views.edit_target(request)
@@ -151,3 +155,38 @@ def test_an_untouched_component_keeps_its_facet(manager):
     post([stored_component(name="TCAM-2", facets={"doip": {"logical_address": 4113}})])
 
     assert hydrate(fake.saved).components[0].facet("doip").logical_address == 4113
+
+
+def test_the_type_the_dialog_sends_is_the_type_that_is_stored(manager):
+    """It was dropped, and the request said success anyway.
+
+    The edit dialog puts `type` in every payload it builds and create_target
+    already accepts one, so a user could change a target from vehicle to
+    router, be told it had been updated, and find it unchanged.
+    """
+    fake = manager(stored_component())
+
+    response = post_updates({"type": "router"})
+
+    assert json.loads(response.content)["status"] == "success"
+    assert fake.saved["type"] == "router"
+
+
+def test_a_field_the_contract_does_not_accept_is_still_ignored(manager):
+    """The whitelist is the contract; widening it for `type` did not open it."""
+    fake = manager(stored_component())
+
+    post_updates({"target_id": "renamed", "created_at": "1999-01-01"})
+
+    assert fake.saved["target_id"] == TARGET_ID
+    assert "created_at" not in fake.saved
+
+
+def test_the_rest_of_the_target_survives_a_type_change(manager):
+    """Changing the type must not take the components with it."""
+    fake = manager(stored_component(name="TCAM"))
+
+    post_updates({"type": "generic"})
+
+    assert fake.saved["type"] == "generic"
+    assert [c["name"] for c in fake.saved["components"]] == ["TCAM"]
