@@ -12,6 +12,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from iotsploit_mcp.tools.read_only import register_read_only_tools
+from iotsploit_mcp.tools.write import register_write_tools
 from iotsploit_mcp.tools.xlogger_mcp import xlog_mcp
 
 logger = xlog_mcp.get_logger(
@@ -27,6 +28,7 @@ mcp = FastMCP(
     streamable_http_path="/mcp",
 )
 register_read_only_tools(mcp)
+register_write_tools(mcp)
 
 
 @mcp.tool()

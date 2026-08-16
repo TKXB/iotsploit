@@ -29,6 +29,10 @@ def _error(exc: Exception) -> dict[str, Any]:
 
 
 def _call(name: str, func: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Run one tool body, turning any failure into a payload rather than a raise.
+
+    Shared with ``tools.write`` so both surfaces report an error the same way.
+    """
     logger.info("MCP tool call: %s", name)
     try:
         result = _ok(func())
@@ -53,7 +57,7 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
             health = client().get("/api/system_health/")
             return {
                 "status": health.get("status", "success"),
-                "mcp": {"transport": "streamable-http", "mode": "read-only"},
+                "mcp": {"transport": "streamable-http", "mode": "read-write"},
                 "django": health,
             }
 
