@@ -28,6 +28,13 @@ FACET_KEY = "doip"
 # stays ignorant of what any protocol's numbers mean.
 HEX = {"format": "hex"}
 
+# Same idea for uniqueness. A logical address identifies one ECU, so two of
+# them on one address is a fault worth showing; a CAN facet's bus_id is a
+# reference to something shared and every component on a segment repeats it.
+# Nothing in JSON Schema tells those apart, and a view that guessed from the
+# field name would flag correct configuration as broken.
+HEX_UNIQUE = {"format": "hex", "unique": True}
+
 
 @register_facet(FACET_KEY)
 class DoipFacet(Facet):
@@ -39,7 +46,7 @@ class DoipFacet(Facet):
     ClassifiedInfo/Env_Mgr rather than being copied into a JSON column.
     """
 
-    logical_address: int = Field(json_schema_extra=HEX)
+    logical_address: int = Field(json_schema_extra=HEX_UNIQUE)
     tester_address: int = Field(default=0x0E80, json_schema_extra=HEX)
     host: Optional[str] = None
     port: int = 13400
