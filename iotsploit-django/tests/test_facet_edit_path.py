@@ -44,7 +44,12 @@ def stored_component(**overrides):
 
 
 class FakeManager:
-    """Stands in for the singleton, which is bound to the real database."""
+    """Stands in for the singleton, which is bound to the real database.
+
+    Hydration is the real thing, not a stub: edit_target builds the target
+    through it to decide whether the payload is valid at all, so a fake that
+    skipped it would pass writes the model would refuse.
+    """
 
     def __init__(self, target):
         self.target = target
@@ -52,6 +57,9 @@ class FakeManager:
 
     def get_all_targets(self):
         return [self.target]
+
+    create_target_instance = TargetManager.create_target_instance
+    _hydrate_target = staticmethod(TargetManager._hydrate_target)
 
     def update_target(self, data):
         self.saved = data
