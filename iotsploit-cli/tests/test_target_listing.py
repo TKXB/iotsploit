@@ -172,7 +172,7 @@ def test_detail_shows_the_buses_and_how_things_are_wired():
 
     assert "Buses (1)" in text
     assert "CAN-B" in text and "bus_can_b" in text
-    assert "Links (1)" in text
+    assert "Edges (1)" in text
     assert "comp_tcam_001  --bus_member->  bus_can_b" in text
 
 
@@ -182,7 +182,7 @@ def test_a_target_with_no_topology_says_nothing_about_it():
 
     assert "Facets" not in text
     assert "Buses" not in text
-    assert "Links" not in text
+    assert "Edges" not in text
 
 
 def test_an_imported_network_is_summarised_rather_than_dumped():

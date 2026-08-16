@@ -364,7 +364,7 @@ class TargetCommands(BaseCommands):
         if not edges:
             return
 
-        self.poutput(ansi.style(f"\n    Links ({len(edges)})", fg=ansi.Fg.CYAN))
+        self.poutput(ansi.style(f"\n    Edges ({len(edges)})", fg=ansi.Fg.CYAN))
         width = max(len(str(edge.get('source') or '')) for edge in edges)
         # The relation is padded too, so the endpoints line up in a column and
         # a target pointing somewhere unexpected is visible at a glance.
