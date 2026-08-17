@@ -15,8 +15,10 @@ iotsploit-mcp http --host 127.0.0.1 --port 9900
 
 3. Configure your agent from `.mcp.json`, replacing the host as needed.
 
-This MVP exposes read-only tools only. Do not add mutating tools until Django
-auth and the MCP safety gate are implemented.
+The MCP server may expose the read-only tools plus exactly three target-management
+mutations: `create_target`, `edit_target`, and `select_target`. Do not add any
+other mutating or destructive tools until Django auth and the MCP safety gate
+are implemented.
 
 ## Pre-Commit Test Gate
 

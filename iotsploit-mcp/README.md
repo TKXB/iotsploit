@@ -57,19 +57,20 @@ Codex, Cursor, or generic MCP config:
 
 ## Current Tool Surface
 
-This branch exposes a read-only HTTP-backed MVP:
+This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 
 - System: `system_status`, `system_health`, `list_urls`
 - Plugins/groups: `list_plugins`, `describe_plugin`, `list_groups`
 - Drivers/devices: `list_device_drivers`, `describe_driver`, `scan_devices`,
   `list_devices`, `device_info`, `get_driver_states`
-- Targets: `list_targets`, `get_current_target`
+- Targets: `list_targets`, `get_target`, `get_current_target`
 - Firmware: `firmware_list`, `firmware_info`
 - Fuzzer results: `fuzzer_campaign_status`, `fuzzer_campaign_statistics`,
   `fuzzer_results_summary`, `fuzzer_artifacts`
 - Tools/files: `get_tools_status`, `get_tool_details`, `list_files`
 - Local rig helper: `list_serial_ports`
 
-Mutating and destructive tools are intentionally not exposed in this MVP.
-They require backend auth hardening and the two-key safety gate described in
-the implementation proposal.
+The only permitted mutating tools are `create_target`, `edit_target`, and
+`select_target`. All other mutating or destructive tools remain prohibited
+until backend auth hardening and the two-key safety gate described in the
+implementation proposal are complete.
