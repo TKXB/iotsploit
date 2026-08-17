@@ -64,13 +64,22 @@ This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 - Drivers/devices: `list_device_drivers`, `describe_driver`, `scan_devices`,
   `list_devices`, `device_info`, `get_driver_states`
 - Targets: `list_targets`, `get_target`, `get_current_target`
+- Observations: `get_current_observations`
 - Firmware: `firmware_list`, `firmware_info`
 - Fuzzer results: `fuzzer_campaign_status`, `fuzzer_campaign_statistics`,
   `fuzzer_results_summary`, `fuzzer_artifacts`
 - Tools/files: `get_tools_status`, `get_tool_details`, `list_files`
 - Local rig helper: `list_serial_ports`
 
-The only permitted mutating tools are `create_target`, `edit_target`, and
-`select_target`. All other mutating or destructive tools remain prohibited
-until backend auth hardening and the two-key safety gate described in the
-implementation proposal are complete.
+The permitted mutating tools are `create_target`, `edit_target`,
+`select_target` and `record_observations`. All other mutating or destructive
+tools remain prohibited until backend auth hardening and the two-key safety
+gate described in the implementation proposal are complete.
+
+`record_observations` records findings an agent produced itself, rather than by
+running a plugin. It cannot claim to be a plugin: the backend stores the source
+as `agent:<label>`, refusing a caller-supplied `source` outright, and `source`
+is one of a scan's comparable scope fields -- so an agent's complete snapshot
+replaces only its own previous snapshot of the same scope and can never make a
+tool's measurement disappear. Pass `is_complete=False` for a spot check; the
+facts are kept as history but do not define current state.

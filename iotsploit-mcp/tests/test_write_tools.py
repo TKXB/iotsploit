@@ -48,9 +48,14 @@ def call(client: FakeClient, tool: str, **kwargs) -> Any:
     return asyncio.run(mcp.call_tool(tool, kwargs))
 
 
-def test_the_surface_is_create_edit_and_select(monkeypatch):
+def test_the_write_surface_is_exactly_these_four(monkeypatch):
     """Deletion is absent on purpose. It is the one that is not recoverable."""
-    assert set(tools(FakeClient())) == {"create_target", "edit_target", "select_target"}
+    assert set(tools(FakeClient())) == {
+        "create_target",
+        "edit_target",
+        "select_target",
+        "record_observations",
+    }
 
 
 def test_create_sends_the_topology(monkeypatch):
@@ -101,6 +106,68 @@ def test_select_posts_the_id(monkeypatch):
     call(client, "select_target", target_id="t1")
 
     assert client.calls[0] == ("/api/select_target/", {"target_id": "t1"})
+
+
+PORT_22 = {
+    "protocol": "tcp",
+    "subject_kind": "port",
+    "subject_id": "22",
+    "observed_property": "open",
+    "value": {"banner": "OpenSSH 8.9"},
+}
+
+
+def test_record_observations_sends_the_scan_as_one_call(monkeypatch):
+    client = FakeClient()
+
+    call(
+        client,
+        "record_observations",
+        target_id="zxd",
+        agent="claude",
+        scope_key="tcp:22,80,443",
+        component_id="c_gateway",
+        facts=[PORT_22],
+    )
+
+    path, payload = client.calls[0]
+    assert path == "/api/record_observations/"
+    assert payload["scope_key"] == "tcp:22,80,443"
+    assert payload["component_id"] == "c_gateway"
+    assert payload["facts"] == [PORT_22]
+
+
+def test_record_observations_never_sends_a_source(monkeypatch):
+    """The backend assigns it. A source here would come back as a 400 anyway."""
+    client = FakeClient()
+
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:22", facts=[PORT_22])
+
+    assert "source" not in client.calls[0][1]
+
+
+def test_record_observations_claims_completeness_only_when_asked(monkeypatch):
+    """A snapshot defines current state, so the flag has to travel explicitly."""
+    client = FakeClient()
+
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:1-65535", facts=[PORT_22], is_complete=False)
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:22", facts=[PORT_22])
+
+    assert client.calls[0][1]["is_complete"] is False
+    assert client.calls[1][1]["is_complete"] is True
+
+
+def test_record_observations_passes_an_empty_result_through(monkeypatch):
+    """Finding nothing is a fact about the target, not a call to skip."""
+    client = FakeClient()
+
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:1-1024", facts=[])
+
+    assert client.calls[0][1]["facts"] == []
 
 
 def test_a_refusal_comes_back_as_a_payload_the_agent_can_read(monkeypatch):

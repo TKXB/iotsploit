@@ -172,6 +172,43 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
         return _call("get_current_target", lambda: client().get("/api/get_current_target/"))
 
     @mcp.tool()
+    def get_current_observations(
+        target_id: str,
+        component_id: str = "",
+        source: str = "",
+        protocol: str = "",
+        subject_kind: str = "",
+    ) -> dict[str, Any]:
+        """What has actually been observed on a target, as opposed to configured.
+
+        A target's facets say what it *should* expose; these are facts a scan
+        reported seeing. The gap between the two is usually the interesting part.
+
+        Only current state: the newest complete successful scan per component,
+        source and scope. Every record carries its own provenance, and `source`
+        is what to read it by -- a plugin name means a tool measured it, while
+        an `agent:` prefix means something was asked to look and reported back.
+        The optional arguments narrow the result; empty means no filter.
+        """
+
+        params = {
+            key: value
+            for key, value in (
+                ("target_id", target_id),
+                ("component_id", component_id),
+                ("source", source),
+                ("protocol", protocol),
+                ("subject_kind", subject_kind),
+            )
+            if value
+        }
+
+        return _call(
+            "get_current_observations",
+            lambda: client().get("/api/get_current_observations/", params=params),
+        )
+
+    @mcp.tool()
     def firmware_list() -> dict[str, Any]:
         """List registered firmware entries."""
 

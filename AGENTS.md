@@ -16,9 +16,15 @@ iotsploit-mcp http --host 127.0.0.1 --port 9900
 3. Configure your agent from `.mcp.json`, replacing the host as needed.
 
 The MCP server may expose the read-only tools plus exactly three target-management
-mutations: `create_target`, `edit_target`, and `select_target`. Do not add any
-other mutating or destructive tools until Django auth and the MCP safety gate
-are implemented.
+mutations -- `create_target`, `edit_target`, `select_target` -- and
+`record_observations`. Do not add any other mutating or destructive tools until
+Django auth and the MCP safety gate are implemented.
+
+`record_observations` is permitted because it cannot forge provenance: the
+backend assigns the source as `agent:<label>`, and since `source` is part of a
+scan's comparable scope, an agent's snapshot can only replace its own and never
+a plugin's measurement. Any future write tool needs a comparable argument for
+why it is safe without auth, not just a use case.
 
 ## Pre-Commit Test Gate
 

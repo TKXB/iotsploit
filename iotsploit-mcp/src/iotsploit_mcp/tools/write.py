@@ -1,4 +1,4 @@
-"""The tools that change a target.
+"""The tools that change a target, and the one that records what was seen on it.
 
 Kept apart from ``read_only`` on purpose. That module's read-only-ness is a
 property worth being able to point at, not an accident of what happened to be
@@ -9,6 +9,12 @@ Deletion is deliberately absent. Creating and editing a target is recoverable
 -- the previous values are in the payload the agent already read -- and
 deleting one is not. Add it here when something needs it, with whatever
 confirmation that need implies.
+
+``record_observations`` is a different kind of write from the other three. Those
+change configuration, which is a human's claim about what a device is; that one
+records evidence, which is a claim that something was actually seen. The backend
+keeps the two kinds of claim apart by assigning the source itself, so an agent's
+finding is durable without being able to pass for a plugin's measurement.
 """
 
 from typing import Any, Callable, Optional
@@ -22,7 +28,7 @@ def register_write_tools(
     mcp: FastMCP,
     client_factory: Callable[[], DjangoHttpClient] = DjangoHttpClient.from_env,
 ) -> None:
-    """Register the tools that create, edit and select a target."""
+    """Register the tools that create, edit and select a target, and record observations."""
 
     def client() -> DjangoHttpClient:
         return client_factory()
@@ -106,3 +112,57 @@ def register_write_tools(
             )
 
         return _call("select_target", run)
+
+    @mcp.tool()
+    def record_observations(
+        target_id: str,
+        agent: str,
+        scope_key: str,
+        facts: list[dict[str, Any]],
+        component_id: Optional[str] = None,
+        is_complete: bool = True,
+    ) -> dict[str, Any]:
+        """Record what you observed on a target, as one scan.
+
+        For findings you produced yourself -- a port you probed, a response you
+        read -- rather than by running a plugin. Configuration goes through
+        edit_target; this is for evidence.
+
+        Each fact is `{"protocol": ..., "subject_kind": ..., "subject_id": ...,
+        "observed_property": ..., "value": ...}`. `subject_kind` is the sort of
+        thing observed ("port", "did", "message", "interface") and `subject_id`
+        identifies which one, in the canonical form for that protocol -- a CAN
+        frame id is uppercase hex zero-padded to 3 digits (8 if extended), so
+        "1A0", never "0x1a0", or it silently matches nothing later. Use
+        `subject_kind: "self"` with no `subject_id` for a fact about the target
+        or component itself. `value` is any JSON.
+
+        `scope_key` names what you actually examined, because `is_complete`
+        claims these facts are all of it -- and a later complete scan of the
+        same scope records anything now missing as gone. "tcp:22,80,443" is
+        honest; "tcp" claims you swept 65535 ports. Pass `is_complete=False`
+        if you were interrupted or only spot-checked, which keeps the facts as
+        history without letting them define current state.
+
+        An empty `facts` list is a real result, not a no-op: it records that a
+        scope was examined and nothing was there.
+
+        You cannot choose your source. It is stored as `agent:<agent>`, so your
+        findings never pass for a plugin's; sending a `source` is refused with a
+        400 rather than quietly overridden.
+        """
+
+        def run() -> dict[str, Any]:
+            return client().post(
+                "/api/record_observations/",
+                json={
+                    "target_id": target_id,
+                    "agent": agent,
+                    "scope_key": scope_key,
+                    "component_id": component_id,
+                    "is_complete": is_complete,
+                    "facts": facts,
+                },
+            )
+
+        return _call("record_observations", run)
