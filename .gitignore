@@ -40,3 +40,9 @@ build/
 
 # Machine-specific AI context
 .agents/local.md
+
+# OEM platform profiles: seed/key algorithms, ECU unlock procedures, PIN key names.
+# Never committed and never packaged -- see docs/iotsploit_protocols_plan.md section 6.
+# Fails closed: the whole oem/ tree is ignored, so a new vendor profile is private by
+# default rather than by remembering to add a line here.
+iotsploit-exploits/src/iotsploit_exploits/oem/
