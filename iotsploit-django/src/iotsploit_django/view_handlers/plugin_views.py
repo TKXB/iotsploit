@@ -325,7 +325,6 @@ def execute_plugin(request):
                 }, status=400)
 
         plugin_manager = get_exploit_plugin_manager()
-        plugin_manager.initialize()
 
         # Check if plugin requires root privileges
         plugin_info = plugin_manager.get_plugin_info(plugin_name)

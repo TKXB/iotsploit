@@ -317,5 +317,18 @@ class SomeIpClient:
             session_id=packet.session_id,
             message_type=int(packet.msg_type),
             return_code=int(packet.retcode),
-            payload=bytes(packet.payload) if packet.payload else b"",
+            payload=SomeIpClient._application_payload(packet),
         )
+
+    @staticmethod
+    def _application_payload(packet) -> bytes:
+        """Application bytes across Scapy's SOME/IP representations.
+
+        Scapy 2.6 exposes them as the packet payload; 2.7 moved them into the
+        SOMEIP layer's ``data`` packet list.  Supporting both keeps the wire
+        result independent of the codec version installed by the host.
+        """
+        data = getattr(packet, "data", None)
+        if data is not None:
+            return b"".join(bytes(item) for item in data)
+        return bytes(packet.payload) if packet.payload else b""

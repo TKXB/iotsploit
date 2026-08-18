@@ -112,6 +112,22 @@ def test_a_positive_response_carries_its_payload(serve):
     assert response.payload == b"\xAA\xBB"
 
 
+def test_scapy_27_data_field_carries_the_application_payload():
+    class Packet:
+        data = [b"\xAA", b"\xBB"]
+        payload = b""
+
+    assert SomeIpClient._application_payload(Packet()) == b"\xAA\xBB"
+
+
+def test_scapy_26_packet_payload_still_works():
+    class Packet:
+        data = None
+        payload = b"\xCC\xDD"
+
+    assert SomeIpClient._application_payload(Packet()) == b"\xCC\xDD"
+
+
 def test_an_error_reply_is_not_success(serve):
     """E_UNKNOWN_METHOD is a well-formed answer meaning no. Bytes came back; it still failed."""
     config = serve(
