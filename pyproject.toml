@@ -33,6 +33,8 @@ dataclasses-json = "0.6.7"
 iotsploit-core = { path = "iotsploit-core", develop = true }
 # Platform-specific adapters (WiFi, Input, SSH backends)
 iotsploit-platforms = { path = "iotsploit-platforms", develop = true }
+# Wire-protocol clients (SOME/IP, DoIP/UDS) — no Django, no environment
+iotsploit-protocols = { path = "iotsploit-protocols", develop = true }
 # MCP outer-ring package (PyPI-style, src-layout)
 iotsploit-mcp = { path = "iotsploit-mcp", develop = true }
 # CLI shell (console + commands)
@@ -59,6 +61,7 @@ pytest = ">=8.0"
 addopts = "--import-mode=importlib --strict-markers"
 testpaths = [
     "iotsploit-core/tests",
+    "iotsploit-protocols/tests",
     "iotsploit-django/tests",
     "iotsploit-django/src/iotsploit_django/tests",
     "iotsploit-fuzzer/tests",

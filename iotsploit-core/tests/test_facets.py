@@ -85,12 +85,19 @@ def test_the_registry_publishes_a_schema(doip):
 
 
 def test_an_unknown_key_round_trips_verbatim():
-    """The plugin owning this key is not installed here."""
-    payload = {"service_id": 0x1234, "instances": [{"id": 1}], "nested": {"a": True}}
-    comp = component(someip=payload)
+    """The plugin owning this key is not installed here.
 
-    assert isinstance(comp.facet("someip"), RawFacet)
-    assert comp.model_dump()["facets"]["someip"] == payload
+    The key is deliberately fictional. This test used to say "someip", which
+    stopped meaning "not installed" the moment a real SOME/IP facet shipped in
+    iotsploit-protocols -- pytest imports every test module before running any,
+    so that registration is live here even though this is a core test. A key
+    naming a protocol is a key some plugin may one day claim.
+    """
+    payload = {"service_id": 0x1234, "instances": [{"id": 1}], "nested": {"a": True}}
+    comp = component(**{"not_a_real_protocol": payload})
+
+    assert isinstance(comp.facet("not_a_real_protocol"), RawFacet)
+    assert comp.model_dump()["facets"]["not_a_real_protocol"] == payload
 
 
 def test_unregistering_degrades_but_keeps_the_data(doip):

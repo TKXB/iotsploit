@@ -1,63 +1,36 @@
 [tool.poetry]
-name = "iotsploit-django"
+name = "iotsploit-protocols"
 version = "0.0.8"
-description = "IoTSploit Django ring package (HTTP/WS/ORM/Celery + composition root)"
+description = "Wire-protocol clients for IoTSploit (SOME/IP, DoIP/UDS) built on scapy"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
 license = "GPL-3.0-or-later"
 homepage = "https://www.iotsploit.org/"
 repository = "https://github.com/TKXB/iotsploit"
-documentation = "https://www.iotsploit.org/"
-keywords = ["iot", "security", "testing", "pentest", "django"]
+keywords = ["someip", "doip", "uds", "automotive", "security", "testing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Topic :: Security",
-    "Topic :: System :: Hardware",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-packages = [{ include = "iotsploit_django", from = "src" }]
+packages = [{ include = "iotsploit_protocols", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 iotsploit-core = "*"
-iotsploit-protocols = "*"
-iotsploit-platforms = { version = "*", optional = true }
-Django = ">=4.2,<5.0"
-channels = ">=4.0"
-celery = ">=5.3"
-redis = ">=5.0"
-channels-redis = ">=4.1"
-daphne = ">=4.0"
-django-extensions = ">=3.2"
-django-cors-headers = ">=4.0"
-django-csp = ">=3.7,<4.0"
-mistune = ">=3.0"
-colorlog = ">=6.8"
-SQLAlchemy = ">=2.0"
-netifaces = ">=0.11"
-psutil = ">=5.9"
-requests = ">=2.31"
-cryptography = ">=41.0"
+# SOME/IP service discovery parsing and the DoIP socket both come from
+# scapy.contrib.automotive, which needs 2.5+; 2.6 is what the workspace runs.
+scapy = ">=2.6,<3"
 pydantic = ">=2.0"
-aiohttp = ">=3.9"
-asgiref = ">=3.7"
-elevate = ">=0.1"
-paramiko = ">=3.0"
-bluepy = ">=1.3"
-smbus2 = ">=0.4"
-pyusb = ">=1.2"
-
-[tool.poetry.extras]
-platforms = ["iotsploit-platforms"]
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
+pytest = ">=8.0"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]

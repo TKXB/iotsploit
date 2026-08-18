@@ -73,11 +73,15 @@ def test_a_facet_with_nothing_bulk_reports_no_sizes():
 
 
 def test_an_unregistered_facet_is_summarized_like_any_other():
-    """Core cannot tell the difference, and a raw payload is just as large."""
-    row = summarize_component(component(facets={"someip": {"services": [1, 2, 3], "host": "h"}}))
+    """Core cannot tell the difference, and a raw payload is just as large.
 
-    assert row["facets"]["someip"] == {"host": "h"}
-    assert row["facet_sizes"]["someip"]["services"] == 3
+    The key is fictional on purpose: naming a real protocol here would stop
+    testing the unregistered path as soon as that protocol's facet shipped.
+    """
+    row = summarize_component(component(facets={"not_a_real_protocol": {"services": [1, 2, 3], "host": "h"}}))
+
+    assert row["facets"]["not_a_real_protocol"] == {"host": "h"}
+    assert row["facet_sizes"]["not_a_real_protocol"]["services"] == 3
 
 
 def test_subclass_fields_survive():

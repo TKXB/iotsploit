@@ -50,6 +50,16 @@ def test_a_schema_carries_types_and_required_fields():
     assert "logical_address" in schema["required"]
 
 
+def test_the_registered_someip_facet_is_published():
+    """The facet ships in iotsploit-protocols, so publication proves the app's
+    ready() hook imports it from there. Without that, the editor cannot offer
+    SOME/IP settings at all and a stored facet loads as an unrecognised blob."""
+    schema = fetch()["facet_schemas"]["someip"]
+
+    assert schema["properties"]["transport"]["default"] == "tcp"
+    assert schema["properties"]["client_id"]["format"] == "hex"
+
+
 def test_the_registered_can_facet_is_published():
     """Nothing consumes the CAN facet yet, so only the app's ready() hook
     imports it. Without that, a stored facet loads as RawFacet and the editor

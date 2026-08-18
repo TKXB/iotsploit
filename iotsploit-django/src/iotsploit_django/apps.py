@@ -15,4 +15,8 @@ class IoTSploitDjangoConfig(AppConfig):
 
         # Register protocol facets before any target is hydrated, or stored
         # facets load as RawFacet and typed access silently returns nothing.
+        # A facet ships with the code that consumes it, so they come from
+        # wherever that code lives -- someip from iotsploit-protocols, the
+        # others still from tools/ until their clients move there too.
         from iotsploit_django.tools import can_facet, doip_facet  # noqa: F401
+        from iotsploit_protocols.someip import facet as someip_facet  # noqa: F401
