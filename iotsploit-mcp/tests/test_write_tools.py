@@ -48,12 +48,13 @@ def call(client: FakeClient, tool: str, **kwargs) -> Any:
     return asyncio.run(mcp.call_tool(tool, kwargs))
 
 
-def test_the_write_surface_is_exactly_these_four(monkeypatch):
+def test_the_write_surface_is_exactly_these_five(monkeypatch):
     """Deletion is absent on purpose. It is the one that is not recoverable."""
     assert set(tools(FakeClient())) == {
         "create_target",
         "edit_target",
         "select_target",
+        "execute_plugin",
         "record_observations",
     }
 
@@ -106,6 +107,29 @@ def test_select_posts_the_id(monkeypatch):
     call(client, "select_target", target_id="t1")
 
     assert client.calls[0] == ("/api/select_target/", {"target_id": "t1"})
+
+
+def test_execute_plugin_posts_name_and_parameters(monkeypatch):
+    client = FakeClient()
+    parameters = {"interface": "can0", "duration": 10}
+
+    call(client, "execute_plugin", plugin_name="can_sniff", parameters=parameters)
+
+    assert client.calls[0] == (
+        "/api/execute_plugin/",
+        {"plugin_name": "can_sniff", "parameters": parameters},
+    )
+
+
+def test_execute_plugin_defaults_parameters_to_empty(monkeypatch):
+    client = FakeClient()
+
+    call(client, "execute_plugin", plugin_name="ip_scan")
+
+    assert client.calls[0] == (
+        "/api/execute_plugin/",
+        {"plugin_name": "ip_scan", "parameters": {}},
+    )
 
 
 PORT_22 = {

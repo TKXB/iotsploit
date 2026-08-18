@@ -1,4 +1,4 @@
-"""The tools that change a target, and the one that records what was seen on it.
+"""The tools that change or act on a target, and record what was seen on it.
 
 Kept apart from ``read_only`` on purpose. That module's read-only-ness is a
 property worth being able to point at, not an accident of what happened to be
@@ -28,7 +28,7 @@ def register_write_tools(
     mcp: FastMCP,
     client_factory: Callable[[], DjangoHttpClient] = DjangoHttpClient.from_env,
 ) -> None:
-    """Register the tools that create, edit and select a target, and record observations."""
+    """Register the tools that mutate or act on a target."""
 
     def client() -> DjangoHttpClient:
         return client_factory()
@@ -112,6 +112,27 @@ def register_write_tools(
             )
 
         return _call("select_target", run)
+
+    @mcp.tool()
+    def execute_plugin(
+        plugin_name: str,
+        parameters: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Execute an enabled exploit plugin against the current target.
+
+        Call select_target first when the intended target is not already
+        current. Plugin parameters come from describe_plugin. Execution may
+        interact with attached hardware or the target and may return either a
+        synchronous result or an asynchronous task identifier.
+        """
+
+        def run() -> dict[str, Any]:
+            return client().post(
+                "/api/execute_plugin/",
+                json={"plugin_name": plugin_name, "parameters": parameters or {}},
+            )
+
+        return _call("execute_plugin", run)
 
     @mcp.tool()
     def record_observations(

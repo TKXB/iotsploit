@@ -71,10 +71,16 @@ This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 - Tools/files: `get_tools_status`, `get_tool_details`, `list_files`
 - Local rig helper: `list_serial_ports`
 
-The permitted mutating tools are `create_target`, `edit_target`,
-`select_target` and `record_observations`. All other mutating or destructive
-tools remain prohibited until backend auth hardening and the two-key safety
-gate described in the implementation proposal are complete.
+The mutating tools are `create_target`, `edit_target`, `select_target`,
+`execute_plugin` and `record_observations`. `execute_plugin` runs an enabled
+exploit plugin against the current target and can interact with attached
+hardware or the target. It is temporarily exposed before backend auth
+hardening and the two-key safety gate are complete; keep the unauthenticated
+MCP endpoint bound to loopback or otherwise protected.
+
+All other mutating or destructive tools remain prohibited until backend auth
+hardening and the two-key safety gate described in the implementation proposal
+are complete.
 
 `record_observations` records findings an agent produced itself, rather than by
 running a plugin. It cannot claim to be a plugin: the backend stores the source
