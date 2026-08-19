@@ -5,6 +5,7 @@ from cmd2 import ansi
 from .base_commands import BaseCommands
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
+from iotsploit_cli.interaction_console import ConsoleInteractionAdapter
 from iotsploit_core.utils import iots_logger
 
 logger = iots_logger.get_logger(__name__)
@@ -136,8 +137,15 @@ class PluginCommands(BaseCommands):
 
             logger.debug(f"Executing plugin '{choice}' with target={target_dict}, parameters={parameters}")
 
-            # Execute with target (device info) and parameters (plugin inputs) kept separate
-            result = self.plugin_manager.execute_plugin(choice, target=target_dict, parameters=parameters)
+            # Execute with target (device info) and parameters (plugin inputs) kept separate.
+            # The console adapter lets an interactive plugin prompt on this terminal;
+            # a plugin that never prompts is unaffected by it.
+            result = self.plugin_manager.execute_plugin(
+                choice,
+                target=target_dict,
+                parameters=parameters,
+                interaction=ConsoleInteractionAdapter(),
+            )
             
             # Check if this is an async execution
             if isinstance(result, dict) and result.get('execution_type') == 'async':
