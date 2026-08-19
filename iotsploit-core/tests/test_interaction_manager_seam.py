@@ -13,13 +13,32 @@ from iotsploit_core.context import PluginContext
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
 from iotsploit_core.core.interaction_binding import current_interaction
 from iotsploit_core.ports.interaction import (
+    InteractionInvalid,
     InteractionUnavailable,
     Prompt,
     PromptSugar,
     coerce_answer,
+    guard_sync_call,
 )
 
 pytestmark = pytest.mark.unit
+
+
+class GuardedPort(PromptSugar):
+    """Applies the real sync guard, the way a production adapter does."""
+
+    def request(self, prompt: Prompt):
+        guard_sync_call("request")
+        return coerce_answer(prompt, prompt.choice_values[0])
+
+    async def arequest(self, prompt: Prompt):
+        return coerce_answer(prompt, prompt.choice_values[0])
+
+    def check_cancelled(self) -> None:
+        pass
+
+    async def acheck_cancelled(self) -> None:
+        pass
 
 
 class StubPort(PromptSugar):
@@ -139,3 +158,64 @@ def test_noninteractive_plugin_is_unaffected():
                                   interaction=StubPort("x"))
 
     assert plugin.calls == 2
+
+
+# ── The async path ───────────────────────────────────────────────────
+#
+# `run_plugin_in_process` drives `execute_async` through
+# `loop.run_until_complete`. The binding has to survive that, and a blocking
+# call inside it has to fail rather than deadlock the loop.
+
+class AsyncPromptingPlugin:
+    def __init__(self, blocking: bool = False):
+        self.ctx = PluginContext()
+        self.blocking = blocking
+        self.seen = None
+        self.raised = None
+
+    async def execute_async(self, target, parameters):
+        try:
+            if self.blocking:
+                self.seen = self.ctx.interaction.choose("Session", ["default"])
+            else:
+                self.seen = await self.ctx.interaction.achoose(
+                    "Session", ["default", "extended"]
+                )
+        except Exception as exc:      # noqa: BLE001 - recorded and asserted on
+            self.raised = exc
+        return {"ok": True}
+
+
+def test_async_plugin_reaches_the_port_through_run_until_complete():
+    plugin = AsyncPromptingPlugin()
+    manager = build_manager(plugin)
+
+    manager.run_plugin_in_process(
+        "p", target={}, parameters={}, interaction=StubPort("extended")
+    )
+
+    assert plugin.seen == "extended"
+    assert plugin.raised is None
+
+
+def test_blocking_request_inside_execute_async_fails_instead_of_deadlocking():
+    """Without the guard this would hang the worker, not raise."""
+    plugin = AsyncPromptingPlugin(blocking=True)
+    manager = build_manager(plugin)
+
+    manager.run_plugin_in_process(
+        "p", target={}, parameters={}, interaction=GuardedPort()
+    )
+
+    assert plugin.seen is None
+    assert isinstance(plugin.raised, InteractionInvalid)
+    assert "achoose" in str(plugin.raised) or "arequest" in str(plugin.raised)
+
+
+def test_async_plugin_without_a_port_gets_the_unavailable_error():
+    plugin = AsyncPromptingPlugin()
+    manager = build_manager(plugin)
+
+    manager.run_plugin_in_process("p", target={}, parameters={})
+
+    assert isinstance(plugin.raised, InteractionUnavailable)
