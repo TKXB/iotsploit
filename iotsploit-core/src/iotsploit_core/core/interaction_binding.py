@@ -14,9 +14,9 @@ It is kept contained: one module, set in one place.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
-from typing import Any, Iterator, Optional
+from typing import Any, ContextManager, Iterator, Optional
 
 _current_interaction: ContextVar[Optional[Any]] = ContextVar(
     "iotsploit_interaction", default=None
@@ -36,6 +36,17 @@ def bind_interaction(port: Optional[Any]) -> Iterator[Optional[Any]]:
         yield port
     finally:
         _current_interaction.reset(token)
+
+
+def maybe_bind_interaction(port: Optional[Any]) -> ContextManager:
+    """Bind ``port`` if there is one, otherwise leave the current binding alone.
+
+    Callers pass ``interaction=None`` to mean "I have no port to offer", not
+    "unbind whatever is already there". A plain ``bind_interaction(None)`` would
+    clear an outer binding, which is how a shell-level port would get lost on
+    the way into group and sequence execution.
+    """
+    return bind_interaction(port) if port is not None else nullcontext()
 
 
 def current_interaction() -> Optional[Any]:

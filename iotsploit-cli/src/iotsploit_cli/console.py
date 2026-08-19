@@ -118,6 +118,8 @@ from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.report_mgr import Report_Mgr
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.core.interaction_binding import bind_interaction
+from iotsploit_cli.interaction_console import ConsoleInteractionAdapter
 from iotsploit_core.utils import iots_logger
 
 def global_exception_handler(exctype, value, traceback):
@@ -307,6 +309,21 @@ class SAT_Shell(SAT_Shell_Base):
     def do_quit(self, arg):
         """Deprecated alias for exit which preserves cleanup behavior."""
         return self.do_exit(arg)
+
+    def onecmd_plus_hooks(self, *args, **kwargs):
+        """Run every shell command with an operator attached to the terminal.
+
+        A plugin can ask a question at any point during a run, and in the shell
+        there is always someone there to answer it. Binding here rather than at
+        each call site means every path that ends up executing a plugin --
+        `exec`, plugin groups, sequences, run-all, and anything added later --
+        can prompt without being wired up individually.
+
+        The binding does not reach a plugin that prompts from a thread it
+        spawned itself; context variables do not cross threads.
+        """
+        with bind_interaction(ConsoleInteractionAdapter()):
+            return super().onecmd_plus_hooks(*args, **kwargs)
 
     def precmd(self, statement):
         """Warn when an executable compatibility command is used directly."""

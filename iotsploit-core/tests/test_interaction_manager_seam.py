@@ -11,7 +11,7 @@ import pytest
 
 from iotsploit_core.context import PluginContext
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
-from iotsploit_core.core.interaction_binding import current_interaction
+from iotsploit_core.core.interaction_binding import bind_interaction, current_interaction
 from iotsploit_core.ports.interaction import (
     InteractionInvalid,
     InteractionUnavailable,
@@ -219,3 +219,28 @@ def test_async_plugin_without_a_port_gets_the_unavailable_error():
     manager.run_plugin_in_process("p", target={}, parameters={})
 
     assert isinstance(plugin.raised, InteractionUnavailable)
+
+
+def test_an_outer_binding_reaches_a_run_that_supplies_no_port():
+    """How the shell's port reaches nested group and sequence execution."""
+    plugin = _plugin_with_helper()
+    manager = build_manager(plugin)
+    shell_port = StubPort("extended")
+
+    with bind_interaction(shell_port):
+        manager.run_plugin_in_process("p", target={}, parameters={})
+
+    assert plugin.seen == "extended"
+    assert plugin.raised is None
+
+
+def test_an_explicit_port_wins_over_the_outer_one():
+    plugin = _plugin_with_helper()
+    manager = build_manager(plugin)
+
+    with bind_interaction(StubPort("default")):
+        manager.run_plugin_in_process(
+            "p", target={}, parameters={}, interaction=StubPort("extended")
+        )
+
+    assert plugin.seen == "extended"

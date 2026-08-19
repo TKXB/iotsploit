@@ -279,3 +279,35 @@ def test_binding_does_not_leak_into_a_spawned_thread():
         thread.join(timeout=5)
 
     assert inner == [False]
+
+
+# ── Non-clobbering binds ─────────────────────────────────────────────
+#
+# A caller passing `interaction=None` means "I have no port to offer", not
+# "unbind whatever is there". Without this, a shell-level port is lost on the
+# way into group and sequence execution.
+
+def test_maybe_bind_with_a_port_binds_it():
+    from iotsploit_core.core.interaction_binding import maybe_bind_interaction
+
+    port = RecordingPort()
+    with maybe_bind_interaction(port):
+        assert current_interaction() is port
+    assert current_interaction() is None
+
+
+def test_maybe_bind_with_none_keeps_the_outer_binding():
+    from iotsploit_core.core.interaction_binding import maybe_bind_interaction
+
+    outer = RecordingPort()
+    with bind_interaction(outer):
+        with maybe_bind_interaction(None):
+            assert current_interaction() is outer
+        assert current_interaction() is outer
+
+
+def test_a_plain_bind_of_none_still_clears():
+    """The explicit form keeps its meaning for callers that want isolation."""
+    with bind_interaction(RecordingPort()):
+        with bind_interaction(None):
+            assert current_interaction() is None
