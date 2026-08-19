@@ -6,6 +6,7 @@ package at settings import time.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -108,6 +109,28 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
     "visibility_timeout": 3600,
     "socket_timeout": 30,
     "socket_connect_timeout": 30,
+}
+
+# Interactive plugin execution
+#
+# A plugin can stop mid-run and ask the operator a typed question. Answering is
+# a mutating operation and this project has no authentication yet, so the
+# feature stays off unless it is switched on for a trusted setup. See
+# "Prerequisite: Authentication" in docs/interactive_exploit_plugin_plan.md.
+IOTSPLOIT_INTERACTIVE_ENABLED = os.getenv(
+    "IOTSPLOIT_INTERACTIVE_ENABLED", "0"
+).lower() not in ("0", "false", "no", "")
+
+# Interactive runs get their own queue at concurrency 1. Waiting on an answer
+# holds a worker slot without using CPU, so isolating them keeps ordinary plugin
+# runs moving; concurrency 1 means only one run can be waiting at a time, which
+# is what lets the Control Panel show a single unambiguous question. Start it
+# with:
+#   celery -A iotsploit_django.tasks.celery_app worker -Q interactive -c 1
+CELERY_TASK_ROUTES = {
+    "iotsploit_django.tasks.interaction_tasks.run_execution_task": {
+        "queue": "interactive",
+    },
 }
 
 # Channels / Redis

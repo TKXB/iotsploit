@@ -9,6 +9,7 @@ from iotsploit_django.websocket.consumers_impl import (  # noqa: F401
     ConsoleLogsConsumer,
     DeviceStreamConsumer,
     ExploitWebsocketConsumer,
+    PluginExecutionConsumer,
     IoTFuzzerResultsConsumer,
     IoTFuzzerTestingConsumer,
     SystemUsageConsumer,
@@ -20,6 +21,7 @@ from iotsploit_django.websocket.consumers_impl import (  # noqa: F401
 __all__ = [
     "SystemUsageConsumer",
     "ExploitWebsocketConsumer",
+    "PluginExecutionConsumer",
     "DeviceStreamConsumer",
     "ConsoleLogsConsumer",
     "IoTFuzzerTestingConsumer",

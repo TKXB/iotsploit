@@ -14,6 +14,7 @@ urlpatterns = [
     path("", include("iotsploit_django.web.api.targets_urls")),
     path("", include("iotsploit_django.web.api.observations_urls")),
     path("", include("iotsploit_django.web.api.plugins_urls")),
+    path("", include("iotsploit_django.web.api.interaction_urls")),
     path("", include("iotsploit_django.web.api.firmware_urls")),
     path("", include("iotsploit_django.web.api.files_urls")),
     path("", include("iotsploit_django.web.api.tools_urls")),
