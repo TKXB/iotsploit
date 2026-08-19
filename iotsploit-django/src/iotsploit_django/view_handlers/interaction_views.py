@@ -4,10 +4,10 @@ Answers and cancellation are mutating operations, so they go over HTTP rather
 than the WebSocket: there is one place to add authentication, one place to
 validate, and one audited path.
 
-Authentication does not exist in this project yet. These views resolve an
-operator where one is available and record it, so adding a decorator is the
-only remaining change -- see "Prerequisite: Authentication" in the plan. Until
-then interactive execution is off unless IOTSPLOIT_INTERACTIVE_ENABLED is set.
+Authentication does not exist in this project yet -- here or anywhere else in
+the API. These views resolve an operator where one is available and record it,
+so adding a decorator is the only remaining change; see "Prerequisite:
+Authentication" in the plan.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import logging
 
-from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
@@ -27,11 +26,6 @@ from iotsploit_django.adapters.django.interaction.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def interactive_enabled() -> bool:
-    """Interactive execution is opt-in while there is no authentication."""
-    return bool(getattr(settings, "IOTSPLOIT_INTERACTIVE_ENABLED", False))
 
 
 def _operator(request):

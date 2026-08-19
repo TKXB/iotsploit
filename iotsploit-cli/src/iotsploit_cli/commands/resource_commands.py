@@ -165,6 +165,7 @@ class ResourceCommands(BaseCommands):
             ("daphne", "daphne_server_process"),
             ("mcp", "mcp_bridge_process"),
             ("celery", "celery_worker_process"),
+            ("celery-i", "interactive_worker_process"),
         )
         for name, attribute in services:
             process = getattr(self, attribute, None)

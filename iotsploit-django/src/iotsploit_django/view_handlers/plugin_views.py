@@ -335,19 +335,6 @@ def execute_plugin(request):
         # would block. Hand it to the interactive queue and return an id the
         # client can watch and answer over.
         if is_interactive and not requires_root:
-            from iotsploit_django.view_handlers.interaction_views import interactive_enabled
-
-            if not interactive_enabled():
-                return JsonResponse({
-                    "status": "error",
-                    "message": (
-                        f"'{plugin_name}' asks questions while it runs, and "
-                        "interactive execution is switched off. Set "
-                        "IOTSPLOIT_INTERACTIVE_ENABLED to turn it on, or run "
-                        "the plugin from the iotsploit shell."
-                    ),
-                }, status=409)
-
             from iotsploit_django.adapters.django.interaction import service
             from iotsploit_django.tasks.interaction_tasks import run_execution_task
 

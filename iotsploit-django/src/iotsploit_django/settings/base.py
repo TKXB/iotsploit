@@ -6,7 +6,6 @@ package at settings import time.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 
@@ -113,19 +112,20 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 
 # Interactive plugin execution
 #
-# A plugin can stop mid-run and ask the operator a typed question. Answering is
-# a mutating operation and this project has no authentication yet, so the
-# feature stays off unless it is switched on for a trusted setup. See
-# "Prerequisite: Authentication" in docs/interactive_exploit_plugin_plan.md.
-IOTSPLOIT_INTERACTIVE_ENABLED = os.getenv(
-    "IOTSPLOIT_INTERACTIVE_ENABLED", "0"
-).lower() not in ("0", "false", "no", "")
+# A plugin can stop mid-run and ask the operator a typed question, and the
+# Control Panel can answer it. There is no setting for this: it is simply how
+# an interactive plugin runs, the same way it already works in the shell.
+# Access control is a separate, still-outstanding piece of work that has to
+# cover the whole API -- no endpoint here authenticates anything, so gating one
+# feature would have bought nothing. See "Prerequisite: Authentication" in
+# docs/exec-plans/active/interactive_exploit_plugin_plan.md.
 
 # Interactive runs get their own queue at concurrency 1. Waiting on an answer
 # holds a worker slot without using CPU, so isolating them keeps ordinary plugin
 # runs moving; concurrency 1 means only one run can be waiting at a time, which
-# is what lets the Control Panel show a single unambiguous question. Start it
-# with:
+# is what lets the Control Panel show a single unambiguous question. The
+# iotsploit shell's `runserver` starts this worker alongside the ordinary one;
+# to run it by hand:
 #   celery -A iotsploit_django.tasks.celery_app worker -Q interactive -c 1
 CELERY_TASK_ROUTES = {
     "iotsploit_django.tasks.interaction_tasks.run_execution_task": {

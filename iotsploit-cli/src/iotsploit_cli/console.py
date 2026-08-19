@@ -185,6 +185,7 @@ class SAT_Shell(SAT_Shell_Base):
         self.daphne_server_process = None
         self.mcp_bridge_process = None
         self.celery_worker_process = None
+        self.interactive_worker_process = None
         
         # Initialize device manager and connected devices
         self.device_driver_manager = get_device_driver_manager()

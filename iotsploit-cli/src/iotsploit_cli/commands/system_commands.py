@@ -106,6 +106,7 @@ class SystemCommands(BaseCommands):
                     "daphne_server_process",
                     "mcp_bridge_process",
                     "celery_worker_process",
+                    "interactive_worker_process",
                 )
             )
             if running_services and selected_format != "standard":

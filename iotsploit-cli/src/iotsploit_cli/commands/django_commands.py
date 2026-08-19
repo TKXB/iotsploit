@@ -144,12 +144,34 @@ class DjangoCommands(BaseCommands):
                 'worker',
                 '--loglevel=info'
             ]
+            # Interactive runs are routed to their own queue (see
+            # CELERY_TASK_ROUTES) and need a worker that consumes it. Without
+            # this process the GUI would queue an interactive plugin and wait
+            # forever with nothing to run it. Concurrency 1 keeps a single
+            # question open at a time, and the separate process means a run
+            # parked on a prompt never occupies a general worker slot.
+            interactive_celery_cmd = [
+                sys.executable,
+                '-m',
+                'celery',
+                '-A',
+                'iotsploit_django.tasks.celery_app:app',
+                'worker',
+                '--loglevel=info',
+                '-Q',
+                'interactive',
+                '-c',
+                '1',
+                '-n',
+                'interactive@%h',
+            ]
             service_env = os.environ.copy()
             
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
             logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
             logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
+            logger.info(f"Running interactive Celery command: {' '.join(interactive_celery_cmd)}")
             if not self._services_log_to_console():
                 logger.info(f"Service logs are redirected to {os.getenv('IOTSPLOIT_SERVICE_LOG_DIR', '/tmp/sat_logs')}")
             
@@ -196,6 +218,15 @@ class DjangoCommands(BaseCommands):
                 universal_newlines=True,
                 env=service_env,
             )
+
+            interactive_stdout, interactive_stderr, _ = self._service_stdio("celery-interactive")
+            self.interactive_worker_process = subprocess.Popen(
+                interactive_celery_cmd,
+                stdout=interactive_stdout,
+                stderr=interactive_stderr,
+                universal_newlines=True,
+                env=service_env,
+            )
             
             logger.info("All servers started successfully in the background.")
             logger.info("Services running on:")
@@ -203,6 +234,7 @@ class DjangoCommands(BaseCommands):
             logger.info("  - Daphne WebSocket: ws://localhost:9999")
             logger.info("  - MCP HTTP (Streamable HTTP): http://127.0.0.1:9900/mcp")
             logger.info("  - Celery Worker: background task processing")
+            logger.info("  - Celery Worker (interactive): plugin prompts, queue 'interactive'")
             
             # Wait for HTTP server to be available and initialize devices
             import requests
@@ -284,11 +316,16 @@ class DjangoCommands(BaseCommands):
                 self.celery_worker_process.terminate()
                 self.celery_worker_process = None
 
+            if getattr(self, 'interactive_worker_process', None):
+                self.interactive_worker_process.terminate()
+                self.interactive_worker_process = None
+
             self._close_service_log_files()
             
             if not any([self.django_server_process, self.daphne_server_process, 
                         getattr(self, 'mcp_bridge_process', None),
-                        getattr(self, 'celery_worker_process', None)]):
+                        getattr(self, 'celery_worker_process', None),
+                        getattr(self, 'interactive_worker_process', None)]):
                 logger.info("All servers stopped.")
             else:
                 logger.error("No servers were running.")
