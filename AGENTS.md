@@ -29,6 +29,12 @@ scan's comparable scope, an agent's snapshot can only replace its own and never
 a plugin's measurement. Any future write tool needs a comparable argument for
 why it is safe without auth, not just a use case.
 
+## Execution Plans
+
+Plans live in `docs/exec-plans/`: `active/` (in progress), `pending/`
+(decided, not started), `completed/` (done/stale — don't act on unless stated).
+Search there before writing a new plan.
+
 ## Pre-Commit Test Gate
 
 Before committing Python code, run the full test gate:
