@@ -43,7 +43,10 @@ class PluginCommands(BaseCommands):
                 plugins
             )
         else:
-            choice = arg
+            # cmd2 hands us a Statement, not a str. It compares equal to its own
+            # text but hashes a tuple containing a list, so using it as a dict
+            # key later raises TypeError. Flatten it here.
+            choice = str(arg).strip()
 
         if choice not in plugins:
             logger.error(ansi.style(f"Plugin '{choice}' not found.", fg=ansi.Fg.RED))
