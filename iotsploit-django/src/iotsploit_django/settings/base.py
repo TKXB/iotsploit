@@ -134,16 +134,24 @@ CELERY_TASK_ROUTES = {
 }
 
 # Channels / Redis
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
-    }
-}
-
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
 REDIS_DB = 0
+
+# socket_timeout must stay clear of channels_redis' brpop_timeout (5s). redis-py
+# 8 changed its default from None to 5, so the socket read aborts at the same
+# moment BRPOP would return nil. channels_redis loops on nil but lets the abort
+# propagate, which kills the consumer and drops every WebSocket after ~5s.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [
+                {"host": REDIS_HOST, "port": REDIS_PORT, "socket_timeout": 30},
+            ],
+        },
+    }
+}
 
 # Logging
 LOGGING = {

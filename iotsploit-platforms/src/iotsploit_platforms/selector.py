@@ -13,12 +13,16 @@ Configuration is read from environment variables:
 - (Add more backends here as they are implemented)
 """
 
+from __future__ import annotations
+
 import inspect
+import logging
 import os
 from typing import Optional
 
 from iotsploit_core.context import PluginContext
-from iotsploit_platforms.platforms import wifi_backend
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -66,6 +70,11 @@ def get_wifi_backend(
         >>> backend = get_wifi_backend()  # Uses env vars
         >>> backend = get_wifi_backend(wifi_iface_name="wlan0")  # Override
     """
+    # Imported here rather than at module scope: the Linux backend needs the
+    # NetworkManager typelib, and a host without it must still be able to build
+    # a context for plugins that never touch WiFi.
+    from iotsploit_platforms.platforms import wifi_backend
+
     # Get config from env if not provided
     if wifi_iface_name is None or forward_eth_name is None:
         env_config = _get_wifi_config()
@@ -157,8 +166,19 @@ def build_context() -> PluginContext:
         >>> plugin.initialize(ctx)
         >>> # Plugin can access ctx.wifi, ctx.bluetooth, etc.
     """
+    try:
+        # Uses env vars automatically; shared per-process instance
+        wifi = get_shared_wifi_backend()
+    except Exception as exc:
+        # A backend that will not load costs you that backend, not the whole
+        # context: `PluginContext.wifi` is already optional. Before this, a
+        # missing NetworkManager typelib left every plugin with no context at
+        # all, including plugins that touch no network.
+        logger.warning("WiFi backend unavailable, continuing without it: %s", exc)
+        wifi = None
+
     return PluginContext(
-        wifi=get_shared_wifi_backend(),  # Uses env vars automatically; shared per-process instance
+        wifi=wifi,
         # bluetooth=get_bluetooth_backend(),  # TODO: Add when implemented
         # camera=get_camera_backend(),        # TODO: Add when implemented
     )

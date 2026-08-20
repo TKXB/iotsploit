@@ -38,7 +38,17 @@ def _context_factory():
             "iotsploit-platforms is required for plugin execution. "
             "Install with: pip install iotsploit-django[platforms]"
         )
-    return build_context()
+
+    try:
+        return build_context()
+    except Exception as exc:
+        # Never hand a plugin no context at all. The interaction port hangs off
+        # PluginContext, so failing here is what stops an interactive plugin
+        # from being able to prompt, even though prompting needs no backend.
+        logger.warning("No backends could be built, using a bare context: %s", exc)
+        from iotsploit_core.context import PluginContext
+
+        return PluginContext()
 
 
 def build_exploit_plugin_manager(
