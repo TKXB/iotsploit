@@ -19,6 +19,7 @@ from iotsploit_core.ports.interaction import (
 )
 from iotsploit_django.adapters.django.interaction import service
 from iotsploit_django.adapters.django.interaction.adapter import DurableInteractionAdapter
+from iotsploit_django.adapters.django.interaction.log_stream import stream_logs
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_django.composition_root.wiring import get_exploit_plugin_manager
 
@@ -43,7 +44,10 @@ def run_execution_task(self, execution_id, plugin_name, target=None, parameters=
             target = TargetManager.get_instance().create_target_instance(target)
 
         port = DurableInteractionAdapter(execution_id)
-        with bind_interaction(port):
+        # stream_logs is what puts a plugin's own account of the run into the
+        # transcript, next to the prompts it raised. Without it the only place
+        # a plugin could show anything was the next prompt's description.
+        with bind_interaction(port), stream_logs(execution_id):
             raw_result, provenance = manager.run_plugin_in_process(
                 plugin_name, target, parameters
             )
