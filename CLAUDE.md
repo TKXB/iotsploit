@@ -11,7 +11,8 @@ Before committing Python code, run the full test gate:
 tools/testing/test-python-full.sh
 ```
 
-See `.agents/standards/testing.md` for the complete policy.
+See `.agents/standards/testing.md` for the complete policy, including
+the rules for writing tests — read those before adding or changing a test.
 Enable the local git hook once per working copy:
 
 ```bash

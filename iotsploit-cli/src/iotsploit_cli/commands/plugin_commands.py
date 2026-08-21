@@ -42,7 +42,10 @@ class PluginCommands(BaseCommands):
                 plugins
             )
         else:
-            choice = arg
+            # cmd2 hands us a Statement, not a str. It compares equal to its own
+            # text but hashes a tuple containing a list, so using it as a dict
+            # key later raises TypeError. Flatten it here.
+            choice = str(arg).strip()
 
         if choice not in plugins:
             logger.error(ansi.style(f"Plugin '{choice}' not found.", fg=ansi.Fg.RED))
@@ -136,8 +139,15 @@ class PluginCommands(BaseCommands):
 
             logger.debug(f"Executing plugin '{choice}' with target={target_dict}, parameters={parameters}")
 
-            # Execute with target (device info) and parameters (plugin inputs) kept separate
-            result = self.plugin_manager.execute_plugin(choice, target=target_dict, parameters=parameters)
+            # Execute with target (device info) and parameters (plugin inputs) kept
+            # separate. The interaction port is already bound by the shell, so a
+            # plugin that prompts mid-run reaches this terminal without anything
+            # extra here.
+            result = self.plugin_manager.execute_plugin(
+                choice,
+                target=target_dict,
+                parameters=parameters,
+            )
             
             # Check if this is an async execution
             if isinstance(result, dict) and result.get('execution_type') == 'async':

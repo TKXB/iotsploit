@@ -1,0 +1,42 @@
+[
+  {
+    "consumer": "AIAssistantConsumer",
+    "pattern": "ws/ai-assistant/(?P<session_id>\\w+)/$"
+  },
+  {
+    "consumer": "ConsoleLogsConsumer",
+    "pattern": "ws/console_logs/$"
+  },
+  {
+    "consumer": "DeviceStreamConsumer",
+    "pattern": "ws/device/stream/(?P<channel>[^/]+)/$"
+  },
+  {
+    "consumer": "PluginExecutionConsumer",
+    "pattern": "ws/execution/(?P<execution_id>[^/]+)/$"
+  },
+  {
+    "consumer": "ExploitWebsocketConsumer",
+    "pattern": "ws/exploit/(?P<task_id>[^/]+)/$"
+  },
+  {
+    "consumer": "IoTFuzzerResultsConsumer",
+    "pattern": "ws/iot-fuzzer/results/$"
+  },
+  {
+    "consumer": "IoTFuzzerResultsConsumer",
+    "pattern": "ws/iot-fuzzer/results/(?P<campaign_id>[^/]+)/$"
+  },
+  {
+    "consumer": "IoTFuzzerTestingConsumer",
+    "pattern": "ws/iot-fuzzer/testing/$"
+  },
+  {
+    "consumer": "IoTFuzzerTestingConsumer",
+    "pattern": "ws/iot-fuzzer/testing/(?P<campaign_id>[^/]+)/$"
+  },
+  {
+    "consumer": "SystemUsageConsumer",
+    "pattern": "ws/system_usage/$"
+  }
+]

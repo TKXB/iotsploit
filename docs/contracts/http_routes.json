@@ -1,0 +1,506 @@
+[
+  {
+    "name": "active_channels",
+    "pattern": "active_channels/"
+  },
+  {
+    "name": "ai_model_list",
+    "pattern": "ai-models/"
+  },
+  {
+    "name": "ai_model_detail",
+    "pattern": "ai-models/<int:pk>/"
+  },
+  {
+    "name": "ai_model_delete",
+    "pattern": "ai-models/<int:pk>/delete/"
+  },
+  {
+    "name": "ai_model_set_default",
+    "pattern": "ai-models/<int:pk>/set-default/"
+  },
+  {
+    "name": "ai_model_test_connection",
+    "pattern": "ai-models/<int:pk>/test/"
+  },
+  {
+    "name": "ai_model_update",
+    "pattern": "ai-models/<int:pk>/update/"
+  },
+  {
+    "name": "ai_model_create",
+    "pattern": "ai-models/create/"
+  },
+  {
+    "name": "ai_fetch_models",
+    "pattern": "ai-models/fetch-models/"
+  },
+  {
+    "name": "ai_provider_list",
+    "pattern": "ai-models/providers/"
+  },
+  {
+    "name": "ai_template_list",
+    "pattern": "ai-templates/"
+  },
+  {
+    "name": "cleanup_devices",
+    "pattern": "cleanup_devices/"
+  },
+  {
+    "name": "cleanup_plugins",
+    "pattern": "cleanup_plugins/"
+  },
+  {
+    "name": "get_console_logs",
+    "pattern": "console_logs/"
+  },
+  {
+    "name": "clear_console_logs",
+    "pattern": "console_logs/clear/"
+  },
+  {
+    "name": "control_console_reader",
+    "pattern": "console_logs/control/"
+  },
+  {
+    "name": "create_group",
+    "pattern": "create_group/"
+  },
+  {
+    "name": "create_target",
+    "pattern": "create_target/"
+  },
+  {
+    "name": "delete_file",
+    "pattern": "delete_file/<path:file_path>"
+  },
+  {
+    "name": "delete_group",
+    "pattern": "delete_group/"
+  },
+  {
+    "name": "delete_target",
+    "pattern": "delete_target/"
+  },
+  {
+    "name": "device_info",
+    "pattern": "device_info/"
+  },
+  {
+    "name": "disable_driver",
+    "pattern": "disable_driver/"
+  },
+  {
+    "name": "download_file",
+    "pattern": "download_file/"
+  },
+  {
+    "name": "download_file",
+    "pattern": "download_file/<path:file_path>"
+  },
+  {
+    "name": "list_firmware_files",
+    "pattern": "download_firmware/"
+  },
+  {
+    "name": "download_firmware",
+    "pattern": "download_firmware/<path:file_path>"
+  },
+  {
+    "name": "edit_target",
+    "pattern": "edit_target/"
+  },
+  {
+    "name": "enable_driver",
+    "pattern": "enable_driver/"
+  },
+  {
+    "name": "execute_device_command",
+    "pattern": "execute_device_command/<str:driver_name>/"
+  },
+  {
+    "name": "execute_group",
+    "pattern": "execute_group/"
+  },
+  {
+    "name": "execute_plugin",
+    "pattern": "execute_plugin/"
+  },
+  {
+    "name": "firmware_info",
+    "pattern": "firmware/<str:name>/"
+  },
+  {
+    "name": "firmware_add",
+    "pattern": "firmware/add/"
+  },
+  {
+    "name": "firmware_download_url",
+    "pattern": "firmware/download/"
+  },
+  {
+    "name": "firmware_erase",
+    "pattern": "firmware/erase/"
+  },
+  {
+    "name": "firmware_flash",
+    "pattern": "firmware/flash/"
+  },
+  {
+    "name": "firmware_list",
+    "pattern": "firmware/list/"
+  },
+  {
+    "name": "firmware_remove",
+    "pattern": "firmware/remove/<str:name>/"
+  },
+  {
+    "name": "get_all_devices",
+    "pattern": "get_all_devices/"
+  },
+  {
+    "name": "get_component_types",
+    "pattern": "get_component_types/"
+  },
+  {
+    "name": "get_current_observations",
+    "pattern": "get_current_observations/"
+  },
+  {
+    "name": "get_current_target",
+    "pattern": "get_current_target/"
+  },
+  {
+    "name": "get_driver_states",
+    "pattern": "get_driver_states/"
+  },
+  {
+    "name": "get_facet_schemas",
+    "pattern": "get_facet_schemas/"
+  },
+  {
+    "name": "get_plugin_code",
+    "pattern": "get_plugin_code/"
+  },
+  {
+    "name": "get_target",
+    "pattern": "get_target/<str:target_id>/"
+  },
+  {
+    "name": "get_target_types",
+    "pattern": "get_target_types/"
+  },
+  {
+    "name": "initialize_devices",
+    "pattern": "initialize_devices/"
+  },
+  {
+    "name": "iot_fuzzer_generator_config",
+    "pattern": "iot-fuzzer/configuration/generators/config/"
+  },
+  {
+    "name": "iot_fuzzer_save_generator_config",
+    "pattern": "iot-fuzzer/configuration/generators/config/save/"
+  },
+  {
+    "name": "iot_fuzzer_generator_types",
+    "pattern": "iot-fuzzer/configuration/generators/types/"
+  },
+  {
+    "name": "iot_fuzzer_protocol_config",
+    "pattern": "iot-fuzzer/configuration/protocols/config/"
+  },
+  {
+    "name": "iot_fuzzer_save_protocol_config",
+    "pattern": "iot-fuzzer/configuration/protocols/config/save/"
+  },
+  {
+    "name": "iot_fuzzer_get_saved_config",
+    "pattern": "iot-fuzzer/configuration/protocols/saved-config/"
+  },
+  {
+    "name": "iot_fuzzer_test_protocol_connection",
+    "pattern": "iot-fuzzer/configuration/protocols/test-connection/"
+  },
+  {
+    "name": "iot_fuzzer_protocol_types",
+    "pattern": "iot-fuzzer/configuration/protocols/types/"
+  },
+  {
+    "name": "iot_fuzzer_delete_template",
+    "pattern": "iot-fuzzer/configuration/templates/delete/"
+  },
+  {
+    "name": "iot_fuzzer_templates_list",
+    "pattern": "iot-fuzzer/configuration/templates/list/"
+  },
+  {
+    "name": "iot_fuzzer_load_template",
+    "pattern": "iot-fuzzer/configuration/templates/load/"
+  },
+  {
+    "name": "iot_fuzzer_save_template",
+    "pattern": "iot-fuzzer/configuration/templates/save/"
+  },
+  {
+    "name": "iot_fuzzer_validate_configuration",
+    "pattern": "iot-fuzzer/configuration/validate/"
+  },
+  {
+    "name": "iot_fuzzer_export_test_data",
+    "pattern": "iot-fuzzer/management/export/"
+  },
+  {
+    "name": "iot_fuzzer_import_test_data",
+    "pattern": "iot-fuzzer/management/import/"
+  },
+  {
+    "name": "iot_fuzzer_build_protocol_frame",
+    "pattern": "iot-fuzzer/management/protocol-frames/build/"
+  },
+  {
+    "name": "iot_fuzzer_protocol_frame_templates",
+    "pattern": "iot-fuzzer/management/protocol-frames/templates/"
+  },
+  {
+    "name": "iot_fuzzer_validate_protocol_frame",
+    "pattern": "iot-fuzzer/management/protocol-frames/validate/"
+  },
+  {
+    "name": "iot_fuzzer_create_test_case",
+    "pattern": "iot-fuzzer/management/test-cases/create/"
+  },
+  {
+    "name": "iot_fuzzer_delete_test_case",
+    "pattern": "iot-fuzzer/management/test-cases/delete/<int:case_id>/"
+  },
+  {
+    "name": "iot_fuzzer_test_cases_list",
+    "pattern": "iot-fuzzer/management/test-cases/list/"
+  },
+  {
+    "name": "iot_fuzzer_move_test_case",
+    "pattern": "iot-fuzzer/management/test-cases/move/"
+  },
+  {
+    "name": "iot_fuzzer_update_test_case",
+    "pattern": "iot-fuzzer/management/test-cases/update/<int:case_id>/"
+  },
+  {
+    "name": "iot_fuzzer_create_test_group",
+    "pattern": "iot-fuzzer/management/test-groups/create/"
+  },
+  {
+    "name": "iot_fuzzer_delete_test_group",
+    "pattern": "iot-fuzzer/management/test-groups/delete/<int:group_id>/"
+  },
+  {
+    "name": "iot_fuzzer_test_groups_list",
+    "pattern": "iot-fuzzer/management/test-groups/list/"
+  },
+  {
+    "name": "iot_fuzzer_update_test_group",
+    "pattern": "iot-fuzzer/management/test-groups/update/<int:group_id>/"
+  },
+  {
+    "name": "iot_fuzzer_results_charts",
+    "pattern": "iot-fuzzer/results/analysis/charts/"
+  },
+  {
+    "name": "iot_fuzzer_export_results",
+    "pattern": "iot-fuzzer/results/analysis/export/"
+  },
+  {
+    "name": "iot_fuzzer_results_summary",
+    "pattern": "iot-fuzzer/results/analysis/summary/"
+  },
+  {
+    "name": "iot_fuzzer_artifacts",
+    "pattern": "iot-fuzzer/results/artifacts/"
+  },
+  {
+    "name": "iot_fuzzer_file_content",
+    "pattern": "iot-fuzzer/results/files/content/<int:file_id>/"
+  },
+  {
+    "name": "iot_fuzzer_download_file",
+    "pattern": "iot-fuzzer/results/files/download/<int:file_id>/"
+  },
+  {
+    "name": "iot_fuzzer_files_tree",
+    "pattern": "iot-fuzzer/results/files/tree/"
+  },
+  {
+    "name": "iot_fuzzer_filter_logs",
+    "pattern": "iot-fuzzer/results/logs/filter/"
+  },
+  {
+    "name": "iot_fuzzer_logs_list",
+    "pattern": "iot-fuzzer/results/logs/list/"
+  },
+  {
+    "name": "iot_fuzzer_pause_campaign",
+    "pattern": "iot-fuzzer/testing/campaign/pause/"
+  },
+  {
+    "name": "iot_fuzzer_reset_campaign",
+    "pattern": "iot-fuzzer/testing/campaign/reset/"
+  },
+  {
+    "name": "iot_fuzzer_start_campaign",
+    "pattern": "iot-fuzzer/testing/campaign/start/"
+  },
+  {
+    "name": "iot_fuzzer_campaign_status",
+    "pattern": "iot-fuzzer/testing/campaign/status/"
+  },
+  {
+    "name": "iot_fuzzer_stop_campaign",
+    "pattern": "iot-fuzzer/testing/campaign/stop/"
+  },
+  {
+    "name": "iot_fuzzer_campaign_statistics",
+    "pattern": "iot-fuzzer/testing/statistics/"
+  },
+  {
+    "name": "iot_fuzzer_test_groups",
+    "pattern": "iot-fuzzer/testing/test-groups/"
+  },
+  {
+    "name": "list_device_commands",
+    "pattern": "list_device_commands/<str:device_name>/"
+  },
+  {
+    "name": "list_device_drivers",
+    "pattern": "list_device_drivers/"
+  },
+  {
+    "name": "list_devices",
+    "pattern": "list_devices/"
+  },
+  {
+    "name": "list_files",
+    "pattern": "list_files/"
+  },
+  {
+    "name": "list_groups",
+    "pattern": "list_groups/"
+  },
+  {
+    "name": "list_plugin_info",
+    "pattern": "list_plugin_info/"
+  },
+  {
+    "name": "list_plugins",
+    "pattern": "list_plugins/"
+  },
+  {
+    "name": "list_targets",
+    "pattern": "list_targets/"
+  },
+  {
+    "name": "list_urls",
+    "pattern": "list_urls/"
+  },
+  {
+    "name": "ota_info",
+    "pattern": "ota_info/"
+  },
+  {
+    "name": "get_plugin_execution",
+    "pattern": "plugin-executions/<uuid:execution_id>/"
+  },
+  {
+    "name": "cancel_plugin_execution",
+    "pattern": "plugin-executions/<uuid:execution_id>/cancel/"
+  },
+  {
+    "name": "answer_input_request",
+    "pattern": "plugin-executions/<uuid:execution_id>/inputs/<uuid:request_id>/answer/"
+  },
+  {
+    "name": "list_pending_input_requests",
+    "pattern": "plugin-executions/pending/"
+  },
+  {
+    "name": "get_plugin_group",
+    "pattern": "plugin_groups/<str:name>/"
+  },
+  {
+    "name": "list_enabled_plugin_groups",
+    "pattern": "plugin_groups/enabled/"
+  },
+  {
+    "name": "disable_exploit_plugin",
+    "pattern": "plugins/exploits/<str:name>/disable/"
+  },
+  {
+    "name": "enable_exploit_plugin",
+    "pattern": "plugins/exploits/<str:name>/enable/"
+  },
+  {
+    "name": "discovered_exploit_plugins",
+    "pattern": "plugins/exploits/discovered/"
+  },
+  {
+    "name": "list_enabled_exploit_plugins",
+    "pattern": "plugins/exploits/enabled/"
+  },
+  {
+    "name": "record_observations",
+    "pattern": "record_observations/"
+  },
+  {
+    "name": "execute_recovery",
+    "pattern": "recovery/<str:driver_name>/"
+  },
+  {
+    "name": "list_recovery_drivers",
+    "pattern": "recovery/drivers/"
+  },
+  {
+    "name": "save_plugin_code",
+    "pattern": "save_plugin_code/"
+  },
+  {
+    "name": "scan_all_devices",
+    "pattern": "scan_all_devices/"
+  },
+  {
+    "name": "scan_specific_device",
+    "pattern": "scan_device/<str:driver_name>/"
+  },
+  {
+    "name": "select_target",
+    "pattern": "select_target/"
+  },
+  {
+    "name": "set_log_level",
+    "pattern": "set_log_level/"
+  },
+  {
+    "name": "stop_plugin_async",
+    "pattern": "stop_plugin_async/"
+  },
+  {
+    "name": "get_system_health",
+    "pattern": "system_health/"
+  },
+  {
+    "name": "get_tool_details",
+    "pattern": "tools/<str:tool_name>/"
+  },
+  {
+    "name": "refresh_tools",
+    "pattern": "tools/refresh/"
+  },
+  {
+    "name": "get_tools_status",
+    "pattern": "tools_status/"
+  },
+  {
+    "name": "upload_file",
+    "pattern": "upload_file/"
+  }
+]

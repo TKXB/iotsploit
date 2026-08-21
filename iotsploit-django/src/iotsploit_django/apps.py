@@ -20,3 +20,8 @@ class IoTSploitDjangoConfig(AppConfig):
         # others still from tools/ until their clients move there too.
         from iotsploit_django.tools import can_facet, doip_facet  # noqa: F401
         from iotsploit_protocols.someip import facet as someip_facet  # noqa: F401
+
+        # `iotsploit_django.models` is deliberately framework-agnostic, so
+        # Django's automatic <app>.models import registers nothing. ORM models
+        # that need migrations are imported here instead.
+        from iotsploit_django.adapters.django.interaction import models as interaction_models  # noqa: F401

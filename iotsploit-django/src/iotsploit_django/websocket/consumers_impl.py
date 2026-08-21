@@ -1,5 +1,6 @@
 import json
 import logging
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 import asyncio
@@ -111,6 +112,63 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
         while self.is_polling:
             await self.send_task_status()
             await asyncio.sleep(1)
+
+class PluginExecutionConsumer(AsyncWebsocketConsumer):
+    """Live events for one plugin execution, keyed on its own id.
+
+    Unlike the older exploit socket this does not poll Celery: the worker emits
+    what happens, and a client that misses something refetches
+    `/api/plugin-executions/<id>/`. On connect it replays the current state so a
+    reload or a reconnect lands on the open prompt rather than an empty screen.
+    """
+
+    async def connect(self):
+        self.execution_id = self.scope["url_route"]["kwargs"]["execution_id"]
+        self.group_name = f"plugin_execution_{self.execution_id}"
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+        logger.info("WebSocket connected for execution: %s", self.execution_id)
+
+        state = await self._state()
+        if state is not None:
+            await self.send(text_data=json.dumps({
+                "execution_id": str(self.execution_id),
+                "event": "state",
+                "payload": state,
+            }))
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        logger.info("WebSocket disconnected for execution: %s", self.execution_id)
+
+    async def execution_event(self, event):
+        """Forward one event emitted by the worker."""
+        await self.send(text_data=json.dumps(event["message"]))
+
+    async def receive(self, text_data):
+        """Answering and cancelling go over authenticated HTTP, not this socket.
+
+        Only a state refresh is accepted here, so there is one audited path for
+        anything that changes a run.
+        """
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            return
+        if data.get("action") == "get_state":
+            state = await self._state()
+            await self.send(text_data=json.dumps({
+                "execution_id": str(self.execution_id),
+                "event": "state",
+                "payload": state or {},
+            }))
+
+    @database_sync_to_async
+    def _state(self):
+        from iotsploit_django.view_handlers.interaction_views import execution_state
+        return execution_state(self.execution_id)
+
 
 class DeviceStreamConsumer(AsyncWebsocketConsumer):
     async def connect(self):

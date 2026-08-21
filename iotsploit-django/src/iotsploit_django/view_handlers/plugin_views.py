@@ -326,9 +326,40 @@ def execute_plugin(request):
 
         plugin_manager = get_exploit_plugin_manager()
 
-        # Check if plugin requires root privileges
         plugin_info = plugin_manager.get_plugin_info(plugin_name)
         requires_root = plugin_info and plugin_info.get('RequiresRoot', False)
+        is_interactive = bool(plugin_info and plugin_info.get('Interactive', False))
+
+        # A plugin that can stop and ask something must not run inside this
+        # request: the question would have nobody to answer it and the thread
+        # would block. Hand it to the interactive queue and return an id the
+        # client can watch and answer over.
+        if is_interactive and not requires_root:
+            from iotsploit_django.adapters.django.interaction import service
+            from iotsploit_django.tasks.interaction_tasks import run_execution_task
+
+            execution = service.create_execution(
+                plugin_name,
+                target=current_target,
+                parameters=parameters,
+            )
+            run_execution_task.delay(
+                str(execution.execution_id),
+                plugin_name,
+                target=execution.target_snapshot,
+                parameters=parameters,
+            )
+            logger.info(
+                "Queued interactive execution %s for plugin '%s'",
+                execution.execution_id, plugin_name,
+            )
+            return JsonResponse({
+                "status": "success",
+                "execution_type": "interactive",
+                "execution_id": str(execution.execution_id),
+                "message": "Interactive execution started",
+                "websocket_url": f"/ws/execution/{execution.execution_id}/",
+            })
 
         if requires_root:
             # Use sudo runner for root-required plugins
