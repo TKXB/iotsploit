@@ -78,3 +78,39 @@ def test_the_handler_prints_the_message_alone():
         logging.LogRecord(NAMESPACE, logging.INFO, __file__, 1, "plain", None, None)
     )
     assert stream.getvalue() == "plain\n"
+
+
+def test_a_line_is_printed_once_even_though_root_has_a_handler():
+    """The regression this file exists to prevent a second time.
+
+    The shell's own stack puts a console handler on the root logger. Making the
+    plugin namespace verbose enough to be heard also makes it audible there, so
+    without claiming the records the operator reads every response twice: once
+    bare, once with a timestamp and a logger path in front of it.
+    """
+    host = io.StringIO()
+    host_handler = logging.StreamHandler(host)
+    logging.getLogger().addHandler(host_handler)
+    out = io.StringIO()
+    try:
+        with console_plugin_logs(out, logger_name=NAMESPACE):
+            logging.getLogger(f"{NAMESPACE}.session").info("printed once")
+    finally:
+        logging.getLogger().removeHandler(host_handler)
+
+    assert out.getvalue().count("printed once") == 1
+    assert host.getvalue() == ""
+
+
+def test_the_host_hears_the_namespace_again_once_the_command_ends():
+    host = io.StringIO()
+    host_handler = logging.StreamHandler(host)
+    logging.getLogger().addHandler(host_handler)
+    try:
+        with console_plugin_logs(io.StringIO(), logger_name=NAMESPACE):
+            pass
+        logging.getLogger(NAMESPACE).warning("a later run")
+    finally:
+        logging.getLogger().removeHandler(host_handler)
+
+    assert "a later run" in host.getvalue()

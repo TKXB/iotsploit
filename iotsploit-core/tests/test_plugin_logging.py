@@ -29,6 +29,18 @@ def clean_namespace():
     logger.setLevel(level)
 
 
+@pytest.fixture
+def root_listener():
+    """A handler on the root logger, the way a host that configures one has."""
+    listener = Collector()
+    root = logging.getLogger()
+    root.addHandler(listener)
+    try:
+        yield listener
+    finally:
+        root.removeHandler(listener)
+
+
 class Collector(logging.Handler):
     def __init__(self):
         super().__init__(logging.INFO)
@@ -90,3 +102,35 @@ def test_the_handler_is_detached_even_when_the_run_raises():
     logging.getLogger(NAMESPACE).error("after the run")
     assert collector.messages == []
     assert collector not in logging.getLogger(NAMESPACE).handlers
+
+
+# ── who else hears the records ───────────────────────────────────────────
+
+
+def test_by_default_the_host_still_gets_its_own_copy(root_listener):
+    # A worker's ordinary logs must keep the plugin's lines; only the shell,
+    # where the handler *is* the transcript, wants them to itself.
+    with attach_plugin_logs(Collector(), logger_name=NAMESPACE):
+        logging.getLogger(NAMESPACE).info("heard by both")
+    assert root_listener.messages == ["heard by both"]
+
+
+def test_exclusive_keeps_the_records_off_the_hosts_handlers(root_listener):
+    # Lowering the level does not only feed the handler passed in: anything
+    # already on an ancestor starts receiving the same records, and a host with
+    # a console handler on root then prints every line twice.
+    collector = Collector()
+    with attach_plugin_logs(collector, logger_name=NAMESPACE, exclusive=True):
+        logging.getLogger(NAMESPACE).info("mine alone")
+
+    assert collector.messages == ["mine alone"]
+    assert root_listener.messages == []
+
+
+def test_propagation_is_restored_afterwards(root_listener):
+    with attach_plugin_logs(Collector(), logger_name=NAMESPACE, exclusive=True):
+        pass
+    assert logging.getLogger(NAMESPACE).propagate is True
+
+    logging.getLogger(NAMESPACE).warning("the host can hear again")
+    assert root_listener.messages == ["the host can hear again"]

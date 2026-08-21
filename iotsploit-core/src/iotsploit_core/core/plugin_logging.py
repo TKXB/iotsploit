@@ -32,6 +32,7 @@ def attach_plugin_logs(
     *,
     logger_name: str = PLUGIN_LOGGER,
     level: int = logging.INFO,
+    exclusive: bool = False,
 ) -> Iterator[logging.Handler]:
     """Route plugin log records to ``handler`` for the length of the block.
 
@@ -40,17 +41,31 @@ def attach_plugin_logs(
     process-global state, so it is safe only where one run is in flight at a
     time -- which is what the interactive queue's concurrency of 1 and a shell's
     single operator both guarantee.
+
+    ``exclusive`` stops the records propagating to ancestor handlers while the
+    block runs. It exists because lowering the level does not only feed the
+    handler passed here: any handler already on an ancestor starts receiving the
+    same records, and a host that has one -- a shell whose root logger carries a
+    console handler, say -- then prints every line twice, once bare and once
+    with a timestamp and logger path in front of it. Set it where this handler
+    is meant to *be* the transcript; leave it alone where the records should
+    also reach the host's ordinary logs, as they must in a worker.
     """
     plugin_logger = logging.getLogger(logger_name)
     previous_level = plugin_logger.level
+    previous_propagate = plugin_logger.propagate
     must_lower = plugin_logger.getEffectiveLevel() > level
 
     plugin_logger.addHandler(handler)
     if must_lower:
         plugin_logger.setLevel(level)
+    if exclusive:
+        plugin_logger.propagate = False
     try:
         yield handler
     finally:
         plugin_logger.removeHandler(handler)
         if must_lower:
             plugin_logger.setLevel(previous_level)
+        if exclusive:
+            plugin_logger.propagate = previous_propagate

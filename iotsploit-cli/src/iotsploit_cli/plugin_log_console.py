@@ -13,6 +13,11 @@ the run ended and the result was dumped.
 This is the shell's half of the same bridge the Celery task uses, differing only
 in where a record goes: to stderr, alongside the shell's own output, so the
 answer appears under the request that asked for it.
+
+It claims the records exclusively while it runs. The shell's own root logger
+carries a console handler, so simply making the namespace verbose enough is not
+enough -- that handler starts printing the same lines with a timestamp and a
+logger path in front, and the operator reads every response twice.
 """
 
 from __future__ import annotations
@@ -55,7 +60,9 @@ def console_plugin_logs(
         return
 
     handler = transcript_handler(stream, level=level)
-    with attach_plugin_logs(handler, logger_name=logger_name, level=level):
+    with attach_plugin_logs(
+        handler, logger_name=logger_name, level=level, exclusive=True
+    ):
         try:
             yield handler
         finally:
