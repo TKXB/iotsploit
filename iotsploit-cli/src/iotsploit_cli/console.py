@@ -120,6 +120,7 @@ from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog as logger
 from iotsploit_core.core.interaction_binding import bind_interaction
 from iotsploit_cli.interaction_console import ConsoleInteractionAdapter
+from iotsploit_cli.plugin_log_console import console_plugin_logs
 from iotsploit_core.utils import iots_logger
 
 def global_exception_handler(exctype, value, traceback):
@@ -322,8 +323,15 @@ class SAT_Shell(SAT_Shell_Base):
 
         The binding does not reach a plugin that prompts from a thread it
         spawned itself; context variables do not cross threads.
+
+        A plugin's own log records are shown here for the same reason and over
+        the same span: asking a question is only half a conversation, and
+        without this the shell answered every one of them into a logger with no
+        handler. Unlike the binding, this one does reach the threads a plugin
+        spawns -- logging is process-global, which is why it is scoped to a
+        single command rather than left on.
         """
-        with bind_interaction(ConsoleInteractionAdapter()):
+        with bind_interaction(ConsoleInteractionAdapter()), console_plugin_logs():
             return super().onecmd_plus_hooks(*args, **kwargs)
 
     def precmd(self, statement):

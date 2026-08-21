@@ -13,9 +13,9 @@ bridge: for the life of one execution, records from the plugin namespace become
 ``log`` events on that execution's own socket, and land in the transcript next
 to the request that produced them.
 
-Scoped to the plugin namespace rather than to the root logger, because root in a
-Celery worker also carries Django, Redis and channel-layer chatter, none of
-which is the operator's transcript.
+The namespace and the level juggling live in ``iotsploit_core`` -- the shell
+needs the same transcript from the same records, and only differs in where it
+sends them.
 """
 
 from __future__ import annotations
@@ -23,10 +23,11 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 
+from iotsploit_core.core.plugin_logging import PLUGIN_LOGGER, attach_plugin_logs
+
 from .events import emit
 
-#: Records from here and below are the operator's transcript.
-PLUGIN_LOGGER = "iotsploit_exploits"
+__all__ = ["PLUGIN_LOGGER", "ExecutionLogHandler", "stream_logs", "ui_level"]
 
 #: The levels the Control Panel knows how to colour. An unknown level renders in
 #: the faint fallback rather than failing, but there is no reason to send one.
@@ -73,25 +74,7 @@ class ExecutionLogHandler(logging.Handler):
 
 @contextmanager
 def stream_logs(execution_id, *, logger_name: str = PLUGIN_LOGGER, level: int = logging.INFO):
-    """Send plugin log records to this execution's viewers, for its duration.
-
-    The logger's level is raised for the duration when it would otherwise
-    discard the records before any handler saw them, and put back afterwards.
-    That is process-global state, which is safe here only because interactive
-    executions run on their own queue at concurrency 1 -- one execution at a
-    time, by design (see ``interaction_tasks``).
-    """
-    plugin_logger = logging.getLogger(logger_name)
+    """Send plugin log records to this execution's viewers, for its duration."""
     handler = ExecutionLogHandler(execution_id, level)
-    previous_level = plugin_logger.level
-    must_lower = plugin_logger.getEffectiveLevel() > level
-
-    plugin_logger.addHandler(handler)
-    if must_lower:
-        plugin_logger.setLevel(level)
-    try:
+    with attach_plugin_logs(handler, logger_name=logger_name, level=level):
         yield handler
-    finally:
-        plugin_logger.removeHandler(handler)
-        if must_lower:
-            plugin_logger.setLevel(previous_level)

@@ -39,6 +39,12 @@ class ConsoleInteractionAdapter(PromptSugar):
     def __init__(self, stdin=None, stdout=None):
         self._stdin = stdin
         self._stdout = stdout
+        #: Title and description of the last prompt written, so a plugin that
+        #: asks the same question in a loop does not reprint its own preamble
+        #: between every answer. A REPL-shaped plugin asks once per request,
+        #: and three lines of unchanged boilerplate per request buries the
+        #: transcript it is there to produce.
+        self._last_header: tuple[str, str | None] | None = None
 
     # -- port ------------------------------------------------------------
     def request(self, prompt: Prompt) -> Any:
@@ -73,10 +79,13 @@ class ConsoleInteractionAdapter(PromptSugar):
         return input(prompt_text)
 
     def _ask(self, prompt: Prompt) -> Any:
-        self._write()
-        self._write(ansi.style(prompt.title, bold=True))
-        if prompt.description:
-            self._write(ansi.style(prompt.description, fg=ansi.Fg.LIGHT_GRAY))
+        header = (prompt.title, prompt.description)
+        if header != self._last_header:
+            self._write()
+            self._write(ansi.style(prompt.title, bold=True))
+            if prompt.description:
+                self._write(ansi.style(prompt.description, fg=ansi.Fg.LIGHT_GRAY))
+        self._last_header = header
 
         if prompt.kind in ("single_choice", "multiple_choice"):
             for index, choice in enumerate(prompt.choices, start=1):

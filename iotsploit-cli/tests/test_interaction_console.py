@@ -94,3 +94,43 @@ def test_description_is_shown():
 def test_check_cancelled_is_a_no_op():
     port, _ = adapter("")
     assert port.check_cancelled() is None
+
+
+def test_an_unchanged_prompt_is_not_reprinted_between_answers():
+    # A REPL-shaped plugin asks the same question once per request. Reprinting
+    # the title and its preamble every time buries the transcript in the
+    # invitation to add to it.
+    port, out = adapter("10 01\n10 03\n22 F1 90\n")
+    prompt = Prompt(kind="text", title="Next request",
+                    description="Responses appear in the console.", required=False)
+    for _ in range(3):
+        port.request(prompt)
+
+    printed = out.getvalue()
+    assert printed.count("Next request") == 1
+    assert printed.count("Responses appear in the console.") == 1
+
+
+def test_a_changed_prompt_prints_its_own_header_again():
+    port, out = adapter("10 01\ny\n10 03\n")
+    ask = Prompt(kind="text", title="Next request", required=False)
+    confirm = Prompt(kind="confirm", title="Send 11 01?",
+                     description="ECU reset -- this request changes ECU state.")
+
+    port.request(ask)
+    port.request(confirm)
+    port.request(ask)
+
+    printed = out.getvalue()
+    assert printed.count("Send 11 01?") == 1
+    # Asked, interrupted by the confirmation, then asked again: the second one
+    # is a fresh question to the operator and says so.
+    assert printed.count("Next request") == 2
+
+
+def test_a_repeated_prompt_still_shows_its_input_label_each_time():
+    port, out = adapter("10 01\n10 03\n")
+    prompt = Prompt(kind="text", title="Next request", required=False)
+    port.request(prompt)
+    port.request(prompt)
+    assert out.getvalue().count("Value: ") == 2
