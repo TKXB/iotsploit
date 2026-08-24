@@ -1,8 +1,8 @@
-"""Wire-protocol clients, free of any environment.
+"""Automotive protocol clients and description parsers, free of runtime state.
 
-Nothing here reads a database, a config file, an environment variable, or the
-current target, and nothing here runs sudo or prompts a human. A client is
-constructed from an explicit config object that the caller builds. That is what
+Nothing here reads the IoTSploit database, environment variables, or the
+current target, and nothing here runs sudo or prompts a human. Inputs are
+explicit config objects or caller-selected description files. That is what
 lets these run under Celery, under MCP, in a test, or from a plugin, and it is
 what keeps one lab bench's IP addresses out of the library.
 

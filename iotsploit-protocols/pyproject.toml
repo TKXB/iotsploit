@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "iotsploit-protocols"
 version = "0.0.8"
-description = "Wire-protocol clients for IoTSploit (SOME/IP, DoIP/UDS) built on scapy"
+description = "Automotive protocol clients and description parsers for IoTSploit"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -28,6 +28,7 @@ iotsploit-core = "*"
 # scapy.contrib.automotive, which needs 2.5+; 2.6 is what the workspace runs.
 scapy = ">=2.6,<3"
 pydantic = ">=2.0"
+cantools = "42.0.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0"
