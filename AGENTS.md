@@ -3,6 +3,9 @@
 Read `.agents/local.md` when it exists for machine-specific toolchain paths and
 commands. Use Poetry for Python dependency management and command execution.
 
+Read `docs/architecture.md` before adding or moving Python code — it describes
+the ports-and-adapters layout and the dependency rule the packages follow.
+
 IoTSploit's MCP server runs on the rig that has access to the hardware and the
 Django backend. External agents connect over HTTP.
 
