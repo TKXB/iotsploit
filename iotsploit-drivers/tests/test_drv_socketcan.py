@@ -109,12 +109,27 @@ def test_a_repeated_error_is_rate_limited_but_still_counted(driver):
     assert driver.status()["bus_errors"]["controller-problem{rx-error-warning}"] == 51
 
 
-def test_a_changed_error_is_reported_immediately(driver):
+def test_a_newly_seen_error_is_reported_immediately(driver):
     driver.handle_received_message(error_frame("0004000000000000"))
     driver.handle_received_message(error_frame("0010000000000000"))
 
     descriptions = [item.data["description"] for item in driver.stream_wrapper.published]
     assert descriptions == ["controller-problem{rx-error-warning}", "controller-problem{rx-error-passive}"]
+
+
+def test_an_oscillating_fault_is_rate_limited_per_description(driver):
+    # A controller sitting on the error-passive threshold alternates warning
+    # and passive on every frame. Rate limiting on "the description changed"
+    # would let every one of these through, which is the flood being avoided.
+    for _ in range(40):
+        driver.handle_received_message(error_frame("0004000000000000"))
+        driver.handle_received_message(error_frame("0010000000000000"))
+
+    assert len(driver.stream_wrapper.published) == 2
+    assert driver.status()["bus_errors"] == {
+        "controller-problem{rx-error-warning}": 40,
+        "controller-problem{rx-error-passive}": 40,
+    }
 
 
 def test_a_data_frame_is_published_with_its_flags(driver):

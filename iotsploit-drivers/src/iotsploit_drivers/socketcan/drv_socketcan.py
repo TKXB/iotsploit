@@ -32,9 +32,15 @@ from iotsploit_drivers.socketcan.can_link import CanLinkInfo, read_can_links
 
 logger = iots_logger.get_logger(__name__)
 
-#: A faulted bus repeats the same error hundreds of times a second. Report a
-#: change immediately, then at most this often, so the log and the stream stay
-#: readable while the fault is still visible.
+#: A faulted bus repeats the same error hundreds of times a second. Each
+#: distinct fault is reported at most this often, so the log and the stream
+#: stay readable while the fault is still visible.
+#:
+#: Per description rather than globally, because the interesting case
+#: oscillates: a controller sitting on the error-passive threshold alternates
+#: rx-error-warning and rx-error-passive on every frame, so "report whenever
+#: the description changes" would report every single one -- 59 of them in
+#: three seconds on a real bench bus, which is the flood this exists to stop.
 ERROR_REPORT_INTERVAL_S = 1.0
 
 
@@ -47,8 +53,7 @@ class SocketCANDriver(BaseDeviceDriver):
         # back down: an interface the operator configured outlives us.
         self._brought_link_up = False
         self._error_counts: Dict[str, int] = {}
-        self._last_error_description: Optional[str] = None
-        self._last_error_report = 0.0
+        self._last_error_report: Dict[str, float] = {}
         self.supported_commands = {
             "start": "Start streaming CAN messages",
             "stop": "Stop streaming CAN messages",
@@ -288,8 +293,7 @@ class SocketCANDriver(BaseDeviceDriver):
         """设置CAN数据采集"""
         logger.info("Setting up CAN acquisition")
         self._error_counts.clear()
-        self._last_error_description = None
-        self._last_error_report = 0.0
+        self._last_error_report.clear()
         if not self.bus:
             self.setup_bus()
 
@@ -361,13 +365,11 @@ class SocketCANDriver(BaseDeviceDriver):
         description = error["description"]
         self._error_counts[description] = self._error_counts.get(description, 0) + 1
 
+        # A fault never seen before has no entry, so it reports immediately.
         now = time.monotonic()
-        changed = description != self._last_error_description
-        if not changed and now - self._last_error_report < ERROR_REPORT_INTERVAL_S:
+        if now - self._last_error_report.get(description, float("-inf")) < ERROR_REPORT_INTERVAL_S:
             return
-
-        self._last_error_description = description
-        self._last_error_report = now
+        self._last_error_report[description] = now
 
         logger.warning(
             "CAN bus error on %s: %s (%d so far)",
