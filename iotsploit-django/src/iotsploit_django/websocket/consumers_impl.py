@@ -330,8 +330,17 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 try:
                     can_id = int(stream_data.data['id'], 16)
                     can_data = bytes.fromhex(stream_data.data['data'])
-                    
-                    driver.send_can_message(driver.device, can_id, can_data)
+                    # The client already states these; dropping them sent every
+                    # frame as standard classic CAN regardless of what was asked.
+                    metadata = stream_data.metadata or {}
+
+                    driver.send_can_message(
+                        driver.device,
+                        can_id,
+                        can_data,
+                        is_extended_id=bool(metadata.get('is_extended_id', False)),
+                        is_fd=bool(metadata.get('is_fd', False)),
+                    )
                     
                     response_data = StreamData(
                         stream_type=StreamType.CAN,
