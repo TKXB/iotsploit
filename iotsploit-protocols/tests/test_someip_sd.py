@@ -18,6 +18,7 @@ import pytest
 
 from iotsploit_protocols.errors import NotConfigured
 from iotsploit_protocols.someip import SdConfig, ServiceDiscovery
+from iotsploit_protocols.someip.codec import application_payload
 
 pytestmark = pytest.mark.unit
 
@@ -310,7 +311,7 @@ def test_find_sends_a_wildcard_findservice_entry(responder):
     from scapy.contrib.automotive.someip import SD, SOMEIP
 
     datagram = ServiceDiscovery._find_datagram(0xFFFF, 0xFFFF, ttl=3)
-    entry = SD(bytes(SOMEIP(datagram).payload)).entry_array[0]
+    entry = SD(application_payload(SOMEIP(datagram))).entry_array[0]
 
     assert int(entry.type) == 0x00
     assert (int(entry.srv_id), int(entry.inst_id)) == (0xFFFF, 0xFFFF)

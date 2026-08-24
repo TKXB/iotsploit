@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from iotsploit_protocols.errors import NotConfigured
+from iotsploit_protocols.someip.codec import application_payload
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +277,7 @@ class ServiceDiscovery:
 
         try:
             packet = SOMEIP(datagram)
-            payload = bytes(packet.payload)
+            payload = application_payload(packet)
             if not payload:
                 return []
             sd = SD(payload)

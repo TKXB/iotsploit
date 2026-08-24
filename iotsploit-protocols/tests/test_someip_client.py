@@ -16,6 +16,7 @@ import pytest
 from iotsploit_protocols.errors import NotConfigured, ProtocolError
 from iotsploit_protocols.someip import SomeIpClient, SomeIpConfig
 from iotsploit_protocols.someip.client import TYPE_ERROR, TYPE_RESPONSE
+from iotsploit_protocols.someip.codec import application_payload
 
 pytestmark = pytest.mark.unit
 
@@ -117,7 +118,7 @@ def test_scapy_27_data_field_carries_the_application_payload():
         data = [b"\xAA", b"\xBB"]
         payload = b""
 
-    assert SomeIpClient._application_payload(Packet()) == b"\xAA\xBB"
+    assert application_payload(Packet()) == b"\xAA\xBB"
 
 
 def test_scapy_26_packet_payload_still_works():
@@ -125,7 +126,7 @@ def test_scapy_26_packet_payload_still_works():
         data = None
         payload = b"\xCC\xDD"
 
-    assert SomeIpClient._application_payload(Packet()) == b"\xCC\xDD"
+    assert application_payload(Packet()) == b"\xCC\xDD"
 
 
 def test_an_error_reply_is_not_success(serve):
