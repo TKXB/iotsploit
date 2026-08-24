@@ -1,12 +1,14 @@
 # iotsploit-protocols
 
-Wire-protocol clients for IoTSploit: SOME/IP today, DoIP/UDS next.
+Automotive protocol clients and description parsers for IoTSploit: SOME/IP,
+DoIP/UDS, and AUTOSAR ARXML.
 
-Nothing in this package reads a database, a config file, an environment
-variable, or the current target, and nothing runs `sudo` or prompts a human. A
-client is built from an explicit config object supplied by the caller. That is
-what lets it run under Celery, under MCP, in a test, or from a plugin — and what
-keeps one lab bench's IP addresses out of a library.
+Nothing in this package reads the IoTSploit database, runtime configuration,
+environment variables, or the current target, and nothing runs `sudo` or
+prompts a human. Clients receive explicit config objects and description
+parsers receive caller-selected files. That is what lets them run under
+Celery, under MCP, in a test, or from a plugin — and what keeps one lab bench's
+IP addresses out of a library.
 
 scapy is used as a **codec, not as a socket**: packets are built and parsed with
 `scapy.contrib.automotive`, but I/O happens on ordinary sockets, so calling a
