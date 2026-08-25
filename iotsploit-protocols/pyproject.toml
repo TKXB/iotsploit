@@ -29,6 +29,9 @@ iotsploit-core = "*"
 scapy = ">=2.6,<3"
 pydantic = ">=2.0"
 cantools = "42.0.3"
+# Same range iotsploit-drivers already pins. The SocketCAN clients import it
+# lazily so that previewing a frame works on a host with no CAN interface.
+python-can = ">=4.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0"

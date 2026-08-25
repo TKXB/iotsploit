@@ -1,0 +1,257 @@
+"""The one-shot SocketCAN sender: what reaches the wire, and what closes after.
+
+Every test here drives a fake bus. Nothing in the deterministic suite may open
+can0, vcan0, or a socket of any kind -- a test that transmits is a test that
+changes a vehicle.
+
+The invariants worth stating, because each one is a way real hardware gets hurt
+or a bug gets hidden:
+
+* the flags come from the frame, so an extended id is not sent as standard;
+* ``check=True`` reaches python-can, so a mismatched id or length is refused
+  locally rather than truncated on the wire;
+* the socket is shut down on every exit path, including the failing one;
+* nothing here configures an interface, so a channel that is down is an error
+  and never something this code fixes by itself.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from iotsploit_protocols.canbus.definitions import EncodedFrame
+from iotsploit_protocols.canbus.socketcan import (
+    CanTransportError,
+    SocketCanClient,
+    SocketCanConfig,
+)
+from iotsploit_protocols.errors import NotConfigured
+
+pytestmark = pytest.mark.unit
+
+
+class FakeBus:
+    """Records what it was asked to send, and whether it was closed."""
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.sent = []
+        self.shutdown_calls = 0
+        self.raise_on_send = None
+
+    def send(self, message, timeout=None):
+        self.sent.append((message, timeout))
+        if self.raise_on_send:
+            raise self.raise_on_send
+
+    def shutdown(self):
+        self.shutdown_calls += 1
+
+
+@pytest.fixture
+def bus_holder():
+    made = []
+
+    def factory(**kwargs):
+        bus = FakeBus(**kwargs)
+        made.append(bus)
+        return bus
+
+    factory.made = made
+    return factory
+
+
+def classic_frame():
+    return EncodedFrame(
+        frame_id=0x123,
+        is_extended=False,
+        is_fd=False,
+        dlc=8,
+        data=bytes.fromhex("A9010E0000000000"),
+        name="VehicleStatus",
+    )
+
+
+def extended_fd_frame():
+    return EncodedFrame(
+        frame_id=0x1ABCDEF,
+        is_extended=True,
+        is_fd=True,
+        dlc=16,
+        data=bytes(16),
+        name="DiagnosticBlock",
+    )
+
+
+# ── the channel name ──────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "channel",
+    ["", "   ", "can 0", "a" * 16, "../../etc/passwd", "can0\n", None, 5],
+)
+def test_an_unusable_channel_name_fails_before_any_bus_is_built(channel):
+    """python-can reports a bad name as a generic OSError, which reads as "the
+    bus is down" rather than "that is not a name"."""
+    with pytest.raises(NotConfigured):
+        SocketCanConfig(channel=channel)
+
+
+@pytest.mark.parametrize("channel", ["can0", "vcan0", "can_pcan1", "slcan0"])
+def test_ordinary_interface_names_are_accepted(channel):
+    assert SocketCanConfig(channel=channel).channel == channel
+
+
+@pytest.mark.parametrize("timeout", [0, -1, None])
+def test_a_non_positive_timeout_is_refused(timeout):
+    with pytest.raises(NotConfigured, match="timeout"):
+        SocketCanConfig(channel="can0", timeout=timeout)
+
+
+# ── what reaches the bus ──────────────────────────────────────────────
+
+
+def test_the_bus_is_opened_on_the_named_channel_without_host_config(bus_holder):
+    """ignore_config keeps a host can.conf from redirecting this to another
+    interface or quietly supplying a bitrate."""
+    with SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder):
+        pass
+
+    kwargs = bus_holder.made[0].kwargs
+    assert kwargs["interface"] == "socketcan"
+    assert kwargs["channel"] == "can0"
+    assert kwargs["ignore_config"] is True
+
+
+def test_no_bitrate_or_link_state_is_ever_passed(bus_holder):
+    """Interface setup is host configuration. A tool that reconfigures a bus to
+    make its own call succeed has changed the vehicle to suit itself."""
+    with SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder) as client:
+        client.send(classic_frame())
+
+    assert set(bus_holder.made[0].kwargs) == {"interface", "channel", "fd", "ignore_config"}
+
+
+def test_a_classic_frame_carries_its_own_flags(bus_holder):
+    with SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder) as client:
+        client.send(classic_frame())
+
+    message, _ = bus_holder.made[0].sent[0]
+    assert message.arbitration_id == 0x123
+    assert message.is_extended_id is False
+    assert message.is_fd is False
+    assert bytes(message.data).hex().upper() == "A9010E0000000000"
+
+
+def test_an_extended_fd_frame_carries_its_own_flags(bus_holder):
+    """python-can defaults is_extended_id to True, so a standard frame sent
+    without setting it explicitly goes out as extended."""
+    frame = extended_fd_frame()
+
+    with SocketCanClient(SocketCanConfig("can0", fd=True), bus_factory=bus_holder) as client:
+        client.send(frame)
+
+    message, _ = bus_holder.made[0].sent[0]
+    assert message.arbitration_id == 0x1ABCDEF
+    assert message.is_extended_id is True
+    assert message.is_fd is True
+    assert len(message.data) == 16
+
+
+def test_the_socket_is_opened_in_fd_mode_only_for_an_fd_frame(bus_holder):
+    """A classic socket rejects a 16-byte payload."""
+    with SocketCanClient(SocketCanConfig("can0", fd=True), bus_factory=bus_holder):
+        pass
+    with SocketCanClient(SocketCanConfig("can0", fd=False), bus_factory=bus_holder):
+        pass
+
+    assert bus_holder.made[0].kwargs["fd"] is True
+    assert bus_holder.made[1].kwargs["fd"] is False
+
+
+def test_the_configured_timeout_reaches_the_send(bus_holder):
+    with SocketCanClient(SocketCanConfig("can0", timeout=2.5), bus_factory=bus_holder) as client:
+        client.send(classic_frame())
+
+    assert bus_holder.made[0].sent[0][1] == 2.5
+
+
+def test_an_impossible_frame_is_refused_locally(bus_holder):
+    """check=True is what makes python-can validate the id against the flag
+    before anything reaches the kernel."""
+    too_wide = EncodedFrame(
+        frame_id=0x9999, is_extended=False, is_fd=False, dlc=1, data=b"\x00", name="Bad"
+    )
+
+    with pytest.raises(CanTransportError):
+        with SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder) as client:
+            client.send(too_wide)
+
+    assert bus_holder.made == [] or bus_holder.made[0].sent == []
+
+
+def test_one_send_puts_exactly_one_frame_on_the_wire(bus_holder):
+    """No retry, no repetition. A retry around a send that may already have
+    reached an ECU turns one confirmed action into several unconfirmed ones."""
+    with SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder) as client:
+        client.send(classic_frame())
+
+    assert len(bus_holder.made[0].sent) == 1
+
+
+# ── lifecycle ─────────────────────────────────────────────────────────
+
+
+def test_the_socket_is_closed_after_a_successful_send(bus_holder):
+    with SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder) as client:
+        client.send(classic_frame())
+
+    assert bus_holder.made[0].shutdown_calls == 1
+
+
+def test_the_socket_is_closed_after_a_failed_send(bus_holder):
+    """A leaked SocketCAN socket keeps filling a kernel buffer nobody drains."""
+    client = SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder)
+
+    with pytest.raises(CanTransportError):
+        with client:
+            bus_holder.made and None
+            client.open()
+            bus_holder.made[0].raise_on_send = OSError("ENETDOWN")
+            client.send(classic_frame())
+
+    assert bus_holder.made[0].shutdown_calls == 1
+
+
+def test_a_failure_to_close_does_not_mask_the_result(bus_holder):
+    """The send already happened; raising from cleanup would report a failure
+    that did not occur."""
+
+    def factory(**kwargs):
+        bus = FakeBus(**kwargs)
+        bus.shutdown = lambda: (_ for _ in ()).throw(OSError("already gone"))
+        return bus
+
+    with SocketCanClient(SocketCanConfig("can0"), bus_factory=factory) as client:
+        client.send(classic_frame())
+
+
+def test_an_interface_that_cannot_be_opened_explains_itself():
+    """Not a traceback, and not a claim that the frame failed to send: it never
+    got as far as a socket."""
+
+    def factory(**kwargs):
+        raise OSError(19, "No such device")
+
+    with pytest.raises(CanTransportError, match="has to exist and be up"):
+        SocketCanClient(SocketCanConfig("can0"), bus_factory=factory).open()
+
+
+def test_closing_twice_is_harmless(bus_holder):
+    client = SocketCanClient(SocketCanConfig("can0"), bus_factory=bus_holder)
+    client.open()
+
+    client.close()
+    client.close()
+
+    assert bus_holder.made[0].shutdown_calls == 1

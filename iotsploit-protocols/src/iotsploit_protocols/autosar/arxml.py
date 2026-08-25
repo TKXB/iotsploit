@@ -590,6 +590,10 @@ def _signal_dict(signal: Any) -> Dict[str, Any]:
         "maximum": getattr(signal, "maximum", None),
         "unit": getattr(signal, "unit", None) or "",
         "multiplexer": multiplexer,
+        # An IEEE-754 payload is not a scaled integer, and factor/offset do not
+        # say so. An encoder rebuilding this signal without the flag packs a
+        # float as an integer and is wrong by the whole width of the field.
+        "is_float": bool(getattr(signal, "is_float", False)),
     }
     receivers = list(getattr(signal, "receivers", ()) or ())
     if receivers:
