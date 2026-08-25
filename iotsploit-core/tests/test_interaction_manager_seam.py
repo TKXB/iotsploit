@@ -244,3 +244,33 @@ def test_an_explicit_port_wins_over_the_outer_one():
         )
 
     assert plugin.seen == "extended"
+
+
+def test_shell_bound_interactive_plugin_stays_in_process_despite_duration_hint():
+    class LongInteractivePlugin:
+        def __init__(self):
+            self.calls = 0
+
+        def get_info(self):
+            return {"Interactive": True}
+
+        def execute(self, target, parameters):
+            self.calls += 1
+            return {"ok": True}
+
+    class RejectingTaskRunner:
+        def submit(self, *args, **kwargs):
+            raise AssertionError("interactive shell run escaped to the task queue")
+
+    plugin = LongInteractivePlugin()
+    manager = build_manager(plugin)
+    manager._task_runner = RejectingTaskRunner()
+    manager._run_with_observations = (
+        lambda instance, name, target, parameters, executor: (executor(), {})
+    )
+
+    with bind_interaction(StubPort("unused")):
+        result = manager.execute_plugin("p", parameters={"duration": 30})
+
+    assert plugin.calls == 1
+    assert result["message"] == "{'ok': True}"
