@@ -104,6 +104,45 @@ Captures therefore accumulate as history and never retract an earlier finding.
 `tools/seed_can_observations.py` produced exactly this fact shape while no
 sniffer existed. It is now a fixture generator rather than a stand-in.
 
+## Getting definitions onto the bus
+
+A capture decodes against the target's own frames, so without them every row
+reads *"no definition on this bus"* — still a useful count, but not decoded.
+
+Import an ARXML or DBC, then load it:
+
+```bash
+poetry run python tools/import_arxml.py vehicle.arxml my_target "My Vehicle" \
+    --out /tmp/my_target.json
+iotsploit> target_import /tmp/my_target.json
+```
+
+### Which bus is the adapter on?
+
+A vehicle ARXML describes many buses and the adapter is plugged into exactly
+one. **Picking the wrong one does not fail** — every id still resolves, every
+signal still decodes, and the values are wrong. That is worse than an error,
+so answer it from the traffic:
+
+```bash
+poetry run python tools/match_can_bus.py my_target can0
+```
+
+```text
+25 distinct identities heard on can0
+
+BUS                       MATCHED   OF HEARD   DOCUMENTED
+bus_can_bkbcanfd          25        100%       168
+bus_can_ptcanfd           16         64%       160
+bus_can_conncanfd         12         48%       144
+
+Best match: bus_can_bkbcanfd (25 of 25 heard)
+```
+
+A wired bus explains nearly everything. A bus that is not explains some of it
+by coincidence, because ids repeat across buses — which is exactly why frame
+identity is scoped to a bus everywhere in this feature.
+
 ## Starting one
 
 The run **asks**. Set `bus_id` to the bus you want and press Execute; it then
