@@ -22,8 +22,10 @@ import pytest
 from iotsploit_protocols.canbus.definitions import EncodedFrame
 from iotsploit_protocols.canbus.socketcan import (
     CanTransportError,
+    CaptureBudget,
     SocketCanClient,
     SocketCanConfig,
+    SocketCanReceiver,
 )
 from iotsploit_protocols.errors import NotConfigured
 
@@ -255,3 +257,164 @@ def test_closing_twice_is_harmless(bus_holder):
     client.close()
 
     assert bus_holder.made[0].shutdown_calls == 1
+
+
+# ── the bounded receiver ──────────────────────────────────────────────
+
+
+class FakeClock:
+    """Advances only when the test says so, so a budget test takes no time."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
+class ReceivingBus(FakeBus):
+    def __init__(self, script=(), clock=None, tick=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.script = list(script)
+        self.recv_calls = 0
+        self.timeouts = []
+        self._clock = clock
+        self._tick = tick
+
+    def recv(self, timeout=None):
+        self.recv_calls += 1
+        self.timeouts.append(timeout)
+        if self._clock is not None:
+            self._clock.advance(self._tick)
+        return self.script.pop(0) if self.script else None
+
+
+def receiver_over(script, clock=None, tick=0.01, **config):
+    """A receiver whose clock advances on every recv.
+
+    Time has to move even when the bus is silent, or a deadline that a real
+    monotonic clock would reach never arrives and the test hangs rather than
+    fails. `tick` is how long each recv is pretended to take.
+    """
+    clock = clock or FakeClock()
+    made = []
+
+    def factory(**kwargs):
+        bus = ReceivingBus(script=script, clock=clock, tick=tick, **kwargs)
+        made.append(bus)
+        return bus
+
+    receiver = SocketCanReceiver(
+        SocketCanConfig(channel=config.pop("channel", "can0"), **config),
+        bus_factory=factory,
+        clock=clock,
+    )
+    return receiver, made
+
+
+@pytest.mark.parametrize("duration, frames", [(0, 10), (-1, 10), (5, 0), (5, -1)])
+def test_a_budget_must_be_positive(duration, frames):
+    """A capture with no budget is a leak: it runs in a worker, and an
+    observation scope needs a run that ends."""
+    with pytest.raises(NotConfigured):
+        CaptureBudget(duration_s=duration, max_frames=frames)
+
+
+def test_the_frame_budget_ends_the_capture():
+    receiver, made = receiver_over(["a", "b", "c", "d", "e"])
+
+    received = list(receiver.frames(CaptureBudget(duration_s=60, max_frames=3)))
+
+    assert received == ["a", "b", "c"]
+    assert made[0].shutdown_calls == 1
+
+
+def test_the_duration_budget_ends_the_capture_on_a_busy_bus():
+    """Neither budget is redundant: this one saves you when frames never stop."""
+    clock = FakeClock()
+    receiver, made = receiver_over(["x"] * 1000, clock=clock, tick=0.1)
+
+    received = list(receiver.frames(CaptureBudget(duration_s=1.0, max_frames=10_000)))
+
+    assert 0 < len(received) < 1000
+    assert made[0].shutdown_calls == 1
+
+
+def test_a_silent_bus_still_reaches_its_deadline():
+    """recv returns None on timeout. A loop that only checked the clock after a
+    frame would block past its deadline on a bus with no traffic at all."""
+    clock = FakeClock()
+    receiver, made = receiver_over([], clock=clock, tick=0.25)
+
+    received = list(receiver.frames(CaptureBudget(duration_s=1.0, max_frames=100)))
+
+    assert received == []
+    assert made[0].shutdown_calls == 1
+
+
+def test_the_recv_timeout_never_overshoots_the_deadline():
+    """Otherwise a 30s recv timeout on a 1s capture blocks 29s past the end."""
+    clock = FakeClock()
+    receiver, made = receiver_over([], clock=clock, tick=0.25)
+
+    list(receiver.frames(CaptureBudget(duration_s=0.1, max_frames=10)))
+
+    assert made[0].timeouts
+    assert all(t <= 0.1 for t in made[0].timeouts)
+
+
+def test_stopping_early_ends_the_capture():
+    receiver, made = receiver_over(["a", "b", "c"])
+    receiver.stop()
+
+    assert list(receiver.frames(CaptureBudget(duration_s=60, max_frames=100))) == []
+    assert made[0].shutdown_calls == 1
+
+
+def test_abandoning_the_generator_still_closes_the_socket():
+    """A leaked SocketCAN socket keeps filling a kernel buffer nobody drains."""
+    receiver, made = receiver_over(["a", "b", "c", "d"])
+
+    stream = receiver.frames(CaptureBudget(duration_s=60, max_frames=100))
+    next(stream)
+    stream.close()
+
+    assert made[0].shutdown_calls == 1
+
+
+def test_an_exception_mid_capture_still_closes_the_socket():
+    class Exploding(FakeBus):
+        def recv(self, timeout=None):
+            raise RuntimeError("driver fell over")
+
+    made = []
+
+    def factory(**kwargs):
+        bus = Exploding(**kwargs)
+        made.append(bus)
+        return bus
+
+    receiver = SocketCanReceiver(SocketCanConfig("can0"), bus_factory=factory)
+
+    with pytest.raises(RuntimeError):
+        list(receiver.frames(CaptureBudget(duration_s=1, max_frames=10)))
+
+    assert made[0].shutdown_calls == 1
+
+
+def test_the_receiver_has_no_send_path():
+    """Not a disabled one, not a private one. What it cannot do is part of what
+    it is."""
+    assert not hasattr(SocketCanReceiver, "send")
+
+
+def test_the_receiver_never_configures_the_link():
+    receiver, made = receiver_over([])
+
+    list(receiver.frames(CaptureBudget(duration_s=0.01, max_frames=1)))
+
+    assert set(made[0].kwargs) == {"interface", "channel", "fd", "ignore_config"}
+    assert made[0].kwargs["ignore_config"] is True

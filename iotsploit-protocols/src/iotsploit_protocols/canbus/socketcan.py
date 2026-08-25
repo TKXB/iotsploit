@@ -27,8 +27,9 @@ preview must work on a host with no CAN interface at all.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 
 from iotsploit_protocols.canbus.definitions import EncodedFrame
 from iotsploit_protocols.errors import NotConfigured, ProtocolError
@@ -182,3 +183,122 @@ class SocketCanClient:
                 f"SocketCAN refused frame 0x{frame.frame_id:X} on "
                 f"{self.config.channel!r}: {error}"
             ) from error
+
+
+@dataclass(frozen=True)
+class CaptureBudget:
+    """When a capture stops, stated two ways because either can run out first.
+
+    A capture with no budget is a leak: it runs inside a worker, and an
+    observation scope needs a run that ends in order to mean anything. The
+    frame budget is the one that saves you on a busy bus, where thirty seconds
+    is millions of frames; the duration is the one that saves you on a silent
+    bus, where the frame budget would never be reached.
+    """
+
+    duration_s: float = 30.0
+    max_frames: int = 200_000
+
+    def __post_init__(self) -> None:
+        if self.duration_s <= 0:
+            raise NotConfigured(f"capture duration must be positive, not {self.duration_s!r}")
+        if self.max_frames <= 0:
+            raise NotConfigured(f"frame budget must be positive, not {self.max_frames!r}")
+
+
+class SocketCanReceiver:
+    """A read-only socket that yields frames until its budget runs out.
+
+    There is no send path here, not even a disabled one. What this cannot do is
+    part of what it is.
+
+    It opens its own socket rather than borrowing the streaming driver's. That
+    is not duplication for its own sake: SocketCAN permits several sockets on
+    one interface, so a capture neither disturbs nor depends on the driver's
+    monitor, and neither one's lifetime is tied to the other's.
+
+    Note for anyone reading this next to the hardware: a CAN controller in
+    normal mode **acknowledges frames it receives, in silicon**. Attaching an
+    interface to a live bus is therefore not electrically inert, whatever this
+    software does or does not send. Listen-only is host link configuration
+    (``ip link set can0 type can listen-only on``) and this class must not set
+    it, for the same reason the sender must not set a bitrate.
+    """
+
+    def __init__(
+        self,
+        config: SocketCanConfig,
+        *,
+        bus_factory: Optional[BusFactory] = None,
+        clock: Optional[Callable[[], float]] = None,
+    ) -> None:
+        self.config = config
+        self._bus_factory = bus_factory or _default_bus_factory
+        self._clock = clock or time.monotonic
+        self._bus: Any = None
+        self._stop = False
+
+    def __enter__(self) -> "SocketCanReceiver":
+        self.open()
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:
+        self.close()
+
+    def open(self) -> None:
+        if self._bus is not None:
+            return
+        try:
+            self._bus = self._bus_factory(
+                interface="socketcan",
+                channel=self.config.channel,
+                fd=self.config.fd,
+                ignore_config=True,
+            )
+        except Exception as error:
+            raise CanTransportError(
+                f"cannot open SocketCAN interface {self.config.channel!r} for capture: "
+                f"{error}. The interface has to exist and be up; IoTSploit does not "
+                "configure it."
+            ) from error
+
+    def close(self) -> None:
+        bus, self._bus = self._bus, None
+        if bus is None:
+            return
+        try:
+            bus.shutdown()
+        except Exception:  # noqa: BLE001 - a failed close must not mask the capture
+            pass
+
+    def stop(self) -> None:
+        """Ask the loop to finish at its next opportunity."""
+        self._stop = True
+
+    def frames(self, budget: CaptureBudget) -> Iterator[Any]:
+        """Yield received messages until the budget is spent.
+
+        The socket is closed on every exit path -- normal end, exception, and
+        the consumer abandoning the generator -- because a leaked SocketCAN
+        socket keeps filling a kernel buffer that nobody drains.
+        """
+        if self._bus is None:
+            self.open()
+
+        started = self._clock()
+        deadline = started + budget.duration_s
+        delivered = 0
+        try:
+            while not self._stop and delivered < budget.max_frames:
+                remaining = deadline - self._clock()
+                if remaining <= 0:
+                    break
+                # Bounded by whichever is sooner, so a silent bus still wakes up
+                # to notice its own deadline instead of blocking past it.
+                message = self._bus.recv(timeout=min(remaining, 0.25))
+                if message is None:
+                    continue
+                delivered += 1
+                yield message
+        finally:
+            self.close()
