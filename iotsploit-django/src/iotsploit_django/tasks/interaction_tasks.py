@@ -27,6 +27,7 @@ logger = get_task_logger(__name__)
 
 INTERACTIVE_QUEUE = "interactive"
 STREAMING_QUEUE = "streaming"
+STANDARD_QUEUE = "celery"
 
 
 @shared_task(bind=True, queue=INTERACTIVE_QUEUE, max_retries=0)

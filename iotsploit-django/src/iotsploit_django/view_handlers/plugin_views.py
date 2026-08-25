@@ -33,6 +33,7 @@ def _execution_queue(plugin_name, parameters):
     """
     from iotsploit_django.tasks.interaction_tasks import (
         INTERACTIVE_QUEUE,
+        STANDARD_QUEUE,
         STREAMING_QUEUE,
     )
 
@@ -44,8 +45,11 @@ def _execution_queue(plugin_name, parameters):
             request = json.loads(request)
         except json.JSONDecodeError:
             return INTERACTIVE_QUEUE
-    if isinstance(request, dict) and request.get("mode") == "monitor":
-        return STREAMING_QUEUE
+    if isinstance(request, dict):
+        if request.get("mode") == "monitor":
+            return STREAMING_QUEUE
+        if request.get("mode", "capture") == "capture":
+            return STANDARD_QUEUE
     return INTERACTIVE_QUEUE
 
 

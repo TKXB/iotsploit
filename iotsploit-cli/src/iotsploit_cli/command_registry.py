@@ -62,6 +62,10 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
         _action("run-all", "Execute all plugins", "exploit"),
         _action("refresh", "Refresh installed plugins", "flash_plugins", "fp"),
     )),
+    ResourceSpec("can", "Capture or monitor decoded CAN traffic", (
+        _action("capture", "Run a bounded live capture"),
+        _action("monitor", "Monitor live traffic until stopped"),
+    )),
     ResourceSpec("target", "Select, edit, import, and export targets", (
         _action("list", "List available targets", "list_targets", "lst"),
         _action("select", "Select the active target", "target_select"),

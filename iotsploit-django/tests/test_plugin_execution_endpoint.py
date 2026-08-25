@@ -266,15 +266,20 @@ def test_monitor_mode_uses_the_streaming_queue():
     assert views._execution_queue("CAN Live Capture", parameters) == "streaming"
 
 
+def test_explicit_capture_uses_the_standard_queue():
+    parameters = {"request": {"schema_version": 1, "mode": "capture"}}
+
+    assert views._execution_queue("CAN Live Capture", parameters) == "celery"
+
+
 @pytest.mark.parametrize(
     "plugin_name, request_payload",
     [
-        ("CAN Live Capture", {"schema_version": 1}),
         ("CAN Live Capture", "not json"),
         ("Interactive Demo", {"mode": "monitor"}),
     ],
 )
-def test_only_an_explicit_can_monitor_leaves_the_interactive_queue(
+def test_malformed_or_other_interactive_runs_stay_on_the_interactive_queue(
     plugin_name, request_payload
 ):
     assert views._execution_queue(

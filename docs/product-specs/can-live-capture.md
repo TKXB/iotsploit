@@ -169,6 +169,27 @@ With **Raw (no target)** selected, the existing driver-backed raw monitor and
 send panel remain available. Target selection changes only the receive view;
 the send panel does not use target definitions.
 
+### CLI live view
+
+The shell consumes the same changed-row snapshots as Flutter and refreshes a
+decoded per-identity table in place:
+
+```text
+can capture --target zxd_v5_pi --bus bus_can_bkbcanfd --channel can0 --seconds 30
+can monitor --target zxd_v5_pi --bus bus_can_bkbcanfd --channel can0
+```
+
+`capture` ends on its duration or frame budget and records partial
+observations. `monitor` runs until Ctrl-C or its one-hour/20-million-frame
+safety ceiling and records no observations. Ctrl-C cooperatively cancels the
+durable execution and closes the receiving socket even on a silent bus.
+
+Both commands open a CAN FD receive socket by default, which also accepts
+classic frames. Use `--classic` only for an interface that cannot open in FD
+mode. The backend addresses default to `http://127.0.0.1:8888` and
+`ws://127.0.0.1:9999`; remote deployments may set
+`IOTSPLOIT_DJANGO_API_BASE_URL` and `IOTSPLOIT_DJANGO_WS_BASE_URL`.
+
 ## Starting one
 
 The run **asks**. Set `bus_id` to the bus you want and press Execute; it then
