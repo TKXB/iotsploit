@@ -503,9 +503,10 @@ Completed 2026-08-25.
   frames, 15 snapshots, a final snapshot, `stop_reason=cancelled`, and no
   observation scope or batch. The link remained CAN FD, ERROR-ACTIVE, with
   live tx/rx error counters at zero. No frame was transmitted by the test.
-- No commits were created as part of this request, so there are no final commit
-  IDs to record. Root and nested-UI changes remain in their respective working
-  trees for review.
-- The Pi test copied only the capture/scoring modules into the rig checkout and
-  restored them immediately afterwards; it did not deploy or restart the
-  running Django/Celery/UI stack.
+- Feature commits: root **56b505e** (`feat(can): add target-aware decoded
+  monitor backend`) and nested UI **df42955** (`feat(can): add target-aware
+  decoded monitor`). This bookkeeping update is committed separately so the
+  feature commit IDs can be recorded without a self-referential hash.
+- Initial Pi validation copied only the capture/scoring modules into the rig
+  checkout and restored them immediately afterwards. The committed revisions
+  were subsequently pushed and deployed for the final integration test.
