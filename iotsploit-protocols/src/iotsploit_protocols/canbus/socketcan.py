@@ -29,6 +29,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
 from iotsploit_protocols.canbus.definitions import EncodedFrame
@@ -302,3 +303,64 @@ class SocketCanReceiver:
                 yield message
         finally:
             self.close()
+
+
+#: ``ARPHRD_CAN`` from ``linux/if_arp.h``. What marks a net device as a CAN
+#: interface rather than an Ethernet one.
+ARPHRD_CAN = 280
+
+
+@dataclass(frozen=True)
+class CanInterface:
+    """A CAN interface this host has, as sysfs describes it."""
+
+    name: str
+    is_up: bool
+    #: ``vcan``/``vxcan`` devices carry no transceiver, so nothing an operator
+    #: does on one can reach a vehicle. Worth saying out loud before a capture.
+    is_virtual: bool
+
+    @property
+    def label(self) -> str:
+        state = "up" if self.is_up else "down"
+        kind = "virtual" if self.is_virtual else "hardware"
+        return f"{self.name} ({kind}, {state})"
+
+
+def list_can_interfaces(sysfs_root: str = "/sys/class/net") -> "list[CanInterface]":
+    """Every CAN interface on this host, newest kernel truth, read-only.
+
+    Reads sysfs rather than shelling out to ``ip`` or asking the device driver.
+    That keeps it unprivileged, keeps it free of the driver's lifecycle -- the
+    plugins must not initialize or connect a device merely to list one -- and
+    means it works when the driver has never been touched.
+
+    An interface that is *down* is still listed. Hiding it would leave an
+    operator wondering why the interface they can see in ``ip link`` is absent
+    here; saying "down" tells them what to fix.
+    """
+    root = Path(sysfs_root)
+    found: list[CanInterface] = []
+    try:
+        entries = sorted(root.iterdir())
+    except OSError:
+        return found
+
+    for entry in entries:
+        try:
+            if int((entry / "type").read_text().strip()) != ARPHRD_CAN:
+                continue
+            operstate = (entry / "operstate").read_text().strip()
+        except (OSError, ValueError):
+            continue
+        found.append(
+            CanInterface(
+                name=entry.name,
+                # vcan reports "unknown" rather than "up"; treat anything that
+                # is not explicitly "down" as usable and let the open fail
+                # honestly if it is not.
+                is_up=operstate != "down",
+                is_virtual=entry.name.startswith(("vcan", "vxcan")),
+            )
+        )
+    return found

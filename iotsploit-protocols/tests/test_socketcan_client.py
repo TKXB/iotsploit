@@ -26,6 +26,7 @@ from iotsploit_protocols.canbus.socketcan import (
     SocketCanClient,
     SocketCanConfig,
     SocketCanReceiver,
+    list_can_interfaces,
 )
 from iotsploit_protocols.errors import NotConfigured
 
@@ -418,3 +419,70 @@ def test_the_receiver_never_configures_the_link():
 
     assert set(made[0].kwargs) == {"interface", "channel", "fd", "ignore_config"}
     assert made[0].kwargs["ignore_config"] is True
+
+
+# ── listing what the host has ─────────────────────────────────────────
+
+
+def write_interface(root, name, type_id, operstate="up"):
+    entry = root / name
+    entry.mkdir()
+    (entry / "type").write_text(f"{type_id}\n")
+    (entry / "operstate").write_text(f"{operstate}\n")
+    return entry
+
+
+def test_only_can_interfaces_are_listed(tmp_path):
+    """ARPHRD_CAN is 280. Ethernet is 1, loopback 772, and a list that included
+    them would offer an operator a channel that cannot carry a CAN frame."""
+    write_interface(tmp_path, "eth0", 1)
+    write_interface(tmp_path, "lo", 772)
+    write_interface(tmp_path, "can0", 280)
+
+    found = list_can_interfaces(str(tmp_path))
+
+    assert [i.name for i in found] == ["can0"]
+
+
+def test_a_virtual_interface_is_marked_as_one(tmp_path):
+    """vcan carries no transceiver, so nothing done on it reaches a vehicle --
+    which is worth saying before a capture, not after."""
+    write_interface(tmp_path, "can0", 280)
+    write_interface(tmp_path, "vcan0", 280)
+
+    found = {i.name: i for i in list_can_interfaces(str(tmp_path))}
+
+    assert found["vcan0"].is_virtual is True
+    assert found["can0"].is_virtual is False
+
+
+def test_a_down_interface_is_listed_as_down_not_hidden(tmp_path):
+    """Hiding it leaves the operator wondering why the interface they can see
+    in `ip link` is absent here."""
+    write_interface(tmp_path, "can0", 280, operstate="down")
+
+    found = list_can_interfaces(str(tmp_path))
+
+    assert found[0].is_up is False
+    assert "down" in found[0].label
+
+
+def test_an_unknown_operstate_counts_as_usable(tmp_path):
+    """vcan reports "unknown" rather than "up". Treating that as down would
+    hide the one interface that is safe to practise on."""
+    write_interface(tmp_path, "vcan0", 280, operstate="unknown")
+
+    assert list_can_interfaces(str(tmp_path))[0].is_up is True
+
+
+def test_an_unreadable_entry_is_skipped_not_fatal(tmp_path):
+    """sysfs entries come and go as devices are plugged in."""
+    write_interface(tmp_path, "can0", 280)
+    (tmp_path / "half_made").mkdir()
+
+    assert [i.name for i in list_can_interfaces(str(tmp_path))] == ["can0"]
+
+
+def test_a_missing_sysfs_root_returns_nothing(tmp_path):
+    """Not every host has CAN, and none of them should get a traceback."""
+    assert list_can_interfaces(str(tmp_path / "nope")) == []
