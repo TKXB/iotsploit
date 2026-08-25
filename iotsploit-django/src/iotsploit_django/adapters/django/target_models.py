@@ -145,34 +145,60 @@ class TargetManager:
         finally:
             session.close()
 
+    def get_target(self, target_id: str) -> Optional[Dict[str, Any]]:
+        """One target in full, by id, with no side effect.
+
+        Deliberately does *not* touch the current target. A caller that names
+        the target it wants is answering the question "which one", and having
+        that answer also rewrite a process-global selection would change what
+        every other client sees as a side effect of one read.
+
+        Returns ``None`` rather than raising when the id is unknown, so a view
+        can turn that into a 404 without catching anything.
+        """
+        if not target_id or target_id == "__settings__":
+            return None
+        session = self.Session()
+        try:
+            stored = (
+                session.query(TargetDBModel)
+                .filter(TargetDBModel.target_id == target_id)
+                .one_or_none()
+            )
+            return self._target_dict(stored) if stored is not None else None
+        finally:
+            session.close()
+
     def get_all_targets(self) -> List[Dict[str, Any]]:
         session = self.Session()
         try:
             # Exclude the special settings pseudo-target
             targets = session.query(TargetDBModel).filter(TargetDBModel.target_id != "__settings__").all()
-            result = []
-            for t in targets:
-                target_info: Dict[str, Any] = {
-                    "target_id": t.target_id,
-                    "name": t.name,
-                    "type": t.type,
-                    "status": t.status,
-                    "properties": t.properties,
-                    "ip_address": t.ip_address,
-                    "location": t.location,
-                    "components": t.components or [],
-                    "interfaces": t.interfaces or [],
-                    "buses": t.buses or [],
-                    "edges": t.edges or [],
-                    "created_at": t.created_at.isoformat() if t.created_at else None,
-                    "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-                }
-                # Callers see one list of endpoints. Rows stored under the old
-                # key move across here and are written back folded on next save.
-                result.append(fold_legacy_interfaces(target_info))
-            return result
+            return [self._target_dict(t) for t in targets]
         finally:
             session.close()
+
+    @staticmethod
+    def _target_dict(t: "TargetDBModel") -> Dict[str, Any]:
+        """One stored row as the folded target shape every caller expects."""
+        target_info: Dict[str, Any] = {
+            "target_id": t.target_id,
+            "name": t.name,
+            "type": t.type,
+            "status": t.status,
+            "properties": t.properties,
+            "ip_address": t.ip_address,
+            "location": t.location,
+            "components": t.components or [],
+            "interfaces": t.interfaces or [],
+            "buses": t.buses or [],
+            "edges": t.edges or [],
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        }
+        # Callers see one list of endpoints. Rows stored under the old key move
+        # across here and are written back folded on next save.
+        return fold_legacy_interfaces(target_info)
 
     # ---------------- current target (in-memory) ----------------
 

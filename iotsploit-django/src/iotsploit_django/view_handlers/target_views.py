@@ -50,10 +50,10 @@ def get_target(request, target_id):
     """
     try:
         target_manager = TargetManager.get_instance()
-        for stored in target_manager.get_all_targets():
-            if stored.get("target_id") == target_id:
-                return JsonResponse({"status": "success", "target": stored})
-        return JsonResponse({"error": f"Target '{target_id}' not found"}, status=404)
+        stored = target_manager.get_target(target_id)
+        if stored is None:
+            return JsonResponse({"error": f"Target '{target_id}' not found"}, status=404)
+        return JsonResponse({"status": "success", "target": stored})
     except Exception as e:
         logger.error(f"Error getting target {target_id}: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
