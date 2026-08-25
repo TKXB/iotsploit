@@ -137,8 +137,14 @@ A quick raw sanity check first, so you know the bus is alive:
 timeout 3 candump -n 10 can0
 ```
 
-Then the real thing, through the plugin. `duration_s` over 5 routes to the task
-queue, so keep it short for a synchronous test.
+Then the real thing, through the plugin. From the **Control Panel** (not the
+Plugins page — it has no prompt surface), set `bus_id` and press Execute; the
+run asks for the interface, the window, and a confirmation. Interfaces are read
+from sysfs, so what you see listed is what the host has.
+
+`duration_s` over 5 routes to the task queue, so keep it short for a
+synchronous test. Passing a full `request` object skips every question, which
+is what scripted callers do.
 
 Compare what it reports against `candump` running at the same time: frame ids
 should match, and the measured periods should look like real cycle times

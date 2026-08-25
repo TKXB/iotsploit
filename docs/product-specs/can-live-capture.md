@@ -104,7 +104,39 @@ Captures therefore accumulate as history and never retract an earlier finding.
 `tools/seed_can_observations.py` produced exactly this fact shape while no
 sniffer existed. It is now a fixture generator rather than a stand-in.
 
-## Request
+## Starting one
+
+The run **asks**. Set `bus_id` to the bus you want and press Execute; it then
+prompts for the interface, the window, and a confirmation:
+
+```text
+Which SocketCAN interface?        can0 (hardware, up)
+Capture for how many seconds?     30
+Stop after how many frames?       200000
+Capture CAN bus 1 on can0 for 30s?
+   This transmits nothing. Note though that a CAN controller in normal mode
+   acknowledges frames in silicon, so attaching to a live vehicle bus is not
+   electrically inert...
+```
+
+Interfaces come from sysfs, so the list is what the host actually has —
+including ones that are **down**, labelled as such rather than hidden. A
+virtual `vcan` is named as one, and its confirmation says plainly that nothing
+on it can reach a vehicle.
+
+Prompts need somewhere to be answered: use the **Control Panel** or the
+`iotsploit` shell. The Plugins page has no prompt surface and will redirect you.
+
+`bus_id` is an ordinary parameter rather than a question, deliberately. Scan
+scopes are declared before the run and the scope key names the bus, so a bus
+chosen mid-conversation would arrive too late for its own observations to be
+recorded. Getting it wrong is cheap — the error lists the bus ids the target
+actually has.
+
+## Request (scripted callers)
+
+Passing a full `request` skips every question. This is the API, MCP, and
+CLI-JSON path, and it is unchanged:
 
 ```json
 {
