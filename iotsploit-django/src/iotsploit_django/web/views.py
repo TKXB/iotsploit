@@ -26,6 +26,7 @@ from iotsploit_django.view_handlers.plugin_views import (
     enable_driver,
     disable_driver,
 )
+from iotsploit_django.view_handlers.can_views import identify_can_bus
 from iotsploit_django.view_handlers.misc_legacy_views import (
     active_channels,
     list_urls,
@@ -55,6 +56,7 @@ __all__ = [
     "get_plugin_group",
     "list_device_drivers",
     "execute_plugin",
+    "identify_can_bus",
     "list_plugin_info",
     "list_groups",
     "execute_group",

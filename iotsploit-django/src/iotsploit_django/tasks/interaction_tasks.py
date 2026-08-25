@@ -26,6 +26,7 @@ from iotsploit_django.composition_root.wiring import get_exploit_plugin_manager
 logger = get_task_logger(__name__)
 
 INTERACTIVE_QUEUE = "interactive"
+STREAMING_QUEUE = "streaming"
 
 
 @shared_task(bind=True, queue=INTERACTIVE_QUEUE, max_retries=0)

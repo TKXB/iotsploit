@@ -255,3 +255,28 @@ def test_an_empty_target_id_falls_back_rather_than_404ing(monkeypatch):
 
     assert response.status_code == 200
     assert plugins.execution[1] is selected
+
+
+# ── long-running durable executions ──────────────────────────────────
+
+
+def test_monitor_mode_uses_the_streaming_queue():
+    parameters = {"request": {"schema_version": 1, "mode": "monitor"}}
+
+    assert views._execution_queue("CAN Live Capture", parameters) == "streaming"
+
+
+@pytest.mark.parametrize(
+    "plugin_name, request_payload",
+    [
+        ("CAN Live Capture", {"schema_version": 1}),
+        ("CAN Live Capture", "not json"),
+        ("Interactive Demo", {"mode": "monitor"}),
+    ],
+)
+def test_only_an_explicit_can_monitor_leaves_the_interactive_queue(
+    plugin_name, request_payload
+):
+    assert views._execution_queue(
+        plugin_name, {"request": request_payload}
+    ) == "interactive"

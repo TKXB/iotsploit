@@ -24,6 +24,31 @@ from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginG
 from celery.result import AsyncResult
 from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
 
+def _execution_queue(plugin_name, parameters):
+    """Choose the durable-execution queue without trusting plugin metadata.
+
+    Only the CAN capture's explicit monitor request is streaming. Malformed
+    requests stay on the interactive queue and let the plugin's normal
+    validation explain the error.
+    """
+    from iotsploit_django.tasks.interaction_tasks import (
+        INTERACTIVE_QUEUE,
+        STREAMING_QUEUE,
+    )
+
+    if plugin_name != "CAN Live Capture":
+        return INTERACTIVE_QUEUE
+    request = (parameters or {}).get("request")
+    if isinstance(request, str):
+        try:
+            request = json.loads(request)
+        except json.JSONDecodeError:
+            return INTERACTIVE_QUEUE
+    if isinstance(request, dict) and request.get("mode") == "monitor":
+        return STREAMING_QUEUE
+    return INTERACTIVE_QUEUE
+
+
 
 
 from django.views.decorators.http import require_http_methods
@@ -369,15 +394,18 @@ def execute_plugin(request):
                 target=current_target,
                 parameters=parameters,
             )
-            run_execution_task.delay(
-                str(execution.execution_id),
-                plugin_name,
-                target=execution.target_snapshot,
-                parameters=parameters,
+            queue = _execution_queue(plugin_name, parameters)
+            run_execution_task.apply_async(
+                args=[str(execution.execution_id), plugin_name],
+                kwargs={
+                    "target": execution.target_snapshot,
+                    "parameters": parameters,
+                },
+                queue=queue,
             )
             logger.info(
-                "Queued interactive execution %s for plugin '%s'",
-                execution.execution_id, plugin_name,
+                "Queued durable execution %s for plugin '%s' on %s",
+                execution.execution_id, plugin_name, queue,
             )
             return JsonResponse({
                 "status": "success",

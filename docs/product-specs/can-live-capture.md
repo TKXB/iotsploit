@@ -1,8 +1,15 @@
 # CAN Live Capture
 
-Watch a CAN bus for a bounded window and see decoded signal values from the
-active target's own definitions, instead of raw hex. What the capture saw is
-recorded as observations.
+Watch a CAN bus and see decoded signal values from the selected target's own
+definitions, with the raw payload beside every decoded value.
+
+There are two deliberately different ways to do that:
+
+- **Monitor** is a live, run-until-stopped view for watching. It records no
+  observations. A forgotten monitor ends at a one-hour or 20-million-frame
+  ceiling, whichever comes first.
+- **Capture** is a bounded evidence window. It records the sampled frame facts
+  as observations and remains the right tool when the result must be retained.
 
 ## Safety first, because this one is easy to get wrong
 
@@ -27,17 +34,17 @@ This plugin will not set that for you, for the same reason the composer will
 not set a bitrate. The UI shows whether the selected interface is a virtual
 `vcan` before a capture starts.
 
-## What a capture produces
+## What the decoded view produces
 
 ```text
 Target:  Bench Vehicle          Bus: Powertrain CAN          Channel: can0
 Capturing 30s · 4210 frames · 47 ids · 3 undocumented      [Stop]
 
-ID     Name             Count  Period    Last decoded
-0x123  VehicleStatus     2981   10ms     VehicleSpeed 42.5 km/h · IgnitionState On
-0x2A1  BrakeStatus        598   50ms     BrakePressure 0.0 bar · AliveCounter 7
-0x0C4  —                  312   100ms    no definition on this bus
-0x3F0  TransmissionData   119   250ms    decode failed: payload 6 bytes, DLC 8
+ID     Name             Count  Period  Data              Decoded
+0x123  VehicleStatus     2981   10ms   A9010E0000000000  VehicleSpeed 42.5 km/h
+0x2A1  BrakeStatus        598   50ms   0000070000000000  BrakePressure 0.0 bar
+0x0C4  —                  312   100ms  88AA00FF          no definition on this bus
+0x3F0  TransmissionData   119   250ms  01FF02AB55        decode failed: payload 6 bytes
 ```
 
 Rows are per frame identity, not per frame received. A scrolling log of every
@@ -143,6 +150,25 @@ A wired bus explains nearly everything. A bus that is not explains some of it
 by coincidence, because ids repeat across buses — which is exactly why frame
 identity is scoped to a bus everywhere in this feature.
 
+The CAN Bus Monitor exposes the same scorer as **Identify bus**. It reports a
+clear winner, no matching bus, and a near-tie as different outcomes. A near-tie
+asks for a longer sample instead of silently choosing one.
+
+## Starting a monitor
+
+Open **CAN Bus Monitor**, then choose a target, a bus, and the SocketCAN
+interface. The bus is never defaulted: selecting the wrong bus can produce
+plausible but incorrect values, so the operator must make the choice explicitly.
+
+Press **Start monitor** to launch the decoded, read-only session. **Stop** uses
+cooperative cancellation and closes the capture socket, including when the bus
+is silent. Long-running monitor sessions use their own worker queue and cannot
+block plugins waiting for operator input.
+
+With **Raw (no target)** selected, the existing driver-backed raw monitor and
+send panel remain available. Target selection changes only the receive view;
+the send panel does not use target definitions.
+
 ## Starting one
 
 The run **asks**. Set `bus_id` to the bus you want and press Execute; it then
@@ -210,9 +236,10 @@ belongs.
 - The capture does not diff what it saw against the catalogue or propose target
   edits.
 
-## The raw CAN screen is unchanged
+## The raw CAN mode remains available
 
 `can_screen.dart` over the `drv_socketcan` driver still shows raw frames and
 still works with **no target selected**. That is why it stays: it is the
-fallback when there is no target, no definitions, or no decoding wanted. This
-feature is a second view beside it, not a replacement.
+fallback when there is no target, no definitions, or no decoding wanted. Raw
+rows are now counted per identity and repainted at most ten times a second so a
+busy bus does not rebuild the whole table for every frame.

@@ -375,6 +375,29 @@ def test_stopping_early_ends_the_capture():
     assert made[0].shutdown_calls == 1
 
 
+def test_cancellation_is_checked_while_the_bus_is_silent():
+    """A monitor on a quiet bus must stop promptly rather than wait for its
+    one-hour ceiling just because no frame arrived to drive the consumer."""
+    receiver, made = receiver_over([], tick=0.25)
+    checks = 0
+
+    def cancel():
+        nonlocal checks
+        checks += 1
+        raise RuntimeError("cancelled")
+
+    with pytest.raises(RuntimeError, match="cancelled"):
+        list(
+            receiver.frames(
+                CaptureBudget(duration_s=60, max_frames=100),
+                check_cancelled=cancel,
+            )
+        )
+
+    assert checks == 1
+    assert made[0].shutdown_calls == 1
+
+
 def test_abandoning_the_generator_still_closes_the_socket():
     """A leaked SocketCAN socket keeps filling a kernel buffer nobody drains."""
     receiver, made = receiver_over(["a", "b", "c", "d"])

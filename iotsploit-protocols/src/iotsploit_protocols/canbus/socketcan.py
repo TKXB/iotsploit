@@ -276,7 +276,12 @@ class SocketCanReceiver:
         """Ask the loop to finish at its next opportunity."""
         self._stop = True
 
-    def frames(self, budget: CaptureBudget) -> Iterator[Any]:
+    def frames(
+        self,
+        budget: CaptureBudget,
+        *,
+        check_cancelled: Optional[Callable[[], None]] = None,
+    ) -> Iterator[Any]:
         """Yield received messages until the budget is spent.
 
         The socket is closed on every exit path -- normal end, exception, and
@@ -297,6 +302,8 @@ class SocketCanReceiver:
                 # Bounded by whichever is sooner, so a silent bus still wakes up
                 # to notice its own deadline instead of blocking past it.
                 message = self._bus.recv(timeout=min(remaining, 0.25))
+                if check_cancelled is not None:
+                    check_cancelled()
                 if message is None:
                     continue
                 delivered += 1

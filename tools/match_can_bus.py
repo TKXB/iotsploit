@@ -30,34 +30,10 @@ django.setup()
 
 from iotsploit_django.adapters.django.target_models import TargetManager  # noqa: E402
 from iotsploit_protocols.canbus import TargetCanCatalog  # noqa: E402
-from iotsploit_protocols.canbus.errorframes import (  # noqa: E402
-    is_error_frame,
-    is_remote_frame,
+from iotsploit_protocols.canbus.bus_match import (  # noqa: E402
+    observe_identities,
+    score_buses,
 )
-from iotsploit_protocols.canbus.socketcan import (  # noqa: E402
-    CaptureBudget,
-    SocketCanConfig,
-    SocketCanReceiver,
-)
-
-
-def observe(channel: str, seconds: float, fd: bool) -> set:
-    """The distinct frame identities heard on ``channel``.
-
-    Error frames are excluded before identity is read: after python-can masks
-    off CAN_ERR_FLAG what remains is an error class, not an address, and
-    counting one would add a phantom id to the evidence.
-    """
-    seen = set()
-    config = SocketCanConfig(channel=channel, fd=fd)
-    with SocketCanReceiver(config) as receiver:
-        for message in receiver.frames(
-            CaptureBudget(duration_s=seconds, max_frames=200_000)
-        ):
-            if is_error_frame(message) or is_remote_frame(message):
-                continue
-            seen.add((message.arbitration_id, bool(message.is_extended_id)))
-    return seen
 
 
 def main() -> None:
@@ -78,7 +54,7 @@ def main() -> None:
     if stored is None:
         raise SystemExit(f"no target {args.target_id!r}")
 
-    seen = observe(args.channel, args.seconds, not args.classic)
+    seen = observe_identities(args.channel, args.seconds, fd=not args.classic)
     if not seen:
         raise SystemExit(
             f"nothing was heard on {args.channel} in {args.seconds:g}s. The "
@@ -86,37 +62,24 @@ def main() -> None:
         )
     print(f"{len(seen)} distinct identities heard on {args.channel}\n")
 
-    catalog = TargetCanCatalog.from_target(stored)
-    rows = []
-    for bus in catalog.buses:
-        documented = {(f.frame_id, f.is_extended) for f in bus.frames}
-        if documented:
-            matched = seen & documented
-            rows.append((len(matched), bus.bus_id, len(documented)))
-    if not rows:
+    result = score_buses(TargetCanCatalog.from_target(stored), seen)
+    if result.outcome == "no_buses":
         raise SystemExit(f"target {args.target_id!r} documents no CAN frames")
 
-    rows.sort(reverse=True)
     print(f"{'BUS':<26}{'MATCHED':<10}{'OF HEARD':<11}{'DOCUMENTED'}")
-    for matched, bus_id, documented in rows:
+    for row in result.rows:
         print(
-            f"{bus_id:<26}{matched:<10}{matched / len(seen) * 100:>3.0f}%"
-            f"{'':<7}{documented}"
+            f"{row.bus_id:<26}{row.matched:<10}{row.coverage * 100:>3.0f}%"
+            f"{'':<7}{row.documented}"
         )
 
-    best, best_bus, _ = rows[0]
-    runner_up = rows[1][0] if len(rows) > 1 else 0
     print()
-    if best == 0:
-        print("No bus explains this traffic. Wrong ARXML, or wrong interface.")
-    elif best == runner_up:
-        print(
-            f"Ambiguous: {best_bus} and another bus explain the traffic equally "
-            "well. Listen for longer, or tell them apart another way."
-        )
+    if result.outcome in {"none", "tie"}:
+        print(result.as_dict()["message"])
     else:
-        unexplained = len(seen) - best
-        print(f"Best match: {best_bus} ({best} of {len(seen)} heard)")
+        best = result.rows[0]
+        unexplained = len(seen) - best.matched
+        print(f"Best match: {best.bus_id} ({best.matched} of {len(seen)} heard)")
         if unexplained:
             print(
                 f"{unexplained} identities are not documented on it. That is a "
