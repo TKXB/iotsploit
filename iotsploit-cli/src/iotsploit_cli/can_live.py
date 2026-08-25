@@ -232,7 +232,7 @@ class WebSocketSnapshotStream:
         try:
             from websockets.sync.client import connect
 
-            self.connection = connect(url, open_timeout=5)
+            self.connection = connect(url, open_timeout=5, close_timeout=1)
         except Exception as error:  # noqa: BLE001 - dependency and transport share one operator message
             raise CanLiveError(f"cannot connect to CAN snapshot stream {url}: {error}") from error
 

@@ -10,7 +10,12 @@ from __future__ import annotations
 import cmd2
 import pytest
 
-from iotsploit_cli.can_live import CanLiveRun, CanLiveSession, CanSnapshotView
+from iotsploit_cli.can_live import (
+    CanLiveRun,
+    CanLiveSession,
+    CanSnapshotView,
+    WebSocketSnapshotStream,
+)
 from iotsploit_cli.commands.can_commands import CanCommands
 
 pytestmark = [pytest.mark.unit, pytest.mark.contract]
@@ -104,6 +109,25 @@ class FakeRenderer:
 
     def finish(self, view, run, status):
         self.finished.append((view.totals.get("frames", 0), run.mode, status))
+
+
+def test_websocket_close_handshake_cannot_hold_monitor_shutdown(monkeypatch):
+    calls = []
+
+    class Connection:
+        pass
+
+    def connect(url, **kwargs):
+        calls.append((url, kwargs))
+        return Connection()
+
+    monkeypatch.setattr("websockets.sync.client.connect", connect)
+
+    WebSocketSnapshotStream("ws://rig/live")
+
+    assert calls == [
+        ("ws://rig/live", {"open_timeout": 5, "close_timeout": 1})
+    ]
 
 
 def test_request_is_an_explicit_target_aware_monitor():
