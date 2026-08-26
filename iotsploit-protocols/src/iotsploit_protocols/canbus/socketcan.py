@@ -301,7 +301,19 @@ class SocketCanReceiver:
                     break
                 # Bounded by whichever is sooner, so a silent bus still wakes up
                 # to notice its own deadline instead of blocking past it.
-                message = self._bus.recv(timeout=min(remaining, 0.25))
+                try:
+                    message = self._bus.recv(timeout=min(remaining, 0.25))
+                except Exception as error:
+                    # SocketCAN binds to an interface that is down and only says
+                    # so at the first read, so a capture that opened cleanly
+                    # still fails here. python-can spells that CanOperationError,
+                    # which is not an OSError: unwrapped it escapes every
+                    # caller's except clause and reaches the operator as a crash.
+                    raise CanTransportError(
+                        f"capture on {self.config.channel!r} failed: {error}. The "
+                        "interface has to stay up for the whole sample; IoTSploit "
+                        "does not configure it."
+                    ) from error
                 if check_cancelled is not None:
                     check_cancelled()
                 if message is None:

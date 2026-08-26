@@ -409,10 +409,15 @@ def test_abandoning_the_generator_still_closes_the_socket():
     assert made[0].shutdown_calls == 1
 
 
-def test_an_exception_mid_capture_still_closes_the_socket():
+def test_a_read_that_fails_mid_capture_is_a_transport_error():
+    """A link that drops mid-sample is the receiver's failure to report, not a
+    crash to leak. SocketCAN binds to an interface that is down and only says so
+    at the first read, and python-can spells that CanOperationError -- not an
+    OSError -- so an unwrapped one walks past every caller's except clause."""
+
     class Exploding(FakeBus):
         def recv(self, timeout=None):
-            raise RuntimeError("driver fell over")
+            raise RuntimeError("Error receiving: Network is down [Error Code 100]")
 
     made = []
 
@@ -423,9 +428,12 @@ def test_an_exception_mid_capture_still_closes_the_socket():
 
     receiver = SocketCanReceiver(SocketCanConfig("can0"), bus_factory=factory)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(CanTransportError) as raised:
         list(receiver.frames(CaptureBudget(duration_s=1, max_frames=10)))
 
+    assert "can0" in str(raised.value)
+    assert "Network is down" in str(raised.value)
+    assert isinstance(raised.value.__cause__, RuntimeError)
     assert made[0].shutdown_calls == 1
 
 

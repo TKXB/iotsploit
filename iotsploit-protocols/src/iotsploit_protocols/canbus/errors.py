@@ -12,8 +12,10 @@ against the signal row that caused it, which is why it carries a field map.
 
 Transport failures are deliberately absent. The house rule in
 :mod:`iotsploit_protocols.errors` is that a connection failure stays
-``OSError`` rather than being re-spelled, and a SocketCAN interface that is
-down raises exactly that.
+``OSError`` rather than being re-spelled. ``python-can`` does not follow it: a
+SocketCAN interface that is down surfaces as ``can.CanOperationError``, which
+is not an ``OSError``, so :mod:`iotsploit_protocols.canbus.socketcan` wraps it
+in ``CanTransportError`` rather than let a caller's ``except OSError`` miss it.
 """
 
 from __future__ import annotations
