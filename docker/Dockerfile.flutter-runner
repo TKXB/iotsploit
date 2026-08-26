@@ -1,0 +1,157 @@
+# =============================================================================
+# IoTSploit UI — Flutter+Rust Build Runner Docker Image (方案B)
+# =============================================================================
+# Pre-baked toolchain image for GitHub Actions self-hosted runner.
+# Contains ALL build dependencies so that "thin" workflows (e.g. manual-build.yml)
+# can run without additional toolchain setup steps.
+#
+# Toolchain versions — must match pubspec.yaml / .fvmrc exactly:
+#   Flutter  3.27.4  (stable, Dart 3.6.2)
+#   Rust     stable  (cargo + rustup)
+#   JDK      17      (for Android builds)
+#   NDK      26.1.10909125 (r26b, for Android builds)
+#
+# Verification inside container:
+#   cargo --version                    → has output
+#   flutter --version                  → Flutter 3.27.4
+#   pkg-config --exists gtk+-3.0       → exit 0 (echo "OK")
+#   ninja --version                    → has output
+#   cmake --version                    → has output
+#
+# Note: Rust crate is NOT built manually — rust_builder/cargokit invokes
+# cargo automatically during flutter build. So the image just needs cargo
+# in PATH with the right targets installed.
+# =============================================================================
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ─── 1. System dependencies ────────────────────────────────────────────────
+# Linux desktop libs + build tools + basic utils + JDK 17
+# NOTE: Proxy (172.17.0.1:7891 from ~/.docker/config.json) is needed for
+# Google/GitHub/rustup downloads (fast through Clash), but returns 502 for
+# Ubuntu archive URLs. Selective strategy: unset proxy ONLY for apt-get,
+# keep proxy for all other download steps.
+RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY no_proxy NO_PROXY && \
+    apt-get update && apt-get install -y --no-install-recommends --fix-missing \
+    # Basic tools
+    curl \
+    wget \
+    git \
+    unzip \
+    xz-utils \
+    zip \
+    ca-certificates \
+    # Build essentials
+    build-essential \
+    libffi-dev \
+    libssl-dev \
+    # Linux desktop libraries (flutter build linux hard requirement)
+    clang \
+    cmake \
+    ninja-build \
+    pkg-config \
+    libgtk-3-dev \
+    liblzma-dev \
+    libstdc++-12-dev \
+    # JDK 17 (Android builds)
+    openjdk-17-jdk-headless \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# ─── 2. Flutter 3.27.4 ────────────────────────────────────────────────────
+# Exact version pinned — pubspec.yaml requires environment.flutter: "3.27.4"
+# Previous image had 3.27.3 which failed the environment constraint.
+# .fvmrc also locks to 3.27.4.
+RUN git clone https://github.com/flutter/flutter.git \
+    -b 3.27.4 --depth 1 /sdks/flutter
+
+ENV FLUTTER_HOME=/sdks/flutter
+ENV PATH="${FLUTTER_HOME}/bin:${PATH}"
+
+# Precache Flutter stable artifacts (linux, android, web)
+RUN flutter precache --linux --android --web \
+    && flutter config --enable-linux-desktop \
+    && flutter config --enable-android \
+    && flutter --version
+
+# Handle git dubious ownership
+# (SDK dir is owned by root; job user UID differs → git reports dubious ownership)
+# manual-build.yml also has this step, but set it in the image as a safety net.
+RUN git config --global --add safe.directory '*'
+
+# ─── 3. Rust stable + targets ──────────────────────────────────────────────
+# Previous image had NO_RUST_FOUND — this is essential for flutter_rust_bridge.
+# rust_builder/cargokit invokes cargo automatically during flutter build;
+# no need to run cargo build manually.
+ENV RUSTUP_HOME=/opt/rust
+ENV CARGO_HOME=/opt/rust
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+      --no-modify-path --default-toolchain stable \
+    && /opt/rust/bin/rustup target add x86_64-unknown-linux-gnu \
+    && /opt/rust/bin/rustup target add aarch64-linux-android \
+    && /opt/rust/bin/rustup target add armv7-linux-androideabi \
+    && /opt/rust/bin/rustup target add x86_64-linux-android \
+    && /opt/rust/bin/rustup target add i686-linux-android \
+    && chmod -R a+rx /opt/rust
+
+ENV PATH="/opt/rust/bin:${PATH}"
+
+# ─── 4. Android SDK + NDK ──────────────────────────────────────────────────
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+
+# Install Android command-line tools
+RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \
+    && cd /tmp \
+    && wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+        -O cmdline-tools.zip \
+    && unzip -q cmdline-tools.zip \
+    && mv cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
+    && rm cmdline-tools.zip
+
+ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
+
+# Accept licenses and install SDK components
+# Build-Tools 33.0.1 is critical (hard requirement for Android builds)
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 || true \
+    && sdkmanager --update \
+    && sdkmanager \
+        "platforms;android-33" \
+        "platforms;android-34" \
+        "platforms;android-35" \
+        "build-tools;33.0.1" \
+        "build-tools;34.0.0" \
+        "build-tools;35.0.0" \
+        "ndk;26.1.10909125" \
+        "platform-tools" \
+    && rm -rf /tmp/* ${ANDROID_HOME}/.temp
+
+ENV ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/26.1.10909125
+
+# ─── 5. Toolchain verification ─────────────────────────────────────────────
+RUN set -e && \
+    echo "╔════════════════════════════════════════╗" && \
+    echo "║     Toolchain Verification             ║" && \
+    echo "╚════════════════════════════════════════╝" && \
+    echo "" && \
+    echo "Flutter:" && flutter --version | head -1 && \
+    echo "Dart:" && dart --version | head -1 && \
+    echo "Rust:" && cargo --version && \
+    echo "Rust targets:" && rustup target list --installed && \
+    echo "GTK:" && (pkg-config --exists gtk+-3.0 && echo "  gtk+-3.0: OK") && \
+    echo "CMake:" && cmake --version | head -1 && \
+    echo "Ninja:" && ninja --version && \
+    echo "Clang:" && clang --version | head -1 && \
+    echo "Java:" && java -version 2>&1 | head -1 && \
+    echo "Android NDK:" && (ls ${ANDROID_NDK_HOME}/source.properties 2>/dev/null && echo "  NDK: OK" || echo "  NDK: check manually") && \
+    echo "" && \
+    echo "✅ All toolchains verified successfully"
+
+# ─── 6. Final setup ────────────────────────────────────────────────────────
+WORKDIR /workspace
+
+CMD ["bash"]

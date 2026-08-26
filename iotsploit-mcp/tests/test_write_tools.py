@@ -121,6 +121,39 @@ def test_execute_plugin_posts_name_and_parameters(monkeypatch):
     )
 
 
+def test_execute_plugin_forwards_an_explicit_target(monkeypatch):
+    """No new tool: the same one gains an argument, so an agent can avoid the
+    global select_target mutation without the tool count changing."""
+    client = FakeClient()
+
+    call(
+        client,
+        "execute_plugin",
+        plugin_name="CAN Frame Composer",
+        parameters={"request": {"schema_version": 1}},
+        target_id="bench_vehicle",
+    )
+
+    assert client.calls[0] == (
+        "/api/execute_plugin/",
+        {
+            "plugin_name": "CAN Frame Composer",
+            "parameters": {"request": {"schema_version": 1}},
+            "target_id": "bench_vehicle",
+        },
+    )
+
+
+def test_execute_plugin_omits_the_target_key_when_not_given(monkeypatch):
+    """Existing callers must post exactly what they posted before, so the
+    server's legacy current-target path still applies to them."""
+    client = FakeClient()
+
+    call(client, "execute_plugin", plugin_name="ip_scan", parameters={})
+
+    assert "target_id" not in client.calls[0][1]
+
+
 def test_execute_plugin_defaults_parameters_to_empty(monkeypatch):
     client = FakeClient()
 

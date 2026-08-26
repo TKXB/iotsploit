@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted on 2026-08-24. No implementation has started.
+Accepted on 2026-08-24. **Completed 2026-08-25** — see the completion record at the end of this file.
 
 Reviewed against the code on 2026-08-24 before implementation. Blocking
 corrections from that review are folded into the sections below and marked
@@ -1218,3 +1218,109 @@ When every acceptance criterion is met:
 2. record any deferred limitations;
 3. move this plan from `docs/exec-plans/active/` to
    `docs/exec-plans/completed/` in the root repository.
+
+---
+
+## Completion record
+
+Implemented 2026-08-25 on branch `feat/can-composer-and-capture` (root) and the
+same branch name in `ui/`. All acceptance criteria are met.
+
+### Commits
+
+| Repo | Commit | Covers |
+|---|---|---|
+| root | `06b505a` | C1–C3: facet widening, `VAL_` parsing, catalogue, codec, SocketCAN client, composer plugin |
+| root | `9218cf7` | C4: exact-target execution in Django and MCP |
+| root | `dc17d8a` | K1–K3: bounded receiver, aggregator, capture plugin (capture plan) |
+| `ui/` | `6d28ab4` | C5–C6 and K4: shared parameter flow, composer UI, capture table |
+
+### Test counts
+
+- Root gate `tools/testing/test-python-full.sh`: **1025 passed**, 0 failed,
+  0 skipped, 42 warnings, ruff clean. Baseline before this work was 869.
+- Flutter gate `tools/testing/test-flutter-full.sh`: **448 passed**, 0 failed,
+  analyzer 0 issues, `dart format` clean. Baseline was 395.
+
+The 42 Python warnings are pre-existing and unrelated (SQLAlchemy 2.0
+`declarative_base` deprecation, `python_multipart`, two internal deprecations).
+
+### Deviations from the plan, and why
+
+1. **Phase 2's order was inverted relative to phase 1.** The plan puts fixtures
+   first, but the "component-owned frame carrying choices" fixture cannot be
+   written against a stored model that drops `choices` on load. C2a (facet
+   widening + `VAL_`) was done first, then the fixtures, then the codec.
+2. **`definitions.py` was added** beside `catalog.py` and `codec.py`. The plan
+   lists three modules; the frozen types are the vocabulary all three share and
+   putting them in `catalog.py` would have made it the largest file in the
+   package. Same package, no new dependency.
+3. **A name mismatch between two definitions of one identity is treated as a
+   conflict.** The plan's step 7 lists DLC, layout, scaling, multiplexing and
+   FD state but not the name. Leaving the name out makes it undefined which of
+   two differently-named rows survives, and the plan's own instruction is to
+   fail rather than choose silently. Documented here rather than changed
+   quietly.
+4. **`canbus/errorframes.py` duplicates nine constants** from
+   `iotsploit_drivers.socketcan.can_errors` (capture plan's requirement).
+   `iotsploit-drivers` depends on `iotsploit-core` alone, so importing it from
+   `iotsploit-protocols` would add a package edge neither plan sanctions. Same
+   precedent as `canonical_frame_id`. Worth consolidating if drivers ever
+   depends on protocols.
+5. **`get_all_targets()` was refactored** to share a row-to-dict helper with
+   the new `get_target()`. Not in the plan, but leaving two copies of the
+   folded-target shape is how they drift.
+6. **The explorer was not refactored to delegate its CAN enumeration, and this
+   is an unmet item rather than a judgement call.** Phase 5 asks for the
+   existing indexing in `TargetModel` to be extracted or delegated "so the
+   explorer and composer share the same bus-owned/component-owned enumeration
+   rules". `TargetCanIndex` was added, but
+   `lib/screens/targets/explorer/explorer_model.dart` still has its own
+   `framesOf` / `busFrames`. The two read the same two locations and agree
+   today; nothing enforces that they keep agreeing, which is exactly the drift
+   the plan wanted closed. The shapes differ enough (typed views grouped by bus
+   versus raw maps for a tree) that folding them together is a real refactor of
+   the explorer's tree building, and doing it under this change would have put
+   an untested rewrite of a working screen inside a CAN feature. Recorded here
+   as the plan's bookkeeping section instructs.
+
+### Two bugs the tests caught while being written
+
+- The SocketCAN channel pattern used `$`, which in Python matches *before* a
+  trailing newline — `"can0\n"` validated as a usable interface name.
+- `python-can`'s `check=True` raises from the `Message` constructor rather than
+  from `send()`, so an unrepresentable frame escaped as a bare `ValueError`
+  past every caller's `except` clause.
+
+### Hardware validation
+
+Performed against a PCAN-USB FD adapter on the Pi at 10.8.0.10, outside the
+commit gate as the plan requires.
+
+- **Receive, against a live 500 kbit FD bus** (~4.5M frames already received):
+  2355 frames in 5.01s across 25 identities, measured periods landing exactly
+  on 10/20/50/100 ms, FD payloads of 16 and 24 bytes handled, zero error frames
+  in the window, and — the point of the exercise — **no phantom `0x004` row**.
+- **Codec, against real captured payloads**: a 16-byte FD frame carrying a
+  64-bit signal and a labelled choice decoded and re-encoded identically, on
+  the Pi's Python 3.13.5 and cantools 42.0.3.
+- **Transmit, on a disposable `vcan0`** created and destroyed outside
+  IoTSploit. An independent `candump` witnessed both frames byte-for-byte:
+  `123 [8] A9 01 0E 00 00 00 00 00` and
+  `01ABCDEF [16] FF FF FF FF FF FF FF FF 00…` — confirming the standard frame
+  stayed standard (python-can defaults `is_extended_id` to `True`) and that
+  2^64-1 survived as text.
+- The live bus was **not** transmitted onto. `can0` TX remained 0 packets
+  throughout, verified after teardown.
+
+### Deferred
+
+- No `operation: "decode"` on the composer contract. `decode_frame` exists and
+  is used for the preview read-back and by the capture, but nothing exposes
+  "give me bytes, get signals" to an API caller. Cheap to add now that the
+  codec exists; deliberately not decided here.
+- Decoding stored capture files remains unbuilt, as both plans intend.
+- `iotsploit-protocols/pyproject.toml` carries its own
+  `[tool.pytest.ini_options]` without the marker registry, so running that
+  package's tests by path disables `--strict-markers`. Pre-existing, affects
+  several packages, not touched here.

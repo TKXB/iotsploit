@@ -23,6 +23,7 @@ if not apps.ready:
 from django.test import RequestFactory  # noqa: E402
 
 from iotsploit_core.domain.summary import SUMMARY_FLAG  # noqa: E402
+from iotsploit_django.adapters.django.target_models import TargetManager  # noqa: E402
 from iotsploit_django.view_handlers import target_views  # noqa: E402
 
 pytestmark = pytest.mark.contract
@@ -46,6 +47,13 @@ def stored(monkeypatch, golf):
         @staticmethod
         def get_all_targets():
             return [golf]
+
+        @staticmethod
+        def get_target(target_id):
+            # The detail endpoint asks for one target by id rather than
+            # scanning every row. Both are answered from the same single
+            # stored target so listing and detail cannot disagree.
+            return golf if target_id == golf["target_id"] else None
 
     monkeypatch.setattr(target_views.TargetManager, "get_instance", lambda: FakeManager)
     return golf
@@ -133,3 +141,25 @@ def test_an_unknown_target_is_a_404_not_an_empty_success(stored):
     response = detail("no_such_target")
 
     assert response.status_code == 404
+
+
+def test_get_target_by_id_has_no_side_effect_on_the_current_selection():
+    """The single-target read used to be a linear scan of every target in the
+    database. Now it is one query -- and, more importantly, one that cannot
+    change which target other clients see, because the plugin endpoint relies
+    on exactly that when a caller names its own target.
+    """
+    manager = TargetManager.get_instance()
+    before = manager.get_current_target()
+
+    unknown = manager.get_target("definitely-not-a-target")
+
+    assert unknown is None
+    assert manager.get_current_target() is before
+
+
+def test_get_target_never_returns_the_settings_pseudo_target():
+    """__settings__ stores the current-target selection, not a target. It is
+    excluded from listing, and asking for it by name must not be a way around
+    that."""
+    assert TargetManager.get_instance().get_target("__settings__") is None

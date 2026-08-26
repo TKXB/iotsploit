@@ -21,11 +21,21 @@ from iotsploit_django.adapters.django.interaction import service
 from iotsploit_django.adapters.django.interaction.adapter import DurableInteractionAdapter
 from iotsploit_django.adapters.django.interaction.log_stream import stream_logs
 from iotsploit_django.adapters.django.target_models import TargetManager
-from iotsploit_django.composition_root.wiring import get_exploit_plugin_manager
+from iotsploit_django.composition_root.wiring import (
+    ensure_stream_backend_configured,
+    get_exploit_plugin_manager,
+)
 
 logger = get_task_logger(__name__)
 
 INTERACTIVE_QUEUE = "interactive"
+STREAMING_QUEUE = "streaming"
+STANDARD_QUEUE = "celery"
+
+
+def _ensure_execution_runtime() -> None:
+    """Outer-ring adapters are process-local, so every worker wires its own."""
+    ensure_stream_backend_configured()
 
 
 @shared_task(bind=True, queue=INTERACTIVE_QUEUE, max_retries=0)
@@ -35,6 +45,7 @@ def run_execution_task(self, execution_id, plugin_name, target=None, parameters=
     No retries: a retried run would re-ask questions the operator has already
     answered, and the answers belong to the execution that asked them.
     """
+    _ensure_execution_runtime()
     service.mark_running(execution_id, celery_task_id=self.request.id or "")
 
     try:

@@ -6,10 +6,16 @@ without inventing anything new -- a node is a component, the network is a bus,
 "this node sends these frames" is a :class:`~can_facet.CanFacet`, and "this
 node is on this bus" is a ``bus_member`` edge.
 
-Only the subset that carries meaning is parsed: ``BU_``, ``BO_``, ``SG_`` and
-node comments. Attribute definitions (``BA_DEF_``), colours and value tables
-are display metadata for DBC editors and are dropped rather than stored as
-noise.
+Only the subset that carries meaning is parsed: ``BU_``, ``BO_``, ``SG_``,
+``VAL_`` and node comments. Attribute definitions (``BA_DEF_``) and colours are
+display metadata for DBC editors and are dropped rather than stored as noise.
+
+``VAL_`` is not display metadata, which is why it is read. A gear selector
+whose raw 3 means ``"Drive"`` cannot be composed or read back without its value
+table: without it the operator is left entering the magic number, and a decoded
+capture reports 3 rather than what 3 means. Global ``VAL_TABLE_`` definitions
+are still dropped -- they are declared away from any signal, and attaching one
+by guesswork would invent a meaning the file never assigned.
 
 There is no dependency on cantools on purpose. This reads a handful of line
 shapes; pulling in a full CAN toolchain to do it would be a heavier commitment
@@ -41,6 +47,12 @@ _SIGNAL_RE = re.compile(
     r'"([^"]*)"'
 )
 _NODE_COMMENT_RE = re.compile(r'^CM_\s+BU_\s+(\w+)\s+"(.*)"\s*;?\s*$')
+# VAL_ <frame id> <signal> <code> "<label>" <code> "<label>" ... ;
+# The environment-variable form has a name where the id is, so requiring digits
+# is what separates the two without a second pattern.
+_VALUE_TABLE_RE = re.compile(r"^VAL_\s+(\d+)\s+(\w+)\s+(.*)$")
+# Codes may be negative: a signed signal's value table legitimately labels -1.
+_VALUE_PAIR_RE = re.compile(r'(-?\d+)\s+"([^"]*)"')
 
 
 @dataclass(frozen=True)
@@ -60,6 +72,10 @@ class DbcContents:
     #: Frames whose transmitter is ``Vector__XXX``. They belong to the bus
     #: rather than to any component -- see ``apply_dbc``.
     unsent: List[CanMessage] = field(default_factory=list)
+    #: What was read but could not be placed, in the file's own terms. A
+    #: ``VAL_`` naming a frame or signal that no ``BO_``/``SG_`` declared is
+    #: reported here rather than guessed at or silently dropped.
+    warnings: List[str] = field(default_factory=list)
 
 
 def parse_dbc(text: str) -> DbcContents:
@@ -80,6 +96,9 @@ def parse_dbc(text: str) -> DbcContents:
     # Frames keyed by transmitter, in file order.
     by_sender: Dict[str, List[CanMessage]] = {}
     current: Optional[CanMessage] = None
+    # VAL_ lines are collected rather than applied here: a DBC states them
+    # after every BO_ block, so the signal one names does not exist yet.
+    value_tables: List[Tuple[int, str, Dict[int, str]]] = []
 
     for line in text.splitlines():
         nodes = _NODES_RE.match(line)
@@ -109,6 +128,19 @@ def parse_dbc(text: str) -> DbcContents:
             comments[comment.group(1)] = comment.group(2)
             continue
 
+        table = _VALUE_TABLE_RE.match(line)
+        if table:
+            pairs = {
+                int(code): label for code, label in _VALUE_PAIR_RE.findall(table.group(3))
+            }
+            if pairs:
+                value_tables.append((int(table.group(1)), table.group(2), pairs))
+            else:
+                contents.warnings.append(
+                    f"VAL_ for signal {table.group(2)!r} listed no code/label pairs; dropped."
+                )
+            continue
+
         # A blank line does not end a message block, but any other unmatched
         # top-level keyword does: SG_ lines only ever follow their own BO_.
         if line and not line[0].isspace():
@@ -131,7 +163,42 @@ def parse_dbc(text: str) -> DbcContents:
             )
         )
     contents.unsent = list(by_sender.get(NO_SENDER, ()))
+    _attach_value_tables(contents, value_tables)
     return contents
+
+
+def _attach_value_tables(
+    contents: DbcContents,
+    tables: List[Tuple[int, str, Dict[int, str]]],
+) -> None:
+    """Fold ``VAL_`` tables onto the signals they name.
+
+    Matched on ``(frame id, signal name)`` because a signal name is only unique
+    within its frame -- ``AliveCounter`` appears in half the frames on a real
+    bus, and attaching one frame's labels to all of them would fabricate
+    meanings the file never stated.
+
+    An unmatched table is a warning, not an error. A DBC that references a
+    frame it does not define is malformed, but the rest of it is still worth
+    importing, and refusing the whole file would leave the operator with
+    nothing.
+    """
+    by_identity: Dict[Tuple[int, str], List[CanSignal]] = {}
+    for message in [m for node in contents.nodes for m in node.messages] + contents.unsent:
+        for signal in message.signals:
+            by_identity.setdefault((message.frame_id, signal.name), []).append(signal)
+
+    for raw_id, signal_name, choices in tables:
+        frame_id = raw_id & ~_EXTENDED_FLAG
+        signals = by_identity.get((frame_id, signal_name))
+        if not signals:
+            contents.warnings.append(
+                f"VAL_ names signal {signal_name!r} on frame 0x{frame_id:X}, "
+                "which the file does not define; value table dropped."
+            )
+            continue
+        for signal in signals:
+            signal.choices = dict(choices)
 
 
 def _signal_from(match: "re.Match[str]") -> CanSignal:

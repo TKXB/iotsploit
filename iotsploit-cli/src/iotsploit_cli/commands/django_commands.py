@@ -165,6 +165,19 @@ class DjangoCommands(BaseCommands):
                 '-n',
                 'interactive@%h',
             ]
+            streaming_celery_cmd = [
+                sys.executable,
+                '-m',
+                'celery',
+                '-A',
+                'iotsploit_django.tasks.celery_app:app',
+                'worker',
+                '--loglevel=info',
+                '-Q',
+                'streaming',
+                '-n',
+                'streaming@%h',
+            ]
             service_env = os.environ.copy()
             
             logger.info(f"Running Django command: {' '.join(django_cmd)}")
@@ -172,6 +185,7 @@ class DjangoCommands(BaseCommands):
             logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
             logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
             logger.info(f"Running interactive Celery command: {' '.join(interactive_celery_cmd)}")
+            logger.info(f"Running streaming Celery command: {' '.join(streaming_celery_cmd)}")
             if not self._services_log_to_console():
                 logger.info(f"Service logs are redirected to {os.getenv('IOTSPLOIT_SERVICE_LOG_DIR', '/tmp/sat_logs')}")
             
@@ -227,6 +241,15 @@ class DjangoCommands(BaseCommands):
                 universal_newlines=True,
                 env=service_env,
             )
+
+            streaming_stdout, streaming_stderr, _ = self._service_stdio("celery-streaming")
+            self.streaming_worker_process = subprocess.Popen(
+                streaming_celery_cmd,
+                stdout=streaming_stdout,
+                stderr=streaming_stderr,
+                universal_newlines=True,
+                env=service_env,
+            )
             
             logger.info("All servers started successfully in the background.")
             logger.info("Services running on:")
@@ -235,6 +258,7 @@ class DjangoCommands(BaseCommands):
             logger.info("  - MCP HTTP (Streamable HTTP): http://127.0.0.1:9900/mcp")
             logger.info("  - Celery Worker: background task processing")
             logger.info("  - Celery Worker (interactive): plugin prompts, queue 'interactive'")
+            logger.info("  - Celery Worker (streaming): long-running monitor sessions")
             
             # Wait for HTTP server to be available and initialize devices
             import requests
@@ -320,12 +344,17 @@ class DjangoCommands(BaseCommands):
                 self.interactive_worker_process.terminate()
                 self.interactive_worker_process = None
 
+            if getattr(self, 'streaming_worker_process', None):
+                self.streaming_worker_process.terminate()
+                self.streaming_worker_process = None
+
             self._close_service_log_files()
             
             if not any([self.django_server_process, self.daphne_server_process, 
                         getattr(self, 'mcp_bridge_process', None),
                         getattr(self, 'celery_worker_process', None),
-                        getattr(self, 'interactive_worker_process', None)]):
+                        getattr(self, 'interactive_worker_process', None),
+                        getattr(self, 'streaming_worker_process', None)]):
                 logger.info("All servers stopped.")
             else:
                 logger.error("No servers were running.")

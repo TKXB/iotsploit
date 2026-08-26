@@ -9,6 +9,7 @@ urlpatterns = [
     path("list_device_drivers/", views.list_device_drivers, name="list_device_drivers"),
     # Exploit
     path("execute_plugin/", views.execute_plugin, name="execute_plugin"),
+    path("identify_can_bus/", views.identify_can_bus, name="identify_can_bus"),
     # Plugin info and groups
     path("list_plugin_info/", views.list_plugin_info, name="list_plugin_info"),
     path("list_groups/", views.list_groups, name="list_groups"),
@@ -49,5 +50,4 @@ urlpatterns = [
     path("get_plugin_code/", views.get_plugin_code, name="get_plugin_code"),
     path("save_plugin_code/", views.save_plugin_code, name="save_plugin_code"),
 ]
-
 

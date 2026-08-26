@@ -2,7 +2,9 @@
 
 ## Status
 
-Drafted 2026-08-24. No implementation has started. Not yet accepted.
+Drafted 2026-08-24, accepted and **completed 2026-08-25**. The composer
+plan's phase 2 exited first, as this plan requires. See the completion record
+at the end of this file.
 
 This is the receiving half of CAN work. The sending half is
 `can_frame_composer_plugin_plan.md`, which is accepted and which this plan
@@ -388,3 +390,63 @@ definitions. Never part of the commit gate.
 While implementing, update this file with deviations and the reason for each.
 When every acceptance criterion is met, add final commit IDs and test counts,
 record deferred limitations, and move this plan to `docs/exec-plans/completed/`.
+
+---
+
+## Completion record
+
+Implemented 2026-08-25 alongside the composer plan, on branch
+`feat/can-composer-and-capture` in both repositories. The gating condition was
+honoured: the composer plan's phase 2 exited (commit `06b505a`) before any of
+this was written, so the catalogue, the reconstructed `cantools` definitions,
+and `decode_frame` are consumed here unchanged rather than written twice.
+
+### Commits
+
+- root `dc17d8a` — bounded receiving client, aggregator, capture plugin,
+  streaming snapshots, observation batches.
+- `ui/` `6d28ab4` — capture table, snapshot merge model, Component Showcase
+  entries.
+
+### Test counts
+
+Both gates green: **1025 Python** and **448 Flutter**, 0 failures. 34 of the
+Python tests are this plan's, driving a scripted frame source; no test opens a
+socket.
+
+### Deviations
+
+1. **SocketCAN error constants are duplicated** rather than imported from
+   `iotsploit_drivers.socketcan.can_errors`. Drivers depends on core alone, and
+   importing it from protocols would add a package edge neither plan sanctions.
+   The two are not redundant in output — the driver formats a `candump -e`
+   style description for a live stream, this produces a per-class tally — but
+   they do share nine integers from `linux/can/error.h`.
+2. **The aggregator lives in the plugin module**, as the plan's file table
+   says, but is a standalone class with no plugin dependency so it can be
+   driven directly by tests.
+3. **The snapshot sink is injected.** The plan describes broadcasting
+   `StreamData` directly; making the sink a parameter is what lets every
+   snapshot-cadence and hostile-consumer test run without a stream manager.
+4. **`tools/seed_can_observations.py` was left in place** rather than reduced.
+   Real captures now produce the same fact shape, so it is a fixture generator
+   as intended, but nothing was deleted — retiring it is a separate call.
+
+### Hardware validation
+
+Read-only capture against a live 500 kbit CAN FD bus on the Pi at 10.8.0.10:
+2355 frames in 5.01s, 25 identities, measured periods landing exactly on
+10/20/50/100 ms, FD payloads of 16 and 24 bytes, and no error frame ever
+reaching the frame table. Nothing was transmitted; `can0` TX stayed at 0
+packets.
+
+The bus-off / error-passive path was exercised deterministically rather than on
+hardware — the adapter's cumulative counters showed 10,813 historical
+error-passive events, but the capture window itself was clean.
+
+### Deferred
+
+- `is_complete=True` for a window that provably exceeds a multiple of the
+  slowest declared cycle time. Needs its own justification and tests.
+- Diffing a capture against the catalogue, and decoding stored capture files.
+  Both remain non-goals.

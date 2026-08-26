@@ -117,20 +117,28 @@ def register_write_tools(
     def execute_plugin(
         plugin_name: str,
         parameters: Optional[dict[str, Any]] = None,
+        target_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Execute an enabled exploit plugin against the current target.
+        """Execute an enabled exploit plugin against a target.
 
-        Call select_target first when the intended target is not already
-        current. Plugin parameters come from describe_plugin. Execution may
-        interact with attached hardware or the target and may return either a
-        synchronous result or an asynchronous task identifier.
+        Pass `target_id` to run against that exact target. Prefer it: it needs
+        no select_target beforehand, and unlike select_target it does not change
+        which target every other client sees. Omit it to use the current target,
+        which is the older behaviour and is kept for existing callers.
+
+        Plugin parameters come from describe_plugin. Execution may interact with
+        attached hardware or the target and may return either a synchronous
+        result or an asynchronous task identifier.
         """
 
         def run() -> dict[str, Any]:
-            return client().post(
-                "/api/execute_plugin/",
-                json={"plugin_name": plugin_name, "parameters": parameters or {}},
-            )
+            payload: dict[str, Any] = {
+                "plugin_name": plugin_name,
+                "parameters": parameters or {},
+            }
+            if target_id:
+                payload["target_id"] = target_id
+            return client().post("/api/execute_plugin/", json=payload)
 
         return _call("execute_plugin", run)
 

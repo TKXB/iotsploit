@@ -18,9 +18,9 @@ and would go stale the moment the real DBC was corrected.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from iotsploit_core.domain.facet import Facet, register_facet
 
@@ -39,7 +39,17 @@ class CanSignal(BaseModel):
     the only description of a signal anyone actually has. ``factor`` and
     ``offset`` convert the raw integer to engineering units:
     ``physical = raw * factor + offset``.
+
+    Every field here has to survive the round trip through stored JSON, because
+    an encoder reconstructs a ``cantools`` signal from what comes back out. A
+    field this model does not declare is dropped on load, and a dropped
+    ``choices`` table does not fail loudly -- it silently turns a named value
+    into an unencodable string. Hence ``extra="allow"``, matching
+    :class:`~iotsploit_core.domain.facet.Facet`: a field written by a newer
+    importer is kept rather than discarded by a model that predates it.
     """
+
+    model_config = ConfigDict(extra="allow")
 
     name: str
     start_bit: int
@@ -57,6 +67,19 @@ class CanSignal(BaseModel):
     # The multiplexer token: "M" for the switch signal, "m<n>" for a signal
     # only present when the switch reads <n>. None for ordinary signals.
     multiplexer: Optional[str] = None
+    # The *name* of the switch this signal is multiplexed by. "m3" says which
+    # branch, this says which switch selects it, and a frame with more than one
+    # multiplexer is ambiguous without it.
+    multiplexer_signal: Optional[str] = None
+    # Raw value -> label, DBC's VAL_ table and AUTOSAR's compu-method. Keys are
+    # ints even when the source wrote them as strings: the ARXML importer's
+    # JSON conversion stringifies mapping keys, so "0" and 0 would otherwise be
+    # two different codes for one value.
+    choices: Optional[Dict[int, str]] = None
+    # IEEE-754 payload rather than a scaled integer. cantools needs this at
+    # reconstruction time; factor/offset do not describe it.
+    is_float: bool = False
+    receivers: List[str] = Field(default_factory=list)
 
 
 class CanMessage(BaseModel):
@@ -67,11 +90,26 @@ class CanMessage(BaseModel):
     part of the identity rather than a display hint.
     """
 
+    model_config = ConfigDict(extra="allow")
+
     frame_id: int = Field(json_schema_extra=HEX)
     name: str
     dlc: int = 0
     is_extended: bool = False
+    # Classic CAN caps a payload at 8 bytes; FD reaches 64 and uses a different
+    # controller mode. A frame that lost this flag on load encodes as classic
+    # and is rejected at 9 bytes, so it is identity-adjacent, not decoration.
+    is_fd: bool = False
     signals: List[CanSignal] = Field(default_factory=list)
+    senders: List[str] = Field(default_factory=list)
+    cycle_time_ms: Optional[int] = None
+    # AUTOSAR container frames carry other PDUs inside their payload, selected
+    # by a header id. Composing one needs header selection and per-PDU
+    # encoding, which is out of scope -- so this is stored to be *detected and
+    # refused*, not to be encoded. Kept as raw mappings because a contained PDU
+    # is not a frame: it has a header id instead of an arbitration id.
+    contained_messages: List[Dict[str, Any]] = Field(default_factory=list)
+    header_id: Optional[int] = None
 
 
 @register_facet(FACET_KEY)

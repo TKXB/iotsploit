@@ -36,6 +36,7 @@ iotsploit-exploits = "*"
 iotsploit-mcp = "*"
 cmd2 = "^2.4"
 prompt-toolkit = "^3.0.48"
+websockets = "^12.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

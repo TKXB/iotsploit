@@ -127,6 +127,10 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 # iotsploit shell's `runserver` starts this worker alongside the ordinary one;
 # to run it by hand:
 #   celery -A iotsploit_django.tasks.celery_app worker -Q interactive -c 1
+# Long-running monitor sessions use the same durable execution task and bound
+# interaction port, but are submitted explicitly to ``streaming``. Keeping
+# them off ``interactive`` means a one-hour monitor can never starve prompts.
+#   celery -A iotsploit_django.tasks.celery_app worker -Q streaming
 CELERY_TASK_ROUTES = {
     "iotsploit_django.tasks.interaction_tasks.run_execution_task": {
         "queue": "interactive",
@@ -186,6 +190,5 @@ LOGGING = {
         "": {"level": "WARNING", "handlers": []},
     },
 }
-
 
 
