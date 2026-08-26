@@ -765,28 +765,31 @@ candidate safely.
 
 ### Phase 2 — Flutter service and create-new import dialog
 
-- [ ] Add a service method for multipart ARXML parse preview and a complete
+- [x] Add a service method for multipart ARXML parse preview and a complete
       target create method if one is not already shared.
-- [ ] Add streaming/platform-bounded upload behavior.
-- [ ] Implement the dialog state machine and responsive Targets entry point.
-- [ ] Implement new target ID/name/source validation, warnings, counts, bus
+- [x] Add streaming/platform-bounded upload behavior.
+- [x] Implement the dialog state machine and responsive Targets entry point.
+- [x] Implement new target ID/name/source validation, warnings, counts, bus
       summary, and explicit create confirmation.
-- [ ] Send the complete candidate on create, including buses and edges.
-- [ ] Handle duplicate IDs without overwrite or merge options.
-- [ ] Refresh inventory and link to Target Explorer after success.
-- [ ] Add service and widget tests.
+- [x] Send the complete candidate on create, including buses and edges.
+- [x] Handle duplicate IDs without overwrite or merge options.
+- [x] Refresh inventory and link to Target Explorer after success.
+- [x] Add service and widget tests.
 
 **Exit:** a user can create and inspect a new ARXML-derived target without the
 CLI and without hiding parser warnings.
 
 ### Phase 3 — Documentation, rig validation, and completion
 
-- [ ] Update `docs/product-specs/import-arxml.md` with the create-new UI
+- [x] Update `docs/product-specs/import-arxml.md` with the create-new UI
       workflow, API limits, duplicate-ID behavior, and retained CLI fallback.
-- [ ] Document trusted-network/authentication limitations.
-- [ ] Run both full test gates.
-- [ ] Perform the manual rig validation sequence.
-- [ ] Record final measurements, test counts, deviations, and commit IDs here.
+- [x] Document trusted-network/authentication limitations.
+- [x] Run both full test gates.
+- [ ] Perform the manual rig validation sequence. **Outstanding** — it needs a
+      running rig and a representative ARXML; neither is available from this
+      working copy. The six steps under "Regression and full gates" are
+      unchanged and still required before this plan moves to `completed/`.
+- [x] Record final measurements, test counts, deviations, and commit IDs here.
 - [ ] Move this plan to `docs/exec-plans/completed/` only after all acceptance
       criteria pass.
 
@@ -873,11 +876,18 @@ Other deferred work:
 ## Completion Record
 
 - Start date: 2026-08-26
-- Completion date:
+- Completion date: not complete — manual rig validation outstanding.
 - Commits:
+  - parent repo, branch `feat/arxml-import-api`: `90d70c8` (preview endpoint,
+    bounded upload, contract tests) and the documentation commit that follows
+    it.
+  - `ui/` repo, branch `feat/arxml-import-ui`: `cb07966` (service, import
+    dialog, Targets entry point, service and widget tests).
 - Python test gate: 1097 passed, 0 failed, 0 skipped, 42 warnings
   (`tools/testing/test-python-full.sh`, ruff clean).
-- Flutter test gate:
+- Flutter test gate: 511 passed, 0 failed, 0 skipped; `flutter analyze
+  --fatal-infos` 0 issues; `dart format` 0 changed; cargo fmt/clippy/test clean
+  (`ui/tools/testing/test-flutter-full.sh`, run from `ui/`).
 - Representative ARXML measurements: synthetic fixture only — see Phase 0. A
   production OEM file has not been measured.
 - Deviations from plan:
@@ -895,4 +905,25 @@ Other deferred work:
      Flutter pre-checks against the target list it already holds, and
      `create_target` stays the only authority. This keeps the response contract
      to what the plan specified.
+  5. `ui/` is its own git repository, so the two branches live in different
+     repos rather than being one stacked pair: `feat/arxml-import-api` in the
+     parent (backend and docs) and `feat/arxml-import-ui` in `ui/`.
+  6. Dialog state machine steps 1 (File) and 2 (New target) share one form
+     panel. The machine still has the states the plan lists; the file chooser
+     and the identity fields simply appear together, because splitting them
+     would add a step that carries no decision.
+  7. A duplicate id refused by `create_target` returns the dialog to the form
+     rather than keeping the preview and letting the id be edited in place: the
+     id is baked into the candidate, and editing the candidate client-side
+     would create a target the operator never reviewed. The pre-check makes
+     this the lost-race path, not the usual one.
+  8. The narrow-layout entry point (the add/import overflow menu in
+     `targets_page.dart`) has no widget test. `TargetsPage` fetches through a
+     module-level `http` client at `initState`, so testing it would mean
+     refactoring the page's networking — beyond what this plan authorises. The
+     dialog itself is tested at phone width, and the menu is in the manual rig
+     sequence.
 - Deferred defects discovered:
+  - none. One defect was found and fixed inside this work: the dialog's action
+    buttons overflowed a phone-width dialog by 90 logical pixels as a `Row`,
+    and now wrap.
