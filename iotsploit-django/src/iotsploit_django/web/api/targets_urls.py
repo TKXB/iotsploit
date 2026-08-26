@@ -1,5 +1,6 @@
 from django.urls import path
 
+from iotsploit_django.view_handlers.arxml_views import preview_arxml_import
 from iotsploit_django.view_handlers.target_views import (
     create_target,
     delete_target,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("get_component_types/", get_component_types, name="get_component_types"),
     path("get_target_types/", get_target_types, name="get_target_types"),
     path("get_facet_schemas/", get_facet_schemas, name="get_facet_schemas"),
+    path("preview_arxml_import/", preview_arxml_import, name="preview_arxml_import"),
 ]
 
 
