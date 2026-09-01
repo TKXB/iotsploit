@@ -1,4 +1,8 @@
 from django.apps import AppConfig
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class IoTSploitDjangoConfig(AppConfig):
@@ -6,6 +10,9 @@ class IoTSploitDjangoConfig(AppConfig):
     name = "iotsploit_django"
 
     def ready(self):
+        from django.conf import settings
+
+        logger.info("IoTSploit runtime mode: %s", settings.IOTSPLOIT_RUNTIME)
         # Observation tables live in their own SQLAlchemy metadata, so nothing
         # else creates them. Imported here rather than at module scope because
         # this runs before the Django app registry is populated.

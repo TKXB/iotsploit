@@ -5,12 +5,12 @@ under *sudo* by PrivilegeManager.run_plugin_with_sudo so that the main Django
 process does not need to escalate privileges.
 
 Environment variables used:
-    TASK_ID       – Unique task ID for storing result in Redis
+    RESULT_PATH   – Path for the single JSON result document
     TARGET_JSON   – JSON-encoded target dictionary (optional)
     PARAMS_JSON   – JSON-encoded parameters dictionary (optional)
 
 Usage:
-    sudo -E env TASK_ID='uuid' TARGET_JSON='{}' PARAMS_JSON='{}' python -m iotsploit_django.tools.plugin_sudo_runner syn_flood_attack
+    sudo -E env RESULT_PATH='/tmp/result.json' TARGET_JSON='{}' PARAMS_JSON='{}' python -m iotsploit_django.tools.plugin_sudo_runner syn_flood_attack
 """
 
 from __future__ import annotations
@@ -56,54 +56,29 @@ def main() -> None:
         sys.exit(1)
 
     plugin_name = sys.argv[1]
-    task_id = os.getenv("TASK_ID")
+    result_path = os.getenv("RESULT_PATH")
     target = load_json_env("TARGET_JSON")
     parameters = load_json_env("PARAMS_JSON")
 
-    if not task_id:
-        print("ERROR: TASK_ID environment variable is required", file=sys.stderr)
+    if not result_path:
+        print("ERROR: RESULT_PATH environment variable is required", file=sys.stderr)
         sys.exit(1)
-    
-    logger.info(f"[sudo-runner] Received task_id: {task_id}")
+
     logger.info(f"[sudo-runner] Plugin name: {plugin_name}")
     logger.info(f"[sudo-runner] Target: {target}")
     logger.info(f"[sudo-runner] Parameters: {parameters}")
 
     try:
         from iotsploit_django.adapters.django.exploit_manager_factory import get_exploit_plugin_manager
-        import redis
-        from django.conf import settings
     except ImportError as e:  # pragma: no cover
         print(f"Failed to import required modules: {e}", file=sys.stderr)
         sys.exit(2)
 
-    # Connect to Redis using Django settings
-    try:
-        redis_client = redis.Redis(
-            host=getattr(settings, 'REDIS_HOST', 'localhost'),
-            port=getattr(settings, 'REDIS_PORT', 6379),
-            db=getattr(settings, 'REDIS_DB', 0)
-        )
-        # Test Redis connection
-        redis_client.ping()
-    except Exception as e:
-        print(f"Failed to connect to Redis: {e}", file=sys.stderr)
-        sys.exit(3)
-
-    # Redirect all logging to stderr to keep stdout clean
-    import logging
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s'
-    )
-
     # This process is already running with elevated privileges; execute in-process.
-    mgr = get_exploit_plugin_manager(use_celery=False)
+    mgr = get_exploit_plugin_manager()
     mgr.initialize()
 
-    logger.info("[sudo-runner] REDIS VERSION - Executing plugin '%s' with target=%s params=%s (task_id=%s)", 
-                plugin_name, target, parameters, task_id)
+    logger.info("[sudo-runner] Executing plugin '%s' with target=%s params=%s", plugin_name, target, parameters)
     
     try:
         result = mgr.execute_plugin(plugin_name, target=target, parameters=parameters)
@@ -122,37 +97,14 @@ def main() -> None:
             # Fallback serialization
             result_json = json.dumps({"success": False, "message": f"Serialization error: {str(e)}"})
 
-        # Store result in Redis with expiration (5 minutes)
-        result_key = f"plugin_result:{task_id}"
-        
-        # Check if key already exists before storing
-        existing_data = redis_client.get(result_key)
-        if existing_data:
-            logger.warning(f"[sudo-runner] Key {result_key} already exists! Existing data: {existing_data.decode('utf-8')[:100]}...")
-        
-        redis_client.setex(result_key, 300, result_json)  # 300 seconds = 5 minutes
-        
-        # Verify the data was stored correctly
-        stored_data = redis_client.get(result_key)
-        if stored_data:
-            logger.info(f"[sudo-runner] Successfully stored result in Redis (key={result_key}): {stored_data.decode('utf-8')[:100]}...")
-        else:
-            logger.error(f"[sudo-runner] Failed to store result in Redis (key={result_key})")
-        
-        logger.info("[sudo-runner] Plugin execution completed, result stored in Redis (key=%s)", result_key)
-        
-        # Print success message to stdout (for debugging)
-        print(f"Plugin execution completed successfully. Result stored in Redis with key: {result_key}")
+        with open(result_path, "w", encoding="utf-8") as result_file:
+            result_file.write(result_json)
+        logger.info("[sudo-runner] Plugin execution completed")
         
     except Exception as e:
         logger.error("[sudo-runner] Plugin execution failed: %s", str(e))
         
-        # Store error result in Redis
-        error_result = json.dumps({"success": False, "message": f"Plugin execution failed: {str(e)}"})
-        result_key = f"plugin_result:{task_id}"
-        redis_client.setex(result_key, 300, error_result)
-        
-        print(f"Plugin execution failed. Error stored in Redis with key: {result_key}", file=sys.stderr)
+        print(f"Plugin execution failed: {e}", file=sys.stderr)
         sys.exit(4)
 
 

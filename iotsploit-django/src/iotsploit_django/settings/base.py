@@ -6,6 +6,7 @@ package at settings import time.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -71,7 +72,7 @@ TEMPLATES = [
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.getenv("IOTSPLOIT_DATABASE_PATH", str(BASE_DIR / "db.sqlite3")),
     }
 }
 
@@ -93,22 +94,37 @@ CSP_SCRIPT_SRC = ("'self'",)
 CSP_STYLE_SRC = ("'self'",)
 CSP_IMG_SRC = ("'self'",)
 
-# Celery
-# NOTE: use 127.0.0.1 instead of "localhost" to avoid IPv6 ::1 resolution issues
-# when Redis is only bound to IPv4.
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
-CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
-CELERY_BROKER_CONNECTION_RETRY = True
-CELERY_BROKER_TRANSPORT_OPTIONS = {
-    "visibility_timeout": 3600,
-    "socket_timeout": 30,
-    "socket_connect_timeout": 30,
-}
+IOTSPLOIT_RUNTIME = os.getenv("IOTSPLOIT_RUNTIME", "local").strip().lower()
+if IOTSPLOIT_RUNTIME not in {"local", "distributed"}:
+    raise RuntimeError(
+        "IOTSPLOIT_RUNTIME must be 'local' or 'distributed', "
+        f"not {IOTSPLOIT_RUNTIME!r}"
+    )
+IOTSPLOIT_LOCAL_STANDARD_WORKERS = max(
+    1, int(os.getenv("IOTSPLOIT_LOCAL_STANDARD_WORKERS", "2"))
+)
+
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+
+if IOTSPLOIT_RUNTIME == "distributed":
+    redis_url = os.getenv(
+        "REDIS_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    )
+    CELERY_BROKER_URL = redis_url
+    CELERY_RESULT_BACKEND = redis_url
+    CELERY_ACCEPT_CONTENT = ["json"]
+    CELERY_TASK_SERIALIZER = "json"
+    CELERY_RESULT_SERIALIZER = "json"
+    CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+    CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+    CELERY_BROKER_CONNECTION_RETRY = True
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        "visibility_timeout": 3600,
+        "socket_timeout": 30,
+        "socket_connect_timeout": 30,
+    }
 
 # Interactive plugin execution
 #
@@ -137,25 +153,27 @@ CELERY_TASK_ROUTES = {
     },
 }
 
-# Channels / Redis
-REDIS_HOST = "127.0.0.1"
-REDIS_PORT = 6379
-REDIS_DB = 0
-
-# socket_timeout must stay clear of channels_redis' brpop_timeout (5s). redis-py
-# 8 changed its default from None to 5, so the socket read aborts at the same
-# moment BRPOP would return nil. channels_redis loops on nil but lets the abort
-# propagate, which kills the consumer and drops every WebSocket after ~5s.
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [
-                {"host": REDIS_HOST, "port": REDIS_PORT, "socket_timeout": 30},
-            ],
-        },
+if IOTSPLOIT_RUNTIME == "local":
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": (
+                "iotsploit_django.adapters.django.threadsafe_channel_layer."
+                "ThreadSafeInMemoryChannelLayer"
+            )
+        }
     }
-}
+else:
+    # socket_timeout must stay clear of channels_redis' brpop_timeout (5s).
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [
+                    {"host": REDIS_HOST, "port": REDIS_PORT, "socket_timeout": 30},
+                ],
+            },
+        }
+    }
 
 # Logging
 LOGGING = {
@@ -190,5 +208,3 @@ LOGGING = {
         "": {"level": "WARNING", "handlers": []},
     },
 }
-
-

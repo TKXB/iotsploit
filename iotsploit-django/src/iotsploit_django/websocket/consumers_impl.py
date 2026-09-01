@@ -4,8 +4,6 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 import asyncio
-# Import the configured Celery app to ensure result backend is available
-from iotsploit_django.tasks.celery_app import app as celery_app
 from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
 from iotsploit_django.adapters.django.device_driver_manager_factory import get_device_driver_manager
 import time
@@ -48,18 +46,14 @@ class SystemUsageConsumer(AsyncWebsocketConsumer):
                 break
 
 class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
-    instances = {}  # Deprecated: use channel layers for cross-process messaging
-
     async def connect(self):
         self.task_id = self.scope['url_route']['kwargs']['task_id']
-        self.group_name = f"exploit_task_{self.task_id}"
-        
-        # Join channel group for cross-process messaging from Celery worker
+        self.group_name = f"plugin_execution_{self.task_id}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        
+
         logger.info(f"WebSocket connected for task: {self.task_id}")
         await self.accept()
-        
+
         self.is_polling = True
         asyncio.create_task(self.poll_task_status())
 
@@ -69,9 +63,10 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
         logger.info(f"WebSocket disconnected for task: {self.task_id}")
         self.is_polling = False
 
-    async def task_update(self, event):
-        """Handle task_update messages from Celery worker via channel_layer.group_send()."""
-        await self.send(text_data=json.dumps(event['data']))
+    async def execution_event(self, event):
+        """Translate durable terminal events to the legacy socket envelope."""
+        if event["message"]["event"] in {"completed", "failed", "cancelled", "expired"}:
+            await self.send_task_status()
 
     async def receive(self, text_data):
         """Handle incoming messages - could be used for requesting status updates"""
@@ -83,15 +78,19 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
             logger.error("Invalid JSON received")
 
     async def send_task_status(self):
-        """Fetch and send task status from Celery/Redis"""
+        """Fetch and send task status from the durable execution row."""
         try:
-            result = celery_app.AsyncResult(self.task_id)
-            
-            if result.ready():
-                task_result = result.get()
+            state = await self._state()
+            if state is None:
+                await self.send(text_data=json.dumps({
+                    'status': 'error',
+                    'message': f'Task {self.task_id} not found'
+                }))
+                self.is_polling = False
+            elif state["terminal"]:
                 await self.send(text_data=json.dumps({
                     'status': 'complete',
-                    'result': task_result
+                    'result': state["result"]
                 }))
                 self.is_polling = False
             else:
@@ -107,6 +106,18 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
                 'message': f'Error fetching task status: {str(e)}'
             }))
             self.is_polling = False
+
+    @database_sync_to_async
+    def _state(self):
+        from iotsploit_django.adapters.django.interaction.models import PluginExecution
+
+        execution = PluginExecution.objects.filter(execution_id=self.task_id).first()
+        if execution is None:
+            return None
+        result = execution.result or execution.error or {
+            "status": execution.status,
+        }
+        return {"terminal": execution.is_terminal, "result": result}
 
     async def poll_task_status(self):
         while self.is_polling:

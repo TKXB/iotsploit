@@ -74,6 +74,12 @@ def mark_running(execution_id, *, celery_task_id="") -> None:
     emit(execution_id, "execution_started", {})
 
 
+def record_celery_task_id(execution_id, task_id: str) -> None:
+    PluginExecution.objects.filter(execution_id=execution_id).update(
+        celery_task_id=task_id
+    )
+
+
 def mark_completed(execution_id, result: dict | None) -> None:
     _finish(execution_id, ExecutionStatus.COMPLETED, {"result": result})
     emit(execution_id, "completed", {"result": result})
@@ -111,6 +117,23 @@ def cancel_execution(execution_id, *, reason: str = "operator") -> bool:
         _close_pending(execution, RequestStatus.CANCELLED)
     emit(execution_id, "cancelled", {"reason": reason})
     return True
+
+
+def fail_orphaned_local_executions() -> int:
+    """Mark work that belonged to a previous local process as interrupted."""
+    rows = PluginExecution.objects.filter(
+        status__in=[ExecutionStatus.QUEUED, ExecutionStatus.RUNNING],
+        celery_task_id="",
+    )
+    count = 0
+    for execution in rows:
+        mark_failed(
+            execution.execution_id,
+            "The local runtime stopped before this execution completed.",
+            reason="process_restarted",
+        )
+        count += 1
+    return count
 
 
 def _locked(execution_id) -> PluginExecution | None:

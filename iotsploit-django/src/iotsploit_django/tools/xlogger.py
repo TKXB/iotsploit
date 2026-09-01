@@ -10,7 +10,7 @@ class _ConsoleBufferWSHandler(logging.Handler):
             # Lazy imports to avoid early Django initialisation issues
             from iotsploit_django.consumers import console_log_buffer, log_buffer_lock
             from channels.layers import get_channel_layer  # pylint: disable=import-error
-            from asgiref.sync import async_to_sync           # pylint: disable=import-error
+            from iotsploit_django.adapters.django.threadsafe_channel_layer import send_group
 
             timestamp = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S')
             formatted = f"{timestamp} | {record.levelname} | {record.name} | {record.getMessage()}"
@@ -20,7 +20,8 @@ class _ConsoleBufferWSHandler(logging.Handler):
 
             channel_layer = get_channel_layer()
             if channel_layer:
-                async_to_sync(channel_layer.group_send)(
+                send_group(
+                    channel_layer,
                     "console_logs",
                     {"type": "console_log", "message": formatted},
                 )

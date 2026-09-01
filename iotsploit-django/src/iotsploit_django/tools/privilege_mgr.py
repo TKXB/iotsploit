@@ -84,7 +84,7 @@ class PrivilegeManager:
         This helper is designed for web servers (e.g. Django) where in-process
         privilege escalation is undesired or impossible.  It launches a new
         subprocess under *sudo* that imports the SAT toolkit, executes the
-        requested plugin, stores the result in Redis, and exits.
+        requested plugin, writes the result to a private result file, and exits.
 
         Args:
             plugin_name:  Name of the plugin (e.g. ``syn_flood_attack``)
@@ -95,38 +95,17 @@ class PrivilegeManager:
                               Override if you need a specific Python path.
 
         Returns:
-            (success, result_json) where *result_json* is the JSON result from Redis.
+            (success, result_json) where *result_json* is the JSON result document.
             *success* is *True* when the subprocess exited with return-code 0 and
-            the result was successfully retrieved from Redis.
+            the result file contained valid JSON.
         """
 
         import subprocess
         import json
         import os
         import sys
-        import uuid
+        import tempfile
         import time
-        import redis
-        from django.conf import settings
-
-        # Generate a unique task ID for this execution
-        task_id = str(uuid.uuid4())
-        logger.info(f"Generated task ID: {task_id}")
-        
-        # Connect to Redis using Django settings
-        redis_client = redis.Redis(
-            host=getattr(settings, 'REDIS_HOST', 'localhost'),
-            port=getattr(settings, 'REDIS_PORT', 6379),
-            db=getattr(settings, 'REDIS_DB', 0)
-        )
-        
-        # Check if task ID already exists in Redis (should not happen)
-        result_key = f"plugin_result:{task_id}"
-        existing_data = redis_client.get(result_key)
-        if existing_data:
-            logger.warning(f"Task ID collision! Key {result_key} already exists with data: {existing_data.decode('utf-8')[:100]}...")
-        else:
-            logger.debug(f"Task ID is unique, no existing data for key: {result_key}")
 
         target_json = json.dumps(target or {})
         params_json = json.dumps(parameters or {})
@@ -144,13 +123,15 @@ class PrivilegeManager:
             logger.info(f"Using Python executable: {python_executable}")
 
         logger.debug("Environment variables being passed:")
-        logger.debug(f"  TASK_ID={task_id}")
         logger.debug(f"  TARGET_JSON={target_json[:100]}{'...' if len(target_json) > 100 else ''}")
         logger.debug(f"  PARAMS_JSON={params_json[:100]}{'...' if len(params_json) > 100 else ''}")
 
-        # Create environment dict for subprocess
+        result_file = tempfile.NamedTemporaryFile(prefix="iotsploit-result-", suffix=".json", delete=False)
+        result_path = result_file.name
+        result_file.close()
+
         env = os.environ.copy()
-        env['TASK_ID'] = task_id
+        env['RESULT_PATH'] = result_path
         env['TARGET_JSON'] = target_json
         env['PARAMS_JSON'] = params_json
 
@@ -159,7 +140,7 @@ class PrivilegeManager:
             python_executable, "-m", runner_module, plugin_name
         ]
 
-        logger.info("Executing plugin with sudo (task_id=%s): %s", task_id, " ".join(sudo_cmd))
+        logger.info("Executing plugin with sudo: %s", " ".join(sudo_cmd))
 
         try:
             # Start the subprocess
@@ -176,38 +157,33 @@ class PrivilegeManager:
             
             end_time = time.time()
             execution_time = end_time - start_time
-            logger.info(f"Subprocess completed in {execution_time:.2f} seconds (task_id={task_id})")
+            logger.info(f"Subprocess completed in {execution_time:.2f} seconds")
             
             # Log subprocess output for debugging
             if proc.stdout:
-                logger.info(f"Subprocess stdout (task_id={task_id}): {proc.stdout[:500]}{'...' if len(proc.stdout) > 500 else ''}")
+                logger.info(f"Subprocess stdout: {proc.stdout[:500]}{'...' if len(proc.stdout) > 500 else ''}")
             else:
-                logger.debug(f"Subprocess stdout is empty (task_id={task_id})")
+                logger.debug("Subprocess stdout is empty")
                 
             if proc.stderr:
-                logger.info(f"Subprocess stderr (task_id={task_id}): {proc.stderr[:500]}{'...' if len(proc.stderr) > 500 else ''}")
+                logger.info(f"Subprocess stderr: {proc.stderr[:500]}{'...' if len(proc.stderr) > 500 else ''}")
             else:
-                logger.debug(f"Subprocess stderr is empty (task_id={task_id})")
+                logger.debug("Subprocess stderr is empty")
 
             if proc.returncode != 0:
                 logger.error("sudo subprocess failed (rc=%s): stderr='%s', stdout='%s'", 
                            proc.returncode, proc.stderr.strip(), proc.stdout.strip())
                 return False, proc.stderr.strip() or proc.stdout.strip()
 
-            # Subprocess completed successfully, retrieve result from Redis
-            result_key = f"plugin_result:{task_id}"
-            logger.info(f"Subprocess completed successfully, retrieving result from Redis key: {result_key}")
-            
-            result_data = redis_client.get(result_key)
-            if result_data:
-                # Clean up the Redis key
-                redis_client.delete(result_key)
-                decoded_result = result_data.decode('utf-8')
-                logger.info(f"Retrieved result from Redis (task_id={task_id}): {decoded_result[:200]}...")
-                return True, decoded_result
-            else:
-                logger.error("No result found in Redis for task_id=%s", task_id)
-                return False, f"No result found in Redis (task_id: {task_id})"
+            try:
+                with open(result_path, encoding="utf-8") as result_handle:
+                    result_data = result_handle.read()
+                json.loads(result_data)
+            except (OSError, json.JSONDecodeError) as exc:
+                detail = proc.stderr.strip()
+                logger.error("Invalid privileged result file: %s", exc)
+                return False, f"Invalid privileged result: {exc}{': ' + detail if detail else ''}"
+            return True, result_data
 
         except subprocess.TimeoutExpired:
             logger.error("sudo subprocess timed out")
@@ -218,4 +194,8 @@ class PrivilegeManager:
         except Exception as e:
             logger.exception("Unexpected error running plugin with sudo")
             return False, str(e)
-
+        finally:
+            try:
+                os.unlink(result_path)
+            except FileNotFoundError:
+                pass

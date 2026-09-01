@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 from queue import Queue
+import threading
 from typing import Dict, Optional
 
-import redis
 from channels.layers import get_channel_layer
 from django.conf import settings
 
@@ -15,7 +15,7 @@ logger = xlog.get_logger(__name__)
 
 
 class DjangoStreamManager:
-    """Channels + Redis backed StreamManager (adapter layer).
+    """Channels-backed StreamManager with mode-specific shared tracking.
 
     This implementation requires Django settings and `channels` to be configured.
     """
@@ -30,22 +30,38 @@ class DjangoStreamManager:
     def __init__(self):
         if not hasattr(self, "initialized"):
             self.channel_layer = get_channel_layer()
-            self._redis = redis.Redis(
-                host=getattr(settings, "REDIS_HOST", "localhost"),
-                port=getattr(settings, "REDIS_PORT", 6379),
-                db=getattr(settings, "REDIS_DB", 0),
-            )
+            self._distributed = settings.IOTSPLOIT_RUNTIME == "distributed"
+            if self._distributed:
+                import redis
+
+                self._redis = redis.Redis(
+                    host=settings.REDIS_HOST,
+                    port=settings.REDIS_PORT,
+                    db=settings.REDIS_DB,
+                )
+            else:
+                self._active_channels = set()
+                self._broadcast_channels = set()
+                self._state_lock = threading.Lock()
             self._client_queues: Dict[str, Queue] = {}
             self.initialized = True
 
     async def register_stream(self, channel: str):
-        self._redis.sadd("active_channels", channel)
+        if self._distributed:
+            self._redis.sadd("active_channels", channel)
+        else:
+            with self._state_lock:
+                self._active_channels.add(channel)
         if channel not in self._client_queues:
             self._client_queues[channel] = Queue()
         logger.info(f"Registered stream for channel {channel}")
 
     async def unregister_stream(self, channel: str):
-        self._redis.srem("active_channels", channel)
+        if self._distributed:
+            self._redis.srem("active_channels", channel)
+        else:
+            with self._state_lock:
+                self._active_channels.discard(channel)
         self._client_queues.pop(channel, None)
         logger.info(f"Unregistered stream for channel {channel}")
 
@@ -59,7 +75,11 @@ class DjangoStreamManager:
             return
 
         # Server -> client: broadcast via Channels
-        self._redis.sadd("broadcast_channels", channel)
+        if self._distributed:
+            self._redis.sadd("broadcast_channels", channel)
+        else:
+            with self._state_lock:
+                self._broadcast_channels.add(channel)
         group_name = f"stream_{channel}"
         message = {"type": "stream_data", "data": stream_data.to_dict()}
 
@@ -69,14 +89,24 @@ class DjangoStreamManager:
             logger.error(f"Error broadcasting to group {group_name}: {str(e)}")
 
     async def stop_broadcast(self, channel: str):
-        self._redis.srem("broadcast_channels", channel)
+        if self._distributed:
+            self._redis.srem("broadcast_channels", channel)
+        else:
+            with self._state_lock:
+                self._broadcast_channels.discard(channel)
         logger.info(f"Stopped broadcasting on channel {channel}")
 
     def get_active_channels(self):
-        return [channel.decode() for channel in self._redis.smembers("active_channels")]
+        if self._distributed:
+            return [channel.decode() for channel in self._redis.smembers("active_channels")]
+        with self._state_lock:
+            return list(self._active_channels)
 
     def get_broadcast_channels(self):
-        return [channel.decode() for channel in self._redis.smembers("broadcast_channels")]
+        if self._distributed:
+            return [channel.decode() for channel in self._redis.smembers("broadcast_channels")]
+        with self._state_lock:
+            return list(self._broadcast_channels)
 
     def get_client_data(self) -> Optional[StreamData]:
         for channel in self._client_queues:
@@ -128,5 +158,3 @@ class StreamWrapper:
         if loop.is_running():
             return loop.create_task(self.stream_manager.broadcast_data(stream_data))
         return loop.run_until_complete(self.stream_manager.broadcast_data(stream_data))
-
-

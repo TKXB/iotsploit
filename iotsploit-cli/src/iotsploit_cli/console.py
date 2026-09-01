@@ -198,11 +198,8 @@ class SAT_Shell(SAT_Shell_Base):
         self.connected_devices = {}
         
         
-        # Initialize plugin manager
-        # Use Django composition root to wire ORM repos (+ optional Celery runner).
-        # Default to Celery-enabled behavior for parity with previous implementation.
-        use_celery = os.getenv("SAT_SHELL_USE_CELERY", "1").lower() not in ("0", "false", "no")
-        self.plugin_manager = get_exploit_plugin_manager(use_celery=use_celery)
+        # The Django composition root selects the runner for this runtime.
+        self.plugin_manager = get_exploit_plugin_manager()
         self.plugin_manager.initialize()
         
         # Initialize target manager

@@ -4,16 +4,12 @@ set -e
 echo "🚀 Starting SAT Toolkit Docker Container..."
 
 # Create necessary directories
-mkdir -p /app/data/redis
 mkdir -p /app/logs
 mkdir -p /app/uploads
 mkdir -p /app/static
 mkdir -p /var/log/supervisor
-mkdir -p /var/run/redis
 
 # Set proper permissions
-chown -R redis:redis /app/data/redis
-chown -R redis:redis /var/run/redis
 chown -R www-data:www-data /app/logs
 chown -R www-data:www-data /app/uploads
 chown -R www-data:www-data /app/static
@@ -27,9 +23,9 @@ python manage.py makemigrations || echo "⚠️  makemigrations failed (continui
 python manage.py migrate || echo "⚠️  Database migration failed (continuing...)"
 
 # NEW: Ensure database file is writable by the Django (www-data) user
-if [ -f "/app/db.sqlite3" ]; then
-    chown www-data:www-data /app/db.sqlite3
-    chmod 664 /app/db.sqlite3
+if [ -f "/app/data/db.sqlite3" ]; then
+    chown www-data:www-data /app/data/db.sqlite3
+    chmod 664 /app/data/db.sqlite3
 fi
 
 # Create superuser if it doesn't exist
@@ -59,15 +55,6 @@ else
     echo "✅ Flutter web build found in static/web directory"
 fi
 
-# Test Redis configuration
-echo "🔧 Testing Redis configuration..."
-if [ -f "/etc/redis/redis.conf" ]; then
-    echo "✅ Redis configuration file found"
-else
-    echo "❌ Redis configuration file not found!"
-    exit 1
-fi
-
 # Test Nginx configuration
 echo "🌐 Testing Nginx configuration..."
 nginx -t || {
@@ -79,7 +66,6 @@ nginx -t || {
 echo "📋 System Information:"
 echo "  - Python version: $(python --version)"
 echo "  - Flutter version: $(flutter --version | head -1)"
-echo "  - Redis version: $(redis-server --version | head -1)"
 echo "  - Nginx version: $(nginx -v 2>&1)"
 echo "  - Container hostname: $(hostname)"
 echo "  - Container IP: $(hostname -I | awk '{print $1}')"
@@ -90,7 +76,6 @@ echo "  - Web UI: http://localhost (port 80)"
 echo "  - Python API: http://localhost/api/"
 echo "  - Django Admin: http://localhost/admin/"
 echo "  - WebSocket: ws://localhost/ws/"
-echo "  - Redis: localhost:6379"
 echo "  - Health Check: http://localhost/health"
 
 # Display credentials
@@ -99,4 +84,4 @@ echo "  - Django Admin: admin / admin123"
 
 # Start supervisor to manage all services
 echo "🎯 Starting all services with Supervisor..."
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf 
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

@@ -11,10 +11,6 @@ import os
 import signal
 import socket
 from typing import Tuple
-try:
-    import redis  # type: ignore
-except Exception:  # pragma: no cover
-    redis = None
 
 from django.conf import settings
 
@@ -83,48 +79,49 @@ class DjangoCommands(BaseCommands):
                 )
                 return False, guide
 
-        # If redis-py is available, ping for certainty
-        if redis is not None:
-            try:
-                client = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
-                client.ping()
-            except Exception as e:  # pragma: no cover
-                return False, (
-                    f"Connected to {redis_host}:{redis_port} but Redis ping failed: {e}\n"
-                    "Please ensure Redis is healthy and try again."
-                )
+        try:
+            import redis
+
+            redis.Redis(host=redis_host, port=redis_port, db=redis_db).ping()
+        except Exception as e:  # pragma: no cover
+            return False, (
+                f"Connected to {redis_host}:{redis_port} but Redis ping failed: {e}\n"
+                "Install the iotsploit-django distributed extra and ensure Redis is healthy."
+            )
 
         return True, "Redis is available"
 
     @cmd2.with_category('Django Commands')
     def do_runserver(self, arg):
-        'Start Django development server, Daphne WebSocket server, MCP HTTP server, and Celery worker in the background'
+        'Start the local or distributed backend runtime in the background'
         if self.django_server_process or self.daphne_server_process:
             self.poutput("Servers are already running.")
             return
 
         try:
-            logger.info("Attempting to start Django, Daphne, MCP HTTP server, and Celery servers in background...")
-            
-            # Preflight: check Redis and fail fast if unavailable
-            redis_ok, redis_msg = self._check_redis_available()
-            if not redis_ok:
-                self.poutput(ansi.style("\n[ERROR] Redis is unavailable. Cannot start services that depend on it.", fg=ansi.Fg.RED, bold=True))
-                self.poutput(redis_msg)
-                return False
-            
-            # Prepare the commands
+            distributed = settings.IOTSPLOIT_RUNTIME == "distributed"
+            logger.info("Starting the %s backend runtime", settings.IOTSPLOIT_RUNTIME)
+
+            if distributed:
+                redis_ok, redis_msg = self._check_redis_available()
+                if not redis_ok:
+                    self.poutput(ansi.style("\n[ERROR] Redis is unavailable.", fg=ansi.Fg.RED, bold=True))
+                    self.poutput(redis_msg)
+                    return False
+
             django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', '0.0.0.0:8888']
-            daphne_cmd = [
-                sys.executable, 
-                '-m', 
-                'daphne', 
-                '-b', 
-                '0.0.0.0', 
-                '-p', 
-                '9999', 
-                'iotsploit_django.asgi:application'
-            ]
+            if distributed:
+                daphne_cmd = [
+                    sys.executable, '-m', 'daphne', '-b', '0.0.0.0', '-p', '9999',
+                    'iotsploit_django.asgi:application',
+                ]
+            else:
+                daphne_cmd = [
+                    sys.executable, '-m', 'daphne',
+                    '-e', 'tcp:8888:interface=0.0.0.0',
+                    '-e', 'tcp:9999:interface=0.0.0.0',
+                    'iotsploit_django.asgi:application',
+                ]
             mcp_bridge_cmd = [
                 sys.executable,
                 '-m',
@@ -180,24 +177,27 @@ class DjangoCommands(BaseCommands):
             ]
             service_env = os.environ.copy()
             
-            logger.info(f"Running Django command: {' '.join(django_cmd)}")
+            if distributed:
+                logger.info(f"Running Django command: {' '.join(django_cmd)}")
             logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
             logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
-            logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
-            logger.info(f"Running interactive Celery command: {' '.join(interactive_celery_cmd)}")
-            logger.info(f"Running streaming Celery command: {' '.join(streaming_celery_cmd)}")
+            if distributed:
+                logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
+                logger.info(f"Running interactive Celery command: {' '.join(interactive_celery_cmd)}")
+                logger.info(f"Running streaming Celery command: {' '.join(streaming_celery_cmd)}")
             if not self._services_log_to_console():
                 logger.info(f"Service logs are redirected to {os.getenv('IOTSPLOIT_SERVICE_LOG_DIR', '/tmp/sat_logs')}")
             
             # Start the processes with direct output to stdout/stderr
-            django_stdout, django_stderr, _ = self._service_stdio("django")
-            self.django_server_process = subprocess.Popen(
-                django_cmd, 
-                stdout=django_stdout,
-                stderr=django_stderr,
-                universal_newlines=True,
-                env=service_env,
-            )
+            if distributed:
+                django_stdout, django_stderr, _ = self._service_stdio("django")
+                self.django_server_process = subprocess.Popen(
+                    django_cmd,
+                    stdout=django_stdout,
+                    stderr=django_stderr,
+                    universal_newlines=True,
+                    env=service_env,
+                )
             
             daphne_stdout, daphne_stderr, _ = self._service_stdio("daphne")
             self.daphne_server_process = subprocess.Popen(
@@ -224,41 +224,32 @@ class DjangoCommands(BaseCommands):
                 env=mcp_env
             )
             
-            celery_stdout, celery_stderr, _ = self._service_stdio("celery")
-            self.celery_worker_process = subprocess.Popen(
-                celery_cmd,
-                stdout=celery_stdout,
-                stderr=celery_stderr,
-                universal_newlines=True,
-                env=service_env,
-            )
-
-            interactive_stdout, interactive_stderr, _ = self._service_stdio("celery-interactive")
-            self.interactive_worker_process = subprocess.Popen(
-                interactive_celery_cmd,
-                stdout=interactive_stdout,
-                stderr=interactive_stderr,
-                universal_newlines=True,
-                env=service_env,
-            )
-
-            streaming_stdout, streaming_stderr, _ = self._service_stdio("celery-streaming")
-            self.streaming_worker_process = subprocess.Popen(
-                streaming_celery_cmd,
-                stdout=streaming_stdout,
-                stderr=streaming_stderr,
-                universal_newlines=True,
-                env=service_env,
-            )
+            if distributed:
+                celery_stdout, celery_stderr, _ = self._service_stdio("celery")
+                self.celery_worker_process = subprocess.Popen(
+                    celery_cmd, stdout=celery_stdout, stderr=celery_stderr,
+                    universal_newlines=True, env=service_env,
+                )
+                interactive_stdout, interactive_stderr, _ = self._service_stdio("celery-interactive")
+                self.interactive_worker_process = subprocess.Popen(
+                    interactive_celery_cmd, stdout=interactive_stdout, stderr=interactive_stderr,
+                    universal_newlines=True, env=service_env,
+                )
+                streaming_stdout, streaming_stderr, _ = self._service_stdio("celery-streaming")
+                self.streaming_worker_process = subprocess.Popen(
+                    streaming_celery_cmd, stdout=streaming_stdout, stderr=streaming_stderr,
+                    universal_newlines=True, env=service_env,
+                )
             
             logger.info("All servers started successfully in the background.")
             logger.info("Services running on:")
             logger.info("  - Django HTTP API: http://localhost:8888")
             logger.info("  - Daphne WebSocket: ws://localhost:9999")
             logger.info("  - MCP HTTP (Streamable HTTP): http://127.0.0.1:9900/mcp")
-            logger.info("  - Celery Worker: background task processing")
-            logger.info("  - Celery Worker (interactive): plugin prompts, queue 'interactive'")
-            logger.info("  - Celery Worker (streaming): long-running monitor sessions")
+            if distributed:
+                logger.info("  - Celery workers: standard, interactive, and streaming queues")
+            else:
+                logger.info("  - Background work: in-process thread pools")
             
             # Wait for HTTP server to be available and initialize devices
             import requests
@@ -299,7 +290,8 @@ class DjangoCommands(BaseCommands):
         try:
             # Cleanup devices using HTTP endpoint (GET method)
             # Only attempt HTTP cleanup if the Django server process is still alive
-            if self.django_server_process and self.django_server_process.poll() is None:
+            api_process = self.django_server_process or self.daphne_server_process
+            if api_process and api_process.poll() is None:
                 import requests
                 try:
                     response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')

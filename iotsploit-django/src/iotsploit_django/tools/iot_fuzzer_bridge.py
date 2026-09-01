@@ -3,7 +3,8 @@ import threading
 from typing import Dict, Any, List, Callable
 from datetime import datetime
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
+
+from iotsploit_django.adapters.django.threadsafe_channel_layer import send_group
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +210,7 @@ class IoTFuzzerBridge:
                         'data': event_data
                     }
                     
-                    async_to_sync(self.channel_layer.group_send)(group_name, message)
+                    send_group(self.channel_layer, group_name, message)
                 
                 # Broadcast to general IoT fuzzer group
                 general_group = "iot_fuzzer_general"
@@ -219,7 +220,7 @@ class IoTFuzzerBridge:
                     'data': event_data
                 }
                 
-                async_to_sync(self.channel_layer.group_send)(general_group, message)
+                send_group(self.channel_layer, general_group, message)
                 
         except Exception as e:
             logger.error(f"Error broadcasting to WebSocket: {str(e)}")
@@ -562,4 +563,4 @@ class FuzzerEventHandler:
 
 
 # Global instance
-_instance = None 
+_instance = None

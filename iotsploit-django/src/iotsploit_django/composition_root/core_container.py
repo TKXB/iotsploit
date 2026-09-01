@@ -11,10 +11,7 @@ from iotsploit_core.core.stream_manager import StreamManager
 from iotsploit_django.ports_impl.driver_state_repo import DjangoDriverStateRepository
 from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository, DjangoPluginMetaRepository
 from iotsploit_django.ports_impl.stream_backend import DjangoStreamBackend
-from iotsploit_django.ports_impl.task_runner import CeleryTaskRunner
-
 from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverStateRepository
-from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
 from iotsploit_django.config import DEVICE_PLUGINS_DIR
 
 logger = logging.getLogger(__name__)
@@ -54,13 +51,21 @@ def _context_factory():
 def build_exploit_plugin_manager(
     *,
     plugins_dir: str | Path | None = None,
-    use_celery: bool = True,
 ) -> ExploitPluginManager:
     """Build `iotsploit_core` exploit plugin manager with Django adapters."""
 
+    from django.conf import settings
+
     repo = DjangoPluginMetaRepository()
     group_repo = DjangoPluginGroupRepository()
-    runner = CeleryTaskRunner() if use_celery else InProcessTaskRunner()
+    if settings.IOTSPLOIT_RUNTIME == "distributed":
+        from iotsploit_django.adapters.django.task_runner import CeleryTaskRunner
+
+        runner = CeleryTaskRunner()
+    else:
+        from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
+
+        runner = InProcessTaskRunner()
     return ExploitPluginManager(
         plugin_repo=repo,
         group_repo=group_repo,
@@ -113,5 +118,4 @@ def configure_stream_backend(backend: Optional[DjangoStreamBackend] = None) -> N
     """Configure core `StreamManager` backend once for the Django runtime."""
 
     StreamManager.configure_backend(backend or DjangoStreamBackend())
-
 

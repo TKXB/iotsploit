@@ -122,7 +122,8 @@ pip install iotsploit-exploits   # official security-testing plugins
 
 ### Prerequisites
 - Python 3.10+
-- Docker or a local Redis server
+- Docker (optional)
+- Redis only for distributed mode
 - Git (only required for source development)
 
 ### 🐧 Linux (Ubuntu/Debian) system dependencies
@@ -157,11 +158,20 @@ python -m pip install --upgrade pip
 python -m pip install iotsploit-cli
 ```
 
-### 2. Set Up Redis
+### 2. Choose a Runtime
 
-IoTSploit requires Redis for Celery and WebSocket features. If you use Docker, run:
+Local mode is the default and needs no Redis or Celery processes. It keeps durable
+execution and fuzzer state in SQLite and runs background work in bounded threads:
 
 ```bash
+export IOTSPLOIT_RUNTIME=local
+```
+
+For a multi-process deployment, install the distributed dependencies and provide Redis:
+
+```bash
+pip install 'iotsploit-django[distributed]'
+export IOTSPLOIT_RUNTIME=distributed
 docker pull redis
 docker run --name sat-redis -p 6379:6379 -d redis:latest
 ```
@@ -175,6 +185,12 @@ iotsploit
 ```
 
 On first start, IoTSploit will automatically initialize the local database if needed.
+
+The default container is also local mode. Start the explicit distributed profile with:
+
+```bash
+IOTSPLOIT_RUNTIME=distributed docker compose --profile distributed up
+```
 
 ### 4. Start Backend Services for the GUI
 
