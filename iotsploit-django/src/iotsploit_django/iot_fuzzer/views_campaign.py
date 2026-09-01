@@ -1,7 +1,6 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpRequest
-from django.utils import timezone
 import json
 import logging
 
@@ -47,7 +46,7 @@ def start_campaign(request: HttpRequest):
         campaign_id = fuzzer_manager.start_campaign(campaign_config)
 
         # Get enhanced campaign information
-        campaign_state = fuzzer_manager._get_campaign_state(campaign_id)
+        campaign_state = fuzzer_manager.get_campaign_state(campaign_id)
 
         # Prepare enhanced response with strategy statistics
         response_data = {
@@ -56,42 +55,13 @@ def start_campaign(request: HttpRequest):
             "message": "Campaign started successfully"
         }
 
-        # Persist runtime UUID into DB if possible
+        # The manager creates one row per runtime UUID before scheduling work.
         try:
             from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingCampaign
-            # Find or create a campaign record for this run
-            protocol_type = (campaign_config.get('protocol_type') or 'unknown').lower()
-            name = campaign_config.get('campaign_name') or f"{protocol_type.upper()} Campaign"
-            # Try to attach to an existing idle/default or create new
-            db_campaign, _ = FuzzingCampaign.objects.get_or_create(
-                name=name,
-                defaults={
-                    'description': 'Auto-created by start_campaign',
-                    'status': 'running',
-                    'protocol_type': protocol_type,
-                    'protocol_config': campaign_config.get('protocol_config', {}),
-                    'generator_config': campaign_config.get('generator_config', {}),
-                    'monitoring_config': {},
-                    'started_at': timezone.now(),
-                }
-            )
-            # Store UUID
-            try:
-                if not db_campaign.campaign_uuid:
-                    db_campaign.campaign_uuid = str(campaign_id)
-                else:
-                    # If campaign_uuid already set to another value, replace only when different
-                    if db_campaign.campaign_uuid != str(campaign_id):
-                        db_campaign.campaign_uuid = str(campaign_id)
-                db_campaign.status = 'running'
-                if not db_campaign.started_at:
-                    db_campaign.started_at = timezone.now()
-                db_campaign.save()
-                response_data["db_campaign_id"] = db_campaign.id
-            except Exception as e:
-                logger.warning(f"Unable to persist campaign_uuid: {e}")
+            db_campaign = FuzzingCampaign.objects.get(campaign_uuid=campaign_id)
+            response_data["db_campaign_id"] = db_campaign.id
         except Exception as e:
-            logger.warning(f"start_campaign DB persist skipped: {e}")
+            logger.warning(f"Unable to resolve persisted campaign: {e}")
 
         # Add strategy statistics if available
         if campaign_state:
@@ -299,8 +269,7 @@ def get_campaign_statistics(request: HttpRequest):
 
         fuzzer_manager = IoTFuzzerManager.get_instance()
 
-        # Prefer Redis state as single source of truth
-        state = fuzzer_manager._get_campaign_state(campaign_id) or {}
+        state = fuzzer_manager.get_campaign_state(campaign_id) or {}
 
         # Core AFL++ fields with strict defaults (no fallback chains)
         stats = {
@@ -328,7 +297,7 @@ def get_campaign_statistics(request: HttpRequest):
         # Warn once if keys are missing in state
         missing = [k for k in stats.keys() if k not in state]
         if missing:
-            logger.warning(f"[HTTP.get_statistics] Missing keys in Redis state: {missing}")
+            logger.warning(f"[HTTP.get_statistics] Missing keys in campaign state: {missing}")
 
         return JsonResponse({
             "status": "success",

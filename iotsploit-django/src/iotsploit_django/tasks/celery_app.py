@@ -44,7 +44,5 @@ def _load_shared_tasks_after_django_setup(**_kwargs):
     # Autodiscovery only reaches `<app>.tasks`, and that package deliberately
     # stays thin, so every task module is named here.
     import iotsploit_django.tasks.legacy_tasks_impl  # noqa: F401
-    import iotsploit_django.tasks.plugin_tasks  # noqa: F401
     import iotsploit_django.tasks.interaction_tasks  # noqa: F401
-
 

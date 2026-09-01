@@ -10,7 +10,6 @@ from iotsploit_core.core.exploit_manager import ExploitPluginManager
 from iotsploit_mcp.adapters.http_driver_state_repo import HttpDriverStateRepository
 from iotsploit_mcp.adapters.http_plugin_group_repo import HttpPluginGroupRepository
 from iotsploit_mcp.adapters.http_plugin_meta_repo import HttpPluginMetaRepository
-from iotsploit_mcp.adapters.task_runner_local import LocalTaskRunner
 
 
 def _default_exploit_plugins_dir() -> Path | None:
@@ -72,8 +71,7 @@ def build_exploit_manager(*, django_api_base_url: Optional[str] = None, plugins_
     return ExploitPluginManager(
         plugin_repo=plugin_repo,
         group_repo=group_repo,
-        task_runner=LocalTaskRunner(),
+        task_runner=None,
         plugins_dir=Path(plugins_dir) if plugins_dir is not None else _default_exploit_plugins_dir(),
     )
-
 

@@ -19,42 +19,6 @@ import json
 
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree
-
-
-from celery.result import AsyncResult
-from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
-
-def _execution_queue(plugin_name, parameters):
-    """Choose the durable-execution queue without trusting plugin metadata.
-
-    Only the CAN capture's explicit monitor request is streaming. Malformed
-    requests stay on the interactive queue and let the plugin's normal
-    validation explain the error.
-    """
-    from iotsploit_django.tasks.interaction_tasks import (
-        INTERACTIVE_QUEUE,
-        STANDARD_QUEUE,
-        STREAMING_QUEUE,
-    )
-
-    if plugin_name != "CAN Live Capture":
-        return INTERACTIVE_QUEUE
-    request = (parameters or {}).get("request")
-    if isinstance(request, str):
-        try:
-            request = json.loads(request)
-        except json.JSONDecodeError:
-            return INTERACTIVE_QUEUE
-    if isinstance(request, dict):
-        if request.get("mode") == "monitor":
-            return STREAMING_QUEUE
-        if request.get("mode", "capture") == "capture":
-            return STANDARD_QUEUE
-    return INTERACTIVE_QUEUE
-
-
-
-
 from django.views.decorators.http import require_http_methods
 
 
@@ -383,41 +347,6 @@ def execute_plugin(request):
 
         plugin_info = plugin_manager.get_plugin_info(plugin_name)
         requires_root = plugin_info and plugin_info.get('RequiresRoot', False)
-        is_interactive = bool(plugin_info and plugin_info.get('Interactive', False))
-
-        # A plugin that can stop and ask something must not run inside this
-        # request: the question would have nobody to answer it and the thread
-        # would block. Hand it to the interactive queue and return an id the
-        # client can watch and answer over.
-        if is_interactive and not requires_root:
-            from iotsploit_django.adapters.django.interaction import service
-            from iotsploit_django.tasks.interaction_tasks import run_execution_task
-
-            execution = service.create_execution(
-                plugin_name,
-                target=current_target,
-                parameters=parameters,
-            )
-            queue = _execution_queue(plugin_name, parameters)
-            run_execution_task.apply_async(
-                args=[str(execution.execution_id), plugin_name],
-                kwargs={
-                    "target": execution.target_snapshot,
-                    "parameters": parameters,
-                },
-                queue=queue,
-            )
-            logger.info(
-                "Queued durable execution %s for plugin '%s' on %s",
-                execution.execution_id, plugin_name, queue,
-            )
-            return JsonResponse({
-                "status": "success",
-                "execution_type": "interactive",
-                "execution_id": str(execution.execution_id),
-                "message": "Interactive execution started",
-                "websocket_url": f"/ws/execution/{execution.execution_id}/",
-            })
 
         if requires_root:
             # Use sudo runner for root-required plugins
@@ -464,15 +393,15 @@ def execute_plugin(request):
 
             if success:
                 try:
-                    # Parse JSON result from Redis
+                    # Parse the isolated runner's result document.
                     import json as json_module
                     logger.debug(f"Attempting to parse JSON: {output[:200]}...")
                     result = json_module.loads(output)
                     logger.debug(f"Successfully parsed JSON result: {result}")
 
                 except json_module.JSONDecodeError as e:
-                    logger.error(f"Failed to parse JSON from Redis result: {e}")
-                    logger.error(f"Full Redis result was: {repr(output)}")
+                    logger.error(f"Failed to parse privileged JSON result: {e}")
+                    logger.error(f"Full privileged result was: {repr(output)}")
                     # Fallback if output is not valid JSON
                     result = {
                         "success": False,
@@ -490,6 +419,15 @@ def execute_plugin(request):
             # Use normal execution for non-root plugins
             result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
 
+        if isinstance(result, dict) and result.get('execution_type') == 'interactive':
+            execution_id = result.get('execution_id')
+            return JsonResponse({
+                "status": "success",
+                "execution_type": "interactive",
+                "execution_id": execution_id,
+                "message": "Interactive execution started",
+                "websocket_url": f"/ws/execution/{execution_id}/",
+            })
         if isinstance(result, dict) and result.get('execution_type') == 'async':
             # For async execution, return task information
             response = {
@@ -794,19 +732,16 @@ def execute_plugin_async(request):
         target_manager = TargetManager.get_instance()
         current_target = target_manager.get_current_target()
 
-        # Start Celery task
-        logger.info(f"Starting Celery task for plugin: {plugin_name}")
-        task = execute_plugin_task.delay(
-            plugin_name,
-            target=current_target,
-            parameters=parameters
+        result = get_exploit_plugin_manager().execute_plugin_background(
+            plugin_name, target=current_target, parameters=parameters
         )
+        task_id = result.get("task_id")
 
         return JsonResponse({
             "status": "success",
-            "task_id": task.id,
+            "task_id": task_id,
             "message": "Async execution started",
-            "websocket_url": f"/ws/exploit/{task.id}/"
+            "websocket_url": f"/ws/exploit/{task_id}/"
         })
 
     except Exception as e:
@@ -838,8 +773,25 @@ def stop_plugin_async(request):
                 "message": "Task ID is required"
             }, status=400)
 
-        # Revoke Celery task
-        AsyncResult(task_id).revoke(terminate=True)
+        from django.conf import settings
+        from iotsploit_django.adapters.django.interaction import service
+        from iotsploit_django.adapters.django.interaction.models import PluginExecution
+
+        execution = PluginExecution.objects.filter(execution_id=task_id).first()
+        if execution is None:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Task {task_id} not found",
+            }, status=404)
+        if not service.cancel_execution(task_id):
+            return JsonResponse({
+                "status": "error",
+                "message": f"Task {task_id} has already finished",
+            }, status=409)
+        if settings.IOTSPLOIT_RUNTIME == "distributed" and execution.celery_task_id:
+            from iotsploit_django.tasks.celery_app import app
+
+            app.control.revoke(execution.celery_task_id, terminate=True)
 
         return JsonResponse({
             "status": "success",
@@ -1314,7 +1266,7 @@ def save_plugin_code(request):
                 file.write(code)
 
             # Reload the plugin if it's already loaded
-            plugin_manager = get_exploit_plugin_manager(use_celery=False)
+            plugin_manager = get_exploit_plugin_manager()
             plugin_name = os.path.basename(plugin_path).replace('.py', '')
 
             try:

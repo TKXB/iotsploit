@@ -161,48 +161,32 @@ class PluginCommands(BaseCommands):
                 )
                 
                 if wait_for_results:
-                    # Import celery here to avoid circular imports
                     try:
-                        from celery.result import AsyncResult
-                        from iotsploit_django.tasks import celery_app
                         import time
+                        from iotsploit_django.adapters.django.interaction.models import (
+                            PluginExecution,
+                        )
 
-                        task_result = AsyncResult(task_id, app=celery_app)
-                        
-                        # Poll for results with a progress bar
-                        progress = 0
                         start_time = time.time()
-                        
                         logger.info(ansi.style("Waiting for task to complete...", fg=ansi.Fg.CYAN))
-                        
-                        while not task_result.ready():
-                            # Try to get progress information
-                            task_info = task_result.info
-                            
-                            if isinstance(task_info, dict):
-                                new_progress = task_info.get('progress', 0)
-                                message = task_info.get('message', 'Processing...')
-                                
-                                # Only update if progress has changed
-                                if new_progress != progress:
-                                    progress = new_progress
-                                    # Print progress bar
-                                    bar_length = 50
-                                    filled_length = int(bar_length * progress / 100)
-                                    bar = '█' * filled_length + '-' * (bar_length - filled_length)
-                                    logger.info(f"Progress: [{bar}] {progress:.1f}% - {message}")
-                            
-                            # Sleep briefly before checking again
+
+                        execution = None
+                        while True:
+                            execution = PluginExecution.objects.filter(
+                                execution_id=task_id
+                            ).first()
+                            if execution is None or execution.is_terminal:
+                                break
                             time.sleep(0.5)
-                            
-                            # Add a timeout to prevent infinite waiting
                             if time.time() - start_time > 300:  # 5 minutes
                                 logger.warning(ansi.style("Timeout waiting for task to complete", fg=ansi.Fg.YELLOW))
                                 break
-                        
-                        # Get final result
-                        final_result = task_result.get(timeout=5)  # 5 second timeout for final result
-                        
+
+                        final_result = (
+                            execution.result or execution.error
+                            if execution is not None
+                            else {"status": "error", "message": "Execution not found"}
+                        )
                         logger.info(ansi.style("Async plugin execution completed", fg=ansi.Fg.GREEN))
                         if isinstance(final_result, dict):
                             logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
@@ -211,8 +195,6 @@ class PluginCommands(BaseCommands):
                         else:
                             logger.info(f"Result: {final_result}")
                     
-                    except ImportError as e:
-                        logger.error(ansi.style(f"Error importing Celery modules: {str(e)}", fg=ansi.Fg.RED))
                     except Exception as e:
                         logger.error(ansi.style(f"Error getting async result: {str(e)}", fg=ansi.Fg.RED))
                         logger.debug("Detailed error:", exc_info=True)

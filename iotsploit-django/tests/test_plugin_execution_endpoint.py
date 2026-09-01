@@ -26,6 +26,7 @@ if not apps.ready:
 from django.test import RequestFactory  # noqa: E402
 
 import iotsploit_django.view_handlers.plugin_views as views  # noqa: E402
+from iotsploit_django.adapters.django.interaction.runtime import execution_queue  # noqa: E402
 
 pytestmark = pytest.mark.contract
 
@@ -263,13 +264,13 @@ def test_an_empty_target_id_falls_back_rather_than_404ing(monkeypatch):
 def test_monitor_mode_uses_the_streaming_queue():
     parameters = {"request": {"schema_version": 1, "mode": "monitor"}}
 
-    assert views._execution_queue("CAN Live Capture", parameters) == "streaming"
+    assert execution_queue("CAN Live Capture", parameters) == "streaming"
 
 
 def test_explicit_capture_uses_the_standard_queue():
     parameters = {"request": {"schema_version": 1, "mode": "capture"}}
 
-    assert views._execution_queue("CAN Live Capture", parameters) == "celery"
+    assert execution_queue("CAN Live Capture", parameters) == "celery"
 
 
 @pytest.mark.parametrize(
@@ -282,6 +283,6 @@ def test_explicit_capture_uses_the_standard_queue():
 def test_malformed_or_other_interactive_runs_stay_on_the_interactive_queue(
     plugin_name, request_payload
 ):
-    assert views._execution_queue(
+    assert execution_queue(
         plugin_name, {"request": request_payload}
     ) == "interactive"

@@ -1,5 +1,5 @@
 # SAT Toolkit Docker Image
-# Based on Ubuntu 22.04 with Python 3.10 and Redis
+# Based on Ubuntu 22.04 with Python 3.10
 FROM ubuntu:22.04
 
 # Set environment variables
@@ -30,9 +30,6 @@ RUN apt-get update && apt-get install -y \
     python3.10-dev \
     python3-pip \
     python3.10-venv \
-    # Redis
-    redis-server \
-    redis-tools \
     # Web server dependencies
     nginx \
     # Network tools
@@ -92,7 +89,6 @@ RUN mkdir -p /app/logs /app/uploads /var/log/nginx \
 
 # Copy configuration files from build context (local files)
 COPY docker/nginx.conf /etc/nginx/sites-available/default
-COPY docker/redis.conf /etc/redis/redis.conf  
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/start.sh /app/start.sh
 
@@ -100,7 +96,7 @@ COPY docker/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Expose ports
-EXPOSE 80 8888 9999 6379
+EXPOSE 80 8888 9999
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
@@ -110,4 +106,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 WORKDIR /app
 
 # Start all services
-CMD ["/app/start.sh"] 
+CMD ["/app/start.sh"]

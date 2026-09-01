@@ -23,13 +23,11 @@ _stream_configured: bool = False
 def get_exploit_plugin_manager(
     *,
     plugins_dir: str | Path | None = None,
-    use_celery: bool = True,
 ) -> ExploitPluginManager:
     global _exploit_mgr
     if _exploit_mgr is None:
         _exploit_mgr = core_container.build_exploit_plugin_manager(
             plugins_dir=plugins_dir,
-            use_celery=use_celery,
         )
     return _exploit_mgr
 
@@ -62,5 +60,4 @@ get_fuzzer_manager = fuzzer_container.get_fuzzer_manager
 get_fuzzer_service = fuzzer_container.get_fuzzer_service
 get_protocol_adapter = fuzzer_container.get_protocol_adapter
 get_fuzzer_bridge = fuzzer_container.get_fuzzer_bridge
-
 

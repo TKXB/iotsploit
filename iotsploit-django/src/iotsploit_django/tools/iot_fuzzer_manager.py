@@ -1,22 +1,27 @@
 import logging
 
 from iotsploit_django.tools.frame_utils import frame_data_from_fields
+from concurrent.futures import ThreadPoolExecutor
+import os
 import threading
 import time
 import uuid
 import importlib.util
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-import redis
 from django.conf import settings
-import json
+from django.db import close_old_connections, transaction
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 logger = logging.getLogger(__name__)
+
+_local_fuzzer_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="iotsploit-fuzzer")
 
 class IoTFuzzerManager:
     """
     Main IoT Fuzzer Manager - Django service layer for managing fuzzing campaigns
-    Uses Redis for cross-process state sharing between Django and Celery workers
+    Uses the Django database for state shared by web and background workers.
     """
     
     _instance = None
@@ -45,20 +50,7 @@ class IoTFuzzerManager:
         # Initialize dependency checker
         self._dependency_checker = DependencyChecker()
         
-        # Initialize Redis client using Django settings
-        self._redis = redis.Redis(
-            host=getattr(settings, 'REDIS_HOST', 'localhost'),
-            port=getattr(settings, 'REDIS_PORT', 6379),
-            db=getattr(settings, 'REDIS_DB', 0)
-        )
-        
-        # Test Redis connection
-        try:
-            self._redis.ping()
-            logger.info("IoT Fuzzer Manager initialized with Redis connection")
-        except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+        logger.info("IoT Fuzzer Manager initialized with database-backed state")
     
     def _get_protocol_adapter(self):
         """Lazy initialization of protocol adapter"""
@@ -74,73 +66,86 @@ class IoTFuzzerManager:
             self.fuzzer_bridge = IoTFuzzerBridge.get_instance()
         return self.fuzzer_bridge
 
-    def _get_campaign_key(self, campaign_id: str) -> str:
-        """Get Redis key for campaign state"""
-        return f"iot_fuzzer_campaign:{campaign_id}"
-    
-    def _get_active_campaigns_key(self) -> str:
-        """Get Redis key for active campaigns set"""
-        return "iot_fuzzer_active_campaigns"
-    
-    def _store_campaign_state(self, campaign_id: str, campaign_state: Dict[str, Any]) -> None:
-        """Store campaign state in Redis with TTL"""
-        campaign_key = self._get_campaign_key(campaign_id)
-        
-        # Convert datetime objects to ISO strings for JSON serialization
-        serializable_state = campaign_state.copy()
-        for key, value in serializable_state.items():
-            if isinstance(value, datetime):
-                serializable_state[key] = value.isoformat()
-        
-        # Store campaign state with 24-hour TTL
-        self._redis.setex(campaign_key, 86400, json.dumps(serializable_state))
-        
-        # Add to active campaigns set
-        self._redis.sadd(self._get_active_campaigns_key(), campaign_id)
-        
-        logger.debug(f"Stored campaign state for {campaign_id} in Redis")
-    
-    def _get_campaign_state(self, campaign_id: str) -> Optional[Dict[str, Any]]:
-        """Get campaign state from Redis"""
-        campaign_key = self._get_campaign_key(campaign_id)
-        state_data = self._redis.get(campaign_key)
-        
-        if state_data:
-            try:
-                campaign_state = json.loads(state_data.decode('utf-8'))
-                logger.debug(f"Retrieved campaign state for {campaign_id} from Redis")
-                return campaign_state
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                logger.error(f"Failed to parse campaign state from Redis: {e}")
-                return None
-        else:
-            logger.debug(f"No campaign state found for {campaign_id} in Redis")
+    @staticmethod
+    def _campaign_model():
+        from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingCampaign
+
+        return FuzzingCampaign
+
+    @staticmethod
+    def _as_datetime(value):
+        if not value or isinstance(value, datetime):
+            return value
+        return parse_datetime(value)
+
+    def store_campaign_state(self, campaign_id: str, campaign_state: Dict[str, Any]) -> None:
+        """Create the durable row for one campaign run."""
+        model = self._campaign_model()
+        config = campaign_state.get("config", {})
+        runtime_state = {
+            key: value
+            for key, value in campaign_state.items()
+            if key not in {"id", "status", "created_at", "started_at", "completed_at"}
+        }
+        model.objects.create(
+            campaign_uuid=campaign_id,
+            name=config.get("campaign_name") or f"{config.get('protocol_type', 'unknown').upper()} Campaign",
+            description=config.get("description", "Auto-created by start_campaign"),
+            status=campaign_state.get("status", "idle"),
+            protocol_type=config.get("protocol_type", "unknown"),
+            protocol_config=config.get("protocol_config", {}),
+            generator_config=config.get("generator_config", {}),
+            monitoring_config=config.get("monitoring_config", {}),
+            started_at=self._as_datetime(campaign_state.get("started_at")),
+            completed_at=self._as_datetime(campaign_state.get("completed_at")),
+            runtime_state=runtime_state,
+        )
+
+    def get_campaign_state(self, campaign_id: str) -> Optional[Dict[str, Any]]:
+        """Return the durable state for a campaign run."""
+        campaign = self._campaign_model().objects.filter(campaign_uuid=campaign_id).first()
+        if campaign is None:
             return None
-    
-    def _update_campaign_state(self, campaign_id: str, updates: Dict[str, Any]) -> None:
-        """Update specific fields in campaign state"""
-        campaign_state = self._get_campaign_state(campaign_id)
-        if campaign_state:
-            campaign_state.update(updates)
-            self._store_campaign_state(campaign_id, campaign_state)
-        else:
-            logger.warning(f"Attempted to update non-existent campaign {campaign_id}")
-    
-    def _remove_campaign_state(self, campaign_id: str) -> None:
-        """Remove campaign state from Redis"""
-        campaign_key = self._get_campaign_key(campaign_id)
-        
-        # Remove campaign state
-        self._redis.delete(campaign_key)
-        
-        # Remove from active campaigns set
-        self._redis.srem(self._get_active_campaigns_key(), campaign_id)
-        
-        logger.debug(f"Removed campaign state for {campaign_id} from Redis")
-    
+        return {
+            "id": campaign_id,
+            **campaign.runtime_state,
+            "status": campaign.status,
+            "created_at": campaign.created_at.isoformat(),
+            "started_at": campaign.started_at.isoformat() if campaign.started_at else None,
+            "completed_at": campaign.completed_at.isoformat() if campaign.completed_at else None,
+        }
+
+    def update_campaign_state(self, campaign_id: str, updates: Dict[str, Any]) -> None:
+        """Atomically update lifecycle fields and runtime counters."""
+        model = self._campaign_model()
+        with transaction.atomic():
+            try:
+                campaign = model.objects.select_for_update().get(campaign_uuid=campaign_id)
+            except model.DoesNotExist:
+                logger.warning("Attempted to update non-existent campaign %s", campaign_id)
+                return
+
+            runtime_updates = dict(updates)
+            if "status" in runtime_updates:
+                campaign.status = runtime_updates.pop("status")
+            if "started_at" in runtime_updates:
+                campaign.started_at = self._as_datetime(runtime_updates.pop("started_at"))
+            if "completed_at" in runtime_updates:
+                campaign.completed_at = self._as_datetime(runtime_updates.pop("completed_at"))
+            campaign.runtime_state = {**campaign.runtime_state, **runtime_updates}
+            campaign.save(update_fields=["status", "started_at", "completed_at", "runtime_state"])
+
+    def remove_campaign_state(self, campaign_id: str) -> None:
+        """Delete a campaign row when startup did not complete."""
+        self._campaign_model().objects.filter(campaign_uuid=campaign_id).delete()
+
     def get_active_campaigns(self) -> List[str]:
-        """Get list of active campaign IDs"""
-        return [campaign_id.decode('utf-8') for campaign_id in self._redis.smembers(self._get_active_campaigns_key())]
+        """Get campaign IDs that may still have a running worker."""
+        return list(
+            self._campaign_model()
+            .objects.filter(status__in=["starting", "running", "paused"])
+            .values_list("campaign_uuid", flat=True)
+        )
 
     def start_campaign(self, campaign_config: Dict[str, Any]) -> str:
         """
@@ -258,26 +263,7 @@ class IoTFuzzerManager:
                 'strategy_distribution': self._calculate_strategy_distribution(test_cases_data),
             }
             
-            # Store campaign state in Redis
-            self._store_campaign_state(campaign_id, campaign_state)
-            
-            # Create adapter instances
-            protocol_adapter = self._get_protocol_adapter()
-            
-            # Add campaign_id and fuzzing engine to config for event emission
-            campaign_config_with_id = campaign_config.copy()
-            campaign_config_with_id['campaign_id'] = campaign_id
-            if fuzzing_engine:
-                campaign_config_with_id['fuzzing_engine'] = fuzzing_engine
-                # Provide test cases to orchestrator adapter for fuzzing engine path
-                campaign_config_with_id['test_cases'] = test_cases_data
-            
-            orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config_with_id)
-            monitor_adapter = protocol_adapter.create_monitor_adapter(campaign_config_with_id)
-            
-            # Store adapters in memory for this process
-            self.orchestrator_adapters[campaign_id] = orchestrator_adapter
-            self.monitor_adapters[campaign_id] = monitor_adapter
+            self.store_campaign_state(campaign_id, campaign_state)
             
             # Initialize event bridge for this campaign
             fuzzer_bridge = self._get_fuzzer_bridge()
@@ -286,20 +272,14 @@ class IoTFuzzerManager:
             # Start background campaign task
             self._start_campaign_task(campaign_id)
             
-            # Update campaign state to running
-            self._update_campaign_state(campaign_id, {
-                'status': 'running',
-                'started_at': datetime.now().isoformat()
-            })
-            
-            logger.info(f"Campaign {campaign_id} started successfully with {len(test_cases_data)} test cases from {len(test_group_ids)} groups")
+            logger.info(f"Campaign {campaign_id} scheduled with {len(test_cases_data)} test cases from {len(test_group_ids)} groups")
             return campaign_id
             
         except Exception as e:
             logger.error(f"Error starting campaign: {str(e)}")
             # Cleanup on error
             if campaign_id is not None:
-                self._remove_campaign_state(campaign_id)
+                self.remove_campaign_state(campaign_id)
                 if campaign_id in self.orchestrator_adapters:
                     del self.orchestrator_adapters[campaign_id]
                 if campaign_id in self.monitor_adapters:
@@ -317,8 +297,7 @@ class IoTFuzzerManager:
             Dict: Campaign final statistics
         """
         try:
-            # Get campaign state from Redis
-            campaign_state = self._get_campaign_state(campaign_id)
+            campaign_state = self.get_campaign_state(campaign_id)
             if not campaign_state:
                 raise Exception(f"Campaign {campaign_id} not found")
             
@@ -330,14 +309,13 @@ class IoTFuzzerManager:
             # Cleanup resources
             self._cleanup_campaign_resources(campaign_id)
             
-            # Update campaign state in Redis
-            self._update_campaign_state(campaign_id, {
+            self.update_campaign_state(campaign_id, {
                 'status': 'stopped',
                 'completed_at': datetime.now().isoformat()
             })
             
             # Calculate final statistics
-            final_stats = self._calculate_final_statistics_from_redis(campaign_id)
+            final_stats = self._calculate_final_statistics(campaign_id)
             
             logger.info(f"Campaign {campaign_id} stopped successfully")
             return final_stats
@@ -357,8 +335,7 @@ class IoTFuzzerManager:
             Dict: Campaign current state
         """
         try:
-            # Get campaign state from Redis
-            campaign_state = self._get_campaign_state(campaign_id)
+            campaign_state = self.get_campaign_state(campaign_id)
             if not campaign_state:
                 raise Exception(f"Campaign {campaign_id} not found")
             
@@ -367,14 +344,13 @@ class IoTFuzzerManager:
                 orchestrator_adapter = self.orchestrator_adapters[campaign_id]
                 orchestrator_adapter.pause()
             
-            # Update campaign state in Redis
-            self._update_campaign_state(campaign_id, {
+            self.update_campaign_state(campaign_id, {
                 'status': 'paused',
                 'paused_at': datetime.now().isoformat()
             })
             
             # Get updated state
-            updated_state = self._get_campaign_state(campaign_id)
+            updated_state = self.get_campaign_state(campaign_id)
             
             logger.info(f"Campaign {campaign_id} paused successfully")
             return updated_state
@@ -394,8 +370,7 @@ class IoTFuzzerManager:
             Dict: Reset campaign state
         """
         try:
-            # Get campaign state from Redis
-            campaign_state = self._get_campaign_state(campaign_id)
+            campaign_state = self.get_campaign_state(campaign_id)
             if not campaign_state:
                 raise Exception(f"Campaign {campaign_id} not found")
             
@@ -404,8 +379,7 @@ class IoTFuzzerManager:
                 orchestrator_adapter = self.orchestrator_adapters[campaign_id]
                 orchestrator_adapter.reset()
             
-            # Reset campaign runtime statistics (AFL++ keys) in Redis
-            self._update_campaign_state(campaign_id, {
+            self.update_campaign_state(campaign_id, {
                 'execs_done': 0,
                 'execs_per_sec': 0.0,
                 'cycles_done': 0,
@@ -426,7 +400,7 @@ class IoTFuzzerManager:
             })
             
             # Get updated state
-            updated_state = self._get_campaign_state(campaign_id)
+            updated_state = self.get_campaign_state(campaign_id)
             
             logger.info(f"Campaign {campaign_id} reset successfully")
             return updated_state
@@ -446,8 +420,7 @@ class IoTFuzzerManager:
             Dict: Campaign status and progress
         """
         try:
-            # Get campaign state from Redis
-            campaign_state = self._get_campaign_state(campaign_id)
+            campaign_state = self.get_campaign_state(campaign_id)
             if not campaign_state:
                 raise Exception(f"Campaign {campaign_id} not found")
             
@@ -462,7 +435,7 @@ class IoTFuzzerManager:
             if campaign_state.get('iterations_total', 0) > 0:
                 progress_percentage = (campaign_state.get('iterations_completed', 0) / campaign_state['iterations_total']) * 100
             
-            # Merge Redis state with adapter status
+            # Merge durable state with adapter status
             combined_status = {
                 **campaign_state,
                 **realtime_status,
@@ -486,8 +459,7 @@ class IoTFuzzerManager:
             Dict: Detailed statistics
         """
         try:
-            # Get campaign state from Redis
-            campaign_state = self._get_campaign_state(campaign_id)
+            campaign_state = self.get_campaign_state(campaign_id)
             if not campaign_state:
                 raise Exception(f"Campaign {campaign_id} not found")
             
@@ -497,7 +469,7 @@ class IoTFuzzerManager:
                 monitor_adapter = self.monitor_adapters[campaign_id]
                 statistics = monitor_adapter.get_statistics()
             
-            # Add calculated metrics from Redis state
+            # Add calculated metrics from durable state
             statistics.update({
                 'campaign_duration': self._calculate_campaign_duration_from_state(campaign_state),
                 'average_iterations_per_second': self._calculate_average_iterations_per_second_from_state(campaign_state),
@@ -520,7 +492,7 @@ class IoTFuzzerManager:
             progress_data: Progress data to update
         """
         try:
-            self._update_campaign_state(campaign_id, progress_data)
+            self.update_campaign_state(campaign_id, progress_data)
             logger.debug(f"Updated campaign progress for {campaign_id}: {progress_data}")
         except Exception as e:
             logger.error(f"Error updating campaign progress for {campaign_id}: {e}")
@@ -568,32 +540,138 @@ class IoTFuzzerManager:
         
         return strategy_counts
     
-    def _start_campaign_task(self, campaign_id: str) -> None:
-        """Start background task for campaign execution"""
+    def run_campaign(self, campaign_id: str, campaign_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Run one campaign; local threads and Celery workers share this owner."""
+        close_old_connections()
+        orchestrator_adapter = None
         try:
-            # Import here to avoid circular imports
-            from iotsploit_django.tasks.fuzzer_tasks import run_fuzzing_campaign
-            
-            # Get campaign state from Redis
-            campaign_state = self._get_campaign_state(campaign_id)
-            if not campaign_state:
+            campaign_state = self.get_campaign_state(campaign_id)
+            if campaign_state is None:
                 raise Exception(f"Campaign {campaign_id} not found")
-            
-            campaign_config = campaign_state['config']
-            
-            # Start the Celery task
+
+            protocol_adapter = self._get_protocol_adapter()
+            campaign_config_with_id = campaign_config.copy()
+            campaign_config_with_id["campaign_id"] = campaign_id
+            test_group_ids = campaign_config.get("test_group_ids", [])
+            if test_group_ids:
+                test_cases = self._load_selected_test_cases(test_group_ids)
+                campaign_config_with_id["test_cases"] = test_cases
+                campaign_config_with_id["fuzzing_engine"] = self._prepare_fuzzing_engine(test_cases)
+
+            orchestrator_adapter = protocol_adapter.create_orchestrator_adapter(campaign_config_with_id)
+            monitor_adapter = protocol_adapter.create_monitor_adapter(
+                campaign_config_with_id, orchestrator_adapter
+            )
+            self.orchestrator_adapters[campaign_id] = orchestrator_adapter
+            self.monitor_adapters[campaign_id] = monitor_adapter
+
+            orchestrator_adapter.start()
+            self.update_campaign_state(
+                campaign_id,
+                {"status": "running", "started_at": timezone.now().isoformat()},
+            )
+
+            report_threshold = int(os.getenv("FUZZER_REPORT_THRESHOLD_EXECS", "50"))
+            execs_done = 0
+            last_reported_execs = 0
+            while getattr(orchestrator_adapter, "is_running", False):
+                current_state = self.get_campaign_state(campaign_id)
+                if current_state is None or current_state.get("status") != "running":
+                    orchestrator_adapter.stop()
+                    break
+
+                detail = monitor_adapter.get_statistics() or {}
+                execs_done = max(execs_done, int(detail.get("execs_done", 0) or 0))
+                if execs_done - last_reported_execs >= report_threshold:
+                    updates = {
+                        "execs_done": execs_done,
+                        "execs_per_sec": float(detail.get("execs_per_sec", 0.0) or 0.0),
+                        "cycles_done": int(detail.get("cycles_done", 0) or 0),
+                        "corpus_count": int(detail.get("corpus_count", 0) or 0),
+                        "corpus_favored": int(detail.get("corpus_favored", 0) or 0),
+                        "corpus_found": int(detail.get("corpus_found", 0) or 0),
+                        "pending_total": int(detail.get("pending_total", 0) or 0),
+                        "pending_favs": int(detail.get("pending_favs", 0) or 0),
+                        "bitmap_cvg": float(detail.get("bitmap_cvg", 0.0) or 0.0),
+                        "saved_crashes": int(detail.get("saved_crashes", 0) or 0),
+                        "saved_hangs": int(detail.get("saved_hangs", 0) or 0),
+                        "total_tmout": int(detail.get("total_tmout", 0) or 0),
+                        "run_time": int(detail.get("run_time", 0) or 0),
+                        "last_update": int(time.time()),
+                    }
+                    self.update_campaign_state(campaign_id, updates)
+                    self._send_campaign_event(campaign_id, "statistics_update", {"statistics": updates})
+                    last_reported_execs = execs_done
+                time.sleep(0.1)
+
+            orchestrator_adapter.stop()
+            self.update_campaign_state(
+                campaign_id,
+                {
+                    "status": "stopped",
+                    "completed_at": timezone.now().isoformat(),
+                    "last_update": int(time.time()),
+                },
+            )
+            final_state = self.get_campaign_state(campaign_id)
+            self._send_campaign_event(campaign_id, "campaign_status", {"status": final_state})
+            return {"status": "success", "campaign_id": campaign_id, "final_status": "stopped"}
+        except Exception as exc:
+            logger.exception("Fuzzing campaign %s failed", campaign_id)
+            self.update_campaign_state(
+                campaign_id,
+                {
+                    "status": "failed",
+                    "error_message": str(exc),
+                    "failed_at": timezone.now().isoformat(),
+                },
+            )
+            self._send_campaign_event(
+                campaign_id,
+                "campaign_status",
+                {"status": self.get_campaign_state(campaign_id)},
+            )
+            return {"status": "error", "campaign_id": campaign_id, "error_message": str(exc)}
+        finally:
+            if orchestrator_adapter is not None:
+                self._cleanup_campaign_resources(campaign_id)
+            close_old_connections()
+
+    @staticmethod
+    def _send_campaign_event(campaign_id: str, event_type: str, data: Dict[str, Any]) -> None:
+        """Best-effort notification; database state remains authoritative."""
+        try:
+            from channels.layers import get_channel_layer
+            from iotsploit_django.adapters.django.threadsafe_channel_layer import send_group
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                send_group(
+                    channel_layer,
+                    f"iot_fuzzer_campaign_{campaign_id}",
+                    {"type": "fuzzer_event", "event_type": event_type, "data": {"campaign_id": campaign_id, **data}},
+                )
+        except Exception:
+            logger.exception("Unable to publish fuzzer event for %s", campaign_id)
+
+    def _start_campaign_task(self, campaign_id: str) -> None:
+        """Dispatch the shared campaign loop through the selected runtime."""
+        campaign_state = self.get_campaign_state(campaign_id)
+        if campaign_state is None:
+            raise Exception(f"Campaign {campaign_id} not found")
+        campaign_config = campaign_state["config"]
+
+        if settings.IOTSPLOIT_RUNTIME == "distributed":
+            from iotsploit_django.tasks.fuzzer_tasks import run_fuzzing_campaign
+
             task = run_fuzzing_campaign.delay(campaign_id, campaign_config)
-            
-            # Store task ID in Redis
-            self._update_campaign_state(campaign_id, {'task_id': task.id})
-            
-            logger.info(f"Started background task for campaign {campaign_id}: {task.id}")
-            
-        except Exception as e:
-            logger.error(f"Error starting background task for campaign {campaign_id}: {str(e)}")
-            # Fallback to mock implementation if Celery is not available
-            logger.info(f"Using mock background task for campaign {campaign_id}")
-            self._update_campaign_state(campaign_id, {'task_id': f"mock_{campaign_id}"})
+            task_id = task.id
+        else:
+            _local_fuzzer_executor.submit(self.run_campaign, campaign_id, campaign_config)
+            task_id = f"local:{campaign_id}"
+
+        self.update_campaign_state(campaign_id, {"task_id": task_id})
+        logger.info("Started background campaign %s as %s", campaign_id, task_id)
     
     def _cleanup_campaign_resources(self, campaign_id: str) -> None:
         """Cleanup campaign resources"""
@@ -616,9 +694,9 @@ class IoTFuzzerManager:
         except Exception as e:
             logger.error(f"Error cleaning up campaign resources: {str(e)}")
     
-    def _calculate_final_statistics_from_redis(self, campaign_id: str) -> Dict[str, Any]:
-        """Calculate final campaign statistics from Redis (AFL++ keys)"""
-        campaign_state = self._get_campaign_state(campaign_id)
+    def _calculate_final_statistics(self, campaign_id: str) -> Dict[str, Any]:
+        """Calculate final campaign statistics from durable state."""
+        campaign_state = self.get_campaign_state(campaign_id)
         if not campaign_state:
             return {'campaign_id': campaign_id, 'error': 'Campaign not found'}
 

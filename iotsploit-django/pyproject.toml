@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "iotsploit-django"
 version = "0.0.8"
-description = "IoTSploit Django ring package (HTTP/WS/ORM/Celery + composition root)"
+description = "IoTSploit Django ring package (HTTP/WS/ORM + composition root)"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -30,9 +30,9 @@ iotsploit-protocols = "*"
 iotsploit-platforms = { version = "*", optional = true }
 Django = ">=4.2,<5.0"
 channels = ">=4.0"
-celery = ">=5.3"
-redis = ">=5.0"
-channels-redis = ">=4.1"
+celery = { version = ">=5.3", optional = true }
+redis = { version = ">=5.0", optional = true }
+channels-redis = { version = ">=4.1", optional = true }
 daphne = ">=4.0"
 django-extensions = ">=3.2"
 django-cors-headers = ">=4.0"
@@ -55,6 +55,7 @@ pyusb = ">=1.2"
 
 [tool.poetry.extras]
 platforms = ["iotsploit-platforms"]
+distributed = ["celery", "redis", "channels-redis"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
