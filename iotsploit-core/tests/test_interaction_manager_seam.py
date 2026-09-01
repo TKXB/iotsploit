@@ -274,3 +274,43 @@ def test_shell_bound_interactive_plugin_stays_in_process_despite_duration_hint()
 
     assert plugin.calls == 1
     assert result["message"] == "{'ok': True}"
+
+
+def test_unbound_interactive_plugin_goes_to_the_task_runner():
+    """The Control Panel's path: no port here, so the durable runner must get it.
+
+    Interactive metadata is the whole trigger. A plugin with no
+    ``execute_async`` and no async hint in its parameters still has to leave
+    this process, because the operator answers over HTTP and running it here
+    would only produce InteractionUnavailable.
+    """
+
+    class QuietInteractivePlugin:
+        def __init__(self):
+            self.calls = 0
+
+        def get_info(self):
+            return {"Interactive": True}
+
+        def execute(self, target, parameters):
+            self.calls += 1
+            return {"ok": True}
+
+    class RecordingTaskRunner:
+        def __init__(self):
+            self.submitted = []
+
+        def submit(self, plugin_name, target=None, parameters=None, *, context=None):
+            self.submitted.append((plugin_name, context))
+            return {"execution_type": "interactive", "execution_id": "abc"}
+
+    plugin = QuietInteractivePlugin()
+    manager = build_manager(plugin)
+    runner = RecordingTaskRunner()
+    manager._task_runner = runner
+
+    result = manager.execute_plugin("p", parameters={})
+
+    assert plugin.calls == 0
+    assert result["execution_type"] == "interactive"
+    assert runner.submitted == [("p", {"interactive": True})]
