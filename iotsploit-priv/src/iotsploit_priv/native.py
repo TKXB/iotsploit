@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import grp
 import hashlib
 import json
@@ -46,6 +47,11 @@ def install_manifest() -> tuple[tuple[Path, Path, int], ...]:
     )
 
 
+def current_user() -> str:
+    """The account this process runs as -- the one that must reach the socket."""
+    return os.environ.get("SUDO_USER") or getpass.getuser()
+
+
 def _service_identity(service_user: str) -> tuple[int, set[int]]:
     account = pwd.getpwnam(service_user)
     return account.pw_uid, set(os.getgrouplist(service_user, account.pw_gid))
@@ -61,7 +67,13 @@ def _writable_by(path: Path, uid: int, gids: set[int]) -> bool:
     return bool(mode & stat.S_IWOTH)
 
 
-def _health_probe(socket_path: Path) -> bool:
+def _health_probe(socket_path: Path) -> str | None:
+    """Return None when the daemon answers correctly, else why it did not.
+
+    The probe runs as the invoking account, so a permission error here is a
+    statement about the caller's group membership, not about the daemon.
+    """
+    caller = current_user()
     request = b'{"verb":"status","args":{}}\n'
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(2)
@@ -70,27 +82,34 @@ def _health_probe(socket_path: Path) -> bool:
         client.sendall(request)
         client.shutdown(socket.SHUT_WR)
         response = client.recv(4_096)
-    except OSError:
-        return False
+    except PermissionError:
+        return (
+            f"{caller} cannot open {socket_path}: permission denied "
+            f"(add {caller} to the iotsploit group, then start a new login session)"
+        )
+    except OSError as exc:
+        return f"{caller} cannot reach {socket_path}: {exc}"
     finally:
         client.close()
     try:
         payload = json.loads(response)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return False
-    return (
+        return "daemon did not return the bounded unknown-verb response"
+    answered = (
         isinstance(payload, dict)
         and payload.get("ok") is False
         and payload.get("exit") == 2
         and "unknown verb" in payload.get("stderr", "")
     )
+    return None if answered else "daemon did not return the bounded unknown-verb response"
 
 
 def native_status(
-    service_user: str = "www-data",
+    service_user: str | None = None,
     *,
     socket_path: Path = DEFAULT_SOCKET_PATH,
 ) -> NativeStatus:
+    service_user = service_user or current_user()
     destinations = (DAEMON_DESTINATION, *UNIT_DESTINATIONS)
     if not any(path.exists() or path.is_symlink() for path in (*destinations, socket_path)):
         return NativeStatus(1, ("privileged helper is not installed",))
@@ -136,12 +155,22 @@ def native_status(
             problems.append(f"{socket_path} mode is not 0660")
     except OSError as exc:
         problems.append(f"{socket_path}: {exc}")
-    if not problems and not _health_probe(socket_path):
-        problems.append("daemon did not return the bounded unknown-verb response")
+    if not problems:
+        probe_failure = _health_probe(socket_path)
+        if probe_failure:
+            problems.append(probe_failure)
 
     if problems:
         return NativeStatus(2, tuple(problems))
-    return NativeStatus(0, ("privileged helper is healthy", f"verb table sha256: {VERB_TABLE_HASH}"))
+    members = ", ".join(sorted(set(helper_group.gr_mem))) or "none"
+    return NativeStatus(
+        0,
+        (
+            "privileged helper is healthy",
+            f"iotsploit group members: {members}",
+            f"verb table sha256: {VERB_TABLE_HASH}",
+        ),
+    )
 
 
 def verb_lines() -> tuple[str, ...]:

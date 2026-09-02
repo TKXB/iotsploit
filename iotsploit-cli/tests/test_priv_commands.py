@@ -40,3 +40,14 @@ def test_priv_install_requires_explicit_confirmation(monkeypatch):
     shell.onecmd_plus_hooks("priv install")
 
     assert shell.last_result == 1
+
+
+def test_priv_status_does_not_end_the_shell_session(monkeypatch, capsys):
+    """A non-zero status is a report, not a request to quit."""
+    monkeypatch.setattr(priv_commands, "native_status", lambda _user: NativeStatus(1, ("not installed",)))
+    shell = PrivShell()
+
+    stop = shell.onecmd_plus_hooks("priv status")
+
+    assert not stop
+    assert shell.last_result == 1

@@ -6,7 +6,14 @@ import subprocess
 import cmd2
 
 from iotsploit_priv.client import VERB_TABLE_HASH
-from iotsploit_priv.native import INSTALLER, install_manifest, native_status, sha256_file, verb_lines
+from iotsploit_priv.native import (
+    INSTALLER,
+    current_user,
+    install_manifest,
+    native_status,
+    sha256_file,
+    verb_lines,
+)
 
 from .base_commands import BaseCommands
 
@@ -14,10 +21,10 @@ from .base_commands import BaseCommands
 priv_parser = cmd2.Cmd2ArgumentParser(description="Manage the bounded privileged helper")
 priv_sub = priv_parser.add_subparsers(dest="action", required=True)
 priv_status = priv_sub.add_parser("status", help="verify native helper health and integrity")
-priv_status.add_argument("--service-user", default="www-data")
+priv_status.add_argument("--service-user", default=None, help="account to check (default: the invoking user)")
 priv_status.set_defaults(handler="status")
 priv_install = priv_sub.add_parser("install", help="install the native helper")
-priv_install.add_argument("--service-user", default="www-data")
+priv_install.add_argument("--service-user", default=None, help="account to grant access (default: the invoking user)")
 priv_install.add_argument("--worker-unit", action="append", default=[])
 priv_install.set_defaults(handler="install")
 priv_uninstall = priv_sub.add_parser("uninstall", help="remove the native helper")
@@ -72,7 +79,8 @@ class PrivCommands(BaseCommands):
                 (self.poutput if status.code == 0 else self.perror)(line)
             self.last_result = status.code
         elif args.handler == "install":
-            self.last_result = self._run_installer("install", args.service_user, args.worker_unit)
+            self.last_result = self._run_installer(
+                "install", args.service_user or current_user(), args.worker_unit
+            )
         else:
             self.last_result = self._run_installer("uninstall", None, args.worker_unit)
-        return self.last_result

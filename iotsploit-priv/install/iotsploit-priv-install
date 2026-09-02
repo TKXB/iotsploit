@@ -98,7 +98,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="action", required=True)
     install_parser = subparsers.add_parser("install")
-    install_parser.add_argument("--service-user", default="www-data")
+    install_parser.add_argument("--service-user", default=os.environ.get("SUDO_USER") or "root")
     install_parser.add_argument("--worker-unit", action="append", default=[])
     uninstall_parser = subparsers.add_parser("uninstall")
     uninstall_parser.add_argument("--worker-unit", action="append", default=[])
