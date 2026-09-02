@@ -78,8 +78,32 @@ def test_permission_denied_names_the_group_not_the_daemon(tmp_path, monkeypatch)
 
     monkeypatch.setattr(native.socket.socket, "connect", _refuse)
 
-    failure = native._health_probe(unreachable)
+    kind, detail = native._health_probe(unreachable)
 
-    assert "permission denied" in failure
-    assert "iotsploit group" in failure
-    assert "rig-operator" in failure
+    assert kind == "permission"
+    assert "permission denied" in detail
+    assert "rig-operator" in detail
+
+
+class FakeGroup:
+    def __init__(self, gid: int, members: tuple[str, ...]):
+        self.gr_gid = gid
+        self.gr_mem = list(members)
+
+
+def test_membership_granted_but_session_is_stale_says_so(monkeypatch):
+    """The install succeeded; only the shell that ran it is out of date."""
+    monkeypatch.setattr(native.os, "getgroups", lambda: [1000])
+
+    message = native._permission_diagnosis("tkxb", FakeGroup(999, ("tkxb",)))
+
+    assert "log out and back in" in message
+    assert "newgrp iotsploit" in message
+
+
+def test_membership_never_granted_points_at_the_install_command(monkeypatch):
+    monkeypatch.setattr(native.os, "getgroups", lambda: [1000])
+
+    message = native._permission_diagnosis("tkxb", FakeGroup(999, ("www-data",)))
+
+    assert "priv install --service-user tkxb" in message

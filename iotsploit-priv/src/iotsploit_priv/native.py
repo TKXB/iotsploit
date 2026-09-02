@@ -67,8 +67,28 @@ def _writable_by(path: Path, uid: int, gids: set[int]) -> bool:
     return bool(mode & stat.S_IWOTH)
 
 
-def _health_probe(socket_path: Path) -> str | None:
-    """Return None when the daemon answers correctly, else why it did not.
+def _permission_diagnosis(caller: str, helper_group: "grp.struct_group") -> str:
+    """Say which of the two permission failures this is.
+
+    Group membership is fixed when a session starts, so the install can have
+    succeeded while the shell that ran it still cannot reach the socket. That
+    reads as a failed install unless it is named.
+    """
+    if caller in helper_group.gr_mem and helper_group.gr_gid not in os.getgroups():
+        return (
+            f"{caller} is in the iotsploit group, but this session started before that "
+            f"and still carries the old group set -- log out and back in, or run: newgrp iotsploit"
+        )
+    if caller not in helper_group.gr_mem:
+        return (
+            f"{caller} is not in the iotsploit group and cannot reach the socket "
+            f"-- run: priv install --service-user {caller}"
+        )
+    return f"{caller} cannot open the helper socket: permission denied"
+
+
+def _health_probe(socket_path: Path) -> tuple[str, str] | None:
+    """Return None when the daemon answers correctly, else (kind, detail).
 
     The probe runs as the invoking account, so a permission error here is a
     statement about the caller's group membership, not about the daemon.
@@ -83,25 +103,24 @@ def _health_probe(socket_path: Path) -> str | None:
         client.shutdown(socket.SHUT_WR)
         response = client.recv(4_096)
     except PermissionError:
-        return (
-            f"{caller} cannot open {socket_path}: permission denied "
-            f"(add {caller} to the iotsploit group, then start a new login session)"
-        )
+        return ("permission", f"{caller} cannot open {socket_path}: permission denied")
     except OSError as exc:
-        return f"{caller} cannot reach {socket_path}: {exc}"
+        return ("unreachable", f"{caller} cannot reach {socket_path}: {exc}")
     finally:
         client.close()
     try:
         payload = json.loads(response)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return "daemon did not return the bounded unknown-verb response"
+        return ("bad-response", "daemon did not return the bounded unknown-verb response")
     answered = (
         isinstance(payload, dict)
         and payload.get("ok") is False
         and payload.get("exit") == 2
         and "unknown verb" in payload.get("stderr", "")
     )
-    return None if answered else "daemon did not return the bounded unknown-verb response"
+    if answered:
+        return None
+    return ("bad-response", "daemon did not return the bounded unknown-verb response")
 
 
 def native_status(
@@ -158,7 +177,10 @@ def native_status(
     if not problems:
         probe_failure = _health_probe(socket_path)
         if probe_failure:
-            problems.append(probe_failure)
+            kind, detail = probe_failure
+            problems.append(
+                _permission_diagnosis(current_user(), helper_group) if kind == "permission" else detail
+            )
 
     if problems:
         return NativeStatus(2, tuple(problems))

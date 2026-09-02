@@ -62,7 +62,8 @@ def install(service_user: str, worker_units: list[str]) -> None:
     _run([SYSTEMCTL, "daemon-reload"])
     _run([SYSTEMCTL, "enable", "--now", "iotsploit-privd.socket"])
     print(f"Installed helper access for {service_user}.")
-    print("Restart that user's Django/Celery services so new group membership takes effect.")
+    print("Group membership starts at login: log out and back in (or run: newgrp iotsploit)")
+    print("before using privileged verbs, and restart that user's Django/Celery services.")
 
 
 def uninstall(worker_units: list[str]) -> None:
