@@ -50,8 +50,6 @@ Codex, Cursor, or generic MCP config:
 - `IOTSPLOIT_MCP_PORT`: optional default port for the MCP server.
 - `IOTSPLOIT_DJANGO_API_BASE_URL`: Django API base URL, default
   `http://127.0.0.1:8888`.
-- `IOTSPLOIT_DJANGO_API_TOKEN`: optional bearer token forwarded from MCP to
-  Django.
 - `IOTSPLOIT_DJANGO_API_TIMEOUT_S`: Django request timeout in seconds.
 - `IOTSPLOIT_MCP_LOG_TO_FILE`: set to `1` to enable MCP file logging.
 
@@ -74,9 +72,9 @@ This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 The mutating tools are `create_target`, `edit_target`, `select_target`,
 `execute_plugin` and `record_observations`. `execute_plugin` runs an enabled
 exploit plugin against the current target and can interact with attached
-hardware or the target. It is temporarily exposed before backend auth
-hardening and the two-key safety gate are complete; keep the unauthenticated
-MCP endpoint bound to loopback or otherwise protected.
+hardware or the target. Django requires the configured bearer token for these
+requests. The MCP endpoint itself remains unauthenticated, so keep it bound to
+loopback or otherwise protected.
 
 All other mutating or destructive tools remain prohibited until backend auth
 hardening and the two-key safety gate described in the implementation proposal

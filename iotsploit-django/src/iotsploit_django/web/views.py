@@ -3,7 +3,6 @@
 from iotsploit_django.view_handlers.plugin_views import (
     list_plugins,
     list_enabled_exploit_plugins,
-    discovered_exploit_plugins,
     enable_exploit_plugin,
     disable_exploit_plugin,
     list_enabled_plugin_groups,
@@ -49,7 +48,6 @@ from iotsploit_django.view_handlers.recovery_views import (
 __all__ = [
     "list_plugins",
     "list_enabled_exploit_plugins",
-    "discovered_exploit_plugins",
     "enable_exploit_plugin",
     "disable_exploit_plugin",
     "list_enabled_plugin_groups",

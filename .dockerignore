@@ -29,6 +29,7 @@ __pycache__/
 env/
 env3.8/
 venv/
+.venv/
 ENV/
 env.bak/
 venv.bak/
@@ -62,6 +63,7 @@ ui/.packages
 ui/.pub-cache/
 ui/.pub/
 ui/build/
+ui/
 ui/ios/Flutter/Generated.xcconfig
 ui/ios/Flutter/flutter_export_environment.sh
 ui/ios/Runner/GeneratedPluginRegistrant.*
@@ -121,6 +123,10 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 .nyc_output
+
+# Local generated outputs
+build/
+artifacts/
 
 # Dependency directories
 jspm_packages/

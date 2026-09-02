@@ -7,8 +7,8 @@ Local mode is the default:
 
 ```bash
 IOTSPLOIT_RUNTIME=local python -m daphne \
-  -e tcp:8888:interface=0.0.0.0 \
-  -e tcp:9999:interface=0.0.0.0 \
+  -e tcp:8888:interface=127.0.0.1 \
+  -e tcp:9999:interface=127.0.0.1 \
   iotsploit_django.asgi:application
 ```
 
@@ -28,3 +28,7 @@ Both modes use the same SQLite records as the source of truth; changing modes
 requires a process restart and `python manage.py migrate` after upgrades.
 All processes in distributed mode must use the same database path. Containers
 set `IOTSPLOIT_DATABASE_PATH=/app/data/db.sqlite3` on their shared data volume.
+
+Production settings require `SECRET_KEY`, `ALLOWED_HOSTS`, and
+`CORS_ALLOWED_ORIGINS`. The HTTP API has no authentication of its own, so bind
+daphne to loopback and put access control in front of it.

@@ -17,6 +17,7 @@ include = [
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 iotsploit-core = "*"
+iotsploit-priv = "*"
 pyusb = ">=1.2"
 python-can = ">=4.5"
 pyserial = ">=3.5"

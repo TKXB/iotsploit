@@ -6,8 +6,6 @@ services:
     container_name: sat-toolkit
     ports:
       - "80:80"          # Web UI (Nginx)
-      - "8888:8888"      # Python API (direct access)
-      - "9999:9999"      # WebSocket (direct access)
     volumes:
       # Persistent data
       - sat_data:/app/data
@@ -23,8 +21,13 @@ services:
       - PYTHONPATH=/app
       - REDIS_HOST=redis
       - REDIS_URL=redis://redis:6379/0
-      - DEBUG=False
-      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost}
+    cap_drop: [ALL]
+    # These bootstrap capabilities exist only so PID 1 can set the final UID
+    # and capability sets; the root-owned launcher removes them from every child.
+    cap_add: [NET_ADMIN, NET_RAW, NET_BIND_SERVICE, SETUID, SETGID, SETPCAP]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
@@ -47,7 +50,9 @@ services:
   celery:
     build: .
     profiles: ["distributed"]
-    command: python -m celery -A iotsploit_django.tasks.celery_app:app worker --loglevel=info -Q celery
+    command: /usr/local/libexec/iotsploit-run-cap raw python -m celery -A iotsploit_django.tasks.celery_app:app worker --loglevel=info -Q celery
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, SETUID, SETGID, SETPCAP]
     environment: &distributed-environment
       DJANGO_SETTINGS_MODULE: iotsploit_django.settings.prod
       IOTSPLOIT_RUNTIME: distributed
@@ -55,6 +60,9 @@ services:
       REDIS_HOST: redis
       REDIS_URL: redis://redis:6379/0
       PYTHONPATH: /app
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
     depends_on: [redis]
     volumes:
       - sat_data:/app/data
@@ -65,7 +73,9 @@ services:
   celery-interactive:
     build: .
     profiles: ["distributed"]
-    command: python -m celery -A iotsploit_django.tasks.celery_app:app worker --loglevel=info -Q interactive -c 1 -n interactive@%h
+    command: /usr/local/libexec/iotsploit-run-cap raw python -m celery -A iotsploit_django.tasks.celery_app:app worker --loglevel=info -Q interactive -c 1 -n interactive@%h
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, SETUID, SETGID, SETPCAP]
     environment: *distributed-environment
     depends_on: [redis]
     volumes:
@@ -77,7 +87,9 @@ services:
   celery-streaming:
     build: .
     profiles: ["distributed"]
-    command: python -m celery -A iotsploit_django.tasks.celery_app:app worker --loglevel=info -Q streaming -c 1 -n streaming@%h
+    command: /usr/local/libexec/iotsploit-run-cap raw python -m celery -A iotsploit_django.tasks.celery_app:app worker --loglevel=info -Q streaming -c 1 -n streaming@%h
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, SETUID, SETGID, SETPCAP]
     environment: *distributed-environment
     depends_on: [redis]
     volumes:

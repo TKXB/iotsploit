@@ -1,0 +1,120 @@
+#!/usr/bin/python3
+"""Install the bounded IoTSploit helper without importing application code."""
+
+from __future__ import annotations
+
+import argparse
+import grp
+import os
+import pwd
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+SOURCE_ROOT = Path(__file__).resolve().parent.parent
+DAEMON_SOURCE = SOURCE_ROOT / "privd/iotsploit-privd"
+SYSTEMD_SOURCE = SOURCE_ROOT / "systemd"
+DAEMON_DESTINATION = Path("/usr/local/libexec/iotsploit-privd")
+SYSTEMD_DESTINATION = Path("/etc/systemd/system")
+RUNTIME_DIRECTORY = Path("/run/iotsploit")
+GROUP = "iotsploit"
+SYSTEMCTL = "/usr/bin/systemctl"
+GROUPADD = "/usr/sbin/groupadd"
+USERMOD = "/usr/sbin/usermod"
+
+
+def _run(argv: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(argv, check=check, text=True, env={}, close_fds=True)
+
+
+def _copy_root_file(source: Path, destination: Path, mode: int) -> None:
+    if not source.is_file() or source.is_symlink():
+        raise RuntimeError(f"invalid packaged source: {source}")
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    temporary = destination.with_name(f".{destination.name}.new")
+    shutil.copyfile(source, temporary)
+    os.chown(temporary, 0, 0)
+    os.chmod(temporary, mode)
+    temporary.replace(destination)
+
+
+def _ensure_group() -> None:
+    try:
+        grp.getgrnam(GROUP)
+    except KeyError:
+        _run([GROUPADD, "--system", GROUP])
+
+
+def install(service_user: str, worker_units: list[str]) -> None:
+    pwd.getpwnam(service_user)
+    _ensure_group()
+    _run([USERMOD, "--append", "--groups", GROUP, service_user])
+    _copy_root_file(DAEMON_SOURCE, DAEMON_DESTINATION, 0o755)
+    for unit_name in ("iotsploit-privd.socket", "iotsploit-privd.service"):
+        _copy_root_file(SYSTEMD_SOURCE / unit_name, SYSTEMD_DESTINATION / unit_name, 0o644)
+    for unit in worker_units:
+        if not unit or "/" in unit or unit in {"iotsploit-privd.service", "iotsploit-privd.socket"}:
+            raise ValueError(f"invalid worker unit: {unit!r}")
+        drop_in = SYSTEMD_DESTINATION / f"{unit}.d/50-iotsploit-capabilities.conf"
+        _copy_root_file(SYSTEMD_SOURCE / "iotsploit-worker-capabilities.conf", drop_in, 0o644)
+    _run([SYSTEMCTL, "daemon-reload"])
+    _run([SYSTEMCTL, "enable", "--now", "iotsploit-privd.socket"])
+    print(f"Installed helper access for {service_user}.")
+    print("Restart that user's Django/Celery services so new group membership takes effect.")
+
+
+def uninstall(worker_units: list[str]) -> None:
+    _run([SYSTEMCTL, "disable", "--now", "iotsploit-privd.socket"], check=False)
+    _run([SYSTEMCTL, "stop", "iotsploit-privd.service"], check=False)
+    for destination in (
+        SYSTEMD_DESTINATION / "iotsploit-privd.socket",
+        SYSTEMD_DESTINATION / "iotsploit-privd.service",
+        DAEMON_DESTINATION,
+    ):
+        try:
+            destination.unlink()
+        except FileNotFoundError:
+            pass
+    for unit in worker_units:
+        drop_in = SYSTEMD_DESTINATION / f"{unit}.d/50-iotsploit-capabilities.conf"
+        try:
+            drop_in.unlink()
+            drop_in.parent.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+    try:
+        RUNTIME_DIRECTORY.rmdir()
+    except (FileNotFoundError, OSError):
+        pass
+    _run([SYSTEMCTL, "daemon-reload"])
+    print("Removed the IoTSploit privileged helper. The iotsploit group was retained.")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="action", required=True)
+    install_parser = subparsers.add_parser("install")
+    install_parser.add_argument("--service-user", default="www-data")
+    install_parser.add_argument("--worker-unit", action="append", default=[])
+    uninstall_parser = subparsers.add_parser("uninstall")
+    uninstall_parser.add_argument("--worker-unit", action="append", default=[])
+    options = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error("installer must run as root")
+    if options.action == "install":
+        install(options.service_user, options.worker_unit)
+    else:
+        uninstall(options.worker_unit)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (KeyError, OSError, RuntimeError, subprocess.CalledProcessError, ValueError) as exc:
+        print(f"iotsploit privileged helper installation failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)

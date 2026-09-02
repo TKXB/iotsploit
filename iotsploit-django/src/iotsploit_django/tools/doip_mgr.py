@@ -1,7 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
 from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.sat_utils import *
 
@@ -13,6 +12,7 @@ import time
 import binascii
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.tools.device_info import DeviceInfo
+from iotsploit_priv import PrivilegedHelperError, call as privileged_call
 
 class DoIP_Mgr:
     __wakeupdata = bytes([0x02,0xfd,0x00,0x05,0x00,0x00,0x00,0x07,0x0e,0x80,0x00,0x00,0x00,0x00,0x00])
@@ -35,8 +35,17 @@ class DoIP_Mgr:
     def Instance():
         return _instance
     
-    def __init__(self):
+    def __init__(self, privileged_call_fn=privileged_call):
         self.__socket = None
+        self._privileged_call = privileged_call_fn
+
+    def _configure_interface(self):
+        try:
+            result = self._privileged_call("doip-config", {"iface": DeviceInfo.doip_eth_name})
+        except PrivilegedHelperError as exc:
+            raise_err(str(exc))
+        if not result.ok:
+            raise_err(result.stderr or f"doip-config failed with exit {result.exit}")
 
     
     def send_doip_package(self, bytes_to_send, recv_long_msg = True):
@@ -459,12 +468,7 @@ class DoIP_Mgr:
             return True
 
         logger.info("DoIP Connect Start -->> IP:{} Port:{}".format(ip, port))
-        logger.info("Modify {} IP Start -->>".format(DeviceInfo.doip_eth_name))
-        result_code, result_buf = Bash_Script_Mgr.Instance().exec_cmd(
-            "sudo ifconfig {0} 169.254.58.58 netmask 255.255.0.0 && sudo ip r add 169.254.0.0/16 dev {0}".format(DeviceInfo.doip_eth_name))
-        if result_code < 0:
-            raise_err("Modify {} IP Fail! Bash CMD Fail! Continue..".format(DeviceInfo.doip_eth_name))
-        logger.info("Modify {} IP Finish".format(DeviceInfo.doip_eth_name))
+        self._configure_interface()
 
         connect_result = self.__connect_doip_socket(ip, port)
         if connect_result == True:
@@ -474,8 +478,7 @@ class DoIP_Mgr:
             raise_err("DoIP Connect Fail! IP:{} Port:{} Unavailable!".format(ip, port))
 
         Input_Mgr.Instance().confirm("DoIP连接失败!请连接odb线!")
-        result_code, result_buf = Bash_Script_Mgr.Instance().exec_cmd(
-            "sudo ifconfig {} 169.254.58.58 netmask 255.255.0.0".format(DeviceInfo.doip_eth_name))
+        self._configure_interface()
         connect_result = self.__connect_doip_socket(ip, port)
         if connect_result == True:
             return True
@@ -495,13 +498,6 @@ class DoIP_Mgr:
             logger.info("DoIP DisConnect Success.")
         except Exception:
             logger.exception("DoIP DisConnect Fail!")
-
-        # logger.info("Reset {} IP Start -->>".format(DeviceInfo.doip_eth_name))
-        # result_code, result_buf = Bash_Script_Mgr.Instance().exec_cmd(
-        #     "sudo ifconfig {} 0.0.0.0".format(DeviceInfo.doip_eth_name))
-        # if result_code < 0:
-        #     logger.error("Reset {} IP Fail! Bash CMD Fail! Continue..".format(DeviceInfo.doip_eth_name))
-        # logger.info("Reset {} IP Finish".format(DeviceInfo.doip_eth_name))
 
         self.__socket = None
 

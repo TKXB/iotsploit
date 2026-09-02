@@ -19,6 +19,7 @@ logger = xlog.get_logger('views')
 from iotsploit_core.core.tool_manager import get_tool_manager
 
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 
 
 
@@ -96,6 +97,7 @@ def get_tools_status(request):
             'message': str(e)
         }, status=500)
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def refresh_tools(request):
     """

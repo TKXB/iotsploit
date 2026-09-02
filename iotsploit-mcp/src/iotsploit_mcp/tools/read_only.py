@@ -123,8 +123,8 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
 
         def run() -> dict[str, Any]:
             if driver_name == "all":
-                return client().get("/api/scan_all_devices/")
-            return client().get(f"/api/scan_device/{quote(driver_name, safe='')}/")
+                return client().post("/api/scan_all_devices/")
+            return client().post(f"/api/scan_device/{quote(driver_name, safe='')}/")
 
         return _call("scan_devices", run)
 
@@ -132,7 +132,7 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
     def list_devices() -> dict[str, Any]:
         """List devices known to the Django backend."""
 
-        return _call("list_devices", lambda: client().get("/api/list_devices/"))
+        return _call("list_devices", lambda: client().post("/api/list_devices/"))
 
     @mcp.tool()
     def device_info() -> dict[str, Any]:

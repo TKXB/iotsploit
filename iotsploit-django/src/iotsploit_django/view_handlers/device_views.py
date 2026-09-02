@@ -1,5 +1,6 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.http import HttpRequest, HttpResponse
 import json
 import logging
@@ -8,13 +9,10 @@ from iotsploit_django.adapters.django.device_driver_manager_factory import get_d
 from iotsploit_django.adapters.django.device_models import DeviceManager
 from iotsploit_django.tools.monitor_mgr import Pi_Mgr
 from iotsploit_django.adapters.django.device_registry_factory import get_device_registry
-from iotsploit_django.tools.env_mgr import Env_Mgr
 logger = logging.getLogger(__name__)
 
 def device_info(request: HttpRequest):
     """Get device information including battery, WiFi, etc."""
-    Env_Mgr.Instance().set("SAT_RUN_IN_SHELL", False)
-    
     battery_charge = "充电中" if Pi_Mgr.Instance().pi_info()["battery"]["Charging"] else "放电中"
 
     info_dict = {
@@ -46,6 +44,8 @@ def get_all_devices(request):
             "message": f"Failed to retrieve devices: {str(e)}"
         }, status=500)
 
+@csrf_exempt
+@require_POST
 def scan_all_devices(request):
     """Scan for devices across every loaded driver.
 
@@ -94,6 +94,7 @@ def scan_all_devices(request):
         }, status=500)
 
 @csrf_exempt
+@require_POST
 def scan_specific_device(request, driver_name):
     """Scan for devices using a specific device driver."""
     try:
@@ -143,6 +144,7 @@ def scan_specific_device(request, driver_name):
         }, status=500)
 
 @csrf_exempt
+@require_POST
 def list_devices(request):
     """
     Scan for devices and show detailed information.
@@ -221,16 +223,12 @@ def list_devices(request):
             "message": f"Failed to scan devices: {str(e)}"
         }, status=500)
 
+@csrf_exempt
+@require_POST
 def initialize_devices(request):
     """
-    GET
     Initialize all available devices
     """
-    if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
     try:
         # 直接使用 DeviceDriverManager 的单例
         device_manager = get_device_driver_manager()
@@ -254,16 +252,12 @@ def initialize_devices(request):
             "message": str(e)
         }, status=500)
 
+@csrf_exempt
+@require_POST
 def cleanup_devices(request):
     """
-    GET
     Clean up all device connections and reset states
     """
-    if request.method != 'GET':
-        return JsonResponse({
-            "status": "error",
-            "message": "Only GET method is allowed"
-        }, status=405)
     try:
         device_manager = get_device_driver_manager()
         if not device_manager:

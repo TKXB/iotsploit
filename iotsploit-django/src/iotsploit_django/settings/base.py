@@ -131,10 +131,6 @@ if IOTSPLOIT_RUNTIME == "distributed":
 # A plugin can stop mid-run and ask the operator a typed question, and the
 # Control Panel can answer it. There is no setting for this: it is simply how
 # an interactive plugin runs, the same way it already works in the shell.
-# Access control is a separate, still-outstanding piece of work that has to
-# cover the whole API -- no endpoint here authenticates anything, so gating one
-# feature would have bought nothing. See "Prerequisite: Authentication" in
-# docs/exec-plans/active/interactive_exploit_plugin_plan.md.
 
 # Interactive runs get their own queue at concurrency 1. Waiting on an answer
 # holds a worker slot without using CPU, so isolating them keeps ordinary plugin

@@ -21,7 +21,6 @@ urlpatterns = [
     path("disable_driver/", views.disable_driver, name="disable_driver"),
     # SSOT: exploit plugin enable/disable + groups (for MCP runtime)
     path("plugins/exploits/enabled/", views.list_enabled_exploit_plugins, name="list_enabled_exploit_plugins"),
-    path("plugins/exploits/discovered/", views.discovered_exploit_plugins, name="discovered_exploit_plugins"),
     path(
         "plugins/exploits/<str:name>/enable/",
         views.enable_exploit_plugin,
@@ -50,4 +49,3 @@ urlpatterns = [
     path("get_plugin_code/", views.get_plugin_code, name="get_plugin_code"),
     path("save_plugin_code/", views.save_plugin_code, name="save_plugin_code"),
 ]
-

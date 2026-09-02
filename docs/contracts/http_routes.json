@@ -440,10 +440,6 @@
     "pattern": "plugins/exploits/<str:name>/enable/"
   },
   {
-    "name": "discovered_exploit_plugins",
-    "pattern": "plugins/exploits/discovered/"
-  },
-  {
     "name": "list_enabled_exploit_plugins",
     "pattern": "plugins/exploits/enabled/"
   },

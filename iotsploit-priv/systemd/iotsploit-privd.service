@@ -1,0 +1,20 @@
+[Unit]
+Description=IoTSploit bounded privileged-operation daemon
+Requires=iotsploit-privd.socket
+After=iotsploit-privd.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/iotsploit-privd
+User=root
+Group=root
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

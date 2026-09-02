@@ -186,7 +186,20 @@ iotsploit
 
 On first start, IoTSploit will automatically initialize the local database if needed.
 
-The default container is also local mode. Start the explicit distributed profile with:
+The default container is also local mode. Production settings additionally require a
+Django secret key; only nginx port 80 is published:
+
+```bash
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(50))')"
+docker compose up
+```
+
+For a non-local hostname or UI origin, also set `ALLOWED_HOSTS` and
+`CORS_ALLOWED_ORIGINS`. The bundled UI must be configured to send the same API
+token before mutating controls will work. Create any Django admin account
+explicitly with `docker compose exec sat-toolkit python manage.py createsuperuser`.
+
+Start the explicit distributed profile with the same variables:
 
 ```bash
 IOTSPLOIT_RUNTIME=distributed docker compose --profile distributed up
@@ -194,7 +207,7 @@ IOTSPLOIT_RUNTIME=distributed docker compose --profile distributed up
 
 ### 4. Start Backend Services for the GUI
 
-If you want to use the Flutter GUI or other remote clients, start the backend services:
+If you want to use a local Flutter GUI or another local client, start the backend services:
 
 From inside the shell:
 

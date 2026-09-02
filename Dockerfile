@@ -33,8 +33,11 @@ RUN apt-get update && apt-get install -y \
     # Web server dependencies
     nginx \
     # Network tools
+    iproute2 \
     net-tools \
     iputils-ping \
+    nmap \
+    util-linux \
     # Build tools
     build-essential \
     libffi-dev \
@@ -50,6 +53,15 @@ RUN apt-get update && apt-get install -y \
 # Create symbolic link for python
 RUN ln -s /usr/bin/python3.10 /usr/bin/python
 
+# Native headers required by the locked Cairo, D-Bus, and GObject bindings.
+RUN apt-get update && apt-get install -y \
+    libcairo2-dev \
+    libdbus-1-dev \
+    libgirepository1.0-dev \
+    pkg-config \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Poetry
 RUN pip3 install poetry==1.8.3
 
@@ -57,11 +69,8 @@ RUN pip3 install poetry==1.8.3
 RUN poetry config virtualenvs.create false \
     && poetry config cache-dir /opt/poetry
 
-# Clone the IoTSploit source code from GitHub
-RUN git clone https://github.com/TKXB/iotsploit.git /tmp/iotsploit \
-    && cp -r /tmp/iotsploit/* /app/ \
-    && cp -r /tmp/iotsploit/.* /app/ 2>/dev/null || true \
-    && rm -rf /tmp/iotsploit
+# Build the checked-out tree supplied as the Docker build context.
+COPY . /app/
 
 # Install all Python dependencies with Poetry (main + dev + plugins)
 RUN poetry install
@@ -82,13 +91,22 @@ RUN mkdir -p /app/static/web \
     && rm iotsploit-ui-web.zip \
     && echo "Flutter web application downloaded and extracted to static/web directory successfully"
 
-# Create necessary directories and set permissions
-RUN mkdir -p /app/logs /app/uploads /var/log/nginx \
+# Create service accounts, immutable launchers, and writable service paths.
+RUN groupadd --system iotsploit \
+    && usermod --append --groups iotsploit www-data \
+    && install -D -o root -g root -m 0755 /app/iotsploit-priv/privd/iotsploit-privd /usr/local/libexec/iotsploit-privd \
+    && install -D -o root -g root -m 0755 /app/docker/run-with-capability.sh /usr/local/libexec/iotsploit-run-cap \
+    && mkdir -p /app/data /app/logs/nginx /app/uploads /run/iotsploit-nginx \
+        /var/cache/iotsploit-nginx/client /var/cache/iotsploit-nginx/proxy \
+        /var/cache/iotsploit-nginx/fastcgi /var/cache/iotsploit-nginx/uwsgi \
+        /var/cache/iotsploit-nginx/scgi /var/log/supervisor \
     && chmod -R 755 /app \
-    && chown -R www-data:www-data /app/static
+    && chown -R www-data:www-data /app/data /app/logs /app/uploads /app/static \
+        /run/iotsploit-nginx /var/cache/iotsploit-nginx
 
 # Copy configuration files from build context (local files)
 COPY docker/nginx.conf /etc/nginx/sites-available/default
+COPY docker/nginx-main.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/start.sh /app/start.sh
 
@@ -96,7 +114,7 @@ COPY docker/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Expose ports
-EXPOSE 80 8888 9999
+EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

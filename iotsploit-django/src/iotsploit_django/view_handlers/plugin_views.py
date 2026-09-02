@@ -91,47 +91,6 @@ def list_enabled_exploit_plugins(request):
         return JsonResponse({"status": "error", "message": str(e), "plugins": []}, status=500)
 
 @csrf_exempt
-def discovered_exploit_plugins(request):
-    """Optional: MCP nodes can report locally discovered plugins for Django to upsert."""
-    if request.method != "POST":
-        return JsonResponse({"status": "error", "message": "Only POST method is allowed"}, status=405)
-    try:
-        from iotsploit_core.domain.plugin import PluginMeta
-        from iotsploit_django.ports_impl.plugin_repo import DjangoPluginMetaRepository
-
-        payload = json.loads(request.body or b"{}")
-        items = payload.get("plugins") if isinstance(payload, dict) else payload
-        if not isinstance(items, list):
-            return JsonResponse({"status": "error", "message": "Expected a list of plugins"}, status=400)
-
-        repo = DjangoPluginMetaRepository()
-        count = 0
-        for it in items:
-            if not isinstance(it, dict):
-                continue
-            name = (it.get("name") or "").strip()
-            module_path = (it.get("module_path") or "").strip()
-            if not name or not module_path:
-                continue
-
-            meta = PluginMeta(
-                name=name,
-                module_path=module_path,
-                enabled=True,
-                description=str(it.get("description", "") or ""),
-                author=str(it.get("author", "") or ""),
-                license=str(it.get("license", "") or ""),
-                parameters=it.get("parameters") if isinstance(it.get("parameters"), dict) else None,
-            )
-            repo.upsert(meta)
-            count += 1
-
-        return JsonResponse({"status": "accepted", "upserted": count})
-    except Exception as e:
-        logger.error(f"Error upserting discovered exploit plugins: {str(e)}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
-
-@csrf_exempt
 def enable_exploit_plugin(request, name: str):
     if request.method != "POST":
         return JsonResponse({"status": "error", "message": "Only POST method is allowed"}, status=405)
@@ -344,80 +303,7 @@ def execute_plugin(request):
                 }, status=400)
 
         plugin_manager = get_exploit_plugin_manager()
-
-        plugin_info = plugin_manager.get_plugin_info(plugin_name)
-        requires_root = plugin_info and plugin_info.get('RequiresRoot', False)
-
-        if requires_root:
-            # Use sudo runner for root-required plugins
-            logger.info(f"Plugin '{plugin_name}' requires root privileges, using sudo runner")
-            from iotsploit_django.tools.privilege_mgr import PrivilegeManager
-
-            priv_mgr = PrivilegeManager()
-
-            # Convert target to dict for JSON serialization
-            target_dict = None
-            if current_target:
-                if hasattr(current_target, '__dict__'):
-                    target_dict = {
-                        'name': getattr(current_target, 'name', ''),
-                        'ip_address': getattr(current_target, 'ip_address', ''),
-                        'type': getattr(current_target, 'type', 'vehicle'),
-                        'description': getattr(current_target, 'description', ''),
-                        'id': getattr(current_target, 'id', None)
-                    }
-                elif isinstance(current_target, dict):
-                    target_dict = current_target
-
-            logger.debug(f"Calling sudo runner with target_dict: {target_dict}, parameters: {parameters}")
-
-            # Track timing of the sudo execution
-            import time
-            start_time = time.time()
-
-            # Log the exact plugin name being passed
-            logger.info(f"Passing plugin_name to sudo runner: '{plugin_name}'")
-
-            success, output = priv_mgr.run_plugin_with_sudo(
-                plugin_name=plugin_name,
-                target=target_dict,
-                parameters=parameters
-            )
-
-            end_time = time.time()
-            execution_time = end_time - start_time
-
-            logger.info(f"Django sudo execution completed in {execution_time:.2f} seconds")
-            logger.debug(f"Sudo runner returned: success={success}, output length={len(output) if output else 0}")
-            logger.debug(f"Raw sudo output: {repr(output[:500])}")  # First 500 chars with escape sequences visible
-
-            if success:
-                try:
-                    # Parse the isolated runner's result document.
-                    import json as json_module
-                    logger.debug(f"Attempting to parse JSON: {output[:200]}...")
-                    result = json_module.loads(output)
-                    logger.debug(f"Successfully parsed JSON result: {result}")
-
-                except json_module.JSONDecodeError as e:
-                    logger.error(f"Failed to parse privileged JSON result: {e}")
-                    logger.error(f"Full privileged result was: {repr(output)}")
-                    # Fallback if output is not valid JSON
-                    result = {
-                        "success": False,
-                        "message": f"Plugin executed but result parsing failed: {str(e)}",
-                        "data": {"raw_output": output[:200]}
-                    }
-            else:
-                logger.error(f"Sudo execution failed with output: {repr(output)}")
-                result = {
-                    "success": False,
-                    "message": f"Sudo execution failed: {output}",
-                    "data": {}
-                }
-        else:
-            # Use normal execution for non-root plugins
-            result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
+        result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
 
         if isinstance(result, dict) and result.get('execution_type') == 'interactive':
             execution_id = result.get('execution_id')

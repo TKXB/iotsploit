@@ -175,10 +175,27 @@ def test_nmap_host_entries_reduce_to_a_bare_address():
 def test_host_specs_split_on_commas_and_spaces():
     from iotsploit_exploits.ip_scan.ip_scan import parse_hosts
 
-    assert parse_hosts("127.0.0.1,10.0.0.0/8") == ["127.0.0.1", "10.0.0.0/8"]
+    assert parse_hosts("127.0.0.1,10.0.0.0/16") == ["127.0.0.1", "10.0.0.0/16"]
     assert parse_hosts("127.0.0.1 10.0.0.1") == ["127.0.0.1", "10.0.0.1"]
     assert parse_hosts("") == []
     assert parse_hosts(None) == []
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "127.0.0.1; id",
+        "10.0.0.0/8",
+        "::1",
+        123,
+        " ".join(f"192.0.2.{index % 255}" for index in range(257)),
+    ],
+)
+def test_host_specs_reject_injection_and_unbounded_scans(spec):
+    from iotsploit_exploits.ip_scan.ip_scan import parse_hosts
+
+    with pytest.raises(ValueError):
+        parse_hosts(spec)
 
 
 def test_self_subjects_reject_a_subject_id():

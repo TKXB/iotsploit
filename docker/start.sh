@@ -3,46 +3,31 @@ set -e
 
 echo "🚀 Starting SAT Toolkit Docker Container..."
 
-# Create necessary directories
-mkdir -p /app/logs
-mkdir -p /app/uploads
-mkdir -p /app/static
-mkdir -p /var/log/supervisor
+RUN_APP="/usr/local/libexec/iotsploit-run-cap app"
 
-# Set proper permissions
-chown -R www-data:www-data /app/logs
-chown -R www-data:www-data /app/uploads
-chown -R www-data:www-data /app/static
+for path in /app/data /app/logs /app/uploads /app/static /run/iotsploit-nginx /var/cache/iotsploit-nginx; do
+    if ! $RUN_APP test -w "$path"; then
+        echo "❌ $path must be writable by www-data" >&2
+        exit 1
+    fi
+done
 
 # Initialize Django database (if needed)
 echo "📊 Initializing Django database..."
 cd /app
-python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
+$RUN_APP python manage.py collectstatic --noinput --clear || echo "⚠️  Static files collection failed (continuing...)"
 echo "📊 Running Django migrations..."
-python manage.py makemigrations || echo "⚠️  makemigrations failed (continuing...)"
-python manage.py migrate || echo "⚠️  Database migration failed (continuing...)"
+$RUN_APP python manage.py migrate --noinput
 
 # NEW: Ensure database file is writable by the Django (www-data) user
-if [ -f "/app/data/db.sqlite3" ]; then
-    chown www-data:www-data /app/data/db.sqlite3
-    chmod 664 /app/data/db.sqlite3
+if [ -f "/app/data/db.sqlite3" ] && ! $RUN_APP test -w /app/data/db.sqlite3; then
+    echo "❌ /app/data/db.sqlite3 must be writable by www-data" >&2
+    exit 1
 fi
-
-# Create superuser if it doesn't exist
-echo "👤 Creating Django superuser..."
-python manage.py shell << EOF
-from django.contrib.auth import get_user_model
-User = get_user_model()
-if not User.objects.filter(username='admin').exists():
-    User.objects.create_superuser('admin', 'admin@sat-toolkit.com', 'admin123')
-    print('Superuser created: admin/admin123')
-else:
-    print('Superuser already exists')
-EOF
 
 # Run console.py initialization and exit immediately
 echo "🔧 Running console.py initialization..."
-echo "exit" | python /app/console.py || echo "⚠️ Console.py initialization failed (continuing...)"
+echo "exit" | $RUN_APP python /app/console.py || echo "⚠️ Console.py initialization failed (continuing...)"
 echo "✅ Console.py initialization completed!"
 
 # Test Flutter web build
@@ -77,10 +62,6 @@ echo "  - Python API: http://localhost/api/"
 echo "  - Django Admin: http://localhost/admin/"
 echo "  - WebSocket: ws://localhost/ws/"
 echo "  - Health Check: http://localhost/health"
-
-# Display credentials
-echo "🔑 Default Credentials:"
-echo "  - Django Admin: admin / admin123"
 
 # Start supervisor to manage all services
 echo "🎯 Starting all services with Supervisor..."

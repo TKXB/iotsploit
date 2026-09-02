@@ -11,7 +11,6 @@ import requests
 class DjangoHttpApiConfig:
     base_url: str
     timeout_s: float = 5.0
-    bearer_token: str | None = None
 
 
 class DjangoHttpError(RuntimeError):
@@ -31,7 +30,6 @@ class DjangoHttpClient:
         *,
         base_url: str,
         timeout_s: float = 5.0,
-        bearer_token: str | None = None,
         session: requests.Session | None = None,
     ) -> None:
         base_url = (base_url or "").strip().rstrip("/")
@@ -40,7 +38,6 @@ class DjangoHttpClient:
         self.config = DjangoHttpApiConfig(
             base_url=base_url,
             timeout_s=float(timeout_s),
-            bearer_token=bearer_token,
         )
         self._session = session or requests.Session()
 
@@ -49,15 +46,12 @@ class DjangoHttpClient:
         return DjangoHttpClient(
             base_url=os.getenv("IOTSPLOIT_DJANGO_API_BASE_URL", "http://127.0.0.1:8888"),
             timeout_s=float(os.getenv("IOTSPLOIT_DJANGO_API_TIMEOUT_S", "5.0")),
-            bearer_token=os.getenv("IOTSPLOIT_DJANGO_API_TOKEN") or None,
         )
 
     def headers(self, *, json_body: bool = False) -> dict[str, str]:
         headers: dict[str, str] = {"Accept": "application/json"}
         if json_body:
             headers["Content-Type"] = "application/json"
-        if self.config.bearer_token:
-            headers["Authorization"] = f"Bearer {self.config.bearer_token}"
         return headers
 
     def url(self, path: str) -> str:

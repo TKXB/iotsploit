@@ -23,7 +23,6 @@ pyftdi = "0.55.4"
 pylink-square = "^2.0.0"
 daphne = "4.1.2"
 netifaces = "0.11.0"
-elevate = "0.1.3"
 celery = "^5.3.6"
 redis = "^5.0.1"
 channels_redis = "^4.1.0"
@@ -37,6 +36,7 @@ iotsploit-platforms = { path = "iotsploit-platforms", develop = true }
 iotsploit-protocols = { path = "iotsploit-protocols", develop = true }
 # MCP outer-ring package (PyPI-style, src-layout)
 iotsploit-mcp = { path = "iotsploit-mcp", develop = true }
+iotsploit-priv = { path = "iotsploit-priv", develop = true }
 # CLI shell (console + commands)
 iotsploit-cli = { path = "iotsploit-cli", develop = true }
 pyudev = "0.24.3"
@@ -69,6 +69,7 @@ testpaths = [
     "iotsploit-mcp/tests",
     "iotsploit-cli/tests",
     "iotsploit-exploits/tests",
+    "iotsploit-priv/tests",
 ]
 markers = [
     "unit: isolated, deterministic behavior",

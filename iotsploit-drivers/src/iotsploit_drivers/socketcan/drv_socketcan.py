@@ -16,7 +16,6 @@ CAN FD bus:
    See ``can_link``.
 """
 
-import subprocess
 import time
 from typing import Dict, List, Optional
 
@@ -26,6 +25,7 @@ from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.stream_manager import StreamAction, StreamData, StreamSource, StreamType
 from iotsploit_core.domain.device import Device, SocketCANDevice
 from iotsploit_core.utils import iots_logger
+from iotsploit_priv import PrivilegedHelperError, call as privileged_call
 
 from iotsploit_drivers.socketcan.can_errors import decode_error_frame
 from iotsploit_drivers.socketcan.can_link import CanLinkInfo, read_can_links
@@ -138,31 +138,27 @@ class SocketCANDriver(BaseDeviceDriver):
         """
         bitrate = device.attributes.get('bitrate') or info.bitrate
 
-        if not info.is_virtual:
-            if not bitrate:
-                raise RuntimeError(
-                    f"{device.interface} is down and has no bitrate configured. Configure it outside "
-                    f"IoTSploit, for example: sudo ip link set {device.interface} type can bitrate 500000 "
-                    f"(add 'dbitrate <rate> fd on' for CAN FD), then bring it up."
-                )
-            self._run_ip(['ip', 'link', 'set', device.interface, 'type', 'can', 'bitrate', str(bitrate)])
+        if not info.is_virtual and not bitrate:
+            raise RuntimeError(
+                f"{device.interface} is down and has no bitrate configured. "
+                "Choose the physical CAN bitrate before initializing it."
+            )
 
-        self._run_ip(['ip', 'link', 'set', device.interface, 'up'])
+        self._run_privileged(
+            "can-up",
+            {"iface": device.interface, "bitrate": None if info.is_virtual else int(bitrate)},
+        )
         self._brought_link_up = True
         logger.info("Brought %s up at %s bit/s", device.interface, bitrate or "virtual")
 
     @staticmethod
-    def _run_ip(args: List[str]) -> None:
-        """Run one privileged ip(8) command and fail loudly if it fails.
-
-        The original swallowed every non-zero exit, so a refused bitrate change
-        looked identical to a successful one right up until the bus produced
-        nothing but error frames.
-        """
-        command = ['sudo'] + args
-        result = subprocess.run(command, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"{' '.join(args)} failed: {(result.stderr or '').strip()}")
+    def _run_privileged(verb: str, args: dict) -> None:
+        try:
+            result = privileged_call(verb, args)
+        except PrivilegedHelperError as exc:
+            raise RuntimeError(str(exc)) from exc
+        if not result.ok:
+            raise RuntimeError(result.stderr or f"{verb} failed with exit {result.exit}")
 
     def _connect_impl(self, device: SocketCANDevice) -> bool:
         """连接到CAN接口"""
@@ -258,13 +254,12 @@ class SocketCANDriver(BaseDeviceDriver):
             return False
         if not self._brought_link_up:
             raise RuntimeError(
-                f"{self.current_interface} was configured outside IoTSploit; reset it there "
-                f"(sudo ip link set {self.current_interface} down && sudo ip link set {self.current_interface} up)"
+                f"{self.current_interface} was configured outside IoTSploit; reset it with its owning system service"
             )
 
         logger.info(f"Resetting interface {self.current_interface}")
-        self._run_ip(['ip', 'link', 'set', self.current_interface, 'down'])
-        self._run_ip(['ip', 'link', 'set', self.current_interface, 'up'])
+        self._run_privileged("can-link-state", {"iface": self.current_interface, "state": "down"})
+        self._run_privileged("can-link-state", {"iface": self.current_interface, "state": "up"})
         logger.info("SocketCAN device reset successfully")
         return True
 
@@ -277,7 +272,7 @@ class SocketCANDriver(BaseDeviceDriver):
             self.bus = None
 
             if self._brought_link_up and self.current_interface:
-                self._run_ip(['ip', 'link', 'set', self.current_interface, 'down'])
+                self._run_privileged("can-link-state", {"iface": self.current_interface, "state": "down"})
                 self._brought_link_up = False
             elif self.current_interface:
                 logger.info("Leaving %s up: this driver did not bring it up", self.current_interface)

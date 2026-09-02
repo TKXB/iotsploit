@@ -23,10 +23,15 @@ class FakeClient:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.posts: list[str] = []
 
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
         self.calls.append((path, params or {}))
         return {"status": "success", "observations": []}
+
+    def post(self, path: str, *, json: dict[str, Any] | None = None) -> dict[str, Any]:
+        self.posts.append(path)
+        return {"status": "success"}
 
 
 def call(client: FakeClient, tool: str, **kwargs) -> Any:
@@ -70,3 +75,19 @@ def test_every_filter_travels_when_given():
     assert params["component_id"] == "c_gateway"
     assert params["source"] == "agent:claude"
     assert params["subject_kind"] == "port"
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments", "path"),
+    [
+        ("scan_devices", {"driver_name": "all"}, "/api/scan_all_devices/"),
+        ("scan_devices", {"driver_name": "can driver"}, "/api/scan_device/can%20driver/"),
+        ("list_devices", {}, "/api/list_devices/"),
+    ],
+)
+def test_device_discovery_uses_authenticated_post_routes(tool: str, arguments: dict[str, str], path: str):
+    client = FakeClient()
+
+    call(client, tool, **arguments)
+
+    assert client.posts == [path]

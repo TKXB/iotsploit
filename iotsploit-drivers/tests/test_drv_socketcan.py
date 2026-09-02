@@ -12,7 +12,7 @@ Two invariants, both learned from a bench Pi on a live CAN FD bus:
 No test here opens a socket or a real interface.
 """
 
-import subprocess
+from types import SimpleNamespace
 
 import can
 import pytest
@@ -176,8 +176,8 @@ def test_initializing_an_up_interface_runs_no_privileged_command(driver, monkeyp
         lambda: {"can0": CanLinkInfo(name="can0", is_up=True, mtu=72, bitrate=1000000)},
     )
     monkeypatch.setattr(
-        drv_socketcan.subprocess,
-        "run",
+        drv_socketcan,
+        "privileged_call",
         lambda *a, **k: pytest.fail("an already-configured link must not be touched"),
     )
 
@@ -205,23 +205,22 @@ def test_a_down_interface_is_brought_up_with_the_configured_bitrate(driver, monk
         lambda: {"can0": CanLinkInfo(name="can0", is_up=False, mtu=72, bitrate=250000)},
     )
     monkeypatch.setattr(
-        drv_socketcan.subprocess,
-        "run",
-        lambda args, **k: commands.append(args) or subprocess.CompletedProcess(args, 0, "", ""),
+        drv_socketcan,
+        "privileged_call",
+        lambda verb, args: commands.append((verb, args)) or SimpleNamespace(ok=True, exit=0, stderr=""),
     )
     device = SocketCANDevice(device_id="can_001", name="SocketCAN_can0", interface="can0", attributes={})
 
     driver._initialize_impl(device)
 
-    assert commands[0] == ["sudo", "ip", "link", "set", "can0", "type", "can", "bitrate", "250000"]
-    assert commands[1] == ["sudo", "ip", "link", "set", "can0", "up"]
+    assert commands == [("can-up", {"iface": "can0", "bitrate": 250000})]
     assert driver._brought_link_up is True
 
 
 def test_closing_leaves_a_link_the_driver_did_not_raise(driver, monkeypatch):
     monkeypatch.setattr(
-        drv_socketcan.subprocess,
-        "run",
+        drv_socketcan,
+        "privileged_call",
         lambda *a, **k: pytest.fail("a link configured elsewhere must stay up"),
     )
     driver.bus = RecordingBus()
@@ -232,15 +231,35 @@ def test_closing_leaves_a_link_the_driver_did_not_raise(driver, monkeypatch):
     assert driver.bus is None
 
 
-def test_a_failing_privileged_command_raises_instead_of_passing_silently(monkeypatch):
+def test_a_failing_privileged_verb_raises_instead_of_passing_silently(monkeypatch):
     monkeypatch.setattr(
-        drv_socketcan.subprocess,
-        "run",
-        lambda args, **k: subprocess.CompletedProcess(args, 2, "", "RTNETLINK answers: Device or resource busy"),
+        drv_socketcan,
+        "privileged_call",
+        lambda verb, args: SimpleNamespace(
+            ok=False,
+            exit=2,
+            stderr="RTNETLINK answers: Device or resource busy",
+        ),
     )
 
     with pytest.raises(RuntimeError, match="Device or resource busy"):
-        SocketCANDriver._run_ip(["ip", "link", "set", "can0", "up"])
+        SocketCANDriver._run_privileged("can-link-state", {"iface": "can0", "state": "up"})
+
+
+def test_reset_uses_only_owned_can_link_state_verbs(driver, monkeypatch):
+    calls = []
+    driver._brought_link_up = True
+    monkeypatch.setattr(
+        drv_socketcan,
+        "privileged_call",
+        lambda verb, args: calls.append((verb, args)) or SimpleNamespace(ok=True, exit=0, stderr=""),
+    )
+
+    assert driver._reset_impl(driver.device) is True
+    assert calls == [
+        ("can-link-state", {"iface": "can0", "state": "down"}),
+        ("can-link-state", {"iface": "can0", "state": "up"}),
+    ]
 
 
 def test_send_carries_the_requested_flags(driver):

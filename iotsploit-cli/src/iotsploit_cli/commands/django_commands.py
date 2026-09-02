@@ -109,17 +109,17 @@ class DjangoCommands(BaseCommands):
                     self.poutput(redis_msg)
                     return False
 
-            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', '0.0.0.0:8888']
+            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', '127.0.0.1:8888']
             if distributed:
                 daphne_cmd = [
-                    sys.executable, '-m', 'daphne', '-b', '0.0.0.0', '-p', '9999',
+                    sys.executable, '-m', 'daphne', '-b', '127.0.0.1', '-p', '9999',
                     'iotsploit_django.asgi:application',
                 ]
             else:
                 daphne_cmd = [
                     sys.executable, '-m', 'daphne',
-                    '-e', 'tcp:8888:interface=0.0.0.0',
-                    '-e', 'tcp:9999:interface=0.0.0.0',
+                    '-e', 'tcp:8888:interface=127.0.0.1',
+                    '-e', 'tcp:9999:interface=127.0.0.1',
                     'iotsploit_django.asgi:application',
                 ]
             mcp_bridge_cmd = [
@@ -259,8 +259,8 @@ class DjangoCommands(BaseCommands):
             logger.info("Waiting for HTTP server to be available...")
             for i in range(max_retries):
                 try:
-                    # Try to initialize devices using the HTTP endpoint (GET method)
-                    response = requests.get('http://127.0.0.1:8888/api/initialize_devices/')
+                    response = requests.post(
+                        'http://127.0.0.1:8888/api/initialize_devices/')
                     if response.status_code == 200:
                         logger.info("Devices initialized successfully via HTTP API")
                         break
@@ -288,13 +288,14 @@ class DjangoCommands(BaseCommands):
     def do_stop_server(self, arg):
         'Stop Django development server, Daphne WebSocket server, MCP HTTP server, and Celery worker'
         try:
-            # Cleanup devices using HTTP endpoint (GET method)
+            # Cleanup devices using the HTTP endpoint.
             # Only attempt HTTP cleanup if the Django server process is still alive
             api_process = self.django_server_process or self.daphne_server_process
             if api_process and api_process.poll() is None:
                 import requests
                 try:
-                    response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')
+                    response = requests.post(
+                        'http://127.0.0.1:8888/api/cleanup_devices/')
                     if response.status_code == 200:
                         logger.info("Devices cleaned up successfully via HTTP API")
                     else:

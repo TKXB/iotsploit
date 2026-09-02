@@ -100,9 +100,6 @@ class FakePluginManager:
     def initialize(self):
         self.initialize_calls += 1
 
-    def get_plugin_info(self, plugin_name):
-        return {"Name": plugin_name, "RequiresRoot": False}
-
     def execute_plugin(self, plugin_name, target=None, parameters=None):
         self.execution = (plugin_name, target, parameters)
         return {"success": True}

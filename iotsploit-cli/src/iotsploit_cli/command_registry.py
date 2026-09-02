@@ -79,6 +79,12 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
         _action("stop", "Stop backend services", "stop_server"),
         _action("status", "Show backend service status"),
     )),
+    ResourceSpec("priv", "Inspect or manage the bounded privileged helper", (
+        _action("status", "Verify native helper health and integrity"),
+        _action("install", "Install the native helper"),
+        _action("uninstall", "Remove the native helper"),
+        _action("verbs", "Show the fixed helper vocabulary"),
+    )),
     ResourceSpec("wifi", "Manage Wi-Fi connectivity", (
         _action("connect", "Connect to a Wi-Fi network", "connect_wifi"),
     )),

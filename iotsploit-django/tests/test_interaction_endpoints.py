@@ -43,7 +43,7 @@ def _no_events(monkeypatch):
 
 @pytest.fixture
 def client():
-    return Client()
+    yield Client()
 
 
 def an_execution():
