@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import timedelta
-from typing import Union
+from typing import Any, Union
 
 
 def sleep(seconds: float) -> None:
@@ -63,3 +63,21 @@ def format_duration(duration: Union[timedelta, float, int], style: str = "compac
     raise ValueError(f"Unknown style: {style}")
 
 
+
+def as_bool(value: Any) -> bool:
+    """Parse a boolean that may arrive as a real bool or as a string.
+
+    The web and CLI layers send parameters as JSON strings, and `bool("false")`
+    is ``True`` -- so an opt-in passed as the string "false" silently turns on.
+    Recognise the spellings a person or a form actually produces, and fall back
+    to Python truthiness for anything else.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "y", "on", "1"}:
+            return True
+        if lowered in {"false", "no", "n", "off", "0", ""}:
+            return False
+    return bool(value)

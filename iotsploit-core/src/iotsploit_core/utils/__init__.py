@@ -24,7 +24,7 @@ from .exceptions import (
     user_confirm,
 )
 from .result import IotsResult
-from .helpers import sleep, format_duration
+from .helpers import as_bool, sleep, format_duration
 
 __all__ = [
     # error codes / exceptions (new)
@@ -45,6 +45,7 @@ __all__ = [
     # helpers
     "sleep",
     "format_duration",
+    "as_bool",
     "IotsLogger",
     "iots_logger",
     "get_logger",
