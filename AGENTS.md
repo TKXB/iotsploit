@@ -35,6 +35,9 @@ commands. Use Poetry for Python dependency management and command execution.
 Read `docs/architecture.md` before adding or moving Python code — it describes
 the ports-and-adapters layout and the dependency rule the packages follow.
 
+Read `docs/writing-plugins.md` before adding an exploit plugin or a device
+driver — it carries the templates, the framework capabilities, and the rules.
+
 IoTSploit's MCP server runs on the rig that has access to the hardware and the
 Django backend. External agents connect over HTTP.
 
