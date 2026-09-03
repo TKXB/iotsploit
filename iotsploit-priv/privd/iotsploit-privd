@@ -34,6 +34,13 @@ IP_EXECUTABLE = "/usr/sbin/ip"
 CAN_INTERFACE = re.compile(r"^(v?can)[0-9]{1,3}$")
 NETWORK_INTERFACE = re.compile(r"^[a-z0-9._-]{1,15}$")
 VERB_SCHEMAS = {
+    "can-fd-up": {
+        "iface": "can",
+        "bitrate": "integer",
+        "sample_point": "ratio",
+        "dbitrate": "integer",
+        "dsample_point": "ratio",
+    },
     "can-link-state": {"iface": "can", "state": ["up", "down"]},
     "can-up": {"iface": "can", "bitrate": "integer-or-null"},
     "doip-config": {"iface": "network"},
@@ -110,6 +117,23 @@ def _network_interface(value: Any) -> str:
     return interface
 
 
+def _bitrate(value: Any, name: str) -> int:
+    if type(value) is not int or not 10_000 <= value <= 10_000_000:
+        raise RequestError(f"{name} must be an integer from 10000 to 10000000")
+    return value
+
+
+def _sample_point(value: Any, name: str) -> str:
+    """A CAN sample point as ip(8) wants it: a ratio, three decimals.
+
+    Bounded well inside 0..1 because the ends are not sample points at all --
+    a controller cannot sample a bit before it starts or after it ends.
+    """
+    if type(value) not in (int, float) or not 0.5 <= value <= 0.95:
+        raise RequestError(f"{name} must be a number from 0.5 to 0.95")
+    return f"{float(value):.3f}"
+
+
 def _ipv4(value: Any, name: str) -> str:
     text = _text(value, name)
     try:
@@ -149,13 +173,39 @@ def _validate_request(payload: dict[str, Any]) -> tuple[str, dict[str, Any], lis
             validated = {"iface": interface, "bitrate": None}
             commands = [[IP_EXECUTABLE, "link", "set", "dev", interface, "up"]]
         else:
-            if type(bitrate) is not int or not 10_000 <= bitrate <= 10_000_000:
-                raise RequestError("physical CAN bitrate must be an integer from 10000 to 10000000")
-            validated = {"iface": interface, "bitrate": bitrate}
+            validated = {"iface": interface, "bitrate": _bitrate(bitrate, "physical CAN bitrate")}
             commands = [
                 [IP_EXECUTABLE, "link", "set", "dev", interface, "type", "can", "bitrate", str(bitrate)],
                 [IP_EXECUTABLE, "link", "set", "dev", interface, "up"],
             ]
+    elif verb == "can-fd-up":
+        interface = _can_interface(args["iface"])
+        if interface.startswith("vcan"):
+            raise RequestError("a virtual CAN interface has no bit timing")
+        bitrate = _bitrate(args["bitrate"], "bitrate")
+        dbitrate = _bitrate(args["dbitrate"], "dbitrate")
+        sample_point = _sample_point(args["sample_point"], "sample_point")
+        dsample_point = _sample_point(args["dsample_point"], "dsample_point")
+        validated = {
+            "iface": interface,
+            "bitrate": bitrate,
+            "sample_point": sample_point,
+            "dbitrate": dbitrate,
+            "dsample_point": dsample_point,
+        }
+        # Bit timing cannot be set on a running link, so the link is lowered
+        # first. Both halves are one verb because a link left down between two
+        # calls is a bus nobody is listening to and nobody was told about.
+        commands = [
+            [IP_EXECUTABLE, "link", "set", "dev", interface, "down"],
+            [
+                IP_EXECUTABLE, "link", "set", "dev", interface, "type", "can",
+                "bitrate", str(bitrate), "sample-point", sample_point,
+                "dbitrate", str(dbitrate), "dsample-point", dsample_point,
+                "fd", "on",
+            ],
+            [IP_EXECUTABLE, "link", "set", "dev", interface, "up"],
+        ]
     elif verb == "can-link-state":
         interface = _can_interface(args["iface"])
         state_value = _text(args["state"], "state")

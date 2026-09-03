@@ -26,6 +26,9 @@ IP_OUTPUT = """1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNO
 \t  bitrate 500000 sample-point 0.875
 \t  tq 50 prop-seg 6 phase-seg1 7 phase-seg2 2 sjw 1 brp 1
 \t  dbitrate 2000000 dsample-point 0.750
+\t  pcan_usb_fd: tseg1 1..256 tseg2 1..128 sjw 1..128 brp 1..1024 brp_inc 1
+\t  pcan_usb_fd: dtseg1 1..32 dtseg2 1..16 dsjw 1..16 dbrp 1..1024 dbrp_inc 1
+\t  clock 80000000 numtxqueues 1 numrxqueues 1
 4: can1: <NOARP,ECHO> mtu 16 qdisc pfifo_fast state DOWN mode DEFAULT group default qlen 10
     link/can  promiscuity 0
     can state STOPPED restart-ms 0
@@ -51,6 +54,16 @@ def test_an_fd_interface_reports_both_bitrates_and_its_state():
     assert can0.is_up is True
     assert can0.controller_state == "ERROR-PASSIVE"
     assert can0.is_virtual is False
+
+
+def test_the_controller_behind_an_interface_is_read_from_its_bit_timing_block():
+    """The only place ip(8) names the hardware; it is how a PEAK adapter is found."""
+    links = parse_ip_link_details(IP_OUTPUT)
+
+    assert links["can0"].timing_const == "pcan_usb_fd"
+    # can1 is a CAN interface whose controller reported nothing, and vcan has none.
+    assert links["can1"].timing_const is None
+    assert links["vcan0"].timing_const is None
 
 
 def test_a_down_classic_interface_is_reported_as_such():

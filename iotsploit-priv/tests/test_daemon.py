@@ -1,4 +1,4 @@
-"""The root daemon accepts only its four bounded host-state verbs."""
+"""The root daemon accepts only its five bounded host-state verbs."""
 
 from __future__ import annotations
 
@@ -45,6 +45,25 @@ def validate(verb: str, args: dict):
             [["/usr/sbin/ip", "link", "set", "dev", "vcan12", "up"]],
         ),
         (
+            "can-fd-up",
+            {
+                "iface": "can0",
+                "bitrate": 500_000,
+                "sample_point": 0.75,
+                "dbitrate": 2_000_000,
+                "dsample_point": 0.75,
+            },
+            [
+                ["/usr/sbin/ip", "link", "set", "dev", "can0", "down"],
+                [
+                    "/usr/sbin/ip", "link", "set", "dev", "can0", "type", "can",
+                    "bitrate", "500000", "sample-point", "0.750",
+                    "dbitrate", "2000000", "dsample-point", "0.750", "fd", "on",
+                ],
+                ["/usr/sbin/ip", "link", "set", "dev", "can0", "up"],
+            ],
+        ),
+        (
             "can-link-state",
             {"iface": "can1", "state": "down"},
             [["/usr/sbin/ip", "link", "set", "dev", "can1", "down"]],
@@ -80,6 +99,61 @@ def test_valid_verbs_construct_fixed_argv(verb: str, args: dict, commands: list[
         ("can-up", {"iface": "can0", "bitrate": None}),
         ("can-up", {"iface": "vcan0", "bitrate": 500_000}),
         ("can-up", {"iface": "can0", "bitrate": 9_999}),
+        # a virtual link has no bit timing to set
+        (
+            "can-fd-up",
+            {
+                "iface": 'vcan0',
+                "bitrate": 500000,
+                "sample_point": 0.75,
+                "dbitrate": 2000000,
+                "dsample_point": 0.75,
+            },
+        ),
+        # a bit cannot be sampled after it has ended
+        (
+            "can-fd-up",
+            {
+                "iface": 'can0',
+                "bitrate": 500000,
+                "sample_point": 1.0,
+                "dbitrate": 2000000,
+                "dsample_point": 0.75,
+            },
+        ),
+        # a pre-formatted string is not a ratio
+        (
+            "can-fd-up",
+            {
+                "iface": 'can0',
+                "bitrate": 500000,
+                "sample_point": 0.75,
+                "dbitrate": 2000000,
+                "dsample_point": '0.750',
+            },
+        ),
+        # and neither is a boolean
+        (
+            "can-fd-up",
+            {
+                "iface": 'can0',
+                "bitrate": 500000,
+                "sample_point": True,
+                "dbitrate": 2000000,
+                "dsample_point": 0.75,
+            },
+        ),
+        # beyond any CAN FD controller
+        (
+            "can-fd-up",
+            {
+                "iface": 'can0',
+                "bitrate": 500000,
+                "sample_point": 0.75,
+                "dbitrate": 20000000,
+                "dsample_point": 0.75,
+            },
+        ),
         ("can-link-state", {"iface": "can0;id", "state": "up"}),
         ("can-link-state", {"iface": "can0", "state": "cycle"}),
         ("doip-config", {"iface": "ETH0"}),
