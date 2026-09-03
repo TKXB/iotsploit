@@ -382,13 +382,30 @@ class PaletteInputSession:
     ``complete_while_typing=True`` with ``CompleteStyle.COLUMN``.
     """
 
-    def __init__(self, shell: Any, completer: CommandPaletteCompleter) -> None:
+    def __init__(
+        self,
+        shell: Any,
+        completer: CommandPaletteCompleter,
+        *,
+        input: Any = None,
+        output: Any = None,
+    ) -> None:
+        """``input``/``output`` default to prompt-toolkit's own detection.
+
+        They exist so a caller without a console can supply a pipe and a
+        DummyOutput. On Windows prompt-toolkit resolves the default output to a
+        Win32Output, which needs a real console screen buffer and raises
+        NoConsoleScreenBufferError under a non-interactive shell -- inside
+        __init__, before a test could swap the session out.
+        """
         self._shell = shell
         self._session: PromptSession = PromptSession(
             completer=completer,
             complete_while_typing=True,
             complete_style=CompleteStyle.COLUMN,
             history=InMemoryHistory(),
+            input=input,
+            output=output,
         )
 
     def prompt(self, prompt_text: str) -> str:

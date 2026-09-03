@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from iotsploit_core.utils.helpers import process_group_kwargs
 from iotsploit_django.tools.net_audit_mgr import (
     NetAudit_Mgr,
     validate_ipv4_hosts,
@@ -120,10 +121,12 @@ def test_stopping_one_attack_never_signals_another(monkeypatch):
     assert processes[0].terminated is True
     assert processes[1].terminated is False
     assert calls[0][0] == ["/usr/bin/macof", "-i", "eth0", "-d", "192.0.2.10"]
+    # start_new_session is POSIX-only, so the expectation comes from the same
+    # helper the manager calls rather than hardcoding the Linux answer.
     assert calls[0][1] == {
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
-        "start_new_session": True,
         "close_fds": True,
+        **process_group_kwargs(),
     }
