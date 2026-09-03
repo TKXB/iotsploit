@@ -1,12 +1,17 @@
-"""The PCAN driver must find the adapter and own only the link it raised.
+"""The PCAN driver must find the adapter, and change a link only when told to.
 
-Both properties come from the same place -- the kernel, not a guess:
+Three properties, all of them read from the kernel rather than assumed:
 
 * a PEAK adapter is recognised by the bit-timing constants its controller
   reports (``pcan_usb_fd`` on the bench PCAN-USB FD), so the driver never
   offers a vcan or somebody else's CAN card as a PEAK adapter;
-* initialize applies one CAN FD configuration through one privileged verb and
-  records that it raised the link, which is what permits close to lower it.
+* initialize validates and records the adapter but leaves the link exactly as
+  it found it -- an operator decides when a bus goes live, because raising a
+  link makes the controller ACK on a vehicle;
+* ``can-up``/``can-down`` act on the device the command was addressed to. The
+  manager resolves that device straight out of the scan and never requires an
+  initialize, so a driver that reads ``self.current_interface`` instead
+  configures nothing, or worse, the wrong bus.
 
 Nothing here opens a socket, an interface, or the privileged helper.
 """
@@ -37,6 +42,14 @@ IP_OUTPUT = """8: can0: <NOARP,ECHO> mtu 16 qdisc noop state DOWN mode DEFAULT g
 \t  mcp251x: tseg1 3..16 tseg2 2..8 sjw 1..4 brp 1..64 brp_inc 1
 10: vcan0: <NOARP,UP,LOWER_UP> mtu 72 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/can
+"""
+
+# A rig carrying two PEAK adapters: a link command must act on the one it was
+# addressed to, not on whichever was initialized first.
+IP_OUTPUT_TWO_ADAPTERS = IP_OUTPUT + """11: can2: <NOARP,ECHO> mtu 16 qdisc noop state DOWN mode DEFAULT group default qlen 10
+    link/can  promiscuity 0
+    can state STOPPED restart-ms 0
+\t  pcan_usb_fd: tseg1 1..256 tseg2 1..128 sjw 1..128 brp 1..1024 brp_inc 1
 """
 
 # The same can0 once ``can-fd-up`` has run: FD on, both bitrates, sampled at 75%.
@@ -133,17 +146,49 @@ def test_a_peak_adapter_and_a_generic_can_interface_are_not_the_same_device(driv
     assert not pcan_ids & socketcan_ids
 
 
-def test_initialize_applies_the_fd_configuration_in_one_privileged_call(driver, helper, links):
+def test_initialize_validates_the_adapter_without_touching_the_link(driver, helper):
+    """Plugging an adapter in must not put a controller on somebody's bus."""
+    device = can0(driver)
+
+    assert driver.initialize(device) is True
+    assert helper.calls == []
+    assert device.attributes["is_up"] is False
+
+
+def test_can_up_applies_the_fd_configuration_in_one_privileged_call(driver, helper, links):
     device = can0(driver)
     links(IP_OUTPUT_CONFIGURED)
 
-    assert driver.initialize(device) is True
+    assert "can0 configured" in driver.command(device, "can-up")
     assert helper.calls == [("can-fd-up", {"iface": "can0", **FD_TIMING})]
     # What the driver reports back is what the kernel accepted, not what it asked for.
     assert device.attributes["bitrate"] == 500000
     assert device.attributes["dbitrate"] == 2000000
     assert device.attributes["supports_fd"] is True
     assert device.attributes["is_up"] is True
+
+
+def test_can_down_lowers_the_link_and_stops_calling_it_up(driver, helper, links):
+    device = can0(driver)
+    links(IP_OUTPUT_CONFIGURED)
+    driver.command(device, "can-up")
+    helper.calls.clear()
+    links(IP_OUTPUT)
+
+    assert "can0 lowered" in driver.command(device, "can-down")
+    assert helper.calls == [("can-link-state", {"iface": "can0", "state": "down"})]
+    # The attribute an operator reads must follow the link, not the last request.
+    assert device.attributes["is_up"] is False
+
+
+def test_a_link_command_acts_on_the_device_it_was_addressed_to(driver, helper, links):
+    """No initialize, two adapters: the addressed one is the one configured."""
+    links(IP_OUTPUT_TWO_ADAPTERS)
+    can2 = next(device for device in driver.scan() if device.interface == "can2")
+
+    driver.command(can2, "can-up")
+
+    assert [args["iface"] for _verb, args in helper.calls] == ["can2"]
 
 
 def test_initialize_refuses_an_interface_that_is_not_a_peak_adapter(driver, helper):
@@ -165,10 +210,10 @@ def test_initialize_refuses_an_interface_that_is_not_on_this_host(driver, helper
     assert helper.calls == []
 
 
-def test_close_lowers_the_link_this_driver_raised(driver, helper, links):
+def test_close_lowers_a_link_this_driver_raised(driver, helper, links):
     device = can0(driver)
     links(IP_OUTPUT_CONFIGURED)
-    driver.initialize(device)
+    driver.command(device, "can-up")
     helper.calls.clear()
 
     assert driver.close(device) is True
@@ -182,7 +227,7 @@ def test_the_applied_timing_is_reported_only_once_it_has_been_applied(driver, li
     assert driver.status()["fd_timing"] is None
 
     links(IP_OUTPUT_CONFIGURED)
-    driver.initialize(device)
+    driver.command(device, "can-up")
 
     assert driver.status()["fd_timing"] == FD_TIMING
     assert driver.status()["owns_link"] is True

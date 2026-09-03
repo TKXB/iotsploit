@@ -13,13 +13,13 @@ things differ, and they are the whole reason this driver exists:
 2. **It owns the link.** :class:`SocketCANDriver` will not configure a bus,
    because it cannot know what the bus is. A PEAK adapter is brought to a
    vehicle for a test and is configured by whoever plugs it in, so this driver
-   applies one CAN FD configuration on initialize -- the same
-   ``ip link set ... type can ... fd on`` an operator would type -- and lowers
-   the link again on close, which the inherited close already does for a link
-   its driver raised.
+   exposes ``can-up`` and ``can-down`` commands that apply the same
+   ``ip link set ... type can ... fd on`` an operator would type. Initialize
+   validates the adapter but leaves the link untouched; the operator decides
+   when to bring it up and take it down.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from iotsploit_core.domain.device import Device, SocketCANDevice
 from iotsploit_core.utils import iots_logger
@@ -49,13 +49,32 @@ FD_TIMING = {
 
 
 class PCANDriver(SocketCANDriver):
-    """A PEAK PCAN adapter, configured for CAN FD and lowered again on close."""
+    """A PEAK PCAN adapter, with manual ``can-up``/``can-down`` link control."""
 
     DEVICE_ID_PREFIX = 'pcan_'
+
+    def __init__(self):
+        super().__init__()
+        self.supported_commands.update({
+            "can-up": "Bring the PEAK link up with CAN FD configuration",
+            "can-down": "Lower the PEAK link",
+        })
 
     @staticmethod
     def _is_peak(info: CanLinkInfo) -> bool:
         return bool(info.timing_const) and info.timing_const.startswith(PEAK_TIMING_PREFIXES)
+
+    def _peak_link(self, iface: str) -> CanLinkInfo:
+        """The kernel's view of a PEAK interface, or an error naming what it is instead."""
+        info = read_can_links().get(iface)
+        if info is None:
+            raise RuntimeError(f"{iface} is not a CAN interface on this host")
+        if not self._is_peak(info):
+            raise RuntimeError(
+                f"{iface} is not a PEAK adapter "
+                f"(its controller reports {info.timing_const or 'no bit timing'})"
+            )
+        return info
 
     def _scan_impl(self) -> List[Device]:
         """Only the PEAK adapters, reported exactly as the kernel has them now.
@@ -82,40 +101,57 @@ class PCANDriver(SocketCANDriver):
         return device
 
     def _initialize_impl(self, device: SocketCANDevice) -> bool:
-        """Apply the CAN FD configuration and raise the link.
+        """Validate the adapter and record it, but leave the link untouched.
 
-        Unconditional, unlike the SocketCAN driver's initialize, which leaves an
-        already-up link alone: an adapter that is up on the wrong bit timing is
-        the failure this exists to prevent, and only a reconfiguration fixes it.
-        Bit timing cannot be set on a running link, so ``can-fd-up`` lowers the
-        link, configures it, and raises it -- one privileged call, so the link
-        is never left down by a half-finished sequence.
+        The link is brought up and configured by the ``can-up`` command, not
+        here: an operator who wants to inspect the adapter before committing
+        to a bit timing can do so, and a link that is already up on the wrong
+        timing is left alone until the operator decides to reconfigure it.
         """
         if not isinstance(device, SocketCANDevice):
             raise ValueError("This plugin only supports SocketCAN devices")
 
-        info = read_can_links().get(device.interface)
-        if info is None:
-            raise RuntimeError(f"{device.interface} is not a CAN interface on this host")
-        if not self._is_peak(info):
-            raise RuntimeError(
-                f"{device.interface} is not a PEAK adapter "
-                f"(its controller reports {info.timing_const or 'no bit timing'})"
-            )
+        info = self._peak_link(device.interface)
 
-        self._run_privileged("can-fd-up", {"iface": device.interface, **FD_TIMING})
-        # This driver raised the link, so the inherited close and reset may
-        # lower and cycle it.
-        self._brought_link_up = True
         self.current_interface = device.interface
         self.device = device
-
-        # Read back rather than echo: the configuration that matters is the one
-        # the kernel accepted, and it is what the operator will see in ip link.
-        configured = read_can_links().get(device.interface) or info
-        device.attributes.update(self._device_for(configured).attributes)
-        logger.info("PCAN device initialized on %s: %s", device.interface, configured.describe())
+        device.attributes.update(self._device_for(info).attributes)
+        logger.info("PCAN device initialized on %s: %s", device.interface, info.describe())
         return True
+
+    def _command_impl(self, device: Device, command: str, args: Optional[Dict] = None) -> Optional[str]:
+        """Handle ``can-up``/``can-down`` before delegating streaming to the parent."""
+        command = command.lower()
+        if command not in ("can-up", "can-down"):
+            return super()._command_impl(device, command, args)
+
+        # The interface comes from the device this command was addressed to, not
+        # from self.current_interface: the manager resolves the device straight
+        # out of the scan and never requires an initialize, so on the command
+        # path that attribute is usually unset -- and on a rig with two PEAK
+        # adapters it names whichever was initialized, not the one addressed.
+        iface = getattr(device, "interface", None) or self.current_interface
+        if not iface:
+            raise RuntimeError("This command needs a scanned PEAK device to act on")
+        self._peak_link(iface)
+        # Whatever the operator addressed is what connect and streaming will use.
+        self.current_interface = iface
+        self.device = device
+
+        if command == "can-up":
+            self._run_privileged("can-fd-up", {"iface": iface, **FD_TIMING})
+            self._brought_link_up = True
+        else:
+            self._run_privileged("can-link-state", {"iface": iface, "state": "down"})
+            self._brought_link_up = False
+
+        # Report the link as the kernel now has it, not as it was asked to be.
+        configured = self._peak_link(iface)
+        device.attributes.update(self._device_for(configured).attributes)
+        logger.info("PCAN %s on %s: %s", command, iface, configured.describe())
+        if command == "can-up":
+            return f"can-up: {iface} configured with FD timing"
+        return f"can-down: {iface} lowered"
 
     def status(self) -> Dict:
         state = super().status()
