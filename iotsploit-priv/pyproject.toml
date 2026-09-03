@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-priv"
-version = "0.1.0"
+version = "0.0.8"
 description = "Bounded privileged-operation client for IoTSploit"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 license = "GPL-3.0-or-later"
