@@ -2,7 +2,6 @@ import logging
 logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
-import netifaces
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.input_mgr import Input_Mgr
@@ -151,11 +150,12 @@ def _resolve_live_ip(ecu: str):
                 logger.info("Vehicle model configured {} hotspot LAN IP: {}".format(p.display, ap_ip))
                 return ap_ip
 
-        sat_ip = wifi_status.get("sta_status", {}).get("ip_address")
+        sta_status = wifi_status.get("sta_status", {})
+        sat_ip = sta_status.get("ip_address")
         if sat_ip == None:
             raise_err("SAT failed to obtain an IP address; SAT failed to connect to the {} hotspot!".format(p.display))
 
-        gw_ip = netifaces.gateways()['default'][netifaces.AF_INET][0]
+        gw_ip = sta_status.get("gateway")
         if gw_ip == None:
             raise_err("SAT failed to obtain the WIFI0 gateway IP address; SAT failed to connect to the {} hotspot!".format(p.display))
 

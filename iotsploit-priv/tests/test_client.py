@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 import runpy
 import socket
+import sys
 import threading
 import time
 from pathlib import Path
 
 import pytest
+
+if sys.platform != "linux":
+    pytest.skip("AF_UNIX helper tests are Linux-only", allow_module_level=True)
 
 from iotsploit_priv import client as client_module
 from iotsploit_priv.client import (

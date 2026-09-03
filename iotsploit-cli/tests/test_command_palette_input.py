@@ -54,7 +54,7 @@ class FakeShell:
         return ""
 
 
-def _make_palette(shell=None):
+def _make_palette(shell=None, inp=None):
     """Build a PaletteInputSession with a FakeShell and patched PT session."""
     if shell is None:
         shell = FakeShell()
@@ -66,12 +66,18 @@ def _make_palette(shell=None):
     catalog = CommandCatalog(shell)
     adapter = Cmd2CompletionAdapter(shell)
     completer = CommandPaletteCompleter(shell, catalog, adapter)
-    session = PaletteInputSession(shell, completer)
+    session = PaletteInputSession(shell, completer, input=inp, output=DummyOutput())
     return session, shell, completer
 
 
 def _patch_session_with_pipe(session: PaletteInputSession, inp, completer):
-    """Replace the internal PromptSession with one using PipeInput/DummyOutput."""
+    """Rebuild the inner session on the pipe.
+
+    Kept because each test opens its own pipe after building the palette. It no
+    longer rescues a session built against the real terminal -- _make_palette is
+    given the pipe up front, since on Windows constructing the default output
+    raises NoConsoleScreenBufferError before this could run.
+    """
     session._session = PTSession(
         input=inp,
         output=DummyOutput(),

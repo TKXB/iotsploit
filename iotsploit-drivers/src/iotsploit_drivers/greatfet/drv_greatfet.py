@@ -10,6 +10,7 @@ from iotsploit_drivers.greatfet.protocol import get_version_number
 logger = logging.getLogger(__name__)
 
 class GreatFETDriver(BaseDeviceDriver):
+    REQUIRES = ("module:usb",)
     def __init__(self):
         super().__init__()
         self.usb_device = None

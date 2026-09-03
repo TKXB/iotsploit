@@ -5,8 +5,8 @@ from iotsploit_core.domain.device import Device, DeviceType, USBDevice
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 import time
 from pyftdi.serialext import serial_for_url
+from serial.tools import list_ports
 from iotsploit_core.core.stream_manager import StreamData, StreamType, StreamSource, StreamAction
-import pyudev
 from typing import List, Optional, Dict
 
 logger = iots_logger.get_logger(__name__)
@@ -16,6 +16,7 @@ FT2232_VENDOR_ID = 0x0403
 FT2232_PRODUCT_ID = 0x6010
 
 class FT2232Driver(BaseDeviceDriver):
+    REQUIRES = ("module:usb", "module:pyftdi")
     def __init__(self):
         super().__init__()
         self.uart_channels = {
@@ -61,7 +62,6 @@ class FT2232Driver(BaseDeviceDriver):
             logger.info("No FT2232 devices found.")
             return []
 
-        context = pyudev.Context()
         found_devices = []
 
         for usb_dev in devices:
@@ -71,9 +71,13 @@ class FT2232Driver(BaseDeviceDriver):
                 
                 # Find corresponding ttyUSB devices
                 tty_devices = []
-                for device in context.list_devices(subsystem='tty', ID_VENDOR_ID=f'{FT2232_VENDOR_ID:04x}'):
-                    if device.get('ID_SERIAL_SHORT') == serial_number:
-                        tty_devices.append(device.get('DEVNAME'))
+                for port in list_ports.comports():
+                    if (
+                        port.vid == FT2232_VENDOR_ID
+                        and port.pid == FT2232_PRODUCT_ID
+                        and port.serial_number == serial_number
+                    ):
+                        tty_devices.append(port.device)
                 
                 tty_devices.sort()
                 

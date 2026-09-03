@@ -13,6 +13,7 @@ from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.device_spec import DeviceState
 from iotsploit_core.domain.device import Device
 from iotsploit_core.ports.driver_state_repo import DriverStateRepository
+from iotsploit_core.platforms.capability import Availability, CapabilityResolver, static_compatibility
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +35,12 @@ class DeviceDriverManager:
         driver_state_repo: DriverStateRepository,
         plugins_dir: str | Path | None = None,
         usb_config_file: str | Path | None = None,
+        capability_resolver: CapabilityResolver | None = None,
     ):
         if not self._initialized:
             logger.info("Initializing DeviceDriverManager")
             self._driver_state_repo = driver_state_repo
+            self._capability_resolver = capability_resolver
 
             self.plugins_dir = Path(plugins_dir) if plugins_dir is not None else self._default_plugins_dir()
             self.usb_config_file = str(
@@ -45,6 +48,8 @@ class DeviceDriverManager:
             )
             self.plugins = {}
             self.drivers = {}  # Store driver instances
+            self.driver_requirements: dict[str, tuple[str, ...]] = {}
+            self.driver_load_failures: dict[str, Availability] = {}
             self.device_states = {}  # Store device states, format: 'driver_name::device_id': DeviceState
             self._connection_locks = {}  # Device operation locks, format: 'driver_name::device_id': Lock
             self.driver_states = {}  # Store driver enablement states
@@ -159,7 +164,7 @@ class DeviceDriverManager:
             logger.error(f"Error loading driver states: {e}")
             
         # For any driver not in the database, set to enabled by default
-        for driver_name in self.drivers.keys():
+        for driver_name in self.driver_requirements:
             if driver_name not in self.driver_states:
                 self.driver_states[driver_name] = True
                 self._save_driver_state(driver_name, True)
@@ -184,7 +189,7 @@ class DeviceDriverManager:
         group = "iotsploit.device_drivers"
         for entry_point in self._iter_entry_points(group):
             driver_name = entry_point.name
-            if driver_name in self.drivers:
+            if driver_name in self.driver_requirements:
                 logger.debug("Skipping duplicate device driver entry point: %s", driver_name)
                 continue
 
@@ -203,10 +208,17 @@ class DeviceDriverManager:
                     continue
 
                 self.plugins[driver_name] = driver_class
+                self.driver_requirements[driver_name] = tuple(getattr(driver_class, "REQUIRES", ()))
                 self.drivers[driver_name] = driver_class()
                 logger.info("Loaded device driver entry point: %s (%s)", driver_name, driver_class.__name__)
             except Exception as e:
                 logger.error("Failed to load device driver entry point %s: %s", driver_name, str(e))
+                self.driver_requirements[driver_name] = ()
+                self.driver_load_failures[driver_name] = Availability(
+                    False,
+                    f"{type(e).__name__}: {e}",
+                    "Install the driver's missing dependency for this platform.",
+                )
 
     def load_plugins(self):
         """Load device drivers from entry points first, then legacy filesystem fallbacks."""
@@ -242,6 +254,7 @@ class DeviceDriverManager:
                     attr != BaseDeviceDriver):
                     driver_instance = attr()
                     self.plugins[module_name] = module
+                    self.driver_requirements[module_name] = tuple(getattr(attr, "REQUIRES", ()))
                     self.drivers[module_name] = driver_instance
                     logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
                     break
@@ -371,6 +384,17 @@ class DeviceDriverManager:
 
     def _manage_device_lifecycle(self, driver_name: str, action: str, **kwargs) -> Dict:
         """Internal method for device lifecycle management"""
+        availability = self.driver_availability(driver_name)
+        if action != "close" and not availability.available:
+            return {
+                "status": "error",
+                "message": availability.reason,
+                "availability": {
+                    "available": False,
+                    "reason": availability.reason,
+                    "hint": availability.hint,
+                },
+            }
         try:
             driver = self.get_driver_instance(driver_name)
             if not driver:
@@ -659,7 +683,35 @@ class DeviceDriverManager:
         Returns:
             List[str]: List of driver names
         """
-        return list(self.drivers.keys())
+        return list(self.driver_requirements.keys())
+
+    def driver_availability(self, driver_name: str) -> Availability:
+        failure = self.driver_load_failures.get(driver_name)
+        if failure is not None:
+            return failure
+        requirements = self.driver_requirements.get(driver_name)
+        if requirements is None:
+            return Availability(False, f"Driver '{driver_name}' is not registered.")
+        if self._capability_resolver is not None:
+            return self._capability_resolver.resolve(requirements)
+        return static_compatibility(requirements) or Availability(True)
+
+    def list_driver_info(self) -> list[dict]:
+        result = []
+        for name, requirements in self.driver_requirements.items():
+            availability = self.driver_availability(name)
+            result.append(
+                {
+                    "name": name,
+                    "requirements": list(requirements),
+                    "availability": {
+                        "available": availability.available,
+                        "reason": availability.reason,
+                        "hint": availability.hint,
+                    },
+                }
+            )
+        return result
 
     def cleanup_all_devices(self) -> Dict:
         """Clean up all device connections and reset states"""

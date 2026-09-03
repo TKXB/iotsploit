@@ -73,6 +73,7 @@ def build_exploit_plugin_manager(
         plugins_dir=plugins_dir,
         context_factory=_context_factory,
         observation_sink=_build_observation_sink(),
+        capability_resolver=_build_capability_resolver(),
     )
 
 
@@ -88,6 +89,15 @@ def _build_observation_sink():
         return ObservationRepository()
     except Exception as exc:  # pragma: no cover - defensive wiring
         logger.warning("Observation sink unavailable, scans will not be recorded: %s", exc)
+        return None
+
+
+def _build_capability_resolver():
+    try:
+        from iotsploit_platforms.adapters.capability_resolver import PlatformCapabilityResolver
+
+        return PlatformCapabilityResolver()
+    except ImportError:
         return None
 
 
@@ -111,6 +121,7 @@ def build_device_driver_manager(
         driver_state_repo=repo,
         plugins_dir=plugins_dir,
         usb_config_file=usb_config_file,
+        capability_resolver=_build_capability_resolver(),
     )
 
 
@@ -118,4 +129,3 @@ def configure_stream_backend(backend: Optional[DjangoStreamBackend] = None) -> N
     """Configure core `StreamManager` backend once for the Django runtime."""
 
     StreamManager.configure_backend(backend or DjangoStreamBackend())
-

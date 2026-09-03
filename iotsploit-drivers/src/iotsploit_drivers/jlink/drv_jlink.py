@@ -50,6 +50,7 @@ def _load_jlink_library() -> tuple[Optional[pylink.library.Library], Optional[st
 
 
 class JLinkAbility(BaseDeviceDriver):
+    REQUIRES = ("module:pylink",)
     """Device driver for SEGGER J-Link debug probes."""
 
     def __init__(self):

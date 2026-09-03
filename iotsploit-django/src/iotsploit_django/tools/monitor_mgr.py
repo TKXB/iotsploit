@@ -2,7 +2,6 @@ import logging
 import platform
 import socket
 import psutil
-import netifaces
 from abc import ABC, abstractmethod
 import threading
 
@@ -53,14 +52,12 @@ class LinuxMonitor(DeviceMonitor):
         return {"status": "No battery detected"}
 
     def _get_ip_addresses(self):
-        ip_addresses = {}
-        for interface in netifaces.interfaces():
-            try:
-                ip = netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr']
-                ip_addresses[interface] = ip
-            except:
-                pass
-        return ip_addresses
+        return {
+            interface: address.address
+            for interface, addresses in psutil.net_if_addrs().items()
+            for address in addresses
+            if address.family == socket.AF_INET
+        }
 
     def _format_battery_time(self, seconds):
         if seconds == psutil.POWER_TIME_UNLIMITED:
@@ -99,14 +96,6 @@ class LinuxMonitor(DeviceMonitor):
         return self.memory_usage
 
 class Pi_Mgr(LinuxMonitor):
-    def get_cpu_temperature(self):
-        try:
-            with open('/sys/class/thermal/thermal_zone0/temp', 'r') as temp_file:
-                temp = float(temp_file.read().strip()) / 1000
-                return f"{temp:.1f}°C"
-        except:
-            return super().get_cpu_temperature()
-
     def get_battery_status(self):
         # Implement Raspberry Pi specific battery monitoring if available
         # For now, we'll use the Linux implementation

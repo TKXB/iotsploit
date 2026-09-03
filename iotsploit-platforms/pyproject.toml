@@ -29,8 +29,8 @@ iotsploit-core = "*"
 # Linux WiFi backend dependencies
 # Using NetworkManager (libnm) via PyGObject
 # System dependencies required: python3-gi gir1.2-nm-1.0
-PyGObject = "<3.51"
-dbus-python = "^1.4.0"
+PyGObject = { version = "<3.51", markers = "sys_platform == 'linux'" }
+dbus-python = { version = "^1.4.0", markers = "sys_platform == 'linux'" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

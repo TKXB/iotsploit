@@ -1,5 +1,13 @@
 import runpy
+import sys
 from pathlib import Path
+
+import pytest
+
+if sys.platform != "linux":
+    pytest.skip("the native privileged helper is Linux-only", allow_module_level=True)
+
+pytestmark = pytest.mark.unit
 
 from iotsploit_priv.client import VERB_TABLE_HASH
 from iotsploit_priv import native

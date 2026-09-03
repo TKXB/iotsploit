@@ -9,6 +9,7 @@ from iotsploit_core.core.tool_service import get_firmware_service
 logger = logging.getLogger(__name__)
 
 class ECP5FPGADriver(BaseDeviceDriver):
+    REQUIRES = ()
     def __init__(self):
         super().__init__()
         # Define supported commands

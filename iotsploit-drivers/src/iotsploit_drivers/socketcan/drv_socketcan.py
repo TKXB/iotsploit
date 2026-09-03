@@ -45,6 +45,7 @@ ERROR_REPORT_INTERVAL_S = 1.0
 
 
 class SocketCANDriver(BaseDeviceDriver):
+    REQUIRES = ("platform:linux", "module:can")
     def __init__(self):
         super().__init__()
         self.bus = None

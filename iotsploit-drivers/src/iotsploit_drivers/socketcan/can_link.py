@@ -20,6 +20,8 @@ import subprocess
 from dataclasses import dataclass
 from typing import Callable, Dict, Optional
 
+from iotsploit_core.core.tool_manager import PathResolver
+
 logger = logging.getLogger(__name__)
 
 #: A CAN FD interface has an MTU of 72 (``struct canfd_frame``); classic CAN is
@@ -131,8 +133,11 @@ def read_can_links(runner: Callable[..., subprocess.CompletedProcess] = subproce
     touches a device.
     """
     try:
+        executable = PathResolver().resolve_tool_path("ip")
+        if not executable:
+            raise FileNotFoundError("ip")
         result = runner(
-            ["ip", "-details", "link", "show"],
+            [executable, "-details", "link", "show"],
             capture_output=True,
             text=True,
             timeout=10,

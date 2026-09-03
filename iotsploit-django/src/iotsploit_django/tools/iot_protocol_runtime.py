@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any
 import time
 
+from iotsploit_core.core.tool_manager import PathResolver
 from iotsploit_django.tools.iot_protocol_components import (
     MockGeneratorInstance,
     MockMonitorInstance,
@@ -57,21 +58,7 @@ class OrchestratorAdapter:
             generator_type = generator_config.get('generator_type', 'radamsa')
 
             if generator_type == 'radamsa':
-                # Try to find radamsa binary
-                import shutil
-                import os
-                radamsa_path = shutil.which('radamsa')
-                if not radamsa_path:
-                    # Try common locations
-                    common_paths = [
-                        '/usr/bin/radamsa',
-                        '/usr/local/bin/radamsa',
-                        '/home/tkxb/Projects/radamsa/bin/radamsa'
-                    ]
-                    for path in common_paths:
-                        if os.path.exists(path):
-                            radamsa_path = path
-                            break
+                radamsa_path = PathResolver().resolve_tool_path("radamsa")
 
                 if radamsa_path:
                     generator = RadamsaGenerator(radamsa_path=radamsa_path)
@@ -122,8 +109,10 @@ class OrchestratorAdapter:
                     protocol_config.get('port')
                     or protocol_config.get('device')
                     or protocol_config.get('device_path')
-                    or '/dev/ttyUSB0'
+                    or ''
                 )
+                if not device:
+                    raise ValueError("A serial port from device discovery is required")
                 baudrate = protocol_config.get('baud_rate', 115200)
                 timeout_ms = protocol_config.get('timeout', 1000)
                 try:
@@ -558,21 +547,7 @@ class GeneratorAdapter:
 
             logger.info("Initializing real generator components")
 
-            # Check for radamsa binary
-            import shutil
-            import os
-            radamsa_path = shutil.which('radamsa')
-            if not radamsa_path:
-                # Try common locations
-                common_paths = [
-                    '/usr/bin/radamsa',
-                    '/usr/local/bin/radamsa',
-                    '/home/tkxb/Projects/radamsa/bin/radamsa'
-                ]
-                for path in common_paths:
-                    if os.path.exists(path):
-                        radamsa_path = path
-                        break
+            radamsa_path = PathResolver().resolve_tool_path("radamsa")
 
             if radamsa_path:
                 self.real_generator = RadamsaGenerator(radamsa_path=radamsa_path)

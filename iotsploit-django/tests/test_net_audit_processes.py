@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from iotsploit_core.utils.helpers import process_group_kwargs
 from iotsploit_django.tools.net_audit_mgr import (
     NetAudit_Mgr,
     validate_ipv4_hosts,
@@ -16,15 +17,14 @@ from iotsploit_django.tools.net_audit_mgr import (
 pytestmark = pytest.mark.unit
 
 
-def test_host_discovery_uses_privileged_nmap_argv(monkeypatch):
+def test_host_discovery_uses_privileged_nmap_argv():
     calls = []
 
     def run(argv, **kwargs):
         calls.append((argv, kwargs))
         return SimpleNamespace(returncode=0, stdout="Nmap scan report for 192.0.2.1\n", stderr="")
 
-    monkeypatch.setattr("iotsploit_django.tools.net_audit_mgr.shutil.which", lambda name: f"/usr/bin/{name}")
-    manager = NetAudit_Mgr(run=run)
+    manager = NetAudit_Mgr(run=run, resolve_binary=lambda name: f"/usr/bin/{name}")
 
     result = manager.ip_detect(["192.0.2.0/24"])
 
@@ -34,7 +34,7 @@ def test_host_discovery_uses_privileged_nmap_argv(monkeypatch):
     assert "shell" not in calls[0][1]
 
 
-def test_port_scan_uses_connect_scan_and_parses_stdout_xml(monkeypatch):
+def test_port_scan_uses_connect_scan_and_parses_stdout_xml():
     xml = (
         '<nmaprun><host><address addr="192.0.2.1" addrtype="ipv4"/>'
         '<ports><port protocol="tcp" portid="443"><state state="open"/></port></ports>'
@@ -46,8 +46,7 @@ def test_port_scan_uses_connect_scan_and_parses_stdout_xml(monkeypatch):
         calls.append(argv)
         return SimpleNamespace(returncode=0, stdout=xml, stderr="")
 
-    monkeypatch.setattr("iotsploit_django.tools.net_audit_mgr.shutil.which", lambda name: f"/usr/bin/{name}")
-    manager = NetAudit_Mgr(run=run)
+    manager = NetAudit_Mgr(run=run, resolve_binary=lambda name: f"/usr/bin/{name}")
 
     result = manager.port_detect(["192.0.2.1"], [22, 443])
 
@@ -113,8 +112,7 @@ def test_stopping_one_attack_never_signals_another(monkeypatch):
         processes.append(process)
         return process
 
-    monkeypatch.setattr("iotsploit_django.tools.net_audit_mgr.shutil.which", lambda name: f"/usr/bin/{name}")
-    manager = NetAudit_Mgr(popen=popen)
+    manager = NetAudit_Mgr(popen=popen, resolve_binary=lambda name: f"/usr/bin/{name}")
     manager.start_mac_flood_attack("192.0.2.10", "eth0")
     manager.start_tcp_flood_attack("192.0.2.11")
 
@@ -123,10 +121,12 @@ def test_stopping_one_attack_never_signals_another(monkeypatch):
     assert processes[0].terminated is True
     assert processes[1].terminated is False
     assert calls[0][0] == ["/usr/bin/macof", "-i", "eth0", "-d", "192.0.2.10"]
+    # start_new_session is POSIX-only, so the expectation comes from the same
+    # helper the manager calls rather than hardcoding the Linux answer.
     assert calls[0][1] == {
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
-        "start_new_session": True,
         "close_fds": True,
+        **process_group_kwargs(),
     }

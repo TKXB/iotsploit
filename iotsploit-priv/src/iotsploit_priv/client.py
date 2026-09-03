@@ -104,6 +104,8 @@ def call(
     request = json.dumps({"verb": verb, "args": args}, separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
     if len(request) > MAX_REQUEST_BYTES:
         raise ValueError("privileged helper request exceeds 4 KiB")
+    if not hasattr(socket, "AF_UNIX"):
+        raise PrivilegedHelperUnavailable("Privileged helper is Linux-only.")
 
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(float(timeout))

@@ -22,7 +22,7 @@ pluggy = "1.5.0"
 pyftdi = "0.55.4"
 pylink-square = "^2.0.0"
 daphne = "4.1.2"
-netifaces = "0.11.0"
+psutil = "6.0.0"
 celery = "^5.3.6"
 redis = "^5.0.1"
 channels_redis = "^4.1.0"
@@ -39,7 +39,6 @@ iotsploit-mcp = { path = "iotsploit-mcp", develop = true }
 iotsploit-priv = { path = "iotsploit-priv", develop = true }
 # CLI shell (console + commands)
 iotsploit-cli = { path = "iotsploit-cli", develop = true }
-pyudev = "0.24.3"
 facedancer = "^3.0.0"
 # AI and MCP dependencies
 openai = "^1.35.0"
@@ -67,6 +66,7 @@ testpaths = [
     "iotsploit-django/src/iotsploit_django/tests",
     "iotsploit-fuzzer/tests",
     "iotsploit-mcp/tests",
+    "iotsploit-platforms/tests",
     "iotsploit-cli/tests",
     "iotsploit-exploits/tests",
     "iotsploit-priv/tests",

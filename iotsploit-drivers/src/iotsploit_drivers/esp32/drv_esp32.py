@@ -10,6 +10,7 @@ import serial.tools.list_ports
 logger = logging.getLogger(__name__)
 
 class ESP32Driver(BaseDeviceDriver):
+    REQUIRES = ("module:serial",)
     def __init__(self):
         super().__init__()
         self.transport = None
@@ -229,7 +230,7 @@ class ESP32Driver(BaseDeviceDriver):
 
                 # Get port, chip, and baud from args or flash options or defaults
                 port = args.get('port') if args else None
-                port = port or flash_options.get('port', '/dev/ttyACM2')
+                port = port or flash_options.get('port') or device.port
 
                 chip = args.get('chip') if args else None
                 chip = chip or flash_options.get('chip', 'esp32s3')
@@ -304,7 +305,7 @@ class ESP32Driver(BaseDeviceDriver):
                 return {"status": "error", "message": error_msg}
             
             # Get port from args or use default
-            port = args.get('port', '/dev/ttyACM2') if args else '/dev/ttyACM2'
+            port = (args or {}).get('port') or device.port
             chip = args.get('chip', 'esp32s3') if args else 'esp32s3'
             baud = args.get('baud', '460800') if args else '460800'
             
@@ -350,7 +351,7 @@ class ESP32Driver(BaseDeviceDriver):
                 return {"status": "error", "message": error_msg}
             
             # Get port from args or use default
-            port = args.get('port', '/dev/ttyACM2') if args else '/dev/ttyACM2'
+            port = (args or {}).get('port') or device.port
             baud = args.get('baud', '460800') if args else '460800'
             
             logger.info(f"Getting ESP32-S3 chip info from {port}...")

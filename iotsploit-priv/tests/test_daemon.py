@@ -6,10 +6,14 @@ import json
 import os
 import runpy
 import socket
+import sys
 import time
 from pathlib import Path
 
 import pytest
+
+if sys.platform != "linux":
+    pytest.skip("the privileged daemon is Linux-only", allow_module_level=True)
 
 pytestmark = pytest.mark.unit
 
@@ -142,7 +146,12 @@ def test_timeout_kills_the_started_process_group(tmp_path: Path):
     )
     run_command = DAEMON["_run_command"]
     old_timeout = run_command.__globals__["COMMAND_TIMEOUT_SECONDS"]
-    run_command.__globals__["COMMAND_TIMEOUT_SECONDS"] = 0.05
+    # Long enough for the helper to actually register its child, short enough
+    # to still time out against its 10s sleep. At 0.05s this raced CPython
+    # startup plus the fork of /bin/sleep: on a loaded machine the pid file was
+    # never written and the read below failed with FileNotFoundError instead of
+    # testing anything. The assertions are unchanged -- only the headroom is.
+    run_command.__globals__["COMMAND_TIMEOUT_SECONDS"] = 2.0
     try:
         exit_code, _, stderr, _ = run_command([str(tool), str(pid_file)])
     finally:

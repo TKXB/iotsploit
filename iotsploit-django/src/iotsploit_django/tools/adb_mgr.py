@@ -10,6 +10,7 @@ from typing import NamedTuple
 from iotsploit_django.tools.usb_mgr import USB_Mgr
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.adapters.django.target_models import TargetManager
+from iotsploit_core.core.tool_manager import PathResolver
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ class ADB_Mgr:
             self.__root_states = {}  # per-serial root state: True/False/None
             self.__adb_lock = threading.Lock()  # guards root/unroot transitions
             self._target_manager = TargetManager.get_instance()
+            self._adb_path = PathResolver().resolve_tool_path("adb")
             self._initialized = True
 
     def _run_adb(self, args, *, serial=None, timeout=None):
@@ -100,7 +102,11 @@ class ADB_Mgr:
         Returns:
             ``subprocess.CompletedProcess`` with ``stdout``/``stderr`` as text.
         """
-        cmd = ["adb"]
+        if not hasattr(self, "_adb_path"):
+            self._adb_path = PathResolver().resolve_tool_path("adb")
+        if not self._adb_path:
+            raise RuntimeError("Required tool is unavailable: adb")
+        cmd = [self._adb_path]
         if serial:
             cmd.extend(["-s", serial])
         cmd.extend(args)

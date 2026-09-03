@@ -10,6 +10,28 @@ import argparse
 LOG_FORMAT_CHOICES = ("standard", "compact", "plain")
 
 
+def _tolerate_unencodable_output() -> None:
+    """Never let a status message kill the process.
+
+    The CLI prints emoji in its progress output. A Windows console on a
+    non-UTF-8 code page (GBK on a Chinese install) raises UnicodeEncodeError
+    on the first one, which killed the process during database setup -- before
+    it could report what it was doing. Replacing the character is the right
+    trade: the console cannot render it either way, and the run continues.
+
+    Left alone where the stream already encodes them, so Linux output is
+    unchanged.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass  # not a reconfigurable text stream (redirected, wrapped)
+
+
+_tolerate_unencodable_output()
+
+
 def _prime_log_format_env_from_argv(argv):
     selected_format = None
     idx = 0
@@ -138,6 +160,8 @@ def discover_command_modules():
     for filename in os.listdir(commands_dir):
         if filename.endswith('.py') and not filename.startswith('__') and filename != 'base_commands.py':
             module_name = filename[:-3]
+            if module_name == "linux_commands" and not sys.platform.startswith("linux"):
+                continue
             
             try:
                 module = importlib.import_module(f'iotsploit_cli.commands.{module_name}')
@@ -581,9 +605,9 @@ def main():
         # Do not raise here; just best-effort cleanup.
         _shutdown()
 
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGHUP, _signal_handler)
+    for signal_name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        if shutdown_signal := getattr(signal, signal_name, None):
+            signal.signal(shutdown_signal, _signal_handler)
     atexit.register(_atexit_handler)
 
     if args.runserver:

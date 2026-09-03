@@ -410,7 +410,7 @@ def firmware_erase(request: HttpRequest) -> JsonResponse:
         {
             "device_type": "esp32",
             "options": {
-                "port": "/dev/ttyACM2",
+                "port": "",
                 "chip": "esp32s3",
                 "baud": "460800"
             }
@@ -448,7 +448,12 @@ def firmware_erase(request: HttpRequest) -> JsonResponse:
         
         # Route to appropriate programmer based on device type
         if device_type.lower().startswith('esp32'):
-            port = options.get('port', '/dev/ttyACM2')
+            port = options.get('port')
+            if not port:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'A serial port from device discovery is required',
+                }, status=400)
             chip = options.get('chip', 'esp32s3')
             baud = options.get('baud', '460800')
             

@@ -10,6 +10,7 @@ from iotsploit_core.core.exploit_manager import ExploitPluginManager
 from iotsploit_mcp.adapters.http_driver_state_repo import HttpDriverStateRepository
 from iotsploit_mcp.adapters.http_plugin_group_repo import HttpPluginGroupRepository
 from iotsploit_mcp.adapters.http_plugin_meta_repo import HttpPluginMetaRepository
+from iotsploit_platforms.adapters.capability_resolver import PlatformCapabilityResolver
 
 
 def _default_exploit_plugins_dir() -> Path | None:
@@ -44,6 +45,7 @@ def build_device_manager(
         driver_state_repo=repo,
         plugins_dir=plugins_dir,
         usb_config_file=usb_config_file,
+        capability_resolver=PlatformCapabilityResolver(),
     )
 
 
@@ -73,5 +75,5 @@ def build_exploit_manager(*, django_api_base_url: Optional[str] = None, plugins_
         group_repo=group_repo,
         task_runner=None,
         plugins_dir=Path(plugins_dir) if plugins_dir is not None else _default_exploit_plugins_dir(),
+        capability_resolver=PlatformCapabilityResolver(),
     )
-

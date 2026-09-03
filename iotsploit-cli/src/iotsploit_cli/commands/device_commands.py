@@ -513,7 +513,7 @@ class DeviceCommands(BaseCommands):
                     "device_id": "serial_001",
                     "name": "Serial Device",
                     "device_type": "Serial",
-                    "port": "/dev/ttyUSB0",
+                    "port": "",
                     "baud_rate": 115200
                 },
                 {
