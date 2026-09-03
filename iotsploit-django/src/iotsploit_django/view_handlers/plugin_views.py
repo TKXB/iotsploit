@@ -56,7 +56,20 @@ def __expand_toc_list(tree_list, expand_list):
 def list_plugins(request):
     plugin_manager = get_exploit_plugin_manager()
     plugins = plugin_manager.list_plugins()
-    return JsonResponse({'plugins': plugins})
+    return JsonResponse({
+        'plugins': plugins,
+        'plugin_info': [
+            {
+                "name": name,
+                "availability": {
+                    "available": (availability := plugin_manager.plugin_availability(name)).available,
+                    "reason": availability.reason,
+                    "hint": availability.hint,
+                },
+            }
+            for name in plugins
+        ]
+    })
 
 @require_http_methods(["GET"])
 def list_enabled_exploit_plugins(request):
@@ -81,6 +94,7 @@ def list_enabled_exploit_plugins(request):
                         "author": m.author,
                         "license": m.license,
                         "parameters": m.parameters or {},
+                        "requirements": list(m.requirements),
                     }
                     for m in metas
                 ],
@@ -200,7 +214,8 @@ def list_device_drivers(request):
     if available_drivers:
         result = {
             "status": "success",
-            "drivers": available_drivers
+            "drivers": available_drivers,
+            "driver_info": device_manager.list_driver_info(),
         }
     else:
         result = {

@@ -249,7 +249,7 @@ class ESP32Programmer(BaseProgrammer):
         Flash single firmware file to ESP32 device.
         
         Args:
-            port: Serial port (e.g., '/dev/ttyUSB0')
+            port: Serial port reported by device discovery
             firmware_path: Path to firmware file
             address: Flash address (default: 0x10000)
             chip: Chip type (default: esp32)
@@ -278,7 +278,7 @@ class ESP32Programmer(BaseProgrammer):
         Flash multiple files to ESP32 device (bootloader, partition table, app).
         
         Args:
-            port: Serial port (e.g., '/dev/ttyUSB0')
+            port: Serial port reported by device discovery
             files: List of dicts with 'address' and 'path' keys
             chip: Chip type (default: esp32s3)
             baud: Baud rate (default: 460800)
@@ -428,14 +428,8 @@ class FPGAProgrammer(BaseProgrammer):
         self.tool_service.register_tool('openFPGALoader', required=False)
     
     def is_tool_available(self, tool_name: str = 'openFPGALoader') -> bool:
-        """Check if openFPGALoader is available, with fallback to direct detection"""
-        # First try the centralized tool service
-        if self.tool_service.is_tool_available(tool_name):
-            return True
-        
-        # Fallback to direct detection if tool service fails
-        import shutil
-        return shutil.which(tool_name) is not None
+        """Check if openFPGALoader is available."""
+        return self.tool_service.is_tool_available(tool_name)
     
     def load_sram(self, bitstream_path: str, board: Optional[str] = None,
                  cable: Optional[str] = None) -> 'ExecutionResult':
@@ -460,39 +454,7 @@ class FPGAProgrammer(BaseProgrammer):
         if cable:
             args.extend(['--cable', cable])
         
-        try:
-            return self.execute_tool('openFPGALoader', args, timeout=300)
-        except RuntimeError:
-            # Fallback to direct execution if tool service fails
-            import shutil
-            import subprocess
-            import time
-            
-            tool_path = shutil.which('openFPGALoader')
-            if not tool_path:
-                raise RuntimeError("openFPGALoader is not available")
-            
-            command = [tool_path] + args
-            start_time = time.time()
-            
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
-            
-            execution_time = time.time() - start_time
-            
-            return ExecutionResult(
-                success=result.returncode == 0,
-                return_code=result.returncode,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                execution_time=execution_time,
-                command=' '.join(command),
-                tool_path=tool_path
-            )
+        return self.execute_tool('openFPGALoader', args, timeout=300)
     
     def flash_bitstream(self, bitstream_path: str, board: Optional[str] = None,
                        cable: Optional[str] = None, external_flash: bool = False) -> 'ExecutionResult':
@@ -520,39 +482,7 @@ class FPGAProgrammer(BaseProgrammer):
         if external_flash:
             args.append('--external-flash')
         
-        try:
-            return self.execute_tool('openFPGALoader', args, timeout=300)
-        except RuntimeError:
-            # Fallback to direct execution if tool service fails
-            import shutil
-            import subprocess
-            import time
-            
-            tool_path = shutil.which('openFPGALoader')
-            if not tool_path:
-                raise RuntimeError("openFPGALoader is not available")
-            
-            command = [tool_path] + args
-            start_time = time.time()
-            
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
-            
-            execution_time = time.time() - start_time
-            
-            return ExecutionResult(
-                success=result.returncode == 0,
-                return_code=result.returncode,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                execution_time=execution_time,
-                command=' '.join(command),
-                tool_path=tool_path
-            )
+        return self.execute_tool('openFPGALoader', args, timeout=300)
 
 class GreatFETProgrammer(BaseProgrammer):
     """GreatFET programmer using greatfet_firmware"""
@@ -887,7 +817,7 @@ class FirmwareToolService(ToolService):
                     if 'files' in flash_options:
                         # Multi-file ESP32 flash
                         result = self.esp32.flash_multi(
-                            port=flash_options.get('port', '/dev/ttyUSB0'),
+                            port=flash_options.get('port'),
                             files=flash_options['files'],
                             chip=flash_options.get('chip', 'esp32s3'),
                             baud=flash_options.get('baud', '460800')
@@ -895,7 +825,7 @@ class FirmwareToolService(ToolService):
                     else:
                         # Single file ESP32 flash
                         result = self.esp32.flash_single(
-                            port=flash_options.get('port', '/dev/ttyUSB0'),
+                            port=flash_options.get('port'),
                             firmware_path=firmware_path,
                             address=flash_options.get('address', '0x10000'),
                             chip=flash_options.get('chip', 'esp32'),

@@ -16,6 +16,7 @@ class Plugin(models.Model):
     license = models.CharField(max_length=255, blank=True)
     author = models.CharField(max_length=255, blank=True)
     parameters = models.TextField(blank=True)
+    requirements = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"[Plugin:{self.pk} {self.name}]"
@@ -179,5 +180,4 @@ class PluginGroup(models.Model):
                 overall_ok = False
 
         return overall_ok
-
 

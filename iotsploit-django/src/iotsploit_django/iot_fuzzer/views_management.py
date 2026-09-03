@@ -362,7 +362,7 @@ def create_test_case(request: HttpRequest):
             # Use bitrate and device_path for CAN
             default_settings.update({'bitrate': 500000, 'device_path': 'can0'})
         elif protocol_type == 'uart':
-            default_settings.update({'baud_rate': 115200, 'port': '/dev/ttyUSB0', 'timeout': 1000})
+            default_settings.update({'baud_rate': 115200, 'port': '', 'timeout': 1000})
 
         protocol_config, created = ProtocolConfiguration.objects.get_or_create(
             protocol_type=protocol_type,

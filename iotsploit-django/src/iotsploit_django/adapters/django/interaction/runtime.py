@@ -75,6 +75,9 @@ def run_execution(
 
         result = _as_dict(raw_result)
         result.update(provenance or {})
+        if result.get("reason") == "unavailable":
+            service.mark_failed(execution_id, result["message"], reason="unavailable")
+            return result
         service.mark_completed(execution_id, result)
         return result
     except InteractionTimeout as exc:

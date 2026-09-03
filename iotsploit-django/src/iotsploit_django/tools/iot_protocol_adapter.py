@@ -1,8 +1,8 @@
 import logging
 
+from iotsploit_core.core.tool_manager import PathResolver
 from iotsploit_django.tools.frame_utils import frame_data_from_fields
 import threading
-import os
 from typing import Dict, Any, List
 from datetime import datetime
 
@@ -68,23 +68,11 @@ class IoTProtocolAdapter:
     def _check_radamsa_availability(self) -> bool:
         """Check if radamsa binary is available"""
         try:
-            import shutil
-            radamsa_path = shutil.which('radamsa')
+            radamsa_path = PathResolver().resolve_tool_path("radamsa")
             if radamsa_path:
                 logger.info(f"Radamsa found at: {radamsa_path}")
                 return True
-            
-            # Try common locations
-            common_paths = [
-                '/usr/bin/radamsa',
-                '/usr/local/bin/radamsa',
-                '/home/tkxb/Projects/radamsa/bin/radamsa'
-            ]
-            for path in common_paths:
-                if os.path.exists(path):
-                    logger.info(f"Radamsa found at: {path}")
-                    return True
-            
+
             logger.warning("Radamsa binary not found")
             return False
         except Exception as e:
@@ -549,7 +537,7 @@ class IoTProtocolAdapter:
                 'name': 'Universal Asynchronous Receiver-Transmitter',
                 'description': 'Serial UART protocol support',
                 'parameters': {
-                    'port': {'type': 'string', 'required': True, 'default': '/dev/ttyUSB0'},
+                    'port': {'type': 'string', 'required': True, 'default': ''},
                     'baud_rate': {'type': 'integer', 'required': True, 'default': 115200},
                     'data_bits': {'type': 'integer', 'required': False, 'default': 8},
                     'stop_bits': {'type': 'integer', 'required': False, 'default': 1},
@@ -610,7 +598,7 @@ class IoTProtocolAdapter:
                 'type': 'uart',
                 'name': 'UART (Mock)',
                 'description': 'Mock UART protocol for testing',
-                'parameters': {'port': '/dev/ttyUSB0', 'baud_rate': 115200},
+                'parameters': {'port': '', 'baud_rate': 115200},
                 'supported_features': ['mock_fuzzing']
             }
         ]

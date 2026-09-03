@@ -851,7 +851,9 @@ class IoTFuzzerService:
             
             # Default results path
             if not root_path:
-                root_path = '/tmp/fuzzer_results'
+                from iotsploit_core.utils.helpers import runtime_dir
+
+                root_path = str(runtime_dir() / "fuzzer_results")
             
             # Create directory if it doesn't exist
             if not os.path.exists(root_path):
@@ -1128,7 +1130,7 @@ class IoTFuzzerService:
                 'configuration': {
                     'protocol_type': 'uart',
                     'protocol_config': {
-                        'port': '/dev/ttyUSB0',
+                        'port': '',
                         'baud_rate': 115200,
                         'data_bits': 8,
                         'stop_bits': 1,
@@ -1196,4 +1198,4 @@ class IoTFuzzerService:
 
 
 # Global instance
-_instance = None 
+_instance = None

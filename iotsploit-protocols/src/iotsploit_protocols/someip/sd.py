@@ -331,33 +331,25 @@ def _entry_endpoints(entry, options) -> List[Tuple[str, int, str]]:
 
 def _local_interfaces() -> str:
     """``name=address`` for every IPv4 NIC on this host, for error messages."""
-    try:
-        import netifaces
-    except ImportError:
-        return ""
+    import psutil
+
     entries = []
-    for name in netifaces.interfaces():
-        address = _interface_ipv4(name)
-        if address:
-            entries.append(f"{name}={address}")
+    for name, addresses in psutil.net_if_addrs().items():
+        for address in addresses:
+            if address.family == socket.AF_INET:
+                entries.append(f"{name}={address.address}")
     return ", ".join(entries)
 
 
 def _interface_ipv4(name: str) -> Optional[str]:
     """The IPv4 address of a named NIC, or None.
 
-    ``netifaces`` is already a dependency of the app but not of this package, so
-    it is imported opportunistically rather than declared.
+    Uses psutil so interface enumeration remains portable.
     """
-    try:
-        import netifaces
-    except ImportError:
-        return None
-    try:
-        addresses = netifaces.ifaddresses(name).get(netifaces.AF_INET) or []
-    except ValueError:
-        return None
+    import psutil
+
+    addresses = psutil.net_if_addrs().get(name, [])
     for address in addresses:
-        if address.get("addr"):
-            return address["addr"]
+        if address.family == socket.AF_INET:
+            return address.address
     return None

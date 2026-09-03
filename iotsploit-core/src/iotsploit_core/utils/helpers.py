@@ -1,8 +1,40 @@
 from __future__ import annotations
 
+import os
+import signal
+import tempfile
 import time
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, Union
+
+
+def runtime_dir() -> Path:
+    """Return the host-appropriate directory for disposable runtime files."""
+    return Path(os.getenv("IOTSPLOIT_RUNTIME_DIR", tempfile.gettempdir()))
+
+
+def log_dir() -> Path:
+    """Return the configured service log directory."""
+    return Path(os.getenv("IOTSPLOIT_SERVICE_LOG_DIR", runtime_dir() / "sat_logs"))
+
+
+def process_group_kwargs() -> dict[str, bool]:
+    """Popen options that create an independently terminable POSIX group."""
+    return {"start_new_session": True} if os.name == "posix" else {}
+
+
+def terminate_process_group(process) -> None:
+    """Terminate a process tree where POSIX groups exist, else the process."""
+    if os.name == "posix":
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            return
+        except ProcessLookupError:
+            return
+        except (AttributeError, OSError):
+            pass
+    process.terminate()
 
 
 def sleep(seconds: float) -> None:

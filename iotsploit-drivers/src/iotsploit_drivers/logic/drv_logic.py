@@ -27,6 +27,7 @@ from iotsploit_drivers.logic.protocol import (
 
 class EnxorLogicAnalyzerDriver(BaseDeviceDriver):
     """Enxor Logic Analyzer device driver for iotsploit framework"""
+    REQUIRES = ("module:serial",)
     
     def __init__(self):
         super().__init__()

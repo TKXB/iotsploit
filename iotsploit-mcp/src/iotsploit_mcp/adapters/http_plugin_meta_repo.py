@@ -79,6 +79,7 @@ class HttpPluginMetaRepository(PluginMetaRepository):
                     author=str(it.get("author") or ""),
                     license=str(it.get("license") or ""),
                     parameters=it.get("parameters") if isinstance(it.get("parameters"), dict) else None,
+                    requirements=tuple(it.get("requirements") or ()),
                 )
             )
         return [m for m in metas if m.name and m.module_path]
@@ -87,4 +88,3 @@ class HttpPluginMetaRepository(PluginMetaRepository):
         # SSOT note: do NOT disable globally based on a single MCP node's filesystem.
         # In multi-node deployments, a plugin may exist on another node.
         return 0
-

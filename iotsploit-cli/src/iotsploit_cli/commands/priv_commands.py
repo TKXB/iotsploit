@@ -14,6 +14,7 @@ from iotsploit_priv.native import (
     sha256_file,
     verb_lines,
 )
+from iotsploit_core.core.tool_manager import PathResolver
 
 from .base_commands import BaseCommands
 
@@ -57,7 +58,11 @@ class PrivCommands(BaseCommands):
         if not self._confirm(action.capitalize()):
             self.poutput("Cancelled.")
             return 1
-        argv = ["sudo", os.fspath(INSTALLER), action]
+        sudo = PathResolver().resolve_tool_path("sudo")
+        if not sudo:
+            self.perror("Required tool is unavailable: sudo")
+            return 2
+        argv = [sudo, os.fspath(INSTALLER), action]
         if service_user is not None:
             argv.extend(["--service-user", service_user])
         for unit in worker_units:

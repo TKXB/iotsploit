@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from iotsploit_cli.commands.plugin_commands import PluginCommands
+from iotsploit_core.platforms.capability import Availability
 
 pytestmark = pytest.mark.unit
 
@@ -21,6 +22,9 @@ class FakePluginManager:
 
     def list_plugins(self):
         return ["Interactive Demo", "Nmap Scan"]
+
+    def plugin_availability(self, name):
+        return Availability(True)
 
     def get_plugin(self, name):
         # The real manager does exactly this, which is where a Statement blows up.

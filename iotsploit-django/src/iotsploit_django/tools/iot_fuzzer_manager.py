@@ -1,5 +1,6 @@
 import logging
 
+from iotsploit_core.core.tool_manager import PathResolver
 from iotsploit_django.tools.frame_utils import frame_data_from_fields
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -220,7 +221,7 @@ class IoTFuzzerManager:
                     elif only_protocol == 'uart':
                         if 'port' not in protocol_config:
                             alias = protocol_config.get('device') or protocol_config.get('device_path')
-                            protocol_config['port'] = alias or '/dev/ttyUSB0'
+                            protocol_config['port'] = alias or ''
                         if 'baud_rate' not in protocol_config:
                             protocol_config['baud_rate'] = 115200
                         if 'timeout' not in protocol_config:
@@ -1004,12 +1005,7 @@ class DependencyChecker:
     
     def _check_radamsa(self) -> bool:
         """Check if radamsa binary is available"""
-        try:
-            import subprocess
-            result = subprocess.run(['which', 'radamsa'], capture_output=True, text=True)
-            return result.returncode == 0
-        except Exception:
-            return False
+        return PathResolver().resolve_tool_path("radamsa") is not None
 
 
 # Global instance

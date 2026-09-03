@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import getpass
-import grp
 import hashlib
 import json
 import os
-import pwd
 import socket
 import stat
 from dataclasses import dataclass
@@ -53,6 +51,8 @@ def current_user() -> str:
 
 
 def _service_identity(service_user: str) -> tuple[int, set[int]]:
+    import pwd
+
     account = pwd.getpwnam(service_user)
     return account.pw_uid, set(os.getgrouplist(service_user, account.pw_gid))
 
@@ -128,6 +128,11 @@ def native_status(
     *,
     socket_path: Path = DEFAULT_SOCKET_PATH,
 ) -> NativeStatus:
+    if not hasattr(socket, "AF_UNIX"):
+        return NativeStatus(1, ("privileged helper is Linux-only",))
+
+    import grp
+
     service_user = service_user or current_user()
     destinations = (DAEMON_DESTINATION, *UNIT_DESTINATIONS)
     if not any(path.exists() or path.is_symlink() for path in (*destinations, socket_path)):

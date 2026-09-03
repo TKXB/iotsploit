@@ -20,6 +20,7 @@ from iotsploit_core.ports.interaction import (
     coerce_answer,
     guard_sync_call,
 )
+from iotsploit_core.platforms.capability import Availability
 
 pytestmark = pytest.mark.unit
 
@@ -314,3 +315,26 @@ def test_unbound_interactive_plugin_goes_to_the_task_runner():
     assert plugin.calls == 0
     assert result["execution_type"] == "interactive"
     assert runner.submitted == [("p", {"interactive": True})]
+
+
+def test_dispatcher_does_not_apply_its_availability_to_a_worker_run():
+    class Plugin:
+        def get_info(self):
+            return {"Interactive": True}
+
+        def execute(self, target, parameters):
+            raise AssertionError("worker-bound plugin ran in the dispatcher")
+
+    class UnavailableResolver:
+        def resolve(self, requirements):
+            return Availability(False, "unavailable on dispatcher")
+
+    class RecordingTaskRunner:
+        def submit(self, plugin_name, target=None, parameters=None, *, context=None):
+            return {"execution_id": "worker-run"}
+
+    manager = build_manager(Plugin())
+    manager._capability_resolver = UnavailableResolver()
+    manager._task_runner = RecordingTaskRunner()
+
+    assert manager.execute_plugin("p") == {"execution_id": "worker-run"}

@@ -8,11 +8,11 @@ import time
 from .base_commands import BaseCommands
 from iotsploit_core.utils import iots_logger
 import os
-import signal
 import socket
 from typing import Tuple
 
 from django.conf import settings
+from iotsploit_core.utils.helpers import log_dir, process_group_kwargs, terminate_process_group
 
 logger = iots_logger.get_logger(__name__)
 
@@ -30,9 +30,9 @@ class DjangoCommands(BaseCommands):
         if not hasattr(self, "_service_log_files"):
             self._service_log_files = []
 
-        log_dir = os.getenv("IOTSPLOIT_SERVICE_LOG_DIR", "/tmp/sat_logs")
-        os.makedirs(log_dir, exist_ok=True)
-        log_path = os.path.join(log_dir, f"{service_name}.log")
+        service_log_dir = log_dir()
+        service_log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = service_log_dir / f"{service_name}.log"
         log_file = open(log_path, "a", buffering=1, encoding="utf-8")
         self._service_log_files.append(log_file)
         return log_file, log_path
@@ -186,7 +186,7 @@ class DjangoCommands(BaseCommands):
                 logger.info(f"Running interactive Celery command: {' '.join(interactive_celery_cmd)}")
                 logger.info(f"Running streaming Celery command: {' '.join(streaming_celery_cmd)}")
             if not self._services_log_to_console():
-                logger.info(f"Service logs are redirected to {os.getenv('IOTSPLOIT_SERVICE_LOG_DIR', '/tmp/sat_logs')}")
+                logger.info("Service logs are redirected to %s", log_dir())
             
             # Start the processes with direct output to stdout/stderr
             if distributed:
@@ -220,8 +220,8 @@ class DjangoCommands(BaseCommands):
                 stdout=mcp_stdout,
                 stderr=mcp_stderr,
                 universal_newlines=True,
-                start_new_session=True,  # create new session = new PGID on POSIX
-                env=mcp_env
+                env=mcp_env,
+                **process_group_kwargs(),
             )
             
             if distributed:
@@ -320,7 +320,7 @@ class DjangoCommands(BaseCommands):
                 try:
                     # Terminate the entire process group so that child processes
                     # such as sat_fastmcp are also stopped.
-                    os.killpg(os.getpgid(self.mcp_bridge_process.pid), signal.SIGTERM)
+                    terminate_process_group(self.mcp_bridge_process)
                 except ProcessLookupError:
                     # Process already gone
                     pass

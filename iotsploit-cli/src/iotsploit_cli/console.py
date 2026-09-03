@@ -138,6 +138,8 @@ def discover_command_modules():
     for filename in os.listdir(commands_dir):
         if filename.endswith('.py') and not filename.startswith('__') and filename != 'base_commands.py':
             module_name = filename[:-3]
+            if module_name == "linux_commands" and not sys.platform.startswith("linux"):
+                continue
             
             try:
                 module = importlib.import_module(f'iotsploit_cli.commands.{module_name}')
@@ -581,9 +583,9 @@ def main():
         # Do not raise here; just best-effort cleanup.
         _shutdown()
 
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGHUP, _signal_handler)
+    for signal_name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        if shutdown_signal := getattr(signal, signal_name, None):
+            signal.signal(shutdown_signal, _signal_handler)
     atexit.register(_atexit_handler)
 
     if args.runserver:

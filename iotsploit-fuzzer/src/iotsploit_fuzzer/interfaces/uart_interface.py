@@ -9,7 +9,7 @@ except ImportError:
 
 
 class UARTInterface(HWInterface):
-    def __init__(self, device: str = "/dev/ttyUSB0", baudrate: int = 115200, timeout: float = 0.1):
+    def __init__(self, device: str, baudrate: int = 115200, timeout: float = 0.1):
         if serial is None:
             raise RuntimeError("pyserial not installed. Install via pip install pyserial")
         self.ser = serial.Serial(device, baudrate=baudrate, timeout=timeout)
@@ -23,4 +23,4 @@ class UARTInterface(HWInterface):
         return data if data else None
 
     def close(self) -> None:
-        self.ser.close() 
+        self.ser.close()

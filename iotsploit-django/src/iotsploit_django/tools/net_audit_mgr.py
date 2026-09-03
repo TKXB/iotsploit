@@ -3,13 +3,15 @@ from __future__ import annotations
 import ipaddress
 import logging
 import random
-import shutil
 import socket
 import subprocess
 import threading
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Sequence
 from typing import Any
+
+from iotsploit_core.core.tool_manager import PathResolver
+from iotsploit_core.utils.helpers import process_group_kwargs, terminate_process_group
 
 
 logger = logging.getLogger(__name__)
@@ -113,14 +115,15 @@ class NetAudit_Mgr:
         *,
         run: Callable[..., Any] | None = None,
         popen: Callable[..., Any] | None = None,
+        resolve_binary: Callable[[str], str | None] | None = None,
     ) -> None:
         self._run = run or subprocess.run
         self._popen = popen or subprocess.Popen
+        self._resolve_binary = resolve_binary or PathResolver().resolve_tool_path
         self._jobs: dict[str, list[Any]] = {}
 
-    @staticmethod
-    def _binary(name: str) -> str:
-        executable = shutil.which(name)
+    def _tool(self, name: str) -> str:
+        executable = self._resolve_binary(name)
         if not executable:
             raise RuntimeError(f"Required tool is unavailable: {name}")
         return executable
@@ -142,8 +145,8 @@ class NetAudit_Mgr:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            start_new_session=True,
             close_fds=True,
+            **process_group_kwargs(),
         )
         self._jobs.setdefault(name, []).append(process)
         return process
@@ -152,7 +155,7 @@ class NetAudit_Mgr:
         processes = self._jobs.pop(name, [])
         for process in processes:
             if process.poll() is None:
-                process.terminate()
+                terminate_process_group(process)
         for process in processes:
             if process.poll() is None:
                 try:
@@ -164,7 +167,7 @@ class NetAudit_Mgr:
 
     def ip_detect(self, host_list: Sequence[str]):
         hosts = validate_ipv4_hosts(host_list)
-        argv = [self._binary("nmap"), "-sn", "--privileged", *hosts]
+        argv = [self._tool("nmap"), "-sn", "--privileged", *hosts]
         result = self._run_command(argv)
         if result.returncode != 0:
             raise RuntimeError(f"nmap host discovery failed: {(result.stderr or '').strip()}")
@@ -178,7 +181,7 @@ class NetAudit_Mgr:
     def port_detect(self, host_list: Sequence[str], port_list: str | Sequence[int]):
         hosts = validate_ipv4_hosts(host_list)
         ports = validate_port_spec(port_list)
-        argv = [self._binary("nmap"), "-vv", "-sT", "-T2", "-p", ports, *hosts, "-oX", "-"]
+        argv = [self._tool("nmap"), "-vv", "-sT", "-T2", "-p", ports, *hosts, "-oX", "-"]
         result = self._run_command(argv)
         if result.returncode != 0:
             logger.error("nmap port scan failed: %s", (result.stderr or "").strip())
@@ -202,14 +205,14 @@ class NetAudit_Mgr:
         return discovered
 
     def read_route(self):
-        result = self._run_command([self._binary("ip"), "route", "show"], timeout=10)
+        result = self._run_command([self._tool("ip"), "route", "show"], timeout=10)
         return result.stdout if result.returncode == 0 else None
 
     def start_mac_flood_attack(self, target_ip: str, interface_name: str = "wlan0"):
         self.stop_mac_flood_attack()
         self._start_job(
             "mac",
-            [self._binary("macof"), "-i", _interface(interface_name), "-d", _ipv4_address(target_ip)],
+            [self._tool("macof"), "-i", _interface(interface_name), "-d", _ipv4_address(target_ip)],
         )
         return 1
 
@@ -220,7 +223,7 @@ class NetAudit_Mgr:
         self.stop_icmp_flood_attack()
         target = _ipv4_address(target_ip)
         for _ in range(100):
-            self._start_job("icmp", [self._binary("ping"), target, "-s", "65500"])
+            self._start_job("icmp", [self._tool("ping"), target, "-s", "65500"])
         return 1
 
     def stop_icmp_flood_attack(self):
@@ -254,7 +257,7 @@ class NetAudit_Mgr:
         self._start_job(
             "tcp",
             [
-                self._binary("hping3"),
+                self._tool("hping3"),
                 "-V",
                 "-d",
                 "120",

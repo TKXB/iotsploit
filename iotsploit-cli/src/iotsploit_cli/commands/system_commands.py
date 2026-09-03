@@ -8,6 +8,7 @@ from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog
 from iotsploit_core.utils import iots_logger
+from iotsploit_core.utils.helpers import log_dir
 
 logger = iots_logger.get_logger(__name__)
 
@@ -112,7 +113,7 @@ class SystemCommands(BaseCommands):
             if running_services and selected_format != "standard":
                 logger.warning(
                     "Already-running service processes keep their current terminal output. "
-                    "Run stop_server then runserver to redirect service logs to /tmp/sat_logs."
+                    f"Run stop_server then runserver to redirect service logs to {log_dir()}."
                 )
         except Exception as e:
             logger.error(ansi.style(f"Error setting log format: {str(e)}", fg=ansi.Fg.RED))

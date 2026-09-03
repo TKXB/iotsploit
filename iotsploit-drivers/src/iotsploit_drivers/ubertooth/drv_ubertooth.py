@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
+import queue
 import re
-import select
 import subprocess
 import threading
 import time
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class UbertoothDriver(BaseDeviceDriver):
+    REQUIRES = ("binary:ubertooth-util", "binary:ubertooth-btle")
     VENDOR_ID = 0x1D50
     PRODUCT_ID = 0x6002
 
@@ -128,18 +129,23 @@ class UbertoothDriver(BaseDeviceDriver):
             proc = self._active_process
 
         assert proc.stdout is not None
+        lines: queue.Queue[str] = queue.Queue()
+
+        def read_stdout() -> None:
+            for line in iter(proc.stdout.readline, ""):
+                lines.put(line)
+
+        threading.Thread(target=read_stdout, daemon=True).start()
         start = time.time()
         try:
             while True:
                 if time.time() - start > timeout:
                     break
-                if proc.poll() is not None:
+                if proc.poll() is not None and lines.empty():
                     break
-                readable, _, _ = select.select([proc.stdout], [], [], 0.2)
-                if not readable:
-                    continue
-                line = proc.stdout.readline()
-                if not line:
+                try:
+                    line = lines.get(timeout=0.2)
+                except queue.Empty:
                     continue
                 parsed = line_parser(line.strip())
                 if parsed:
@@ -331,4 +337,3 @@ class UbertoothDriver(BaseDeviceDriver):
 
     def _get_supported_recovery_operations_impl(self) -> list:
         return []
-

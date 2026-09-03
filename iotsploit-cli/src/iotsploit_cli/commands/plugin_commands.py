@@ -21,7 +21,9 @@ class PluginCommands(BaseCommands):
         if plugins:
             logger.info(ansi.style("Available plugins:", fg=ansi.Fg.CYAN))
             for plugin in plugins:
-                logger.info(ansi.style(f"  - {plugin}", fg=ansi.Fg.CYAN))
+                availability = self.plugin_manager.plugin_availability(plugin)
+                suffix = "" if availability.available else f" [unavailable: {availability.reason}]"
+                logger.info(ansi.style(f"  - {plugin}{suffix}", fg=ansi.Fg.CYAN))
         else:
             logger.info(ansi.style("No plugins available.", fg=ansi.Fg.YELLOW))
 
@@ -49,6 +51,14 @@ class PluginCommands(BaseCommands):
 
         if choice not in plugins:
             logger.error(ansi.style(f"Plugin '{choice}' not found.", fg=ansi.Fg.RED))
+            return
+
+        availability = self.plugin_manager.plugin_availability(choice)
+        if not availability.available:
+            message = availability.reason
+            if availability.hint:
+                message = f"{message} {availability.hint}"
+            logger.error(ansi.style(message, fg=ansi.Fg.RED))
             return
 
         logger.info(ansi.style(f"Executing plugin: {choice}", fg=ansi.Fg.CYAN))
