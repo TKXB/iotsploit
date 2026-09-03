@@ -330,7 +330,15 @@ def test_the_uploaded_file_is_deleted_on_every_exit_path(manager, monkeypatch, c
 
     def spy(*args, **kwargs):
         handle, path = real_mkstemp(*args, **kwargs)
-        paths.append(path)
+        # Record only the view's own spool file. mkstemp is patched on the
+        # shared tempfile module, and on Windows Django's TemporaryUploadedFile
+        # goes through it too (django/core/files/temp.py), so an unfiltered spy
+        # also catches a file the view never created and does not own -- Django
+        # releases that one when the request closes, which RequestFactory never
+        # does. On Linux the in-memory upload handler makes no such file, which
+        # is why this only ever failed on Windows.
+        if kwargs.get("suffix") == ".arxml":
+            paths.append(path)
         return handle, path
 
     monkeypatch.setattr(arxml_views.tempfile, "mkstemp", spy)

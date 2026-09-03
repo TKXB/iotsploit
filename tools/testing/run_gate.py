@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_gate.py — the canonical Python quality gate, on every platform.
+"""run_gate.py - the canonical Python quality gate, on every platform.
 
 This owns the ordered list of checks. `test-python-full.sh` is a thin wrapper
 around it so the documented bash entrypoint and the pre-commit hook keep
@@ -16,11 +16,16 @@ cross-platform matrix narrows to the markers a runner without hardware or Redis
 can honestly execute.
 
 Exit codes:
-  0 — all checks passed
-  1 — at least one check failed (the first failure stops the run)
+  0 - all checks passed
+  1 - at least one check failed (the first failure stops the run)
 
 Test paths, import mode and markers live in the root pyproject; this script
 deliberately does not duplicate that configuration.
+
+Output is deliberately ASCII-only. A Windows console on a non-UTF-8 code
+page (GBK on a Chinese install, for one) raises UnicodeEncodeError on box
+drawing and emoji, which would fail the gate for the way it prints rather
+than for anything it checked.
 
 `test-wheel-installs.py` is not part of this gate. It builds ten wheels and
 creates a virtualenv per package, which is minutes of work and needs the
@@ -61,14 +66,14 @@ def main() -> int:
     pytest_args = _split_pytest_args(sys.argv[1:])
 
     for name, command in _steps(pytest_args):
-        print(f"── {name} ".ljust(66, "─"), flush=True)
+        print(f"-- {name} ".ljust(66, "-"), flush=True)
         result = subprocess.run(command, cwd=REPO_ROOT)
         if result.returncode != 0:
-            print(f"\n❌ {name} failed (exit {result.returncode}).", flush=True)
+            print(f"\nFAILED: {name} (exit {result.returncode}).", flush=True)
             return 1
         print(flush=True)
 
-    print("✅ All checks passed.", flush=True)
+    print("All checks passed.", flush=True)
     return 0
 
 
