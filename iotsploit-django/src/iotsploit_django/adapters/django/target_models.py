@@ -128,6 +128,17 @@ class TargetManager:
         raise ValueError(f"No target type registered for: {target_type}")
 
     def save_target(self, target: Target):
+        """Persist a target, refusing one that has no identity.
+
+        Every write funnels through here, and the id is what the store looks a
+        target up by: an empty one inserts a row that no route taking a
+        target_id can reach again, so it can never be opened, edited, selected
+        or deleted. Validating in the create view alone left that a caller
+        away, and one such row is already on a rig.
+        """
+        if not target.target_id:
+            raise ValueError("target_id is required: a target without an id cannot be addressed")
+
         session = self.Session()
         try:
             existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()

@@ -5,6 +5,11 @@ without a word, so a client could post a complete network, be told it was
 created, and get back a bag of components with no topology. These tests send
 what a client actually builds and check what survives -- and check that a
 payload the model refuses comes back saying why, rather than as a bare 500.
+
+The last test is not about a view. Everything above it stops at the request
+boundary, with a fake standing in for the database, so the store was free to
+accept a target the views would have refused -- and a row with no id, which no
+route taking a target_id can reach, is on a rig because of it.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ if not apps.ready:
 from django.test import RequestFactory  # noqa: E402
 
 import iotsploit_django.view_handlers.target_views as views  # noqa: E402
+from iotsploit_core.domain.target import Vehicle  # noqa: E402
 from iotsploit_django.adapters.django.target_models import TargetManager  # noqa: E402
 
 pytestmark = pytest.mark.contract
@@ -220,3 +226,24 @@ def test_the_whitelist_is_still_a_whitelist(stored):
 
     assert stored.saved["target_id"] == TARGET_ID
     assert "created_at" not in stored.saved
+
+
+# ── the store ───────────────────────────────────────────────────────
+
+
+def test_the_store_refuses_a_target_with_no_id():
+    """An id-less row is unreachable once written, so it is refused going in.
+
+    The guard has to run before the session opens: `add_target` and
+    `update_target` both funnel through here, and neither checks anything
+    itself.
+    """
+
+    class NoDatabase:
+        def Session(self):
+            raise AssertionError("save_target reached the database with an unusable id")
+
+    stranded = TargetManager._hydrate_target({}, Vehicle)
+
+    with pytest.raises(ValueError, match="target_id is required"):
+        TargetManager.save_target(NoDatabase(), stranded)
