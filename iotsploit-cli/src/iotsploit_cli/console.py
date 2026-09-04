@@ -117,6 +117,7 @@ from iotsploit_cli.command_registry import (
     LEGACY_REPLACEMENTS,
     RESOURCE_SPECS,
 )
+from iotsploit_cli.commands.resource_commands import add_service_start_arguments, service_start_kwargs
 
 # Command palette imports (prompt-toolkit based live command discovery).
 # Wrapped in try/except so the shell still works if prompt-toolkit is missing.
@@ -559,6 +560,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='SAT Shell entrypoint')
     parser.add_argument('--runserver', action='store_true', help='Start servers directly and keep running until Ctrl+C; on Ctrl+C, stop servers')
+    add_service_start_arguments(parser)
     parser.add_argument(
         '--log-format',
         choices=LOG_FORMAT_CHOICES,
@@ -611,7 +613,7 @@ def main():
     atexit.register(_atexit_handler)
 
     if args.runserver:
-        ok = shell.do_runserver("")
+        ok = shell._start_services(**service_start_kwargs(args))
         if ok is False:
             sys.exit(1)
         while True:

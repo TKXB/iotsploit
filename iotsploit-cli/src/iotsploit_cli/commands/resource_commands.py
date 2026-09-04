@@ -1,6 +1,7 @@
 """Canonical resource/action commands for the interactive CLI."""
 
 import argparse
+import ipaddress
 import shlex
 
 import cmd2
@@ -14,6 +15,41 @@ def _parser(description):
 
 def _subcommands(parser):
     return parser.add_subparsers(dest="action", required=True)
+
+
+def _ipv4_address(value):
+    try:
+        return str(ipaddress.IPv4Address(value))
+    except ipaddress.AddressValueError as error:
+        raise argparse.ArgumentTypeError("must be an IPv4 address") from error
+
+
+def _port(value):
+    try:
+        port = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("must be between 1 and 65535")
+    return port
+
+
+def add_service_start_arguments(parser):
+    parser.add_argument("--host", type=_ipv4_address, default="127.0.0.1", help="API/WebSocket bind address")
+    parser.add_argument("--api-port", type=_port, default=8888, help="HTTP API port")
+    parser.add_argument("--ws-port", type=_port, default=9999, help="WebSocket port")
+    parser.add_argument("--mcp-host", type=_ipv4_address, default="127.0.0.1", help="MCP bind address")
+    parser.add_argument("--mcp-port", type=_port, default=9900, help="MCP HTTP port")
+
+
+def service_start_kwargs(args):
+    return {
+        "host": args.host,
+        "api_port": args.api_port,
+        "ws_port": args.ws_port,
+        "mcp_host": args.mcp_host,
+        "mcp_port": args.mcp_port,
+    }
 
 
 host_parser = _parser("Show information about the IoTSploit host")
@@ -104,7 +140,9 @@ target_export.set_defaults(handler="do_target_export", argument="file")
 
 service_parser = _parser("Control IoTSploit background services")
 service_sub = _subcommands(service_parser)
-service_sub.add_parser("start", help="start backend services").set_defaults(handler="do_runserver")
+service_start = service_sub.add_parser("start", help="start backend services")
+add_service_start_arguments(service_start)
+service_start.set_defaults(local_handler="service_start")
 service_sub.add_parser("stop", help="stop backend services").set_defaults(handler="do_stop_server")
 service_sub.add_parser("status", help="show backend service status").set_defaults(local_handler="service_status")
 
@@ -172,6 +210,9 @@ class ResourceCommands(BaseCommands):
             process = getattr(self, attribute, None)
             running = process is not None and process.poll() is None
             self.poutput(f"{name:<8} {'running' if running else 'stopped'}")
+
+    def _service_start(self, args):
+        return self._start_services(**service_start_kwargs(args))
 
     def _config_set(self, args):
         if not args.log_level and not args.log_format:

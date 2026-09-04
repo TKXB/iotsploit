@@ -14,7 +14,13 @@ from typing import Tuple
 from django.conf import settings
 from iotsploit_core.utils.helpers import log_dir, process_group_kwargs, terminate_process_group
 
+from .resource_commands import add_service_start_arguments, service_start_kwargs
+
 logger = iots_logger.get_logger(__name__)
+
+
+runserver_parser = cmd2.Cmd2ArgumentParser(description="Start the backend service suite")
+add_service_start_arguments(runserver_parser)
 
 
 class DjangoCommands(BaseCommands):
@@ -92,8 +98,17 @@ class DjangoCommands(BaseCommands):
         return True, "Redis is available"
 
     @cmd2.with_category('Django Commands')
-    def do_runserver(self, arg):
+    @cmd2.with_argparser(runserver_parser)
+    def do_runserver(self, args):
         'Start the local or distributed backend runtime in the background'
+        return self._start_services(**service_start_kwargs(args))
+
+    def _start_services(self, *, host, api_port, ws_port, mcp_host, mcp_port):
+        ports = (api_port, ws_port, mcp_port)
+        if len(set(ports)) != len(ports):
+            self.perror("--api-port, --ws-port, and --mcp-port must use distinct ports")
+            return False
+
         if self.django_server_process or self.daphne_server_process:
             self.poutput("Servers are already running.")
             return
@@ -102,6 +117,12 @@ class DjangoCommands(BaseCommands):
             distributed = settings.IOTSPLOIT_RUNTIME == "distributed"
             logger.info("Starting the %s backend runtime", settings.IOTSPLOIT_RUNTIME)
 
+            api_client_host = "127.0.0.1" if host == "0.0.0.0" else host
+            mcp_client_host = "127.0.0.1" if mcp_host == "0.0.0.0" else mcp_host
+            api_base_url = f"http://{api_client_host}:{api_port}"
+            ws_base_url = f"ws://{api_client_host}:{ws_port}"
+            mcp_url = f"http://{mcp_client_host}:{mcp_port}/mcp"
+
             if distributed:
                 redis_ok, redis_msg = self._check_redis_available()
                 if not redis_ok:
@@ -109,17 +130,17 @@ class DjangoCommands(BaseCommands):
                     self.poutput(redis_msg)
                     return False
 
-            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', '127.0.0.1:8888']
+            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', f'{host}:{api_port}']
             if distributed:
                 daphne_cmd = [
-                    sys.executable, '-m', 'daphne', '-b', '127.0.0.1', '-p', '9999',
+                    sys.executable, '-m', 'daphne', '-b', host, '-p', str(ws_port),
                     'iotsploit_django.asgi:application',
                 ]
             else:
                 daphne_cmd = [
                     sys.executable, '-m', 'daphne',
-                    '-e', 'tcp:8888:interface=127.0.0.1',
-                    '-e', 'tcp:9999:interface=127.0.0.1',
+                    '-e', f'tcp:{api_port}:interface={host}',
+                    '-e', f'tcp:{ws_port}:interface={host}',
                     'iotsploit_django.asgi:application',
                 ]
             mcp_bridge_cmd = [
@@ -128,9 +149,9 @@ class DjangoCommands(BaseCommands):
                 'iotsploit_mcp.cli',
                 'http',
                 '--host',
-                '127.0.0.1',
+                mcp_host,
                 '--port',
-                '9900',
+                str(mcp_port),
             ]
             celery_cmd = [
                 sys.executable,
@@ -175,6 +196,10 @@ class DjangoCommands(BaseCommands):
                 '-n',
                 'streaming@%h',
             ]
+            os.environ["IOTSPLOIT_DJANGO_API_BASE_URL"] = api_base_url
+            os.environ["IOTSPLOIT_DJANGO_WS_BASE_URL"] = ws_base_url
+            os.environ["IOTSPLOIT_MCP_URL"] = mcp_url
+            self._service_api_base_url = api_base_url
             service_env = os.environ.copy()
             
             if distributed:
@@ -212,7 +237,6 @@ class DjangoCommands(BaseCommands):
             # later terminate the entire group
             # Set up environment variables for MCP bridge (Django API URL)
             mcp_env = service_env.copy()
-            mcp_env.setdefault('IOTSPLOIT_DJANGO_API_BASE_URL', 'http://127.0.0.1:8888')
             
             mcp_stdout, mcp_stderr, _ = self._service_stdio("mcp")
             self.mcp_bridge_process = subprocess.Popen(
@@ -243,9 +267,11 @@ class DjangoCommands(BaseCommands):
             
             logger.info("All servers started successfully in the background.")
             logger.info("Services running on:")
-            logger.info("  - Django HTTP API: http://localhost:8888")
-            logger.info("  - Daphne WebSocket: ws://localhost:9999")
-            logger.info("  - MCP HTTP (Streamable HTTP): http://127.0.0.1:9900/mcp")
+            logger.info("  - Django HTTP API listens on: http://%s:%s", host, api_port)
+            logger.info("  - Daphne WebSocket listens on: ws://%s:%s", host, ws_port)
+            logger.info("  - MCP HTTP listens on: http://%s:%s/mcp", mcp_host, mcp_port)
+            if mcp_host != "127.0.0.1":
+                logger.warning("MCP is exposed beyond loopback and does not authenticate incoming requests")
             if distributed:
                 logger.info("  - Celery workers: standard, interactive, and streaming queues")
             else:
@@ -260,7 +286,7 @@ class DjangoCommands(BaseCommands):
             for i in range(max_retries):
                 try:
                     response = requests.post(
-                        'http://127.0.0.1:8888/api/initialize_devices/')
+                        f'{api_base_url}/api/initialize_devices/')
                     if response.status_code == 200:
                         logger.info("Devices initialized successfully via HTTP API")
                         break
@@ -294,8 +320,8 @@ class DjangoCommands(BaseCommands):
             if api_process and api_process.poll() is None:
                 import requests
                 try:
-                    response = requests.post(
-                        'http://127.0.0.1:8888/api/cleanup_devices/')
+                    api_base_url = getattr(self, "_service_api_base_url", "http://127.0.0.1:8888")
+                    response = requests.post(f'{api_base_url}/api/cleanup_devices/')
                     if response.status_code == 200:
                         logger.info("Devices cleaned up successfully via HTTP API")
                     else:

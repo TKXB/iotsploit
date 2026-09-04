@@ -27,6 +27,24 @@ Or with the Django server started immediately:
 iotsploit --runserver
 ```
 
+Choose the backend and MCP listening addresses when the defaults are not suitable:
+
+```bash
+iotsploit --runserver \
+  --host 0.0.0.0 --api-port 8080 --ws-port 8081 \
+  --mcp-host 127.0.0.1 --mcp-port 9901
+```
+
+The same options are available inside the shell:
+
+```text
+<IoX_SHELL> service start --host 0.0.0.0 --api-port 8080 --ws-port 8081
+```
+
+`--host` controls the API and WebSocket listeners. MCP remains on loopback by
+default because it does not authenticate incoming requests; expose it only on
+a protected network. All ports must be distinct.
+
 ### Custom plugins
 
 `IOTSPLOIT_EXPLOIT_PLUGINS_DIR` can be used for user custom exploit plugins.
@@ -81,7 +99,8 @@ resource's actions.
 | Escape | Close the menu and retain the current input text |
 | Backspace to empty | Close the menu |
 | Space after a resource | Show the resource's actions |
-| Space after an action | Close the menu and allow argument entry |
+| Space after `service start` | Show the available endpoint options |
+| Space after another action | Close the menu and allow argument entry |
 | Ctrl+C | Cancel the current input (normal shell behavior) |
 | Ctrl+D on empty line | Exit the shell (normal EOF behavior) |
 

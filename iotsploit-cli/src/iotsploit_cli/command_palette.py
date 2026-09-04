@@ -235,8 +235,7 @@ class CommandCatalog:
 class Cmd2CompletionAdapter:
     """Bridge cmd2's readline-based ``complete()`` to prompt-toolkit.
 
-    When the user presses **Tab** outside the first-token context (i.e.
-    for argument completion), this adapter temporarily mocks the ``readline``
+    For argument completion, this adapter temporarily mocks the ``readline``
     module functions that cmd2 reads and calls ``shell.complete(text, 0)`` to
     populate ``completion_matches`` / ``display_matches``.
     """
@@ -262,8 +261,11 @@ class Cmd2CompletionAdapter:
             word_start -= 1
         text = line[word_start:cursor]
 
-        if not text:
-            return
+        probing_options = not text
+        if probing_options:
+            line += "--"
+            text = "--"
+            cursor += 2
 
         # Save originals
         orig_get_line_buffer = readline_mod.get_line_buffer
@@ -283,10 +285,12 @@ class Cmd2CompletionAdapter:
             displays = getattr(self._shell, "display_matches", matches)
 
             for i, match in enumerate(matches):
+                if probing_options and match == "--help":
+                    continue
                 display = displays[i] if i < len(displays) else match
                 yield Completion(
                     match,
-                    start_position=-len(text),
+                    start_position=0 if probing_options else -len(text),
                     display=display,
                 )
         except Exception:
@@ -309,9 +313,8 @@ class CommandPaletteCompleter(Completer):
     * While the cursor is in the first token and it is non-empty, yield live
       palette entries for any command prefix (works with
       ``complete_while_typing=True``).
-    * When **Tab** is explicitly requested outside the first token (i.e.
-      for argument completion), delegate to :class:`Cmd2CompletionAdapter`
-      so existing cmd2 argument completion still works.
+    * Delegate argument completion to :class:`Cmd2CompletionAdapter` on Tab,
+      while typing an option, or after ``service start``.
     """
 
     def __init__(
@@ -341,6 +344,12 @@ class CommandPaletteCompleter(Completer):
             rel_cursor = cursor - offset
             in_first_token = rel_cursor <= first_space
             first_word = stripped[:first_space]
+        current_word = "" if not stripped or text.endswith(" ") else stripped.split()[-1]
+        command_path = tuple(stripped.lower().split())
+        prompt_for_service_options = text.endswith(" ") and command_path in {
+            ("service", "start"),
+            ("runserver",),
+        }
 
         # -- live palette for any first-token prefix ---------------------- #
         if in_first_token and first_word:
@@ -356,7 +365,6 @@ class CommandPaletteCompleter(Completer):
         # this context; otherwise fall through so cmd2 still owns argument
         # completion (argparse choices, file paths, custom completers).
         elif action_entries_for_context := self._catalog.get_context_entries(text):
-            current_word = "" if not text or text.endswith(" ") else text.split()[-1]
             for entry in action_entries_for_context:
                 yield Completion(
                     entry.name,
@@ -364,8 +372,8 @@ class CommandPaletteCompleter(Completer):
                     display=entry.name,
                     display_meta=entry.description,
                 )
-        # -- explicit Tab delegation (argument completion) ---------------- #
-        elif complete_event.completion_requested:
+        # -- cmd2 argument completion ------------------------------------- #
+        elif complete_event.completion_requested or current_word.startswith("-") or prompt_for_service_options:
             yield from self._adapter.get_completions(document)
 
 

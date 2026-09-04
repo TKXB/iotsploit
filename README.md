@@ -221,6 +221,24 @@ Or directly from your terminal:
 iotsploit --runserver
 ```
 
+To listen on another IPv4 address or use different ports, pass the endpoint
+options through either command form:
+
+```text
+<IoX_SHELL> service start --host 0.0.0.0 --api-port 8080 --ws-port 8081
+```
+
+```bash
+iotsploit --runserver \
+  --host 0.0.0.0 --api-port 8080 --ws-port 8081 \
+  --mcp-host 127.0.0.1 --mcp-port 9901
+```
+
+MCP remains bound to `127.0.0.1` unless `--mcp-host` is set explicitly. Its
+HTTP endpoint does not authenticate incoming requests, so protect it before
+binding it to a LAN address or `0.0.0.0`. The API, WebSocket, and MCP ports
+must be distinct.
+
 ### 5. Development Setup from Source
 
 If you want to modify IoTSploit itself instead of installing the published package:
