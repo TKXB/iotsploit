@@ -17,6 +17,11 @@ looked like success from the outside:
   `data['result']` on a 200 and shows the raw body otherwise, so a stack trace
   behind a 500 reaches an operator as noise.
 
+The last tests cover the two payloads that route feeds off: the driver list
+carries each driver's commands, and one scan request covers every driver. The
+drivers page used to ask per driver, which put a hardware scan behind every
+render.
+
 The manager is real here; only the driver is a stub. Testing this against a
 mocked manager would assert nothing about the lifecycle, which is where the
 defect was.
@@ -92,7 +97,7 @@ class ForgetfulRepo:
 
 
 @pytest.fixture
-def driver(monkeypatch, tmp_path) -> RecordingDriver:
+def manager(monkeypatch, tmp_path) -> DeviceDriverManager:
     """A real manager carrying one stub driver, wired into both view modules.
 
     `DeviceDriverManager` is a singleton, so the instance is swapped rather
@@ -108,8 +113,7 @@ def driver(monkeypatch, tmp_path) -> RecordingDriver:
         plugins_dir=tmp_path,
         usb_config_file=tmp_path / "no_usb_config.json",
     )
-    stub = RecordingDriver()
-    manager.drivers[DRIVER] = stub
+    manager.drivers[DRIVER] = RecordingDriver()
     manager.driver_requirements[DRIVER] = ()
 
     for module in (
@@ -118,7 +122,12 @@ def driver(monkeypatch, tmp_path) -> RecordingDriver:
     ):
         monkeypatch.setattr(f"{module}.get_device_driver_manager", lambda: manager)
 
-    return stub
+    return manager
+
+
+@pytest.fixture
+def driver(manager) -> RecordingDriver:
+    return manager.drivers[DRIVER]
 
 
 def _command(device_id: str, command: str = "identify"):
@@ -182,4 +191,38 @@ def test_a_command_naming_no_driver_does_not_reach_a_different_one(driver):
     )
 
     assert response.json() == {"status": "error", "message": "Driver drv_absent is disabled"}
+    assert driver.calls == []
+
+
+def test_the_driver_list_carries_the_commands_for_each_driver(driver):
+    """Rendering a command menu must not cost a request per driver."""
+    response = Client().get("/api/list_device_drivers/")
+
+    entry = next(e for e in response.json()["driver_info"] if e["name"] == DRIVER)
+    assert entry["commands"] == {"identify": "Report which device answered"}
+
+
+def test_one_request_scans_every_driver(driver):
+    """The page needs device counts, and that is a single round trip."""
+    response = Client().post("/api/scan_all_devices/")
+
+    body = response.json()
+    assert [d["device_id"] for d in body["results"][DRIVER]["devices"]] == [
+        "stub_001",
+        "stub_002",
+    ]
+    assert driver.calls == [("scan",)]
+
+
+def test_a_disabled_driver_is_not_scanned(driver, manager):
+    """`scan_device/<driver>/` reaches the hardware past the enablement flag.
+
+    The all-driver route goes through the manager, which honours it, so a
+    driver an operator switched off is left alone.
+    """
+    manager.disable_driver(DRIVER)
+
+    body = Client().post("/api/scan_all_devices/").json()
+
+    assert body["results"][DRIVER]["devices"] == []
     assert driver.calls == []
