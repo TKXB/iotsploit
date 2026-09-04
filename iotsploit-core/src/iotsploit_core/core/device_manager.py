@@ -697,6 +697,12 @@ class DeviceDriverManager:
         return static_compatibility(requirements) or Availability(True)
 
     def list_driver_info(self) -> list[dict]:
+        """Everything a driver list needs, per driver, in one pass.
+
+        Commands ride along because they are in-memory metadata: a client that
+        renders a driver list also renders its command menu, and asking for
+        them one driver at a time buys nothing.
+        """
         result = []
         for name, requirements in self.driver_requirements.items():
             availability = self.driver_availability(name)
@@ -704,6 +710,7 @@ class DeviceDriverManager:
                 {
                     "name": name,
                     "requirements": list(requirements),
+                    "commands": self.get_plugin_commands(name),
                     "availability": {
                         "available": availability.available,
                         "reason": availability.reason,

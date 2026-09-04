@@ -14,7 +14,6 @@ from iotsploit_django.view_handlers.device_views import (
 urlpatterns = [
     path("device_info/", device_info, name="device_info"),
     path("get_all_devices/", get_all_devices, name="get_all_devices"),
-    # DEPRECATED: Use scan_devices/ endpoint instead
     path("scan_all_devices/", scan_all_devices, name="scan_all_devices"),
     path("scan_device/<str:driver_name>/", scan_specific_device, name="scan_specific_device"),
     path("list_devices/", list_devices, name="list_devices"),
