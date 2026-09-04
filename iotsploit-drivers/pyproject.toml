@@ -28,6 +28,7 @@ esptool = ">=4.8"
 [tool.poetry.plugins."iotsploit.device_drivers"]
 drv_esp32 = "iotsploit_drivers.esp32.drv_esp32:ESP32Driver"
 drv_socketcan = "iotsploit_drivers.socketcan.drv_socketcan:SocketCANDriver"
+drv_pcan = "iotsploit_drivers.socketcan.drv_pcan:PCANDriver"
 drv_ft2232 = "iotsploit_drivers.ft2232.drv_ft2232:FT2232Driver"
 drv_greatfet = "iotsploit_drivers.greatfet.drv_greatfet:GreatFETDriver"
 drv_jlink = "iotsploit_drivers.jlink.drv_jlink:JLinkAbility"

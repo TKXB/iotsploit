@@ -46,6 +46,11 @@ ERROR_REPORT_INTERVAL_S = 1.0
 
 class SocketCANDriver(BaseDeviceDriver):
     REQUIRES = ("platform:linux", "module:can")
+
+    #: Device ids are namespaced per driver: DeviceStore keys by device_id
+    #: alone, so two drivers that both find can0 must not name it the same.
+    DEVICE_ID_PREFIX = 'can_'
+
     def __init__(self):
         super().__init__()
         self.bus = None
@@ -72,35 +77,38 @@ class SocketCANDriver(BaseDeviceDriver):
         logger.info("Starting scan for SocketCAN interfaces...")
         devices = []
 
-        for name, info in sorted(read_can_links().items()):
+        for info in sorted(read_can_links().values(), key=lambda link: link.name):
             logger.info("Found CAN interface: %s", info.describe())
-            devices.append(
-                SocketCANDevice(
-                    device_id=self._device_id_for(name),
-                    name=f"SocketCAN_{name}",
-                    interface=name,
-                    attributes={
-                        'description': 'Virtual SocketCAN Interface' if info.is_virtual else 'SocketCAN Interface',
-                        'type': 'CAN',
-                        'bitrate': info.bitrate,
-                        'dbitrate': info.dbitrate,
-                        'supports_fd': info.supports_fd,
-                        'is_up': info.is_up,
-                        'controller_state': info.controller_state,
-                        'is_virtual': info.is_virtual,
-                    },
-                )
-            )
+            devices.append(self._device_for(info))
 
         logger.info("Scan complete. Found %d SocketCAN interfaces", len(devices))
         return devices
 
-    @staticmethod
-    def _device_id_for(interface: str) -> str:
+    def _device_for(self, info: CanLinkInfo) -> SocketCANDevice:
+        """One scanned interface as a device, carrying only what the kernel said."""
+        return SocketCANDevice(
+            device_id=self._device_id_for(info.name),
+            name=f"SocketCAN_{info.name}",
+            interface=info.name,
+            attributes={
+                'description': 'Virtual SocketCAN Interface' if info.is_virtual else 'SocketCAN Interface',
+                'type': 'CAN',
+                'bitrate': info.bitrate,
+                'dbitrate': info.dbitrate,
+                'supports_fd': info.supports_fd,
+                'is_up': info.is_up,
+                'controller_state': info.controller_state,
+                'timing_const': info.timing_const,
+                'is_virtual': info.is_virtual,
+            },
+        )
+
+    @classmethod
+    def _device_id_for(cls, interface: str) -> str:
         """Stable id for an interface name, unchanged from the original scheme."""
         digits = ''.join(filter(str.isdigit, interface))
         interface_num = (int(digits) if digits else 0) + 1
-        prefix = 'vcan_' if interface.startswith('vcan') else 'can_'
+        prefix = 'vcan_' if interface.startswith('vcan') else cls.DEVICE_ID_PREFIX
         return f"{prefix}{str(interface_num).zfill(3)}"
 
     def _initialize_impl(self, device: SocketCANDevice) -> bool:

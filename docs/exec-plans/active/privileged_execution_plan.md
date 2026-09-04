@@ -125,6 +125,7 @@ root interpreter.
 | `IPScanPlugin._add_routes/_del_routes` | Add/delete routes through gateway | `route-via` daemon verb |
 | `DoIP_Mgr.connect` | Set fixed link-local address and route | `doip-config` daemon verb |
 | `SocketCANDriver` | Configure, raise, cycle, and lower CAN links | `can-up` and `can-link-state` daemon verbs |
+| `PCANDriver` | Configure a PEAK adapter for CAN FD, raise and lower it | `can-fd-up` and `can-link-state` daemon verbs |
 | `syn_flood_attack` | Scapy layer-3 packets | Worker `CAP_NET_RAW`; delete `RequiresRoot` |
 
 Before deleting a file, repeat the repository reference and entry-point search
@@ -278,6 +279,7 @@ legacy test-step engine remains only for operator-authored scripts.
 | Verb | Arguments | Fixed operation |
 |---|---|---|
 | `can-up` | `iface`, `bitrate` (integer or null) | Configure a physical CAN bitrate when supplied, then raise the CAN/vCAN link |
+| `can-fd-up` | `iface`, `bitrate`, `sample_point`, `dbitrate`, `dsample_point` | Lower a physical CAN link, configure it for CAN FD with both bit timings, then raise it |
 | `can-link-state` | `iface`, `state` (`up`/`down`) | Raise or lower an owned CAN link |
 | `doip-config` | `iface` | Replace `169.254.58.58/16` and route `169.254.0.0/16` on the interface |
 | `route-via` | `action` (`add`/`delete`), `cidr`, `gateway` | Add or delete one IPv4 route through a gateway |
@@ -292,6 +294,8 @@ keys, wrong JSON types, NULs, and values outside these rules:
 - General interface: `^[a-z0-9._-]{1,15}$`
 - Bitrate: physical `canN` requires an integer from 10,000 through 10,000,000;
   `vcanN` requires null and skips configuration
+- Sample point: a number from 0.5 through 0.95, formatted to three decimals;
+  `can-fd-up` rejects `vcanN`, which has no bit timing
 - Network and gateway: IPv4 only; route network at most 65,536 addresses
 - State/action: exact enumerated strings
 
@@ -354,6 +358,8 @@ processes must restart before the membership takes effect.
 ### Owner migrations
 
 - SocketCAN calls `can-up` and `can-link-state` directly through the client.
+- PCAN calls `can-fd-up`, whose three commands set the per-verb worst case the
+  client timeout must outlast.
 - DoIP calls `doip-config` before connecting.
 - IP scan calls `route-via` with `add` for each route and records only routes
   it successfully added. An existing route makes `add` fail and is never

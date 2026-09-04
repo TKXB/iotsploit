@@ -105,8 +105,11 @@ def test_oversized_request_is_rejected_before_connecting(tmp_path: Path):
 
 
 def test_default_timeout_outlasts_the_daemon_worst_case():
-    """Two commands at the daemon's per-command cap must not read as 'unavailable'."""
+    """Three commands at the daemon's per-command cap must not read as 'unavailable'.
+
+    can-fd-up is the long one: it lowers the link, configures it, and raises it.
+    """
     daemon = runpy.run_path(str(Path(__file__).resolve().parents[1] / "privd" / "iotsploit-privd"))
-    worst_case = 2 * daemon["COMMAND_TIMEOUT_SECONDS"]
+    worst_case = 3 * daemon["COMMAND_TIMEOUT_SECONDS"]
 
     assert client_module.DEFAULT_TIMEOUT_SECONDS > worst_case

@@ -35,6 +35,11 @@ _MTU = re.compile(r"\bmtu\s+(?P<mtu>\d+)")
 _BITRATE = re.compile(r"\bbitrate\s+(?P<bitrate>\d+)")
 _DBITRATE = re.compile(r"\bdbitrate\s+(?P<dbitrate>\d+)")
 _CAN_STATE = re.compile(r"^can\b.*?\bstate\s+(?P<state>\S+)")
+# The kernel prints its bit-timing constants under the name of the controller
+# driver that owns the interface -- "pcan_usb_fd: tseg1 1..256 ...". It is the
+# only place ip(8) says which adapter this is. "tseg1" anchors it, because the
+# same block also carries a "clock" line with no name in front of it.
+_TIMING_CONST = re.compile(r"^(?P<name>[A-Za-z0-9_-]+):\s+tseg1\b")
 
 
 @dataclass(frozen=True)
@@ -47,6 +52,10 @@ class CanLinkInfo:
     bitrate: Optional[int] = None
     dbitrate: Optional[int] = None
     controller_state: Optional[str] = None
+    #: The controller driver's bit-timing constant name -- ``pcan_usb_fd`` for a
+    #: PEAK PCAN-USB FD, ``peak_pciefd`` for their PCIe card. This is how an
+    #: interface says what hardware is behind it; a vcan has none.
+    timing_const: Optional[str] = None
     is_virtual: bool = False
 
     @property
@@ -63,6 +72,8 @@ class CanLinkInfo:
         parts.append("FD" if self.supports_fd else "classic")
         if self.controller_state:
             parts.append(self.controller_state)
+        if self.timing_const:
+            parts.append(self.timing_const)
         return ", ".join(parts)
 
 
@@ -91,11 +102,17 @@ def parse_ip_link_details(text: str) -> Dict[str, CanLinkInfo]:
         dbitrate = _DBITRATE.search(body)
 
         state = None
+        timing_const = None
         for line in rest:
-            can_state = _CAN_STATE.match(line.strip())
-            if can_state:
-                state = can_state.group("state")
-                break
+            stripped = line.strip()
+            if state is None:
+                can_state = _CAN_STATE.match(stripped)
+                if can_state:
+                    state = can_state.group("state")
+            if timing_const is None:
+                timing = _TIMING_CONST.match(stripped)
+                if timing:
+                    timing_const = timing.group("name")
 
         links[name] = CanLinkInfo(
             name=name,
@@ -106,6 +123,7 @@ def parse_ip_link_details(text: str) -> Dict[str, CanLinkInfo]:
             bitrate=int(bitrate.group("bitrate")) if bitrate else None,
             dbitrate=int(dbitrate.group("dbitrate")) if dbitrate else None,
             controller_state=state,
+            timing_const=timing_const,
             is_virtual=name.startswith("vcan") or name.startswith("vxcan"),
         )
 

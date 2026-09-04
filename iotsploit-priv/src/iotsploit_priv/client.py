@@ -12,12 +12,19 @@ from typing import Any
 DEFAULT_SOCKET_PATH = Path("/run/iotsploit/priv.sock")
 MAX_REQUEST_BYTES = 4_096
 MAX_RESPONSE_BYTES = 24_576
-# The daemon runs at most two commands per verb, each capped at 10 seconds, so a
-# shorter patience here reports a working helper as missing.
-DEFAULT_TIMEOUT_SECONDS = 25.0
+# The daemon runs at most three commands per verb, each capped at 10 seconds, so
+# a shorter patience here reports a working helper as missing.
+DEFAULT_TIMEOUT_SECONDS = 35.0
 INSTALL_HINT = "Install the IoTSploit privileged helper with `priv install`."
 
 VERB_SCHEMAS = {
+    "can-fd-up": {
+        "iface": "can",
+        "bitrate": "integer",
+        "sample_point": "ratio",
+        "dbitrate": "integer",
+        "dsample_point": "ratio",
+    },
     "can-link-state": {"iface": "can", "state": ["up", "down"]},
     "can-up": {"iface": "can", "bitrate": "integer-or-null"},
     "doip-config": {"iface": "network"},
