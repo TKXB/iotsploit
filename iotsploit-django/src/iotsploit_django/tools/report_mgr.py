@@ -19,9 +19,10 @@ class Report_Mgr:
     __test_finish_label =  """<span style="color:blue;font-weight:bold;">完成</span>"""
 
     __log_root_dir = "sat_logs"
-    __detail_log_formatter =  logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    __log_date_format = "%Y-%m-%d %H:%M:%S"
+    __detail_log_formatter =  logging.Formatter("%(asctime)s | %(levelname)s | %(message)s", datefmt=__log_date_format)
     __raw_log_formatter =     logging.Formatter("%(message)s")
-    __console_log_formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    __console_log_formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s", datefmt=__log_date_format)
 
 
     @staticmethod
@@ -42,10 +43,6 @@ class Report_Mgr:
         self.__teststep_log_file_handler = None
         self.__teststep_log_file_path = None
 
-        self.__root_log_console_handler = logging.StreamHandler()
-        self.__root_log_console_handler.setFormatter(Report_Mgr.__console_log_formatter)
-        logging.getLogger().addHandler(self.__root_log_console_handler)
-
         self.__report_toc_file = None
         self.__report_detail_file = None
         self.__report_toc_tree_list = None
@@ -56,7 +53,18 @@ class Report_Mgr:
         self.__report_test_result_tree_list = None
                 
     def log_init(self):
-        pass
+        """Put this process's console handler on the root logger.
+
+        Called by the host that wants it -- the shell -- rather than run when
+        this module is imported, so importing the report manager does not
+        reconfigure logging for every other host that imports it too.
+        """
+        if self.__root_log_console_handler:
+            return
+
+        self.__root_log_console_handler = logging.StreamHandler()
+        self.__root_log_console_handler.setFormatter(Report_Mgr.__console_log_formatter)
+        logging.getLogger().addHandler(self.__root_log_console_handler)
 
     def set_log_level(self, level):
         logging.getLogger().setLevel(level)

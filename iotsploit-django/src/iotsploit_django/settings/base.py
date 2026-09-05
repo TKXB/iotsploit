@@ -196,6 +196,7 @@ LOGGING = {
         # Ports & Adapters: core uses stdlib logging; Django host wires handlers/levels.
         "iotsploit_core": {"handlers": ["stream"], "level": "INFO", "propagate": False},
         "iotsploit_django": {"handlers": ["stream"], "level": "INFO", "propagate": False},
+        "iotsploit_drivers": {"handlers": ["stream"], "level": "INFO", "propagate": False},
         # Some legacy fuzzer namespaces (if present)
         "fuzzer.orchestrator": {"handlers": ["stream"], "level": "INFO", "propagate": False},
         "fuzzer.monitor": {"handlers": ["stream"], "level": "INFO", "propagate": False},
