@@ -68,13 +68,13 @@ def test_a_plugin_with_no_requirements_round_trips_as_an_empty_tuple(db):
     repo = DjangoPluginMetaRepository()
     repo.upsert(
         PluginMeta(
-            name="async_sleep_attack",
-            module_path="iotsploit_exploits.demo.async_sleep_attack:AsyncSleepAttackPlugin",
+            name="demo_async",
+            module_path="iotsploit_exploits.demo.async_run:AsyncDemoPlugin",
         )
     )
 
     stored = {m.name: m for m in repo.list_enabled()}
-    assert stored["async_sleep_attack"].requirements == ()
+    assert stored["demo_async"].requirements == ()
 
 
 def test_plugin_meta_carries_requirements_and_no_availability():

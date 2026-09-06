@@ -85,13 +85,13 @@ Four failure classes, in the order a user hits them.
 - **`iotsploit-priv/client.py:108`** constructs `socket.socket(socket.AF_UNIX, …)`.
   CPython does not expose `AF_UNIX` on Windows, so this raises `AttributeError` —
   which the `except (OSError, TimeoutError)` below it does not catch. Every
-  privileged path (`drv_socketcan`, `doip_mgr`, `ip_scan`, `priv_check`) shows a
+  privileged path (`drv_socketcan`, `doip_mgr`, `ip_scan`, `demo_privileged`) shows a
   traceback instead of the carefully written `PrivilegedHelperUnavailable`
   message.
 - **Hardcoded POSIX paths:** `/tmp/sat_logs` (`django_commands.py:33`,
   `picocom_serial_reader.py:27`, `xlogger_mcp.py:23`), `/tmp/fuzzer_results`
   (`iot_fuzzer_service.py:854`), `/tmp/fuzzer_output`, `/sys/class/net`
-  (`protocols/canbus/socketcan.py:349`, `demo/priv_check.py:98`),
+  (`protocols/canbus/socketcan.py:349`, `demo/privileged.py:98`),
   `/sys/class/thermal/thermal_zone0/temp` (`monitor_mgr.py:104`).
 - **`os.killpg(os.getpgid(...))`** and `start_new_session=True` in
   `django_commands.py:223,323` and `net_audit_mgr.py:145` — absent or a no-op on
@@ -458,7 +458,7 @@ Acceptance run on that box, after implementation:
 4. Django starts and serves the plugin listing; the Flutter UI renders the
    blocked state against it.
 5. A blocked plugin executed anyway returns the structured error, not a
-   traceback — in particular `priv_check`, `can_live_capture` and `wifi_scan`,
+   traceback — in particular `demo_privileged`, `can_live_capture` and `wifi_scan`,
    which cover the privileged helper, SocketCAN and the WiFi stub.
 6. Ctrl-C and service stop leave no orphaned processes — the Phase 3
    process-group check, which CI cannot prove.

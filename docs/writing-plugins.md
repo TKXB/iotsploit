@@ -63,6 +63,25 @@ Long-running or streaming work implements `execute_async` returning
 root-only actions, `iotsploit_protocols` holds the CAN/DoIP/UDS/SOME-IP codecs.
 Pluggy rejects a hookimpl whose argument names are not in the hookspec, and a
 blocking `request()` inside `execute_async` raises — use `arequest`.
+`AsyncExploitResult` is read once, when the coroutine returns, so updating its
+`progress` while running changes nothing anyone sees: log instead. Records on
+the `iotsploit_exploits` namespace become Control Panel `log` events and shell
+terminal lines as they happen, which is also why `logging.getLogger(__name__)`
+is the only logger that reaches the operator. Stopping is cooperative — `stop()`
+sets a flag your loop has to check.
+
+## Which file to copy
+
+`demo/` is a gallery, one plugin per capability. Each is small, runs anywhere,
+and names the production plugin that does the same thing at scale.
+
+| To learn | Read | At scale |
+|---|---|---|
+| Parameters, target reading, recording observations | `demo/observations.py` | `nmap_scan`, `uds/probe.py` |
+| `execute_async`, progress, cooperative `stop()` | `demo/async_run.py` | `serial/picocom_serial_reader.py` |
+| Operator prompts, every kind and every failure | `demo/interactive.py` | `uds/probe.py`, `canbus/live_capture.py` |
+| `REQUIRES`, the bounded privileged helper | `demo/privileged.py` | `ip_scan/ip_scan.py` |
+| Streaming live data to the UI | `demo/stream.py` | `canbus/live_capture.py` |
 
 ## Reading the target
 
