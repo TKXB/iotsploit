@@ -153,13 +153,13 @@ _VLAN_PARAMETERS = {
     "vlan_id": {
         "type": "int",
         "required": True,
-        "description": "VLAN tag, 1-4094",
+        "description": "VLAN tag only, 1-4094 -- for eth0.17, enter 17",
         "validation": {"min": 1, "max": 4094},
     },
     "address": {
         "type": "str",
         "required": True,
-        "description": "Local IPv4 address in CIDR notation, e.g. 172.31.67.6/16",
+        "description": "Local IPv4 with prefix length, e.g. 172.31.67.6/16 -- the /16 is required",
     },
     "local_mac": {
         "type": "str",
