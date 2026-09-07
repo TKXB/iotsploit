@@ -261,15 +261,21 @@ class DeviceDriverManager:
         except Exception as e:
             logger.error(f"Failed to load plugin {filepath}: {str(e)}")
 
-    def execute_command(self, driver_name: str, command: str, device_id: str = "", **kwargs) -> Dict:
+    def execute_command(
+        self,
+        driver_name: str,
+        command: str,
+        device_id: str = "",
+        args: Optional[Dict] = None,
+    ) -> Dict:
         """Execute device command
-        
+
         Args:
             driver_name: Driver name (e.g., 'drv_socketcan')
             command: Command to execute
             device_id: Optional device ID for multi-device scenarios
-            **kwargs: Command parameters
-        
+            args: Command parameters, passed to the driver unchanged
+
         Returns:
             Dict: Dictionary containing operation results
         """
@@ -286,7 +292,7 @@ class DeviceDriverManager:
             action='command',
             device_id=device_id,
             command=command,
-            args=kwargs
+            args=args or {},
         )
 
     def scan_devices(self, driver_name: str) -> Dict:

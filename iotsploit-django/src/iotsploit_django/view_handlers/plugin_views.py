@@ -770,7 +770,7 @@ def execute_device_command(request, driver_name):
         data = json.loads(request.body)
         command = data.get('command')
         device_id = data.get('device_id')
-        args = data.get('args', '')
+        args = data.get('args') or {}
 
         if not command:
             return JsonResponse({
