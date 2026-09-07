@@ -30,6 +30,7 @@ COMMAND_TIMEOUT_SECONDS = 10
 SOCKET_BACKLOG = 16
 DEFAULT_SOCKET_PATH = Path("/run/iotsploit/priv.sock")
 IP_EXECUTABLE = "/usr/sbin/ip"
+NMCLI_EXECUTABLE = "/usr/bin/nmcli"
 
 CAN_INTERFACE = re.compile(r"^(v?can)[0-9]{1,3}$")
 NETWORK_INTERFACE = re.compile(r"^[a-z0-9._-]{1,15}$")
@@ -45,6 +46,23 @@ VERB_SCHEMAS = {
     "can-up": {"iface": "can", "bitrate": "integer-or-null"},
     "doip-config": {"iface": "network"},
     "route-via": {"action": ["add", "delete"], "cidr": "ipv4-/16", "gateway": "ipv4"},
+    "vlan-add": {
+        "parent": "network",
+        "vlan_id": "1-4094",
+        "address": "ipv4-interface",
+        "local_mac": "mac-or-null",
+        "peer_ip": "ipv4-or-null",
+        "peer_mac": "mac-or-null",
+    },
+    "vlan-edit": {
+        "parent": "network",
+        "vlan_id": "1-4094",
+        "address": "ipv4-interface",
+        "local_mac": "mac-or-null",
+        "peer_ip": "ipv4-or-null",
+        "peer_mac": "mac-or-null",
+    },
+    "vlan-delete": {"parent": "network", "vlan_id": "1-4094"},
 }
 VERB_KEYS = {verb: set(schema) for verb, schema in VERB_SCHEMAS.items()}
 VERB_TABLE_HASH = hashlib.sha256(
@@ -145,6 +163,95 @@ def _ipv4(value: Any, name: str) -> str:
     return str(address)
 
 
+def _ipv4_interface(value: Any) -> str:
+    text = _text(value, "address")
+    if "/" not in text:
+        raise RequestError("address must be an IPv4 interface in CIDR notation")
+    try:
+        interface = ipaddress.ip_interface(text)
+    except ValueError as exc:
+        raise RequestError("address must be an IPv4 interface in CIDR notation") from exc
+    if interface.version != 4 or interface.ip.is_unspecified or interface.ip.is_multicast:
+        raise RequestError("address must be a usable IPv4 interface in CIDR notation")
+    return str(interface)
+
+
+def _optional_ipv4(value: Any, name: str) -> str | None:
+    if value is None:
+        return None
+    address = _ipv4(value, name)
+    parsed = ipaddress.ip_address(address)
+    if parsed.is_unspecified or parsed.is_multicast:
+        raise RequestError(f"{name} must be a usable IPv4 address")
+    return address
+
+
+def _mac(value: Any, name: str) -> str:
+    address = _text(value, name).lower()
+    if not re.fullmatch(r"(?:[0-9a-f]{2}:){5}[0-9a-f]{2}", address):
+        raise RequestError(f"{name} must be a colon-separated MAC address")
+    octets = bytes.fromhex(address.replace(":", ""))
+    if octets == b"\x00" * 6 or octets == b"\xff" * 6 or octets[0] & 1:
+        raise RequestError(f"{name} must be a unicast MAC address")
+    return address
+
+
+def _optional_mac(value: Any, name: str) -> str | None:
+    if value is None:
+        return None
+    return _mac(value, name)
+
+
+def _vlan_id(value: Any) -> int:
+    if type(value) is not int or not 1 <= value <= 4_094:
+        raise RequestError("vlan_id must be an integer from 1 to 4094")
+    return value
+
+
+def _vlan_identity(args: dict[str, Any]) -> tuple[str, int, str, str]:
+    parent = _network_interface(args["parent"])
+    vlan_id = _vlan_id(args["vlan_id"])
+    interface = f"{parent}.{vlan_id}"
+    if len(interface) > 15:
+        raise RequestError("derived VLAN interface name exceeds 15 characters")
+    return parent, vlan_id, interface, f"iotsploit-vlan-{parent}-{vlan_id}"
+
+
+def _vlan_config(args: dict[str, Any]) -> dict[str, Any]:
+    parent, vlan_id, interface, profile = _vlan_identity(args)
+    peer_ip = _optional_ipv4(args["peer_ip"], "peer_ip")
+    peer_mac = _optional_mac(args["peer_mac"], "peer_mac")
+    if (peer_ip is None) != (peer_mac is None):
+        raise RequestError("peer_ip and peer_mac must both be set or both be null")
+    return {
+        "parent": parent,
+        "vlan_id": vlan_id,
+        "interface": interface,
+        "profile": profile,
+        "address": _ipv4_interface(args["address"]),
+        "local_mac": _optional_mac(args["local_mac"], "local_mac"),
+        "peer_ip": peer_ip,
+        "peer_mac": peer_mac,
+    }
+
+
+def _neighbor_command(config: dict[str, Any]) -> list[str] | None:
+    if config["peer_ip"] is None:
+        return None
+    return [
+        IP_EXECUTABLE,
+        "neigh",
+        "replace",
+        config["peer_ip"],
+        "lladdr",
+        config["peer_mac"],
+        "dev",
+        config["interface"],
+        "nud",
+        "permanent",
+    ]
+
+
 def _cidr(value: Any) -> str:
     text = _text(value, "cidr")
     try:
@@ -220,7 +327,7 @@ def _validate_request(payload: dict[str, Any]) -> tuple[str, dict[str, Any], lis
             [IP_EXECUTABLE, "address", "replace", "169.254.58.58/16", "dev", interface],
             [IP_EXECUTABLE, "route", "replace", "169.254.0.0/16", "dev", interface],
         ]
-    else:
+    elif verb == "route-via":
         action = _text(args["action"], "action")
         if action not in {"add", "delete"}:
             raise RequestError("action must be add or delete")
@@ -228,6 +335,94 @@ def _validate_request(payload: dict[str, Any]) -> tuple[str, dict[str, Any], lis
         gateway = _ipv4(args["gateway"], "gateway")
         validated = {"action": action, "cidr": network, "gateway": gateway}
         commands = [[IP_EXECUTABLE, "route", action, network, "via", gateway]]
+    elif verb in {"vlan-add", "vlan-edit"}:
+        config = _vlan_config(args)
+        validated = {key: config[key] for key in args}
+        if verb == "vlan-add":
+            commands = [[
+                NMCLI_EXECUTABLE,
+                "--wait",
+                "10",
+                "connection",
+                "add",
+                "type",
+                "vlan",
+                "con-name",
+                config["profile"],
+                "ifname",
+                config["interface"],
+                "dev",
+                config["parent"],
+                "id",
+                str(config["vlan_id"]),
+                "ipv4.method",
+                "manual",
+                "ipv4.addresses",
+                config["address"],
+                "ipv4.never-default",
+                "yes",
+                "ipv6.method",
+                "disabled",
+                "connection.autoconnect",
+                "yes",
+            ]]
+            if config["local_mac"] is not None:
+                commands[0].extend(["802-3-ethernet.cloned-mac-address", config["local_mac"]])
+        else:
+            commands = [[
+                NMCLI_EXECUTABLE,
+                "--wait",
+                "10",
+                "connection",
+                "modify",
+                config["profile"],
+                "ipv4.method",
+                "manual",
+                "ipv4.addresses",
+                config["address"],
+                "ipv4.gateway",
+                "",
+                "ipv4.never-default",
+                "yes",
+                "ipv6.method",
+                "disabled",
+                "connection.autoconnect",
+                "yes",
+                "802-3-ethernet.cloned-mac-address",
+                config["local_mac"] or "",
+            ]]
+        commands.append([
+            NMCLI_EXECUTABLE,
+            "--wait",
+            "10",
+            "connection",
+            "up",
+            config["profile"],
+        ])
+        if verb == "vlan-edit":
+            commands.append([
+                IP_EXECUTABLE,
+                "neigh",
+                "flush",
+                "dev",
+                config["interface"],
+                "nud",
+                "permanent",
+            ])
+        neighbor = _neighbor_command(config)
+        if neighbor is not None:
+            commands.append(neighbor)
+    else:
+        parent, vlan_id, _, profile = _vlan_identity(args)
+        validated = {"parent": parent, "vlan_id": vlan_id}
+        commands = [[
+            NMCLI_EXECUTABLE,
+            "--wait",
+            "10",
+            "connection",
+            "delete",
+            profile,
+        ]]
     return verb, validated, commands
 
 
