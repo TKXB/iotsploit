@@ -119,6 +119,14 @@ def _vlan_profiles() -> list[dict[str, Any]]:
 
 
 def _ethernet_devices() -> list[dict[str, str]]:
+    """Ethernet parents NetworkManager is willing to build a VLAN on.
+
+    A container or hypervisor host reports its veth and vmnet endpoints as
+    ethernet too -- 24 of 25 rows on a developer box with Docker running. NM
+    leaves those unmanaged, and a VLAN profile on an unmanaged parent never
+    activates, so they are not slow or noisy candidates: they are not
+    candidates.
+    """
     output = _run([
         NMCLI,
         "--terse",
@@ -132,7 +140,7 @@ def _ethernet_devices() -> list[dict[str, str]]:
     devices = []
     for line in output.splitlines():
         fields = line.split(":", 3)
-        if len(fields) == 4 and fields[1] == "ethernet":
+        if len(fields) == 4 and fields[1] == "ethernet" and fields[2] != "unmanaged":
             devices.append(dict(zip(("interface", "type", "state", "connection"), fields)))
     return devices
 

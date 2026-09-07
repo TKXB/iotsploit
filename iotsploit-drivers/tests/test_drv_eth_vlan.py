@@ -71,6 +71,28 @@ def test_scan_returns_physical_parent_with_its_vlan_profiles(driver, monkeypatch
     assert [item["vlan_id"] for item in scanned[0].attributes["vlans"]] == [67]
 
 
+def test_scan_skips_parents_networkmanager_does_not_manage(monkeypatch):
+    """Containers and hypervisors present their endpoints as ethernet too.
+
+    On a developer box with Docker running, 24 of 25 ethernet rows are veth
+    or vmnet endpoints. NetworkManager leaves them unmanaged and will not
+    activate a VLAN built on one, so offering them as parents only invites a
+    failure the operator cannot act on.
+    """
+    monkeypatch.setattr(
+        drv_eth_vlan,
+        "_run",
+        lambda argv: (
+            "enp42s0:ethernet:connected:wired\n"
+            "veth47dce99:ethernet:unmanaged:\n"
+            "vmnet8:ethernet:unmanaged:\n"
+            "wlp0s20f3:wifi:connected:home\n"
+        ),
+    )
+
+    assert [row["interface"] for row in drv_eth_vlan._ethernet_devices()] == ["enp42s0"]
+
+
 def test_add_calls_only_the_bounded_add_verb(driver, device, monkeypatch):
     calls = []
     monkeypatch.setattr(drv_eth_vlan, "_vlan_profiles", lambda: [])
