@@ -741,7 +741,8 @@ def list_device_commands(request, device_name):
         return JsonResponse({
             "status": "success",
             "device": device_name,
-            "commands": commands
+            "commands": commands,
+            "command_parameters": device_manager.get_command_parameters(device_name),
         })
 
     except Exception as e:

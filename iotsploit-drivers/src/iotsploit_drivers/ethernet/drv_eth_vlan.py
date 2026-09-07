@@ -145,6 +145,40 @@ def _ethernet_devices() -> list[dict[str, str]]:
     return devices
 
 
+# Declared for the operator-facing form; `_config` re-validates every value,
+# because a schema describes a field and cannot know that a peer which answers
+# no ARP needs both peer_ip and peer_mac, or that an address already on the
+# parent cannot move to a VLAN.
+_VLAN_PARAMETERS = {
+    "vlan_id": {
+        "type": "int",
+        "required": True,
+        "description": "VLAN tag, 1-4094",
+        "validation": {"min": 1, "max": 4094},
+    },
+    "address": {
+        "type": "str",
+        "required": True,
+        "description": "Local IPv4 address in CIDR notation, e.g. 172.31.67.6/16",
+    },
+    "local_mac": {
+        "type": "str",
+        "required": False,
+        "description": "Cloned MAC for the VLAN interface; leave empty to keep the parent's",
+    },
+    "peer_ip": {
+        "type": "str",
+        "required": False,
+        "description": "Peer IPv4 for a permanent neighbour entry; set with peer_mac or not at all",
+    },
+    "peer_mac": {
+        "type": "str",
+        "required": False,
+        "description": "Peer MAC for the permanent neighbour entry",
+    },
+}
+
+
 class EthernetVlanDriver(BaseDeviceDriver):
     REQUIRES = ("platform:linux", "binary:nmcli", "privileged-helper")
 
@@ -154,9 +188,18 @@ class EthernetVlanDriver(BaseDeviceDriver):
             "Description": "Manage persistent NetworkManager VLAN profiles",
         })
         self.supported_commands = {
-            "add_vlan": "Add and activate a persistent VLAN profile",
-            "edit_vlan": "Edit and reactivate an IoTSploit VLAN profile",
-            "delete_vlan": "Delete an IoTSploit VLAN profile",
+            "add_vlan": {
+                "description": "Add and activate a persistent VLAN profile",
+                "parameters": _VLAN_PARAMETERS,
+            },
+            "edit_vlan": {
+                "description": "Edit and reactivate an IoTSploit VLAN profile",
+                "parameters": _VLAN_PARAMETERS,
+            },
+            "delete_vlan": {
+                "description": "Delete an IoTSploit VLAN profile",
+                "parameters": {"vlan_id": _VLAN_PARAMETERS["vlan_id"]},
+            },
             "vlan_status": "Display VLAN profiles and live state",
         }
 

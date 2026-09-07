@@ -43,7 +43,42 @@ class BaseDeviceDriver(BasePlugin):
         """Get dictionary of supported commands and their descriptions"""
         if not hasattr(self, 'supported_commands'):
             return {}
-        return self.supported_commands
+        return {
+            command: self._command_description(declaration)
+            for command, declaration in self.supported_commands.items()
+        }
+
+    def get_command_parameters(self) -> Dict[str, Dict[str, Any]]:
+        """The input each command takes, for the commands that take any.
+
+        A command declares its parameters the way an exploit plugin declares
+        `Parameters`, so one schema serves the form, the CLI and MCP. Drivers
+        read these values out of `args` in `_command_impl` already; without a
+        declaration nothing could ever collect them, and every caller fell
+        through to the driver's own defaults.
+
+        Commands that take no input are absent rather than empty, so a caller
+        can ask "does this need a form?" without inspecting the contents.
+        """
+        if not hasattr(self, 'supported_commands'):
+            return {}
+        return {
+            command: declaration['parameters']
+            for command, declaration in self.supported_commands.items()
+            if isinstance(declaration, dict) and declaration.get('parameters')
+        }
+
+    @staticmethod
+    def _command_description(declaration: Any) -> str:
+        """A declaration is a description, or a mapping carrying one.
+
+        Both forms are supported on purpose: a command that takes no input has
+        nothing to gain from the longer form, and every driver written before
+        parameters existed keeps working untouched.
+        """
+        if isinstance(declaration, dict):
+            return str(declaration.get('description', ''))
+        return str(declaration)
 
     # Base implementations of device lifecycle methods
     def scan(self) -> List[Device]:

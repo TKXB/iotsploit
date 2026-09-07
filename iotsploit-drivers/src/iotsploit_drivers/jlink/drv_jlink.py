@@ -71,8 +71,24 @@ class JLinkAbility(BaseDeviceDriver):
             logger.info("Using J-Link library: %s", self._jlink_lib_path)
 
         self.supported_commands = {
-            "read_memory": "Read 32-bit memory at address",
-            "write_memory": "Write 32-bit memory at address",
+            "read_memory": {
+                "description": "Read 32-bit memory at address",
+                "parameters": {
+                    "address": {"type": "str", "required": True,
+                                "description": "Start address, e.g. 0x08000000"},
+                    "count": {"type": "int", "required": False, "default": 10,
+                              "description": "Number of 32-bit words to read"},
+                },
+            },
+            "write_memory": {
+                "description": "Write 32-bit memory at address",
+                "parameters": {
+                    "address": {"type": "str", "required": True,
+                                "description": "Target address, e.g. 0x20000000"},
+                    "data": {"type": "list", "required": True,
+                             "description": "32-bit words to write"},
+                },
+            },
             "reset": "Reset the target MCU",
         }
 

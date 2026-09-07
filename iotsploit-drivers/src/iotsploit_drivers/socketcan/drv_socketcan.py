@@ -64,7 +64,19 @@ class SocketCANDriver(BaseDeviceDriver):
             "start": "Start streaming CAN messages",
             "stop": "Stop streaming CAN messages",
             "dump": "Display current CAN interface status",
-            "send": "Send a CAN message"
+            "send": {
+                "description": "Send a CAN message",
+                "parameters": {
+                    "id": {"type": "str", "required": True,
+                           "description": "CAN id in hex, e.g. 0x123"},
+                    "data": {"type": "str", "required": True,
+                             "description": "Payload bytes in hex, e.g. DEADBEEF"},
+                    "is_extended_id": {"type": "bool", "required": False, "default": False,
+                                       "description": "Use a 29-bit identifier"},
+                    "is_fd": {"type": "bool", "required": False, "default": False,
+                              "description": "Send as CAN FD"},
+                },
+            },
         }
 
     def _scan_impl(self) -> List[Device]:

@@ -374,6 +374,13 @@ class DeviceDriverManager:
             return driver.get_supported_commands()
         return {}
 
+    def get_command_parameters(self, driver_name: str) -> Dict[str, Dict]:
+        """The input schema for each command that takes one."""
+        driver = self.get_driver_instance(driver_name)
+        if driver:
+            return driver.get_command_parameters()
+        return {}
+
     def get_plugin_commands(self, plugin_name: str) -> Dict[str, str]:
         """Get commands supported by the plugin
         
@@ -717,6 +724,7 @@ class DeviceDriverManager:
                     "name": name,
                     "requirements": list(requirements),
                     "commands": self.get_plugin_commands(name),
+                    "command_parameters": self.get_command_parameters(name),
                     "availability": {
                         "available": availability.available,
                         "reason": availability.reason,

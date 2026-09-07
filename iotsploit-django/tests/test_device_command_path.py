@@ -63,7 +63,15 @@ class RecordingDriver(BaseDeviceDriver):
 
     def __init__(self):
         super().__init__()
-        self.supported_commands = {"identify": "Report which device answered"}
+        self.supported_commands = {
+            "identify": "Report which device answered",
+            "configure": {
+                "description": "Apply a setting",
+                "parameters": {
+                    "level": {"type": "int", "required": True, "description": "How much"},
+                },
+            },
+        }
         self.calls: list[tuple] = []
         self.last_args = None
 
@@ -195,6 +203,35 @@ def test_a_command_without_arguments_reaches_the_driver_with_an_empty_mapping(dr
     assert driver.last_args == {}
 
 
+def test_the_driver_list_carries_the_schema_for_a_parameterised_command(driver):
+    """The form the operator fills in is built from this, in the same payload.
+
+    A command that takes no input is absent rather than empty, so a client can
+    ask "does this need a form?" without inspecting the contents.
+    """
+    response = Client().get("/api/list_device_drivers/")
+
+    entry = next(e for e in response.json()["driver_info"] if e["name"] == DRIVER)
+    assert entry["command_parameters"] == {
+        "configure": {"level": {"type": "int", "required": True, "description": "How much"}}
+    }
+
+
+def test_a_declared_command_still_reads_as_a_plain_description(driver, manager):
+    """Every existing reader takes name -> description and must keep working.
+
+    The CLI menu, the drivers page and `list_device_commands` all render the
+    description directly; a driver that declares parameters must not start
+    handing them a mapping.
+    """
+    assert manager.get_supported_commands(DRIVER)["configure"] == "Apply a setting"
+
+    body = Client().get(f"/api/list_device_commands/{DRIVER}/").json()
+
+    assert body["commands"]["configure"] == "Apply a setting"
+    assert body["command_parameters"]["configure"]["level"]["type"] == "int"
+
+
 def test_an_unknown_device_is_an_error_an_operator_can_read(driver):
     Client().post(SCAN_PATH)
 
@@ -236,7 +273,10 @@ def test_the_driver_list_carries_the_commands_for_each_driver(driver):
     response = Client().get("/api/list_device_drivers/")
 
     entry = next(e for e in response.json()["driver_info"] if e["name"] == DRIVER)
-    assert entry["commands"] == {"identify": "Report which device answered"}
+    assert entry["commands"] == {
+        "identify": "Report which device answered",
+        "configure": "Apply a setting",
+    }
 
 
 def test_one_request_scans_every_driver(driver):
