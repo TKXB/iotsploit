@@ -1,4 +1,4 @@
-"""The root daemon accepts only its five bounded host-state verbs."""
+"""The root daemon accepts only its bounded host-state verbs."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ RequestError = DAEMON["RequestError"]
 def validate(verb: str, args: dict):
     function = DAEMON["_validate_request"]
     function.__globals__["IP_EXECUTABLE"] = "/usr/sbin/ip"
+    function.__globals__["NMCLI_EXECUTABLE"] = "/usr/bin/nmcli"
     return function({"verb": verb, "args": args})
 
 
@@ -80,6 +81,68 @@ def validate(verb: str, args: dict):
             "route-via",
             {"action": "add", "cidr": "198.18.1.4/16", "gateway": "192.0.2.1"},
             [["/usr/sbin/ip", "route", "add", "198.18.0.0/16", "via", "192.0.2.1"]],
+        ),
+        (
+            "vlan-add",
+            {
+                "parent": "eth0",
+                "vlan_id": 67,
+                "address": "172.31.67.6/16",
+                "local_mac": "02:80:5e:1f:00:06",
+                "peer_ip": "172.31.67.5",
+                "peer_mac": "02:80:5e:1f:00:05",
+            },
+            [
+                [
+                    "/usr/bin/nmcli", "--wait", "10", "connection", "add", "type", "vlan",
+                    "con-name", "iotsploit-vlan-eth0-67", "ifname", "eth0.67", "dev", "eth0",
+                    "id", "67", "ipv4.method", "manual", "ipv4.addresses", "172.31.67.6/16",
+                    "ipv4.never-default", "yes", "ipv6.method", "disabled",
+                    "connection.autoconnect", "yes", "802-3-ethernet.cloned-mac-address",
+                    "02:80:5e:1f:00:06",
+                ],
+                [
+                    "/usr/bin/nmcli", "--wait", "10", "connection", "up",
+                    "iotsploit-vlan-eth0-67",
+                ],
+                [
+                    "/usr/sbin/ip", "neigh", "replace", "172.31.67.5", "lladdr",
+                    "02:80:5e:1f:00:05", "dev", "eth0.67", "nud", "permanent",
+                ],
+            ],
+        ),
+        (
+            "vlan-edit",
+            {
+                "parent": "eth0",
+                "vlan_id": 17,
+                "address": "172.31.17.5/24",
+                "local_mac": None,
+                "peer_ip": None,
+                "peer_mac": None,
+            },
+            [
+                [
+                    "/usr/bin/nmcli", "--wait", "10", "connection", "modify",
+                    "iotsploit-vlan-eth0-17", "ipv4.method", "manual", "ipv4.addresses",
+                    "172.31.17.5/24", "ipv4.gateway", "", "ipv4.never-default", "yes",
+                    "ipv6.method", "disabled", "connection.autoconnect", "yes",
+                    "802-3-ethernet.cloned-mac-address", "",
+                ],
+                [
+                    "/usr/bin/nmcli", "--wait", "10", "connection", "up",
+                    "iotsploit-vlan-eth0-17",
+                ],
+                ["/usr/sbin/ip", "neigh", "flush", "dev", "eth0.17", "nud", "permanent"],
+            ],
+        ),
+        (
+            "vlan-delete",
+            {"parent": "eth0", "vlan_id": 17},
+            [[
+                "/usr/bin/nmcli", "--wait", "10", "connection", "delete",
+                "iotsploit-vlan-eth0-17",
+            ]],
         ),
     ],
 )
@@ -160,6 +223,51 @@ def test_valid_verbs_construct_fixed_argv(verb: str, args: dict, commands: list[
         ("route-via", {"action": "add", "cidr": "10.0.0.0/8", "gateway": "192.0.2.1"}),
         ("route-via", {"action": "add", "cidr": "192.0.2.0/24", "gateway": "::1"}),
         ("route-via", {"action": "add", "cidr": "192.0.2.0/24", "gateway": "192.0.2.1", "x": 1}),
+        (
+            "vlan-add",
+            {
+                "parent": "eth0",
+                "vlan_id": 0,
+                "address": "172.31.17.5/24",
+                "local_mac": None,
+                "peer_ip": None,
+                "peer_mac": None,
+            },
+        ),
+        (
+            "vlan-add",
+            {
+                "parent": "eth0",
+                "vlan_id": 17,
+                "address": "172.31.17.5/24",
+                "local_mac": None,
+                "peer_ip": "239.127.3.1",
+                "peer_mac": "02:80:5e:1f:00:01",
+            },
+        ),
+        (
+            "vlan-edit",
+            {
+                "parent": "eth0",
+                "vlan_id": 17,
+                "address": "172.31.17.5/24",
+                "local_mac": "01:80:5e:1f:00:05",
+                "peer_ip": None,
+                "peer_mac": None,
+            },
+        ),
+        (
+            "vlan-add",
+            {
+                "parent": "eth0",
+                "vlan_id": 17,
+                "address": "172.31.17.5/24",
+                "local_mac": None,
+                "peer_ip": "172.31.17.1",
+                "peer_mac": None,
+            },
+        ),
+        ("vlan-delete", {"parent": "ethernet-long0", "vlan_id": 4094}),
     ],
 )
 def test_invalid_verbs_and_arguments_are_rejected(verb: str, args: dict):

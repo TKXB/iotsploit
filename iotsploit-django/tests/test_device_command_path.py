@@ -65,6 +65,7 @@ class RecordingDriver(BaseDeviceDriver):
         super().__init__()
         self.supported_commands = {"identify": "Report which device answered"}
         self.calls: list[tuple] = []
+        self.last_args = None
 
     def _scan_impl(self) -> list[Device]:
         self.calls.append(("scan",))
@@ -80,6 +81,7 @@ class RecordingDriver(BaseDeviceDriver):
 
     def _command_impl(self, device: Device, command: str, args=None):
         self.calls.append(("command", device.device_id, command))
+        self.last_args = args
         return f"{command} on {device.device_id}"
 
 
@@ -156,6 +158,23 @@ def test_the_driver_receives_the_device_the_request_named(driver):
     assert _command("stub_002").json()["result"] == "identify on stub_002"
     assert ("command", "stub_002", "identify") in driver.calls
     assert not any(call[:2] == ("command", "stub_001") for call in driver.calls)
+
+
+def test_command_arguments_reach_the_driver_without_an_extra_args_layer(driver):
+    Client().post(SCAN_PATH)
+
+    response = Client().post(
+        COMMAND_PATH,
+        data=json.dumps({
+            "command": "identify",
+            "device_id": "stub_001",
+            "args": {"vlan_id": 67, "address": "172.31.67.6/16"},
+        }),
+        content_type="application/json",
+    )
+
+    assert response.json()["status"] == "success"
+    assert driver.last_args == {"vlan_id": 67, "address": "172.31.67.6/16"}
 
 
 def test_an_unknown_device_is_an_error_an_operator_can_read(driver):

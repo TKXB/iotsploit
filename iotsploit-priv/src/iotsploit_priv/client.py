@@ -12,9 +12,9 @@ from typing import Any
 DEFAULT_SOCKET_PATH = Path("/run/iotsploit/priv.sock")
 MAX_REQUEST_BYTES = 4_096
 MAX_RESPONSE_BYTES = 24_576
-# The daemon runs at most three commands per verb, each capped at 10 seconds, so
-# a shorter patience here reports a working helper as missing.
-DEFAULT_TIMEOUT_SECONDS = 35.0
+# A VLAN edit can run four commands, each capped at 10 seconds, so a shorter
+# patience here reports a working helper as missing.
+DEFAULT_TIMEOUT_SECONDS = 45.0
 INSTALL_HINT = "Install the IoTSploit privileged helper with `priv install`."
 
 VERB_SCHEMAS = {
@@ -29,6 +29,23 @@ VERB_SCHEMAS = {
     "can-up": {"iface": "can", "bitrate": "integer-or-null"},
     "doip-config": {"iface": "network"},
     "route-via": {"action": ["add", "delete"], "cidr": "ipv4-/16", "gateway": "ipv4"},
+    "vlan-add": {
+        "parent": "network",
+        "vlan_id": "1-4094",
+        "address": "ipv4-interface",
+        "local_mac": "mac-or-null",
+        "peer_ip": "ipv4-or-null",
+        "peer_mac": "mac-or-null",
+    },
+    "vlan-edit": {
+        "parent": "network",
+        "vlan_id": "1-4094",
+        "address": "ipv4-interface",
+        "local_mac": "mac-or-null",
+        "peer_ip": "ipv4-or-null",
+        "peer_mac": "mac-or-null",
+    },
+    "vlan-delete": {"parent": "network", "vlan_id": "1-4094"},
 }
 VERB_TABLE_HASH = hashlib.sha256(
     json.dumps(VERB_SCHEMAS, sort_keys=True, separators=(",", ":")).encode()

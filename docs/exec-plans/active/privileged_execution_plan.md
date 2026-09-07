@@ -42,7 +42,7 @@ When this plan is complete:
 
 1. No application process executes `sudo`, a shell containing privileged
    commands, or an application-controlled Python module as root.
-2. The root daemon accepts exactly four host-state verbs and constructs every
+2. The root daemon accepts exactly eight host-state verbs and constructs every
    argv itself from validated values.
 3. Django and Celery workers never receive `CAP_NET_ADMIN`. Workers that need
    raw sockets receive only `CAP_NET_RAW`.
@@ -283,6 +283,9 @@ legacy test-step engine remains only for operator-authored scripts.
 | `can-link-state` | `iface`, `state` (`up`/`down`) | Raise or lower an owned CAN link |
 | `doip-config` | `iface` | Replace `169.254.58.58/16` and route `169.254.0.0/16` on the interface |
 | `route-via` | `action` (`add`/`delete`), `cidr`, `gateway` | Add or delete one IPv4 route through a gateway |
+| `vlan-add` | `parent`, `vlan_id`, `address`, nullable `local_mac`, `peer_ip`, `peer_mac` | Create and activate one persistent IoTSploit NetworkManager VLAN profile |
+| `vlan-edit` | `parent`, `vlan_id`, `address`, nullable `local_mac`, `peer_ip`, `peer_mac` | Update and reactivate one IoTSploit NetworkManager VLAN profile |
+| `vlan-delete` | `parent`, `vlan_id` | Delete the deterministically named IoTSploit VLAN profile |
 
 There is no `sweep` verb: nmap does not change host state. There is no generic
 `link-state`, arbitrary address, arbitrary executable, apt, or Bluetooth verb.
@@ -297,6 +300,9 @@ keys, wrong JSON types, NULs, and values outside these rules:
 - Sample point: a number from 0.5 through 0.95, formatted to three decimals;
   `can-fd-up` rejects `vcanN`, which has no bit timing
 - Network and gateway: IPv4 only; route network at most 65,536 addresses
+- VLAN: id 1 through 4094, an explicit IPv4 interface prefix, a derived
+  interface name no longer than 15 characters, unicast MAC addresses, and
+  peer IP/MAC either both present or both null
 - State/action: exact enumerated strings
 
 The caller also validates at its input boundary for useful errors. Daemon
