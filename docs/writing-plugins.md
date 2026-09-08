@@ -139,6 +139,43 @@ _reset_impl(device) -> bool
 _close_impl(device) -> bool
 ```
 
+A command that takes input declares it the way a plugin declares `Parameters`.
+The Drivers page builds its form from this, and MCP's `describe_driver` reports
+it; the interactive CLI does not collect parameters yet -- `dc` sends the
+command with no `args`, so the driver falls through to its own defaults:
+
+```python
+self.supported_commands = {
+    "dump": "Display current interface status",          # takes no input
+    "send": {
+        "description": "Send a CAN message",
+        "parameters": {
+            "id": {"type": "str", "required": True,
+                   "description": "CAN id in hex, e.g. 0x123"},
+            "mode": {"type": "str", "required": True, "default": "raw",
+                     "validation": {"choices": ["raw", "fd"]}},
+            "is_extended_id": {"type": "bool", "required": False,
+                               "default": False,
+                               "description": "Use a 29-bit identifier"},
+        },
+    },
+}
+```
+
+A parameter that names its values is picked from a menu rather than typed. Say
+them under `validation.choices`, or as `choices`/`options` on the parameter;
+an entry is the value itself or `{"value": ..., "label": ...}` when the value
+is not what the operator recognises. A `bool` gets the menu for free and
+arrives as a real boolean -- `bool("false")` is true, so a typed one was worse
+than useless.
+
+When the values depend on the host rather than on the driver, override
+`get_command_parameters()` and fill them in there: it is called when a caller
+is about to collect input, not when the driver was imported.
+`usb_explorer/drv_usb_explorer.py` is the worked example -- it offers what is
+plugged in right now, and copies the declaration rather than writing the scan
+into it.
+
 For continuous data add `_setup_acquisition` / `_acquisition_loop` /
 `_cleanup_acquisition` and broadcast `StreamData`; streaming is already wired.
 
