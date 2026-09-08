@@ -5,7 +5,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 import asyncio
 from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
-from iotsploit_django.adapters.django.device_driver_manager_factory import get_device_driver_manager
+from iotsploit_django.composition_root.wiring import get_device_driver_manager
 import time
 from iotsploit_core.core.device_spec import DeviceState
 from collections import deque

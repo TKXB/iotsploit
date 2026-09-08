@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from iotsploit_core.core.device_manager import DeviceDriverManager
+from iotsploit_core.core.device_registry import DeviceRegistry
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
 
 from iotsploit_django.composition_root import core_container, fuzzer_container
@@ -46,6 +47,21 @@ def get_device_driver_manager(
             use_persistence=use_persistence,
         )
     return _device_mgr
+
+
+def get_device_registry(*, use_persistence: bool = True) -> DeviceRegistry:
+    """The device registry over the one configured driver manager.
+
+    The registry has no plugin root of its own, so it takes the manager built
+    here. Building its own would have started a second driver manager from the
+    environment alone -- and since the manager is a process-wide singleton,
+    whichever request arrived first would decide the plugin root for the
+    process, hiding the operator's configured directory from every later one.
+    """
+
+    return DeviceRegistry.get_instance(
+        driver_manager=get_device_driver_manager(use_persistence=use_persistence)
+    )
 
 
 def ensure_stream_backend_configured() -> None:

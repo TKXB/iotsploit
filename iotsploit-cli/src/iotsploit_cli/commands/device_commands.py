@@ -6,7 +6,6 @@ from typing import Dict
 from .base_commands import BaseCommands
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 from iotsploit_django.tools.input_mgr import Input_Mgr
-from iotsploit_django.adapters.django.device_registry_factory import get_device_registry
 from iotsploit_core.utils import iots_logger
 
 logger = iots_logger.get_logger(__name__)
@@ -250,7 +249,10 @@ class DeviceCommands(BaseCommands):
     def do_scan_devices(self, arg):
         'Scan for devices and show detailed information'
         try:
-            # 获取设备注册表实例
+            # Imported lazily: the wiring reaches the Django ORM, which is
+            # only loaded once the shell has called django.setup().
+            from iotsploit_django.composition_root.wiring import get_device_registry
+
             device_registry = get_device_registry()
             device_registry.initialize()  # 确保已初始化
             

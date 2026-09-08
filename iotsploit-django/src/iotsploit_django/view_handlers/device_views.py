@@ -5,10 +5,9 @@ from django.http import HttpRequest, HttpResponse
 import json
 import logging
 
-from iotsploit_django.adapters.django.device_driver_manager_factory import get_device_driver_manager
 from iotsploit_django.adapters.django.device_models import DeviceManager
 from iotsploit_django.tools.monitor_mgr import Pi_Mgr
-from iotsploit_django.adapters.django.device_registry_factory import get_device_registry
+from iotsploit_django.composition_root.wiring import get_device_driver_manager, get_device_registry
 logger = logging.getLogger(__name__)
 
 def device_info(request: HttpRequest):
