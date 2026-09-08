@@ -48,6 +48,9 @@ class DeviceDriverManager:
             )
             self.plugins = {}
             self.drivers = {}  # Store driver instances
+            # Drivers loaded from `plugins_dir`. Entry-point drivers are owned by
+            # the installed packages and survive a root change; these do not.
+            self.filesystem_drivers: set[str] = set()
             self.driver_requirements: dict[str, tuple[str, ...]] = {}
             self.driver_load_failures: dict[str, Availability] = {}
             self.device_states = {}  # Store device states, format: 'driver_name::device_id': DeviceState
@@ -79,6 +82,23 @@ class DeviceDriverManager:
         if env:
             return Path(env)
         return None
+
+    def set_plugins_dir(self, plugins_dir: str | Path | None) -> None:
+        """Point legacy filesystem discovery at a new root and reload from it.
+
+        Drivers loaded from the previous root are dropped first; leaving them
+        registered would keep a driver visible after its directory stopped
+        being configured, with no file behind it.
+        """
+        for driver_name in self.filesystem_drivers:
+            self.plugins.pop(driver_name, None)
+            self.drivers.pop(driver_name, None)
+            self.driver_requirements.pop(driver_name, None)
+            self.driver_load_failures.pop(driver_name, None)
+        self.filesystem_drivers.clear()
+
+        self.plugins_dir = Path(plugins_dir) if plugins_dir is not None else None
+        self.load_plugins()
 
     @staticmethod
     def _default_usb_config_file() -> Path:
@@ -256,6 +276,7 @@ class DeviceDriverManager:
                     self.plugins[module_name] = module
                     self.driver_requirements[module_name] = tuple(getattr(attr, "REQUIRES", ()))
                     self.drivers[module_name] = driver_instance
+                    self.filesystem_drivers.add(module_name)
                     logger.info(f"Loaded device plugin: {module_name} ({attr_name})")
                     break
         except Exception as e:

@@ -19,6 +19,7 @@ from iotsploit_django.view_handlers.plugin_views import (
     create_group,
     delete_group,
     cleanup_plugins,
+    plugin_paths,
     get_plugin_code,
     save_plugin_code,
     get_driver_states,
@@ -39,6 +40,7 @@ from iotsploit_django.view_handlers.tool_views import (
     refresh_tools,
     get_tool_details,
     get_system_health,
+    get_priv_status,
 )
 from iotsploit_django.view_handlers.recovery_views import (
     list_recovery_drivers,
@@ -65,6 +67,7 @@ __all__ = [
     "create_group",
     "delete_group",
     "cleanup_plugins",
+    "plugin_paths",
     "get_plugin_code",
     "save_plugin_code",
     "get_driver_states",
@@ -78,6 +81,7 @@ __all__ = [
     "refresh_tools",
     "get_tool_details",
     "get_system_health",
+    "get_priv_status",
     "list_recovery_drivers",
     "execute_recovery",
 ]

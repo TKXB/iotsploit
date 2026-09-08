@@ -1306,3 +1306,94 @@ def disable_driver(request):
             "status": "error",
             "message": f"Failed to disable driver: {str(e)}"
         }, status=500)
+
+def _validate_plugin_root(value, label):
+    """Return (stored_value, error). An empty value turns the root off.
+
+    Filesystem discovery imports every `.py` under the root as the service
+    account, so the root the operator names is executable input. Uploaded
+    files are reachable by any API caller, which makes the upload directory
+    the one place a plugin root must never be; symlinks are refused because
+    the check would otherwise only describe the link, not its destination.
+    """
+    import os
+    from pathlib import Path
+
+    from django.conf import settings
+
+    text = str(value or '').strip()
+    if not text:
+        return '', None
+    candidate = Path(text)
+    if not candidate.is_absolute():
+        return None, f"{label} must be an absolute path"
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (FileNotFoundError, OSError) as exc:
+        return None, f"{label} does not exist: {exc}"
+    if not resolved.is_dir():
+        return None, f"{label} is not a directory: {text}"
+    if resolved != Path(os.path.abspath(candidate)):
+        return None, f"{label} contains a symlink: {text}"
+
+    uploads = Path(settings.BASE_DIR, 'uploads').resolve()
+    if resolved == uploads or uploads in resolved.parents:
+        return None, f"{label} cannot be inside the upload directory: {uploads}"
+    return str(resolved), None
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def plugin_paths(request):
+    """
+    GET  -- the configured legacy filesystem plugin roots.
+    POST -- set them, then reload both managers from the new roots.
+
+    Expected JSON body, either key optional, an empty string turning that
+    root off and leaving packaged entry points as the only source:
+    {
+        "exploit_dir": "/abs/path" ,
+        "device_dir": "/abs/path"
+    }
+    """
+    from iotsploit_django.adapters.django.plugins.models import PluginPaths
+
+    try:
+        stored = PluginPaths.load()
+
+        if request.method == 'POST':
+            data = json.loads(request.body)
+            for field, label in (('exploit_dir', 'Exploit plugin directory'),
+                                 ('device_dir', 'Device driver directory')):
+                if field not in data:
+                    continue
+                value, error = _validate_plugin_root(data[field], label)
+                if error:
+                    return JsonResponse({"status": "error", "message": error}, status=400)
+                setattr(stored, field, value)
+            stored.save()
+
+            get_exploit_plugin_manager().set_plugins_dir(stored.exploit_dir or None)
+            get_device_driver_manager().set_plugins_dir(stored.device_dir or None)
+
+        exploit_manager = get_exploit_plugin_manager()
+        device_manager = get_device_driver_manager()
+        return JsonResponse({
+            "status": "success",
+            "exploit_dir": stored.exploit_dir,
+            "device_dir": stored.device_dir,
+            "exploit_plugin_count": len(exploit_manager.plugin_registry),
+            "device_driver_count": len(device_manager.drivers),
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "message": "Request body must be JSON"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error configuring plugin paths: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to configure plugin paths: {str(e)}"
+        }, status=500)

@@ -9,6 +9,7 @@ urlpatterns = [
     path("tools/refresh/", views.refresh_tools, name="refresh_tools"),
     path("tools/<str:tool_name>/", views.get_tool_details, name="get_tool_details"),
     path("system_health/", views.get_system_health, name="get_system_health"),
+    path("priv_status/", views.get_priv_status, name="get_priv_status"),
 ]
 
 

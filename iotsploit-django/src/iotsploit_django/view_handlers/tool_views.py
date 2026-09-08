@@ -17,6 +17,8 @@ logger = xlog.get_logger('views')
 
 
 from iotsploit_core.core.tool_manager import get_tool_manager
+from iotsploit_priv import INSTALL_HINT, VERB_TABLE_HASH
+from iotsploit_priv.native import native_status
 
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -212,6 +214,40 @@ def get_system_health(request):
 
     except Exception as e:
         logger.exception("Error getting system health")
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
+
+
+# The three outcomes `native_status` reports, named for the UI. Its exit code is
+# the CLI's contract; a caller drawing a status light needs the meaning.
+_PRIV_STATES = {0: 'healthy', 1: 'absent', 2: 'broken'}
+
+
+@require_http_methods(["GET"])
+def get_priv_status(request):
+    """
+    Report privileged-helper health -- the check `priv status` runs, over HTTP.
+
+    Returns:
+        JSON response with the helper state and the diagnostic lines that
+        explain it.
+    """
+    try:
+        status = native_status()
+
+        return JsonResponse({
+            'status': 'success',
+            'code': status.code,
+            'state': _PRIV_STATES.get(status.code, 'broken'),
+            'lines': list(status.lines),
+            'verb_table_sha256': VERB_TABLE_HASH,
+            'install_hint': INSTALL_HINT,
+        })
+
+    except Exception as e:
+        logger.exception("Error getting privileged helper status")
         return JsonResponse({
             'status': 'error',
             'message': str(e)

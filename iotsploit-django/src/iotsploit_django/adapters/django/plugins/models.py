@@ -181,3 +181,28 @@ class PluginGroup(models.Model):
 
         return overall_ok
 
+
+class PluginPaths(models.Model):
+    """The operator's legacy filesystem plugin roots, held as a single row.
+
+    Entry points are the default source and are unaffected by these. An empty
+    string means no root is configured and filesystem discovery stays off,
+    which is what the environment variables produced before this was settable.
+    """
+
+    SINGLETON_PK = 1
+
+    exploit_dir = models.CharField(max_length=4096, blank=True, default="")
+    device_dir = models.CharField(max_length=4096, blank=True, default="")
+
+    def __str__(self):
+        return f"[PluginPaths exploit={self.exploit_dir!r} device={self.device_dir!r}]"
+
+    def save(self, *args, **kwargs):
+        self.pk = self.SINGLETON_PK
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls) -> "PluginPaths":
+        """The stored roots, or an unsaved empty row when none were ever set."""
+        return cls.objects.filter(pk=cls.SINGLETON_PK).first() or cls()

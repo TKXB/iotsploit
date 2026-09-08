@@ -45,6 +45,8 @@ urlpatterns = [
     path("delete_group/", views.delete_group, name="delete_group"),
     # Plugin cleanup
     path("cleanup_plugins/", views.cleanup_plugins, name="cleanup_plugins"),
+    # Legacy filesystem plugin roots
+    path("plugin_paths/", views.plugin_paths, name="plugin_paths"),
     # Plugin code editor endpoints
     path("get_plugin_code/", views.get_plugin_code, name="get_plugin_code"),
     path("save_plugin_code/", views.save_plugin_code, name="save_plugin_code"),

@@ -192,6 +192,10 @@
     "pattern": "get_target_types/"
   },
   {
+    "name": "identify_can_bus",
+    "pattern": "identify_can_bus/"
+  },
+  {
     "name": "initialize_devices",
     "pattern": "initialize_devices/"
   },
@@ -432,6 +436,10 @@
     "pattern": "plugin_groups/enabled/"
   },
   {
+    "name": "plugin_paths",
+    "pattern": "plugin_paths/"
+  },
+  {
     "name": "disable_exploit_plugin",
     "pattern": "plugins/exploits/<str:name>/disable/"
   },
@@ -442,6 +450,14 @@
   {
     "name": "list_enabled_exploit_plugins",
     "pattern": "plugins/exploits/enabled/"
+  },
+  {
+    "name": "preview_arxml_import",
+    "pattern": "preview_arxml_import/"
+  },
+  {
+    "name": "get_priv_status",
+    "pattern": "priv_status/"
   },
   {
     "name": "record_observations",

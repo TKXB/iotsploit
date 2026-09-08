@@ -12,7 +12,7 @@ from iotsploit_django.ports_impl.driver_state_repo import DjangoDriverStateRepos
 from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository, DjangoPluginMetaRepository
 from iotsploit_django.ports_impl.stream_backend import DjangoStreamBackend
 from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverStateRepository
-from iotsploit_django.config import DEVICE_PLUGINS_DIR
+from iotsploit_django.config import DEVICE_PLUGINS_DIR, EXPLOIT_PLUGINS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,18 @@ def _context_factory():
         return PluginContext()
 
 
+
+def _configured_plugins_dir(field: str, env_default: str | None) -> str | None:
+    """The operator's stored plugin root for `field`, else the environment one.
+
+    The environment variables stay the deployment default; a root set from the
+    UI overrides them, so a rig keeps its configured directory across restarts.
+    """
+    from iotsploit_django.adapters.django.plugins.models import PluginPaths
+
+    return getattr(PluginPaths.load(), field) or env_default
+
+
 def build_exploit_plugin_manager(
     *,
     plugins_dir: str | Path | None = None,
@@ -55,6 +67,9 @@ def build_exploit_plugin_manager(
     """Build `iotsploit_core` exploit plugin manager with Django adapters."""
 
     from django.conf import settings
+
+    if plugins_dir is None:
+        plugins_dir = _configured_plugins_dir("exploit_dir", EXPLOIT_PLUGINS_DIR)
 
     repo = DjangoPluginMetaRepository()
     group_repo = DjangoPluginGroupRepository()
@@ -112,7 +127,7 @@ def build_device_driver_manager(
     repo = DjangoDriverStateRepository() if use_persistence else MemoryDriverStateRepository()
 
     if plugins_dir is None:
-        plugins_dir = DEVICE_PLUGINS_DIR
+        plugins_dir = _configured_plugins_dir("device_dir", DEVICE_PLUGINS_DIR)
     if usb_config_file is None:
         # repo_root/conf/usb_devices.json
         usb_config_file = str(Path(__file__).resolve().parents[4] / "conf" / "usb_devices.json")
