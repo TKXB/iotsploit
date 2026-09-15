@@ -10,6 +10,8 @@ There are two deliberately different ways to do that:
   ceiling, whichever comes first.
 - **Capture** is a bounded evidence window. It records the sampled frame facts
   as observations and remains the right tool when the result must be retained.
+- **Replay** reads a recorded log instead of a bus. It produces the same
+  decoded table and records the same observations, away from the vehicle.
 
 ## Safety first, because this one is easy to get wrong
 
@@ -169,6 +171,79 @@ With **Raw (no target)** selected, the existing driver-backed raw monitor and
 send panel remain available. Target selection changes only the receive view;
 the send panel does not use target definitions.
 
+## Replaying a recorded log
+
+A bus you can only watch live is a bus you can only analyse while standing next
+to the vehicle, and a finding nobody can replay is a finding nobody can check.
+Replay feeds a recorded log through the same aggregator, the same codec, and the
+same target definitions as a live capture, so a recording is reviewable on the
+same terms as the bus it came from.
+
+In **CAN Bus Monitor**, choose a target and a bus, then press **Replay log**.
+Unlike **Start monitor** it needs no CAN device: replaying works on a machine
+with no CAN interface at all, which is the point.
+
+```bash
+can replay --target zxd_v5_pi --bus bus_can_bkbcanfd --file /tmp/A_BKB_CAN.asc
+```
+
+```text
+Replayed 47797 frames across 29 identities from A_BKB_CAN.asc over 80.1468s of
+recorded traffic, 26 of them undocumented.
+```
+
+### Periods are still measured
+
+`period_ms` is computed from the log's own timestamps, never from how fast the
+file was read. That is what lets a replay run at full speed — a 47,000-frame
+log finishes in under a second — and still report the cycle time the bus
+actually had. Replay is therefore not paced to real time: the decoded table is
+an aggregate, and it converges to the same answer either way.
+
+### The log says which bus it is
+
+A multi-channel log holds several buses, and decoding all of them against one
+bus's definitions produces plausible wrong values exactly as choosing the wrong
+bus does. The replay reads one channel; the run asks which when the log carries
+more than one, and **Identify bus** scores a log the same way it scores live
+traffic:
+
+```bash
+curl -s localhost:8888/api/identify_can_bus/ \
+  -d '{"target_id": "zxd_v5_pi", "path": "/tmp/A_BKB_CAN.asc"}'
+```
+
+### A replayed fact says so
+
+Observations from a replay carry `source: "log:A_BKB_CAN.asc"` in the fact
+value; a live capture's facts carry no such key. A row from a recording and a
+row off the vehicle look identical in the table, so the fact has to be the
+thing that records which claim was made — whoever reads it back will not have
+the run's parameters. Batches are `is_complete=False` for the same reason a
+live capture's are.
+
+### What replay does not warn about
+
+The live confirmation says that a CAN controller in normal mode acknowledges
+frames in silicon. Replay does not repeat that, because about reading a file it
+would be untrue, and a warning that cries wolf is worse than no warning where
+it actually matters. Replay's confirmation warns about the thing that *can* go
+wrong instead: decoding against the wrong bus.
+
+### Reading a log that is not quite the format
+
+`base hex` governs identifiers only — DLC and data length are decimal, and a
+CAN FD DLC above 8 is a length *code* (10 means 16 bytes, 12 means 24, 13 means
+32). Both CAN FD column orders found in real logs are read, anchored on
+whichever column holds `Rx`/`Tx`. A line that does not parse is counted and
+skipped rather than guessed at, and the count is reported: a replay of 47,797
+frames with 0 skipped lines is a clean read, and the same replay with 12,000
+skipped lines is a partial one wearing the same summary.
+
+Note that `python-can`'s own `ASCReader` does not read every ASC in the wild —
+it expects Vector's `channel direction identifier` order and fails on the
+`channel identifier direction` order that other tools emit.
+
 ### CLI live view
 
 The shell consumes the same changed-row snapshots as Flutter and refreshes a
@@ -244,6 +319,36 @@ where the frame budget would never be reached.
 `duration_s` over 5 routes the run to the task queue, which is where a capture
 belongs.
 
+A replay names a file instead of an interface, and the two are not
+interchangeable: a request whose `mode` and `transport.interface` disagree is
+refused rather than quietly resolved one way.
+
+```json
+{
+  "schema_version": 1,
+  "bus_id": "bus_can_bkbcanfd",
+  "mode": "replay",
+  "transport": {
+    "interface": "file",
+    "path": "/tmp/A_BKB_CAN.asc",
+    "log_channel": 2,
+    "display_name": "A_BKB_CAN.asc"
+  },
+  "max_frames": 5000000,
+  "snapshot_interval_ms": 200,
+  "decode": true
+}
+```
+
+`path` is read on the host running IoTSploit, which is not necessarily the host
+running the UI — which is why the Flutter picker uploads the file first and
+passes back the stored path. `log_channel` picks a bus inside the log and is
+deliberately not spelled `channel`: on a live request that names a kernel
+interface, and one key meaning two things is how a replay decodes the wrong bus
+without saying so. `display_name` is what to call the log when the path is not
+what anyone called it, so an uploaded file's generated name does not replace its
+provenance. There is no `duration_s`: a log ends by itself.
+
 ## Limitations
 
 - Conflicted definitions are counted but never decoded: two documents disagree
@@ -252,8 +357,9 @@ belongs.
   overflow the result says so rather than growing without bound on a fuzzed or
   noisy bus.
 - No ISO-TP reassembly, no UDS-over-CAN decoding.
-- Capture files are not read or written. Decoding a stored candump/BLF/ASC is a
-  separate feature that would reuse the same codec.
+- Capture files are read but never written. Replay reads Vector ASC (`.asc`);
+  candump and BLF logs are not read yet and are refused by name rather than
+  parsed as something they are not.
 - The capture does not diff what it saw against the catalogue or propose target
   edits.
 

@@ -279,3 +279,79 @@ def test_canonical_capture_command_honours_operator_budgets_and_classic_mode():
     assert run.snapshot_interval_ms == 250
     assert run.fd is False
     assert run.decode is False
+
+
+# ── replaying a log ───────────────────────────────────────────────────
+
+
+def replay_spec(**overrides):
+    spec = {
+        "target_id": "bench",
+        "bus_id": "body",
+        "mode": "replay",
+        "path": "/logs/A_BKB_CAN.asc",
+        "log_channel": 2,
+        "max_frames": 5_000_000,
+    }
+    spec.update(overrides)
+    return CanLiveRun(**spec)
+
+
+def test_a_replay_payload_names_a_file_rather_than_an_interface():
+    """The plugin refuses a request that names one transport and the other
+    mode, so this payload is the contract between the two."""
+    request = replay_spec().plugin_payload()["parameters"]["request"]
+
+    assert request["mode"] == "replay"
+    assert request["transport"] == {
+        "interface": "file",
+        "path": "/logs/A_BKB_CAN.asc",
+        "log_channel": 2,
+    }
+    # A log ends by itself; there is no wall-clock window to send.
+    assert "duration_s" not in request
+
+
+def test_a_replay_without_a_channel_leaves_the_choice_to_the_plugin():
+    """Naming a channel the log does not have would replay nothing at all."""
+    request = replay_spec(log_channel=None).plugin_payload()["parameters"]["request"]
+
+    assert "log_channel" not in request["transport"]
+
+
+def test_a_live_payload_is_unchanged_by_replay_support():
+    request = run_spec().plugin_payload()["parameters"]["request"]
+
+    assert request["transport"] == {"interface": "socketcan", "channel": "can0", "fd": True}
+    assert request["duration_s"] == 30
+
+
+def test_the_replay_header_names_the_log_where_a_live_run_names_the_channel():
+    assert replay_spec().source_label == "Log A_BKB_CAN.asc ch2"
+    assert run_spec().source_label == "Channel can0"
+
+
+def test_the_canonical_replay_command_builds_a_run_from_its_arguments():
+    session = CommandSession()
+    shell = CanShell(session)
+
+    shell.onecmd_plus_hooks(
+        "can replay --target bench --bus body --file /logs/A_BKB_CAN.asc --log-channel 2"
+    )
+
+    run = session.runs[0]
+    assert run.mode == "replay"
+    assert run.path == "/logs/A_BKB_CAN.asc"
+    assert run.log_channel == 2
+    assert run.channel == ""
+
+
+def test_the_replay_command_does_not_accept_a_socketcan_interface():
+    """``--channel`` names a kernel interface on the live commands. Accepting
+    it here would read as the channel inside the log and replay the wrong bus."""
+    session = CommandSession()
+    shell = CanShell(session)
+
+    shell.onecmd_plus_hooks("can replay --target bench --bus body --file /logs/x.asc --channel can0")
+
+    assert session.runs == []

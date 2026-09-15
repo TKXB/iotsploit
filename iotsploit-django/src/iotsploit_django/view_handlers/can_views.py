@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_protocols.canbus import TargetCanCatalog
 from iotsploit_protocols.canbus.bus_match import observe_identities, score_buses
+from iotsploit_protocols.canbus.logfile import CanLogError, identities_from_log
 from iotsploit_protocols.errors import NotConfigured, ProtocolError
 
 
@@ -29,9 +30,24 @@ def identify_can_bus(request):
 
     target_id = str(body.get("target_id") or "").strip()
     channel = str(body.get("channel") or "").strip()
-    if not target_id or not channel:
+    # A recorded log needs this scorer more than a live bus does, not less:
+    # picking the wrong bus decodes every frame to a plausible wrong value
+    # either way, and whoever reads a log back is often not whoever recorded it.
+    path = str(body.get("path") or "").strip()
+    if not target_id or not (channel or path):
         return JsonResponse(
-            {"status": "error", "message": "target_id and channel are required"},
+            {
+                "status": "error",
+                "message": "target_id and either channel or path are required",
+            },
+            status=400,
+        )
+    if channel and path:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "give either a channel to listen on or a path to read, not both",
+            },
             status=400,
         )
     try:
@@ -44,6 +60,16 @@ def identify_can_bus(request):
             status=400,
         )
 
+    log_channel = body.get("log_channel")
+    if log_channel is not None:
+        try:
+            log_channel = int(log_channel)
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {"status": "error", "message": "log_channel must be a channel number"},
+                status=400,
+            )
+
     stored = TargetManager.get_instance().get_target(target_id)
     if stored is None:
         return JsonResponse(
@@ -51,16 +77,22 @@ def identify_can_bus(request):
         )
 
     try:
-        seen = observe_identities(channel, seconds, fd=body.get("fd", True) is not False)
+        if path:
+            seen = identities_from_log(path, channel=log_channel)
+        else:
+            seen = observe_identities(channel, seconds, fd=body.get("fd", True) is not False)
         result = score_buses(TargetCanCatalog.from_target(stored), seen)
-    except (NotConfigured, ProtocolError, OSError, ValueError) as error:
+    except (NotConfigured, ProtocolError, CanLogError, OSError, ValueError) as error:
         return JsonResponse({"status": "error", "message": str(error)}, status=400)
 
+    source = {"path": path, "log_channel": log_channel} if path else {
+        "channel": channel,
+        "seconds": seconds,
+    }
     return JsonResponse(
         {
             "status": "success",
-            "channel": channel,
-            "seconds": seconds,
+            **source,
             "identities_heard": len(seen),
             **result.as_dict(),
         }

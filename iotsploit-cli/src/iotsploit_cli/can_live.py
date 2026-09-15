@@ -31,29 +31,58 @@ class CanLiveError(RuntimeError):
 class CanLiveRun:
     target_id: str
     bus_id: str
-    channel: str
     mode: str
-    duration_s: int
     max_frames: int
+    channel: str = ""
+    duration_s: int = 0
     snapshot_interval_ms: int = 200
     decode: bool = True
     fd: bool = True
+    #: Set for ``replay``, where the traffic comes from a recorded log instead
+    #: of a socket. The path is read on the host running the backend, which is
+    #: not necessarily the host running this shell.
+    path: str = ""
+    log_channel: int | None = None
+
+    @property
+    def source_label(self) -> str:
+        """How the header names where the frames are coming from."""
+        if self.mode == "replay":
+            name = os.path.basename(self.path) or self.path
+            return f"Log {name}" + (
+                f" ch{self.log_channel}" if self.log_channel is not None else ""
+            )
+        return f"Channel {self.channel}"
 
     def plugin_payload(self) -> dict[str, Any]:
-        request = {
-            "schema_version": 1,
-            "bus_id": self.bus_id,
-            "transport": {
-                "interface": "socketcan",
-                "channel": self.channel,
-                "fd": self.fd,
-            },
-            "mode": self.mode,
-            "duration_s": self.duration_s,
-            "max_frames": self.max_frames,
-            "snapshot_interval_ms": self.snapshot_interval_ms,
-            "decode": self.decode,
-        }
+        if self.mode == "replay":
+            transport: dict[str, Any] = {"interface": "file", "path": self.path}
+            if self.log_channel is not None:
+                transport["log_channel"] = self.log_channel
+            request: dict[str, Any] = {
+                "schema_version": 1,
+                "bus_id": self.bus_id,
+                "transport": transport,
+                "mode": self.mode,
+                "max_frames": self.max_frames,
+                "snapshot_interval_ms": self.snapshot_interval_ms,
+                "decode": self.decode,
+            }
+        else:
+            request = {
+                "schema_version": 1,
+                "bus_id": self.bus_id,
+                "transport": {
+                    "interface": "socketcan",
+                    "channel": self.channel,
+                    "fd": self.fd,
+                },
+                "mode": self.mode,
+                "duration_s": self.duration_s,
+                "max_frames": self.max_frames,
+                "snapshot_interval_ms": self.snapshot_interval_ms,
+                "decode": self.decode,
+            }
         return {
             "plugin_name": "CAN Live Capture",
             "target_id": self.target_id,
@@ -99,7 +128,7 @@ class CanSnapshotView:
         totals = self.totals
         lines = [
             f"CAN {run.mode} · {status}",
-            f"Target {run.target_id} · Bus {run.bus_id} · Channel {run.channel}",
+            f"Target {run.target_id} · Bus {run.bus_id} · {run.source_label}",
             (
                 f"Frames {totals.get('frames', 0)} · IDs {totals.get('identities', 0)} · "
                 f"Undefined {totals.get('undefined', 0)} · "

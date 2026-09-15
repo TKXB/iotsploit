@@ -92,6 +92,11 @@ def upload_file(request):
         
         # Add original filename to response
         file_info['original_name'] = uploaded_file.name
+        # Where the file actually is on this host. A caller that hands the
+        # upload to something running server-side -- replaying a CAN log, for
+        # one -- needs the path the server will open, and 'path' is relative to
+        # an upload directory only this module knows.
+        file_info['full_path'] = result['full_path']
         
         logger.info(f"File uploaded successfully: {uploaded_file.name} -> {result['full_path']}")
         
