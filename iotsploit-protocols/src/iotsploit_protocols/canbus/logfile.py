@@ -521,6 +521,28 @@ def open_log(
     return reader(resolved, channel=channel, max_frames=max_frames)
 
 
+def scan_log(
+    path: str | Path,
+    *,
+    channel: Optional[int] = None,
+    max_frames: Optional[int] = None,
+) -> LogReadStats:
+    """Read a log through once without keeping it, to learn what it covers.
+
+    A progress bar needs to know the length of the thing it is measuring before
+    the first frame is shown, and a log only states that by being read. So a
+    replay reads the file twice: once to learn its duration, frame count and
+    channels, and once to play it. The pass is cheap -- parsing is a few hundred
+    milliseconds for a 3 MB log -- and the alternative is a progress bar that
+    only learns its own scale at the moment it finishes, which is no progress
+    bar at all.
+    """
+    reader = open_log(path, channel=channel, max_frames=max_frames)
+    for _ in reader.messages():
+        pass
+    return reader.stats
+
+
 def identities_from_log(
     path: str | Path, *, channel: Optional[int] = None, max_frames: Optional[int] = None
 ) -> Set[Tuple[int, bool]]:

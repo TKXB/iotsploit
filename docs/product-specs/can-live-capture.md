@@ -11,7 +11,8 @@ There are two deliberately different ways to do that:
 - **Capture** is a bounded evidence window. It records the sampled frame facts
   as observations and remains the right tool when the result must be retained.
 - **Replay** reads a recorded log instead of a bus. It produces the same
-  decoded table and records the same observations, away from the vehicle.
+  decoded table and records the same observations, away from the vehicle, and
+  it can be paused and scrubbed like a player.
 
 ## Safety first, because this one is easy to get wrong
 
@@ -179,9 +180,14 @@ Replay feeds a recorded log through the same aggregator, the same codec, and the
 same target definitions as a live capture, so a recording is reviewable on the
 same terms as the bus it came from.
 
-In **CAN Bus Monitor**, choose a target and a bus, then press **Replay log**.
-Unlike **Start monitor** it needs no CAN device: replaying works on a machine
-with no CAN interface at all, which is the point.
+In **CAN Bus Monitor**, set the source to **Recorded log**, choose the file, a
+decode target and a bus, then press **Open log**. It needs no CAN device:
+replaying works on a machine with no CAN interface at all, which is the point.
+
+The source is the page's first control — a live bus, a recorded log, or raw
+frames with no target — and the fields, the action and the footer all follow
+from it. The footer carries link health for a live bus and the transport for a
+replay; they never compete because they never coexist.
 
 ```bash
 can replay --target zxd_v5_pi --bus bus_can_bkbcanfd --file /tmp/A_BKB_CAN.asc
@@ -197,8 +203,48 @@ recorded traffic, 26 of them undocumented.
 `period_ms` is computed from the log's own timestamps, never from how fast the
 file was read. That is what lets a replay run at full speed — a 47,000-frame
 log finishes in under a second — and still report the cycle time the bus
-actually had. Replay is therefore not paced to real time: the decoded table is
-an aggregate, and it converges to the same answer either way.
+actually had. No playback speed, including none at all, can influence it.
+
+### Moving through a log
+
+A replay has transport controls: play, pause, a scrubber, and a speed from
+0.5× to **Max**. Max is the default and means the whole log at once, which is
+how replay behaved before it had a transport — nobody should wait eighty
+seconds for a result they used to get instantly. The slower speeds are for
+watching something unfold.
+
+The controls work because the parse and the playback are separate things:
+
+- **The parse pass** reads the file through, twice. Once to learn its length,
+  frame count and channels — a progress bar has to know the size of what it is
+  measuring before the first frame appears, and a log only states that by being
+  read — and once to play it. Both passes take a few hundred milliseconds for a
+  3 MB log.
+- **Playback** is a view over the result. It never touches evidence: the
+  observation batch comes from the complete parse, so pausing at 30% does not
+  record a partial read as a finding.
+
+Snapshots are bucketed by the log's own arrival times rather than by wall
+clock, and every 25th carries the full table as a **keyframe**. Seeking is then
+a jump to the nearest keyframe plus a short fold forward — the same mechanism a
+video player uses, and for the same reason.
+
+#### Seeking cannot change the numbers
+
+A video frame at *t* is independent of how you reached it. A CAN row at *t* is
+a cumulative aggregate: `count` means "since the log began". So the fold has to
+give the same answer wherever the operator arrived from, or two people scrubbing
+the same log would read different numbers and one of them would cite it. That
+equivalence — seek-to-position equals play-to-position — is asserted in both the
+Python and the Flutter test suites.
+
+#### The timeline is bounded by resolution, not by log size
+
+The client holds every bucket in order to scrub without a round trip, so the
+count is capped at 600 and bucket size is what gives way: 200 ms for a
+80-second log, 6 seconds for an hour of traffic. Never finer than 50 ms.
+Scrubbing an hour-long log is coarser than scrubbing a minute of one, which is
+the honest trade and the one a video scrubber makes too.
 
 ### The log says which bus it is
 
