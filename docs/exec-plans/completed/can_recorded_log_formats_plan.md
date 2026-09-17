@@ -1,7 +1,7 @@
 # CAN Recorded Log Format Expansion — Implementation Plan
 
-Status: proposal. Research and external-log verification completed 2026-09-17.
-No production or test code has been written.
+Status: completed 2026-09-17. Implementation and external-log verification
+results are recorded at the end of this document.
 
 This plan expands the CAN Bus Monitor's **Recorded log** source from Vector ASC
 only to four replayable formats in total:
@@ -805,3 +805,60 @@ When implementation finishes, append:
   compressed logs;
 - move this document from `active/` to `completed/` only after both commits and
   the real-log validation are complete.
+
+## Completion record
+
+Completed on 2026-09-17 on branch `feat/can-recorded-log-formats` in both
+repositories.
+
+- Root commit: `4511e1b feat(can): replay BLF candump and TRC logs`.
+- Nested `ui/` commit: `d3194d1 feat(can): inspect and select recorded log channels`.
+- Backend changes: protocol readers and channel normalization, replay safety,
+  Django inspection/identify endpoints, CLI named-channel support, HTTP route
+  contract, product documentation, and focused tests.
+- Flutter changes: four-format picker, post-upload inspection, conditional
+  channel selector, format/channel context, replay and identify request wiring,
+  and widget coverage.
+- The implementation kept the custom ASC parser and adapted python-can's BLF,
+  CanutilsLogReader, and TRC readers. Deterministic tests generate their small
+  files locally rather than committing external vehicle recordings.
+
+Validation:
+
+- `tools/testing/test-python-full.sh`: passed; 1,443 passed, 5 skipped, 44
+  pre-existing warnings; Ruff, import smoke, and portability checks passed.
+- `tools/testing/test-flutter-full.sh`: passed; 625 Flutter tests and 41 Rust
+  tests passed, Dart formatting changed 0 files, and Flutter analyzer reported
+  0 issues.
+- HTTP route snapshot regenerated logically and compared equal to the runtime
+  route list.
+
+External real-log validation:
+
+- BMW E65 BLF:
+  <https://media.githubusercontent.com/media/HeinrichG-V12/E65_ReverseEngineering/762ecf84245c1bdaaf06ebb75d4bdb8f15c83498/Log1.blf>
+  (`a093bf110eecbe095816f560c82cfd003bdeacc14ebb05a980f3d6790e038d5e`).
+  Scan: 352,536 data frames plus 5 error frames, 94 identities across source
+  channels 1 and 2, duration 157.328743 s, 1.981 s parse time. Selected replay:
+  channel 1 = 162,786 frames/17 identities; channel 2 = 189,750 frames/76
+  identities. The source has no absolute wall-clock header, so `started_at` is
+  correctly omitted rather than shown as 1970.
+- Kia 2013 TRC:
+  <https://raw.githubusercontent.com/rusefi/rusefi_documentation/7b5d19ed8c30fe425d3d87e935b98f9df524d2db/OEM-Docs/Kia/2013-CAN-logs/idling.trc>
+  (`9dc64e4cbe47882510425c69af232c05cab5ae5af7d58e59dbc5b8c7a8db0832`).
+  Scan and selected replay: 4,228 frames, 27 identities, channel 1, duration
+  2.529166 s, 0.028 s parse time.
+- BYD Sealion 6 candump:
+  <https://raw.githubusercontent.com/ROOTCONLabs/carhacking/5ea5985702daa54d4d64ae6ba314d1e11ba5f62e/canDatasets/byd_sealion_6/candump.log>
+  (`1018b3641e9bc4cca5e7bb431d16e384b0cde14fd00f459acc5a44bd5b76ea22`).
+  Scan and selected replay: 1,516 frames, 5 identities, named channel `can0`,
+  duration 34.936091 s, 0.011 s parse time.
+
+The external files were not committed. They remain temporarily under
+`/tmp/can-log-format-research` for local reproduction and will disappear with
+normal temporary-directory cleanup.
+
+Remaining boundaries are intentional: no MF4, TRC 3/CAN XL, compressed logs,
+or content sniffing across extensions. TRC 3/CAN XL is rejected explicitly.
+The existing upload endpoint still buffers files in memory; changing that is a
+separate upload-architecture task rather than reader behavior.
