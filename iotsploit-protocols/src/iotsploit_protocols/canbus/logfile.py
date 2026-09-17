@@ -8,11 +8,10 @@ capture is what makes a recorded window reviewable evidence.
 
 The messages yielded here are deliberately *not* ``can.Message``. Nothing
 downstream needs one: :class:`~iotsploit_exploits.canbus.live_capture.CaptureAggregator`
-reads identity, payload, arrival time, and the two frame-class flags by
-attribute and nothing else. Parsing text into a real ``can.Message`` would drag
-``python-can`` -- which opens platform sockets and reads host configuration on
-import -- into a code path that touches no socket at all, and would stop a
-replay from running on a host with no CAN stack.
+reads identity, payload, arrival time, and the frame-class flags by attribute
+and nothing else. ASC stays a small native parser; binary BLF and the two other
+widely used text formats delegate parsing to ``python-can`` without ever
+constructing a CAN bus or touching a platform socket.
 
 Three things in the Vector ASC format are worth knowing before changing this,
 because each one silently produces plausible wrong numbers rather than an
@@ -44,9 +43,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
 
 from iotsploit_protocols.errors import NotConfigured
 
@@ -86,6 +85,7 @@ _DATE_FORMATS = (
 
 MAX_STANDARD_FRAME_ID = 0x7FF
 MAX_EXTENDED_FRAME_ID = 0x1FFFFFFF
+LogChannel = int | str
 
 
 class CanLogError(NotConfigured):
@@ -113,7 +113,7 @@ class ReplayMessage:
     is_error_frame: bool = False
     is_remote_frame: bool = False
     is_fd: bool = False
-    channel: Optional[int] = None
+    channel: Optional[LogChannel] = None
 
     @property
     def dlc(self) -> int:
@@ -130,10 +130,11 @@ class LogReadStats:
     one wearing the same summary.
     """
 
+    format: str = "asc"
     frames: int = 0
     error_frames: int = 0
     unparsable_lines: int = 0
-    channels_present: Set[int] = field(default_factory=set)
+    channels_present: Set[LogChannel] = field(default_factory=set)
     first_timestamp: Optional[float] = None
     last_timestamp: Optional[float] = None
     #: Wall-clock start from the log's own ``date`` header, when it had one.
@@ -148,14 +149,66 @@ class LogReadStats:
 
     def as_dict(self) -> Dict[str, Any]:
         return {
+            "format": self.format,
             "frames": self.frames,
             "error_frames": self.error_frames,
             "unparsable_lines": self.unparsable_lines,
-            "channels_present": sorted(self.channels_present),
+            "channels_present": sorted(self.channels_present, key=channel_sort_key),
             "duration_s": self.duration_s,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "truncated": self.truncated,
         }
+
+
+def channel_sort_key(channel: LogChannel) -> Tuple[int, str]:
+    """Keep numeric channels ordered before named interfaces such as ``can0``."""
+    if isinstance(channel, int):
+        return 0, f"{channel:020d}"
+    return 1, channel
+
+
+def normalize_log_channel(value: Any) -> Optional[LogChannel]:
+    """Normalize an API/CLI channel without losing candump interface names."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("log_channel must be a channel number or interface name")
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError("log_channel must not be negative")
+        return value
+    if isinstance(value, str):
+        channel = value.strip()
+        if not channel:
+            raise ValueError("log_channel must not be empty")
+        return int(channel) if channel.isdigit() else channel
+    raise ValueError("log_channel must be a channel number or interface name")
+
+
+def select_log_channel(
+    channels: Set[LogChannel], requested: Optional[LogChannel]
+) -> LogChannel:
+    """Resolve the one bus a replay may decode against one target definition."""
+    if not channels:
+        raise CanLogError("the CAN log contains no readable channels")
+    if requested is not None:
+        if requested not in channels:
+            available = ", ".join(
+                str(channel) for channel in sorted(channels, key=channel_sort_key)
+            )
+            raise CanLogError(
+                f"channel {requested!r} is not present in the CAN log; "
+                f"available channels: {available}"
+            )
+        return requested
+    if len(channels) == 1:
+        return next(iter(channels))
+    available = ", ".join(
+        str(channel) for channel in sorted(channels, key=channel_sort_key)
+    )
+    raise CanLogError(
+        f"the CAN log contains multiple channels ({available}); choose log_channel"
+    )
 
 
 def _parse_identifier(token: str, base: int) -> Optional[Tuple[int, bool]]:
@@ -264,11 +317,13 @@ class AscLogReader:
     Read :attr:`stats` after iterating to find out what the read actually saw.
     """
 
+    format = "asc"
+
     def __init__(
         self,
         path: str | Path,
         *,
-        channel: Optional[int] = None,
+        channel: Optional[LogChannel] = None,
         max_frames: Optional[int] = None,
     ) -> None:
         self.path = Path(path)
@@ -278,7 +333,7 @@ class AscLogReader:
         #: that knows which channel it wants says so.
         self.channel = channel
         self.max_frames = max_frames
-        self.stats = LogReadStats()
+        self.stats = LogReadStats(format=self.format)
         self._base = 16
         self._epoch = 0.0
 
@@ -301,8 +356,9 @@ class AscLogReader:
                 if message is None:
                     continue
 
-                self.stats.channels_present.add(message.channel or 0)
-                if self.channel is not None and message.channel != self.channel:
+                observed_channel = message.channel if message.channel is not None else 0
+                self.stats.channels_present.add(observed_channel)
+                if self.channel is not None and observed_channel != self.channel:
                     continue
 
                 if message.is_error_frame:
@@ -488,22 +544,145 @@ class AscLogReader:
         )
 
 
+class PythonCanLogReader:
+    """Stream a format handled by python-can into the replay message shape."""
+
+    format = ""
+    reader_name = ""
+    one_based_channels = False
+
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        channel: Optional[LogChannel] = None,
+        max_frames: Optional[int] = None,
+    ) -> None:
+        self.path = Path(path)
+        self.channel = channel
+        self.max_frames = max_frames
+        self.stats = LogReadStats(format=self.format)
+
+    def messages(self) -> Iterator[ReplayMessage]:
+        try:
+            self._validate()
+            from can import io
+
+            reader_type: Type[Any] = getattr(io, self.reader_name)
+            with reader_type(self.path) as source:
+                for source_message in source:
+                    message = self._convert(source_message)
+                    observed_channel = message.channel if message.channel is not None else 0
+                    self.stats.channels_present.add(observed_channel)
+                    if self.channel is not None and observed_channel != self.channel:
+                        continue
+
+                    if message.is_error_frame:
+                        self.stats.error_frames += 1
+                    else:
+                        self.stats.frames += 1
+                    if self.stats.first_timestamp is None:
+                        self.stats.first_timestamp = message.timestamp
+                        self._set_started_at(message.timestamp)
+                    self.stats.last_timestamp = message.timestamp
+
+                    yield message
+
+                    if self.max_frames is not None and self.stats.frames >= self.max_frames:
+                        self.stats.truncated = True
+                        return
+        except CanLogError:
+            raise
+        # Reader implementations also surface format-specific exceptions from
+        # struct/zlib. Keep those library details behind the public log error.
+        except Exception as error:
+            raise CanLogError(
+                f"cannot parse {self.format.upper()} CAN log {str(self.path)!r}: {error}"
+            ) from error
+
+    def _validate(self) -> None:
+        """Reject known unsupported variants before a reader can partially parse them."""
+
+    def _convert(self, message: Any) -> ReplayMessage:
+        channel = message.channel
+        if self.one_based_channels and isinstance(channel, int):
+            channel += 1
+        return ReplayMessage(
+            timestamp=float(message.timestamp),
+            arbitration_id=int(message.arbitration_id),
+            data=bytes(message.data),
+            is_extended_id=bool(message.is_extended_id),
+            is_error_frame=bool(message.is_error_frame),
+            is_remote_frame=bool(message.is_remote_frame),
+            is_fd=bool(message.is_fd),
+            channel=channel,
+        )
+
+    def _set_started_at(self, timestamp: float) -> None:
+        # Some BLF files contain only relative seconds and no wall-clock header.
+        # Presenting those as January 1970 would claim precision the file does
+        # not have; year 2000 is a conservative boundary for vehicle captures.
+        if timestamp < 946_684_800:
+            return
+        try:
+            self.stats.started_at = datetime.fromtimestamp(timestamp, timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            self.stats.started_at = None
+
+
+class BlfLogReader(PythonCanLogReader):
+    format = "blf"
+    reader_name = "BLFReader"
+    # python-can exposes BLF's one-based channel field as zero-based.
+    one_based_channels = True
+
+
+class CandumpLogReader(PythonCanLogReader):
+    format = "candump"
+    reader_name = "CanutilsLogReader"
+
+
+class TrcLogReader(PythonCanLogReader):
+    format = "trc"
+    reader_name = "TRCReader"
+
+    def _validate(self) -> None:
+        supported = {"1.0", "1.1", "1.3", "2.0", "2.1"}
+        with self.path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if line.startswith(";$FILEVERSION="):
+                    version = line.partition("=")[2].strip()
+                    if version not in supported:
+                        raise CanLogError(
+                            f"unsupported PEAK TRC version {version!r}; "
+                            "supported versions are 1.0, 1.1, 1.3, 2.0, and 2.1 "
+                            "(TRC 3/CAN XL is not supported)"
+                        )
+                    return
+                if not line.startswith(";"):
+                    # Headerless TRC is the legacy 1.0 form.
+                    return
+
+
 #: Suffixes this can replay, mapped to the reader that reads them.
-READERS = {".asc": AscLogReader}
+READERS = {
+    ".asc": AscLogReader,
+    ".blf": BlfLogReader,
+    ".log": CandumpLogReader,
+    ".trc": TrcLogReader,
+}
 
 
 def open_log(
     path: str | Path,
     *,
-    channel: Optional[int] = None,
+    channel: Optional[LogChannel] = None,
     max_frames: Optional[int] = None,
-) -> AscLogReader:
+) -> AscLogReader | PythonCanLogReader:
     """Pick a reader for a log by its suffix.
 
-    Refuses an unknown suffix by name rather than attempting a parse: a BLF is
-    a binary container and a candump log is a different line format, and
-    reading either as ASC would report a file full of unparsable lines instead
-    of saying plainly that the format is not supported yet.
+    Refuses an unknown suffix by name rather than guessing from content. This
+    also gives the UI and CLI one explicit list of accepted formats.
     """
     resolved = Path(path)
     reader = READERS.get(resolved.suffix.lower())
@@ -524,7 +703,7 @@ def open_log(
 def scan_log(
     path: str | Path,
     *,
-    channel: Optional[int] = None,
+    channel: Optional[LogChannel] = None,
     max_frames: Optional[int] = None,
 ) -> LogReadStats:
     """Read a log through once without keeping it, to learn what it covers.
@@ -544,7 +723,10 @@ def scan_log(
 
 
 def identities_from_log(
-    path: str | Path, *, channel: Optional[int] = None, max_frames: Optional[int] = None
+    path: str | Path,
+    *,
+    channel: Optional[LogChannel] = None,
+    max_frames: Optional[int] = None,
 ) -> Set[Tuple[int, bool]]:
     """Distinct data-frame identities in a log, for scoring it against a target's buses.
 

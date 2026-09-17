@@ -16,6 +16,7 @@ if not apps.ready:
 from django.test import RequestFactory  # noqa: E402
 
 import iotsploit_django.view_handlers.can_views as views  # noqa: E402
+from iotsploit_protocols.canbus.logfile import LogReadStats  # noqa: E402
 
 pytestmark = pytest.mark.contract
 
@@ -94,3 +95,53 @@ def test_invalid_requests_fail_before_listening(monkeypatch, overrides, message)
 
     assert response.status_code == 400
     assert message in json.loads(response.content)["message"]
+
+
+def test_inspect_log_reports_format_and_named_channels(monkeypatch):
+    monkeypatch.setattr(
+        views,
+        "scan_log",
+        lambda path, max_frames: LogReadStats(
+            format="candump", frames=12, channels_present={"can0", "vcan1"}
+        ),
+    )
+    request = RequestFactory().post(
+        "/api/inspect_can_log/",
+        data=json.dumps({"path": "/uploads/capture.log"}),
+        content_type="application/json",
+    )
+
+    response = views.inspect_can_log(request)
+    payload = json.loads(response.content)
+
+    assert response.status_code == 200
+    assert payload["format"] == "candump"
+    assert payload["channels_present"] == ["can0", "vcan1"]
+    assert payload["frames"] == 12
+
+
+def test_identify_log_preserves_a_candump_interface_name(monkeypatch):
+    monkeypatch.setattr(views.TargetManager, "get_instance", staticmethod(Targets))
+    monkeypatch.setattr(
+        views,
+        "scan_log",
+        lambda path, channel, max_frames: LogReadStats(
+            format="candump", frames=1, channels_present={"can0", "can1"}
+        ),
+    )
+    seen_channels = []
+
+    def identities(path, channel):
+        seen_channels.append(channel)
+        return {(0x100, False)}
+
+    monkeypatch.setattr(views, "identities_from_log", identities)
+
+    response = views.identify_can_bus(
+        post(channel="", path="/uploads/capture.log", log_channel="can1")
+    )
+    payload = json.loads(response.content)
+
+    assert response.status_code == 200
+    assert payload["log_channel"] == "can1"
+    assert seen_channels == ["can1"]

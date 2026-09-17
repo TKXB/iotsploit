@@ -346,6 +346,17 @@ def test_the_canonical_replay_command_builds_a_run_from_its_arguments():
     assert run.channel == ""
 
 
+def test_the_replay_command_accepts_a_candump_interface_name():
+    session = CommandSession()
+    shell = CanShell(session)
+
+    shell.onecmd_plus_hooks(
+        "can replay --target bench --bus body --file /logs/capture.log --log-channel can1"
+    )
+
+    assert session.runs[0].log_channel == "can1"
+
+
 def test_the_replay_command_does_not_accept_a_socketcan_interface():
     """``--channel`` names a kernel interface on the live commands. Accepting
     it here would read as the channel inside the log and replay the wrong bus."""

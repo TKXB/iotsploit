@@ -16,6 +16,10 @@ def _positive(value: str) -> int:
     return parsed
 
 
+def _log_channel(value: str) -> int | str:
+    return int(value) if value.isdigit() else value
+
+
 can_parser = cmd2.Cmd2ArgumentParser(
     description="Capture or monitor decoded CAN traffic live, or replay a recorded log"
 )
@@ -52,15 +56,15 @@ replay_parser.add_argument(
     "--file",
     required=True,
     dest="path",
-    help="CAN log to replay (.asc), read on the host running the backend",
+    help="CAN log to replay (.asc, .blf, .log, or .trc), read on the backend host",
 )
 # Deliberately not spelled --channel. On the live commands that names a kernel
-# interface; here it is a channel number inside the log, and one flag meaning
+# interface; here it is a channel number or name inside the log, and one flag meaning
 # two things is how a replay decodes the wrong bus without saying so.
 replay_parser.add_argument(
     "--log-channel",
-    type=int,
-    help="which channel in the log to replay, when it holds more than one",
+    type=_log_channel,
+    help="channel number or candump interface to replay, when the log holds more than one",
 )
 
 

@@ -200,6 +200,10 @@
     "pattern": "initialize_devices/"
   },
   {
+    "name": "inspect_can_log",
+    "pattern": "inspect_can_log/"
+  },
+  {
     "name": "iot_fuzzer_generator_config",
     "pattern": "iot-fuzzer/configuration/generators/config/"
   },

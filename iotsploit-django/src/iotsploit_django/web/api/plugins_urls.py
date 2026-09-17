@@ -10,6 +10,7 @@ urlpatterns = [
     # Exploit
     path("execute_plugin/", views.execute_plugin, name="execute_plugin"),
     path("identify_can_bus/", views.identify_can_bus, name="identify_can_bus"),
+    path("inspect_can_log/", views.inspect_can_log, name="inspect_can_log"),
     # Plugin info and groups
     path("list_plugin_info/", views.list_plugin_info, name="list_plugin_info"),
     path("list_groups/", views.list_groups, name="list_groups"),

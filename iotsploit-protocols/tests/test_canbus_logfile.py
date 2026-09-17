@@ -17,12 +17,16 @@ misses.
 
 from __future__ import annotations
 
+import can
 import pytest
+from can.io import BLFWriter, CanutilsLogWriter, TRCWriter
 
 from iotsploit_protocols.canbus.logfile import (
     CanLogError,
     identities_from_log,
+    normalize_log_channel,
     open_log,
+    select_log_channel,
 )
 
 pytestmark = pytest.mark.unit
@@ -255,10 +259,91 @@ def test_selecting_a_channel_replays_only_that_bus(tmp_path):
 
 
 def test_an_unsupported_format_is_named_rather_than_parsed_as_asc(tmp_path):
-    path = write(tmp_path, "", name="capture.blf")
+    path = write(tmp_path, "", name="capture.pcap")
 
     with pytest.raises(CanLogError, match="not a CAN log this can replay"):
         open_log(path)
+
+
+@pytest.mark.parametrize(
+    ("writer_type", "name", "expected_format", "expected_channel"),
+    [
+        (BLFWriter, "capture.blf", "blf", 1),
+        (CanutilsLogWriter, "capture.log", "candump", "can0"),
+        (TRCWriter, "capture.trc", "trc", 1),
+    ],
+)
+def test_python_can_formats_preserve_frame_fields(
+    tmp_path, writer_type, name, expected_format, expected_channel
+):
+    path = tmp_path / name
+    message = can.Message(
+        timestamp=1_700_000_000.25,
+        arbitration_id=0x18DB33F1,
+        data=b"\x01\x02\x03",
+        is_extended_id=True,
+        channel=0,
+    )
+    with writer_type(path) as writer:
+        writer.on_message_received(message)
+
+    reader = open_log(path)
+    messages = list(reader.messages())
+
+    assert reader.stats.format == expected_format
+    assert reader.stats.channels_present == {expected_channel}
+    assert messages[0].arbitration_id == 0x18DB33F1
+    assert messages[0].data == b"\x01\x02\x03"
+    assert messages[0].is_extended_id is True
+    assert messages[0].channel == expected_channel
+
+
+def test_candump_named_channel_can_be_selected(tmp_path):
+    path = tmp_path / "capture.log"
+    with CanutilsLogWriter(path) as writer:
+        for channel, frame_id in (("can0", 0x100), ("vcan1", 0x200)):
+            writer.on_message_received(
+                can.Message(
+                    timestamp=1_700_000_000,
+                    arbitration_id=frame_id,
+                    data=b"\x01",
+                    channel=channel,
+                )
+            )
+
+    reader = open_log(path, channel="vcan1")
+
+    assert [message.arbitration_id for message in reader.messages()] == [0x200]
+    assert reader.stats.channels_present == {"can0", "vcan1"}
+
+
+def test_channel_selection_requires_an_explicit_choice_for_a_multi_bus_log():
+    with pytest.raises(CanLogError, match="multiple channels"):
+        select_log_channel({1, 2}, None)
+
+    assert select_log_channel({"can0"}, None) == "can0"
+    assert normalize_log_channel(" 2 ") == 2
+    assert normalize_log_channel(" vcan0 ") == "vcan0"
+
+
+def test_invalid_content_for_a_supported_suffix_is_reported(tmp_path):
+    reader = open_log(write(tmp_path, "not a blf", name="capture.blf"))
+
+    with pytest.raises(CanLogError, match="cannot parse BLF"):
+        list(reader.messages())
+
+
+def test_trc_3_is_rejected_before_can_xl_can_be_partially_replayed(tmp_path):
+    reader = open_log(
+        write(
+            tmp_path,
+            ";$FILEVERSION=3.0\n;$STARTTIME=45244.0\n1 0.0 DT 1 123 Rx 1 01\n",
+            name="capture.trc",
+        )
+    )
+
+    with pytest.raises(CanLogError, match="TRC 3/CAN XL is not supported"):
+        list(reader.messages())
 
 
 def test_a_missing_log_says_which_host_the_path_is_read_on(tmp_path):

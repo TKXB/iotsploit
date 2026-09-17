@@ -42,7 +42,7 @@ class CanLiveRun:
     #: of a socket. The path is read on the host running the backend, which is
     #: not necessarily the host running this shell.
     path: str = ""
-    log_channel: int | None = None
+    log_channel: int | str | None = None
 
     @property
     def source_label(self) -> str:

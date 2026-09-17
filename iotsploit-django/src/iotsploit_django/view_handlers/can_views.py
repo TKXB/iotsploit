@@ -10,7 +10,13 @@ from django.views.decorators.csrf import csrf_exempt
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_protocols.canbus import TargetCanCatalog
 from iotsploit_protocols.canbus.bus_match import observe_identities, score_buses
-from iotsploit_protocols.canbus.logfile import CanLogError, identities_from_log
+from iotsploit_protocols.canbus.logfile import (
+    CanLogError,
+    identities_from_log,
+    normalize_log_channel,
+    scan_log,
+    select_log_channel,
+)
 from iotsploit_protocols.errors import NotConfigured, ProtocolError
 
 
@@ -60,15 +66,10 @@ def identify_can_bus(request):
             status=400,
         )
 
-    log_channel = body.get("log_channel")
-    if log_channel is not None:
-        try:
-            log_channel = int(log_channel)
-        except (TypeError, ValueError):
-            return JsonResponse(
-                {"status": "error", "message": "log_channel must be a channel number"},
-                status=400,
-            )
+    try:
+        log_channel = normalize_log_channel(body.get("log_channel"))
+    except ValueError as error:
+        return JsonResponse({"status": "error", "message": str(error)}, status=400)
 
     stored = TargetManager.get_instance().get_target(target_id)
     if stored is None:
@@ -78,6 +79,8 @@ def identify_can_bus(request):
 
     try:
         if path:
+            inspected = scan_log(path, channel=log_channel, max_frames=5_000_000)
+            log_channel = select_log_channel(inspected.channels_present, log_channel)
             seen = identities_from_log(path, channel=log_channel)
         else:
             seen = observe_identities(channel, seconds, fd=body.get("fd", True) is not False)
@@ -97,3 +100,33 @@ def identify_can_bus(request):
             **result.as_dict(),
         }
     )
+
+
+@csrf_exempt
+def inspect_can_log(request):
+    """Validate an uploaded log and return the format and buses it contains."""
+    if request.method != "POST":
+        return JsonResponse(
+            {"status": "error", "message": "Only POST is allowed"}, status=405
+        )
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"status": "error", "message": "Body is not valid JSON"}, status=400
+        )
+
+    path = str(body.get("path") or "").strip()
+    if not path:
+        return JsonResponse(
+            {"status": "error", "message": "path is required"}, status=400
+        )
+
+    try:
+        stats = scan_log(path, max_frames=5_000_000)
+        if not stats.channels_present:
+            raise CanLogError("the CAN log contains no readable frames")
+    except (CanLogError, OSError, ValueError) as error:
+        return JsonResponse({"status": "error", "message": str(error)}, status=400)
+
+    return JsonResponse({"status": "success", **stats.as_dict()})

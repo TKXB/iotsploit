@@ -180,8 +180,10 @@ Replay feeds a recorded log through the same aggregator, the same codec, and the
 same target definitions as a live capture, so a recording is reviewable on the
 same terms as the bus it came from.
 
-In **CAN Bus Monitor**, set the source to **Recorded log**, choose the file, a
-decode target and a bus, then press **Open log**. It needs no CAN device:
+In **CAN Bus Monitor**, set the source to **Recorded log**, choose an ASC, BLF,
+candump LOG, or PEAK TRC file, a decode target and a bus, then press **Open
+log**. The upload is inspected before replay; a single log channel is selected
+automatically and a multi-channel log asks which bus to use. It needs no CAN device:
 replaying works on a machine with no CAN interface at all, which is the point.
 
 The source is the page's first control — a live bus, a recorded log, or raw
@@ -388,7 +390,9 @@ refused rather than quietly resolved one way.
 
 `path` is read on the host running IoTSploit, which is not necessarily the host
 running the UI — which is why the Flutter picker uploads the file first and
-passes back the stored path. `log_channel` picks a bus inside the log and is
+passes back the stored path. `log_channel` picks a bus inside the log. It may
+be a number for ASC, BLF, and TRC, or an interface name such as `can0` for a
+candump log, and is
 deliberately not spelled `channel`: on a live request that names a kernel
 interface, and one key meaning two things is how a replay decodes the wrong bus
 without saying so. `display_name` is what to call the log when the path is not
@@ -403,9 +407,9 @@ provenance. There is no `duration_s`: a log ends by itself.
   overflow the result says so rather than growing without bound on a fuzzed or
   noisy bus.
 - No ISO-TP reassembly, no UDS-over-CAN decoding.
-- Capture files are read but never written. Replay reads Vector ASC (`.asc`);
-  candump and BLF logs are not read yet and are refused by name rather than
-  parsed as something they are not.
+- Capture files are read but never written. Replay reads Vector ASC (`.asc`),
+  Vector BLF (`.blf`), can-utils candump (`.log`), and PEAK TRC (`.trc`). Other
+  suffixes are refused by name rather than parsed as something they are not.
 - The capture does not diff what it saw against the catalogue or propose target
   edits.
 
