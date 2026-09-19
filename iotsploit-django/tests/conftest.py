@@ -3,8 +3,9 @@
 The testing policy excludes tests needing a manually provisioned service
 "until those dependencies are made hermetic". This is that step for the ORM: a
 throwaway database built from the migrations, with every test rolled back, so
-nothing touches the developer's `db.sqlite3`. For SQLite it resolves to
-`:memory:` and never reaches the filesystem.
+nothing touches the developer's `db.sqlite3`. For SQLite it is a file in a
+temporary directory, removed afterwards -- see `django_test_database` for why
+it is not `:memory:`.
 
 Nothing here runs at import time. This module is imported during collection,
 before any test, so calling `django.setup()` at module scope would pull the app
@@ -35,12 +36,32 @@ def _ensure_django():
 
 
 @pytest.fixture(scope="session")
-def django_test_database():
-    """Build a throwaway database for the session and tear it down after."""
+def django_test_database(tmp_path_factory):
+    """Build a throwaway database for the session and tear it down after.
+
+    On a file, not in memory. Django's default SQLite test database is
+    ``:memory:`` opened with a shared cache, and shared-cache SQLite takes
+    *table* locks: a reader on one connection makes a writer on another fail
+    immediately with "database table is locked". It returns SQLITE_LOCKED
+    rather than SQLITE_BUSY, so ``timeout`` does not apply and no amount of
+    waiting helps.
+
+    Any test whose subject writes from a background thread while the test
+    polls from the main one therefore fails at random -- which
+    `test_local_runner_completes_the_durable_execution` did, about one run in
+    twelve, blocking commits for reasons that had nothing to do with the
+    change being committed. A file database uses ordinary locking, where
+    ``timeout`` does what it says.
+    """
     _ensure_django()
 
     from django.db import connection
     from django.test.utils import setup_test_environment, teardown_test_environment
+
+    connection.settings_dict["TEST"]["NAME"] = str(
+        tmp_path_factory.mktemp("django-db") / "test.sqlite3"
+    )
+    connection.settings_dict.setdefault("OPTIONS", {}).setdefault("timeout", 30)
 
     setup_test_environment()
     old_config = connection.creation.create_test_db(verbosity=0, autoclobber=True)
