@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "someip.sd_parse",
   "fingerprint": "e9c6633e978640fa",
-  "updated": "2026-09-19T02:27:50+00:00",
+  "updated": "2026-09-19T05:50:27+00:00",
   "entries": {
     "12ae32cb1ec02d01": {
       "signature": "accept|||list[0]|",

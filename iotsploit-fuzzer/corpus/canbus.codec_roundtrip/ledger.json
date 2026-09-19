@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "canbus.codec_roundtrip",
   "fingerprint": "532a5d5547fe98b7",
-  "updated": "2026-09-19T02:27:39+00:00",
+  "updated": "2026-09-19T05:50:25+00:00",
   "entries": {
     "072e7cd559b3eae0": {
       "signature": "reject|CanValueError|has no by this||",

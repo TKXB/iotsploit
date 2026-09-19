@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "doip.uds_parse",
   "fingerprint": "2bbfa16c3e4e12cb",
-  "updated": "2026-09-19T02:27:42+00:00",
+  "updated": "2026-09-19T05:50:26+00:00",
   "entries": {
     "000a3f1f345d55fe": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[hundreds],nrc=none,raw=bytes[hundreds])|",
@@ -76,6 +76,12 @@
       "first_seen": "20260919T022331Z",
       "edge_of": ""
     },
+    "0c67d6992cfa56e6": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[few],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T055025Z",
+      "edge_of": ""
+    },
     "0ebf437b7d6e2355": {
       "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
       "kind": "accept",
@@ -130,6 +136,12 @@
       "first_seen": "20260919T022331Z",
       "edge_of": ""
     },
+    "19316e505511fbf7": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[1],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T054954Z",
+      "edge_of": ""
+    },
     "1f0b801e2b8aa59e": {
       "signature": "reject|ProtocolError|uds negative response echoes service expected||",
       "kind": "reject",
@@ -171,6 +183,12 @@
       "kind": "accept",
       "first_seen": "20260919T022739Z",
       "edge_of": "reject|ProtocolError|uds service empty response||"
+    },
+    "2c885c3989118815": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[1],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T055025Z",
+      "edge_of": ""
     },
     "2e73f0be437322a8": {
       "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
@@ -370,6 +388,12 @@
       "first_seen": "20260919T022611Z",
       "edge_of": ""
     },
+    "5cee7223ab81a2f3": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[0],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T055025Z",
+      "edge_of": ""
+    },
     "5e11a102f403b463": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[few])|",
       "kind": "accept",
@@ -470,6 +494,12 @@
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[tens])|",
       "kind": "accept",
       "first_seen": "20260919T022611Z",
+      "edge_of": ""
+    },
+    "7710f86153a92616": {
+      "signature": "accept|||UdsResponse(service=num[0],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T054954Z",
       "edge_of": ""
     },
     "77e1ffa6b8aa425e": {
@@ -722,6 +752,12 @@
       "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[tens])|",
       "kind": "accept",
       "first_seen": "20260919T022611Z",
+      "edge_of": ""
+    },
+    "a0a92468a0f34f3b": {
+      "signature": "accept|||UdsResponse(service=num[0],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T055025Z",
       "edge_of": ""
     },
     "a28580e749a5e177": {
@@ -982,6 +1018,12 @@
       "first_seen": "20260919T022739Z",
       "edge_of": ""
     },
+    "e3845f2d9fe89128": {
+      "signature": "accept|||UdsResponse(service=num[0],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T055025Z",
+      "edge_of": ""
+    },
     "e4e25aedf3eb7c46": {
       "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
       "kind": "accept",
@@ -998,6 +1040,12 @@
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[many])|",
       "kind": "accept",
       "first_seen": "20260919T022611Z",
+      "edge_of": ""
+    },
+    "e680fbd71dd98d33": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[0],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T055025Z",
       "edge_of": ""
     },
     "e7a3a008006ff92c": {

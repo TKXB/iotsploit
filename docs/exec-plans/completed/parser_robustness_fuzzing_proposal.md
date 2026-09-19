@@ -2,8 +2,7 @@
 
 ## Status
 
-- **State:** **Partly implemented** on 2026-09-19, branch
-  `feat/parser-fuzzing-loop`.
+- **State:** **Implemented** on 2026-09-19, branch `feat/parser-fuzzing-loop`.
   - **3.1 done** -- `classify_error_frame` coerces totally, and its docstring
     now states the "never raises" contract the oracle holds it to. An `int`
     `data` is excluded rather than coerced: `bytes(n)` allocates `n` zero
@@ -12,45 +11,62 @@
   - **3.2 done** -- the DTD guard sniffs the byte-order mark and scans decoded
     text, keeping its streaming shape. The UTF-16 bomb that previously walked
     past it is now refused by this repository rather than by libexpat.
-  - **3.3 NOT done, and it needs a decision** -- see the note below.
+  - **3.3 done**, with one correction to the plan -- see below.
   - **Section 4 superseded** by
     `../completed/continuous_parser_fuzzing_framework_proposal.md`, which is
-    implemented. `hypothesis` was not added: the corpus and ledger provide the
-    `@example` regression habit it was wanted for.
-- **Blocked on:** decision 2 in section 7, restated below
+    implemented and carries the nine surfaces of section 1 as its target
+    registry. `hypothesis` was **not** added: the corpus and ledger provide
+    the `@example` regression habit it was wanted for, and the commit gate
+    replays every payload the loop has ever found interesting.
 
-### Why 3.3 stopped
+### 3.3 as landed, and the one thing this proposal had wrong
 
-The proposal says to extend `_coerce_parameters` to honour declared `int` and
-`float`, then "delete the four `_integer` copies and the one `_as_bool` copy".
-The first half is straightforward. The second half is not, and the proposal
-misses why: **those four copies also range-check**, and the declared parameter
-specs carry no `min`/`max`:
+The plan was to honour declared `int`/`float` in `_coerce_parameters` and then
+"delete the four `_integer` copies and the one `_as_bool` copy". The second
+half does not work as written: **those four copies also range-check**, and the
+declared specs carried no bounds, so deleting them drops the range silently.
 
 ```python
 "method_id": _integer(parameters.get("method_id"), "method_id", 0, 0xFFFF)
 ```
 
-Deleting them as written drops the bound silently. Landing 3.3 honestly means
-either (a) adding `min`/`max` to the declared spec so `_coerce_parameters` can
-enforce it and the copies delete cleanly -- which is the "solve at the owner"
-answer and is what I would do -- or (b) keeping a two-line range check at each
-of the four call sites, which is net-positive but less of a deletion than the
-proposal claims.
+So the range moved into the declaration, which is where it belongs and what
+makes `'type': 'int'` mean something:
 
-Either way it changes what plugins receive, which is decision 2 in section 7
-and was never answered. It is independent of the fuzzing loop, so it was left
-for that answer rather than guessed at.
+```python
+"method_id": {"type": "int", "required": True, "min": 0, "max": 0xFFFF}
+```
+
+`_coerce_parameters` enforces `min`/`max` when a spec carries them. The five
+duplicate helpers are gone, replaced by one `iotsploit_core.utils.as_number`
+beside the `as_bool` it mirrors -- kept at the call sites too, because those
+plugins are also invoked directly by their own tests, where it is idempotent
+on a value the boundary already coerced.
+
+Three declared types were **wrong** and were corrected: `service_id`,
+`method_id`, `client_id`, `logical_address` and `tester_address` declared
+`'str'` while being numbers that accept hex text. That is why coercion alone
+would not have reached them.
+
+Not net-negative overall: ~54 lines of duplicated parsing removed against
+~60 lines of `min`/`max` declarations and 46 lines of tests. The duplication
+is what went away; the bounds became data.
+
+The twelve plugins that never wrote a guard -- including
+`flood_attack/syn_flood_attack.py`, which passed `port` and `count` onward
+unparsed, and `greatfet_rubber_duck.py`, which crashed on a typo -- now
+receive parsed values with no change of their own.
+
+### Decisions in section 7, answered
+
+1. **`hypothesis`: no.** The corpus and the ledger cover it, as above.
+2. **3.3 lands with the range in the declaration**, per the user's decision on
+   2026-09-19. An out-of-tree plugin reading `parameters['count']` as a string
+   will now receive an `int`.
 
 - **Probe scripts:** `parser-robustness-probes/` remains throwaway evidence,
   untracked and excluded from lint. The permanent equivalent is the target
-  registry in `iotsploit_fuzzer.harnesses.parser_targets`
-- **Draft date:** 2026-09-18
-- **Basis:** ~77,000 malformed inputs driven through nine parse entry points on
-  `dev` at `e3d8c96`, using the Poetry environment in `.agents/local.md`
-- **Estimated effort:** Phase 0 ~2 h, Phase 1 ~1 day. Phase 2 unsized
-- **Decision owner:** User
-- **Blocked on:** two decisions in section 7
+  registry in `iotsploit_fuzzer.harnesses.parser_targets`.
 
 **Goal.** Establish, with evidence, where IoTSploit's own parsers break on
 input a vehicle or an operator can actually produce — and propose the smallest

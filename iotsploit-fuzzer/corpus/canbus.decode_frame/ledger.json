@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "canbus.decode_frame",
   "fingerprint": "ceae0f09a5e56511",
-  "updated": "2026-09-19T02:27:04+00:00",
+  "updated": "2026-09-19T05:50:21+00:00",
   "entries": {
     "021db6cb267b4350": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",

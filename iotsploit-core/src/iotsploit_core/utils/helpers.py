@@ -6,7 +6,7 @@ import tempfile
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 
 def runtime_dir() -> Path:
@@ -94,6 +94,42 @@ def format_duration(duration: Union[timedelta, float, int], style: str = "compac
 
     raise ValueError(f"Unknown style: {style}")
 
+
+
+def as_number(
+    value: Any,
+    name: str,
+    *,
+    minimum: Optional[float] = None,
+    maximum: Optional[float] = None,
+    kind: type = int,
+) -> Any:
+    """Parse a number that may arrive as a real number or as a string.
+
+    The sibling of :func:`as_bool`, and it exists for the same reason: the web
+    and CLI layers send parameters as JSON strings, so a plugin declaring
+    ``'type': 'int'`` was handed ``"3"`` and had to parse it itself. Four
+    plugins wrote a byte-identical helper for this and twelve wrote none.
+
+    Integers are parsed with base 0, so ``"0x1000"`` is 4096 -- the address
+    and identifier fields these carry are habitually written in hex.
+    """
+    if value is None or value == "":
+        raise ValueError(f"{name} is required")
+    try:
+        if kind is int:
+            parsed = int(value, 0) if isinstance(value, str) else int(value)
+        else:
+            parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be an {'integer' if kind is int else 'number'}") from None
+    if minimum is not None and maximum is not None and not minimum <= parsed <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    if minimum is not None and parsed < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    if maximum is not None and parsed > maximum:
+        raise ValueError(f"{name} must be at most {maximum}")
+    return parsed
 
 
 def as_bool(value: Any) -> bool:

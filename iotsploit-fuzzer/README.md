@@ -102,6 +102,32 @@ poetry run python -m iotsploit_fuzzer.core.parser_campaign \
 Re-baselining keeps the payloads -- they are the expensive part -- and drops
 only the claim about what they do, which the next campaign re-derives.
 
+### The nightly run
+
+`tools/testing/nightly-parser-fuzz.sh` runs one campaign against every target
+and exits non-zero on a violation. Driven by cron rather than by the platform,
+so that a night when Django or Redis is down is still a night the loop runs:
+
+```cron
+17 3 * * *  /path/to/repo/tools/testing/nightly-parser-fuzz.sh
+```
+
+The seed is the day of the year, so each night explores a different corner and
+any night can be reproduced exactly. Logs land in
+`artifacts/parser-fuzz-logs/`, which is git-ignored; the corpus it grows is
+not, and committing that change is what carries the night's learning to
+everyone else and puts it in the commit gate.
+
+`--iterations` is the mutation budget. The retained corpus is replayed on top
+of it rather than out of it -- a boundary movement is defined on a payload the
+ledger already holds, so a corpus larger than the budget would otherwise stop
+the campaign mutating at all.
+
+Triage, when it fails: the log names the target, the payload hash and the
+source line. `corpus/<target>/payloads/<hash>.bin` is the input. Fix the owner,
+then `--replay` that target to confirm; the payload stays in the corpus, so
+every commit from then on checks it.
+
 ### Adding a target
 
 A registry entry in `harnesses/parser_targets.py`: the adapter that turns

@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "fuzzer.parse_target_bits",
   "fingerprint": "302a0810c7d2e6a2",
-  "updated": "2026-09-19T02:28:03+00:00",
+  "updated": "2026-09-19T05:50:30+00:00",
   "entries": {
     "00f58d86d74c8930": {
       "signature": "reject|ValueError|invalid range format||",
@@ -238,6 +238,12 @@
       "first_seen": "20260919T021540Z",
       "edge_of": ""
     },
+    "2f64b3d45dcfea1d": {
+      "signature": "accept|||list[hundreds]<num[0],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T055028Z",
+      "edge_of": ""
+    },
     "3048f0c9f69ade38": {
       "signature": "accept|||list[few]<num[few],num[hundreds],num[tens]>|",
       "kind": "accept",
@@ -308,6 +314,12 @@
       "signature": "accept|||list[few]<num[many]>|",
       "kind": "accept",
       "first_seen": "20260919T022348Z",
+      "edge_of": ""
+    },
+    "34e4142386701b8b": {
+      "signature": "accept|||list[tens]<num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T055028Z",
       "edge_of": ""
     },
     "361ba7556682480b": {
@@ -459,6 +471,12 @@
       "kind": "accept",
       "first_seen": "20260919T022630Z",
       "edge_of": ""
+    },
+    "55433d804c604f99": {
+      "signature": "accept|||list[few]<num[0],num[1],num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T055028Z",
+      "edge_of": "reject|ValueError|invalid range format||"
     },
     "5827d0995840d29d": {
       "signature": "accept|||list[few]<num[tens]>|",
@@ -1150,6 +1168,12 @@
       "first_seen": "20260919T021540Z",
       "edge_of": ""
     },
+    "c8f315de4850621c": {
+      "signature": "accept|||list[many]<num[0],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T055028Z",
+      "edge_of": ""
+    },
     "c9df83488da80ad2": {
       "signature": "accept|||list[few]<num[tens]>|",
       "kind": "accept",
@@ -1191,6 +1215,12 @@
       "kind": "accept",
       "first_seen": "20260919T022756Z",
       "edge_of": ""
+    },
+    "cf3e0240c4c27770": {
+      "signature": "accept|||list[few]<num[1],num[few],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T055028Z",
+      "edge_of": "reject|ValueError|invalid range format||"
     },
     "d03502c43d74a30b": {
       "signature": "reject|ValueError|no valid bit positions found in target_bits string||",

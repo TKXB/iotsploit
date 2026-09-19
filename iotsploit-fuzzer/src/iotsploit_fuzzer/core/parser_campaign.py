@@ -166,7 +166,14 @@ def run(
             # under artifacts/ is the graveyard this loop exists to replace.
             logger_backend=TestLogger(str(Path(root) / target.name / "cases"),
                                       keep=lambda payload, result: False),
-            config=CampaignConfig(iterations=iterations, event_callback=event_callback),
+            # The retained corpus is replayed on top of the mutation budget,
+            # not out of it: a boundary movement is defined on a payload the
+            # ledger already holds, so a corpus larger than the budget would
+            # silently stop the campaign mutating at all.
+            config=CampaignConfig(
+                iterations=iterations + len(store.entries),
+                event_callback=event_callback,
+            ),
         ).run()
     finally:
         harness.close()
@@ -188,7 +195,10 @@ def run(
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Run a parser fuzzing campaign.")
     parser.add_argument("--target", action="append", help="registry name; repeatable")
-    parser.add_argument("--iterations", type=int, default=500)
+    parser.add_argument(
+        "--iterations", type=int, default=500,
+        help="mutations per target; the retained corpus is replayed on top",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--root", default=str(DEFAULT_CORPUS_ROOT))
     parser.add_argument("--replay", action="store_true", help="corpus only, no generation")

@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "canbus.scan_log",
   "fingerprint": "6f43c3c2331418f9",
-  "updated": "2026-09-19T02:27:01+00:00",
+  "updated": "2026-09-19T05:50:20+00:00",
   "entries": {
     "00527934ed6c3ef1": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[few],channels_present=set[0],first_timestamp=none)|",
@@ -208,6 +208,12 @@
       "first_seen": "20260919T022656Z",
       "edge_of": ""
     },
+    "2833c5eeff22aac4": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "2b87531815cd3943": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
@@ -274,10 +280,22 @@
       "first_seen": "20260919T022656Z",
       "edge_of": ""
     },
+    "380bc1cec8556b9e": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "3843755e07701e0c": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
       "first_seen": "20260919T022319Z",
+      "edge_of": ""
+    },
+    "388f0d6d9161b0d2": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "39100003ab8ec9df": {
@@ -352,6 +370,12 @@
       "first_seen": "20260919T022319Z",
       "edge_of": ""
     },
+    "46a915d9a3b6e69c": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "47ed059308fc5cc6": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
@@ -392,6 +416,12 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
       "first_seen": "20260919T022656Z",
+      "edge_of": ""
+    },
+    "5283fbc5688c5e75": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "52b98e8dc9227162": {
@@ -502,6 +532,12 @@
       "first_seen": "20260919T022540Z",
       "edge_of": ""
     },
+    "605e4844379b4cb0": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[few],first_timestamp=num[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "69ae2f018cc13558": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[many],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
@@ -518,6 +554,12 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
       "first_seen": "20260919T021526Z",
+      "edge_of": ""
+    },
+    "6b12f549ddb3e49c": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "6e340b9cffb37a98": {
@@ -610,10 +652,22 @@
       "first_seen": "20260919T022319Z",
       "edge_of": ""
     },
+    "791fbe56debe870e": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[few],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "7aca6550bfd9baf0": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[many],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
       "first_seen": "20260919T022540Z",
+      "edge_of": ""
+    },
+    "7b6b75910354ceab": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[few],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "7be13b4c7689672d": {
@@ -644,6 +698,12 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
       "first_seen": "20260919T021526Z",
+      "edge_of": ""
+    },
+    "81ee109e39420eeb": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "82aba352d5e3e282": {
@@ -820,6 +880,12 @@
       "first_seen": "20260919T022656Z",
       "edge_of": ""
     },
+    "a342f62d27891cbe": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[many],channels_present=set[1],first_timestamp=num[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "a4df0ae31afb3cb8": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[many],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
@@ -848,6 +914,12 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
       "first_seen": "20260919T022319Z",
+      "edge_of": ""
+    },
+    "ab2d55d4ee8d31ff": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[few],first_timestamp=num[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "ac67246caac29e1c": {
@@ -904,6 +976,18 @@
       "first_seen": "20260919T022540Z",
       "edge_of": ""
     },
+    "b4a8a55f06fb6d55": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[few],first_timestamp=num[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
+    "b52333bf2480e7fb": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
     "b5a2c666d7e19061": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[few],first_timestamp=num[many])|",
       "kind": "accept",
@@ -956,6 +1040,12 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[few],first_timestamp=num[1])|",
       "kind": "accept",
       "first_seen": "20260919T022540Z",
+      "edge_of": ""
+    },
+    "bd11383315bbb5ce": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "c19c6d4d3c551995": {
@@ -1034,6 +1124,18 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[few],first_timestamp=num[many])|",
       "kind": "accept",
       "first_seen": "20260919T022540Z",
+      "edge_of": ""
+    },
+    "d423245113c7c50e": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[few],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
+      "edge_of": ""
+    },
+    "d4af4ea776a50cfb": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "d4f007fdbf8b4b5e": {
@@ -1244,6 +1346,12 @@
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
       "first_seen": "20260919T022540Z",
+      "edge_of": ""
+    },
+    "f0b24ddbac40271b": {
+      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T055019Z",
       "edge_of": ""
     },
     "f115ccf490469124": {
