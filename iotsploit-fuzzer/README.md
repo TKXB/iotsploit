@@ -128,14 +128,77 @@ source line. `corpus/<target>/payloads/<hash>.bin` is the input. Fix the owner,
 then `--replay` that target to confirm; the payload stays in the corpus, so
 every commit from then on checks it.
 
-### Adding a target
+### Pointing it at something yourself
 
-A registry entry in `harnesses/parser_targets.py`: the adapter that turns
-bytes into a call, the exceptions the target's own docstring declares, and its
-budget. `declared=()` means "never raises", which several of these promise.
+**Try a function now, without editing anything.** Write an adapter -- one
+function taking `bytes` and calling the thing you want to test -- put it
+anywhere on `PYTHONPATH`, and name it with `--adapter`:
 
-Keeping those lists honest is ongoing work: a target that declares too much can
-never report anything again.
+```python
+# ~/mytargets/mine.py
+import os, tempfile
+
+def logic_capture(payload: bytes):
+    """One surface, one adapter. Raise nothing yourself; just make the call."""
+    from iotsploit_drivers.logic.protocol import read_logic_analyzer_data_from_file
+
+    handle, path = tempfile.mkstemp(suffix=".json")
+    with os.fdopen(handle, "wb") as fh:
+        fh.write(payload)
+    try:
+        return read_logic_analyzer_data_from_file(path)
+    finally:
+        os.unlink(path)
+```
+
+```bash
+PYTHONPATH=~/mytargets poetry run python -m iotsploit_fuzzer.core.parser_campaign \
+    --adapter mine:logic_capture \
+    --declared "builtins:ValueError,builtins:TypeError" \
+    --seed-file ~/good_capture.json \
+    --iterations 500
+```
+
+The corpus goes to a temporary directory and is thrown away, so an experiment
+leaves no ledger for the gate to replay. Pass `--root ~/my-corpus` to keep it.
+
+**`--declared` is the whole experiment.** It is the contract you are holding
+the function to, and getting it wrong is the usual reason a run is useless:
+
+| You declare | You are asking |
+|-------------|----------------|
+| `--declared ""` | "this never raises" -- right for a decoder that returns a failure object, wrong for a validator |
+| `--declared "builtins:ValueError"` | "it rejects bad input by raising ValueError, and nothing else escapes" |
+| everything it might raise | nothing. A target that declares too much can never report anything again |
+
+Run the example above with `--declared ""` and it reports 33 violations in 151
+seconds; with the line shown, 0 in half a second. Same code, same inputs. Start
+from what the function's own docstring promises -- and if it promises nothing,
+deciding what it *should* promise is the useful half of the exercise.
+
+**Seeds matter as much.** `--seed-file` should be a real, valid input. Mutating
+a good capture finds things; mutating `b""` explores the first ten bytes of the
+parser and stops.
+
+### Making it permanent
+
+When a scratch target earns its place, move it into
+`harnesses/parser_targets.py` -- the adapter next to the others, and a
+`ParseTarget` entry in the registry list:
+
+```python
+ParseTarget(
+    name="drivers.logic_capture",
+    adapter=f"{_HERE}:logic_capture",
+    declared=("builtins:ValueError", "builtins:TypeError"),
+    seeds=(_CAPTURE_SEED,),
+    budget_seconds=5.0,
+),
+```
+
+`tests/test_parser_targets.py` then checks it on every commit: that the adapter
+and every declared name resolve, and that at least one seed actually reaches
+the target instead of being skipped. Once it has a corpus, the gate replays it.
 
 ### Known limits
 

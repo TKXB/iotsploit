@@ -23,6 +23,7 @@ import argparse
 import logging
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -204,6 +205,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--replay", action="store_true", help="corpus only, no generation")
     parser.add_argument("--rebaseline", action="store_true", help="adopt a changed oracle")
     parser.add_argument("--list", action="store_true", help="print the registry and exit")
+    parser.add_argument(
+        "--adapter",
+        help="try a function without touching the registry: 'module:function', "
+             "taking bytes. Results are not kept unless --root is given too",
+    )
+    parser.add_argument(
+        "--declared", default="",
+        help="with --adapter: comma-separated 'module:Exception' the target's own "
+             "docstring promises. Empty means it promises never to raise",
+    )
+    parser.add_argument(
+        "--seed-file", action="append",
+        help="with --adapter: a file to start mutating from; repeatable",
+    )
+    parser.add_argument(
+        "--budget", type=float, default=5.0,
+        help="with --adapter: wall-clock seconds one parse may take",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -212,7 +231,25 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"{name:32} {target.fingerprint}  {target.adapter}")
         return 0
 
-    names = args.target or list(REGISTRY)
+    if args.adapter:
+        # A scratch target, so that trying a function is a command rather than
+        # an edit. Its corpus goes under a temporary root unless one is given,
+        # because an experiment should not leave a ledger behind that the gate
+        # then replays.
+        scratch = ParseTarget(
+            name=args.adapter.replace(":", "."),
+            adapter=args.adapter,
+            declared=tuple(d for d in args.declared.split(",") if d),
+            seeds=tuple(Path(f).read_bytes() for f in (args.seed_file or [])) or (b"",),
+            budget_seconds=args.budget,
+        )
+        REGISTRY[scratch.name] = scratch
+        names = [scratch.name]
+        if args.root == str(DEFAULT_CORPUS_ROOT):
+            args.root = tempfile.mkdtemp(prefix="fuzz_scratch_")
+            print(f"scratch corpus: {args.root}")
+    else:
+        names = args.target or list(REGISTRY)
     unknown = [n for n in names if n not in REGISTRY]
     if unknown:
         parser.error(f"unknown target(s): {', '.join(unknown)}")
