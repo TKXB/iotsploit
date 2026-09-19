@@ -357,6 +357,22 @@ def test_an_oversized_payload_is_refused_before_it_is_laid_out():
     assert time.monotonic() - started < 1.0
 
 
+def test_a_non_numeric_factor_is_refused_rather_than_handed_to_cantools():
+    """Found by fuzzing. ``decode_frame`` promises it never raises, and a
+    definition whose factor arrived as text broke that promise from inside
+    cantools -- which raises TypeError, and TypeError is not what
+    ``decode_frame`` catches."""
+    definition = FrameDefinition(
+        bus_id="b", frame_id=0x123, is_extended=False, name="F", dlc=8,
+        signals=(SignalDefinition(name="S", start_bit=0, length=16, factor="Gear"),),
+    )
+
+    decoded = decode_frame(definition, bytes(8))
+
+    assert decoded.ok is False
+    assert "non-numeric factor" in decoded.reason
+
+
 def test_can_fd_keeps_its_sixty_four_bytes():
     """The bound is the protocol's, not a round number: classic CAN stops at
     8 and CAN FD at 64."""

@@ -153,7 +153,7 @@ def run(
     monitor = BoundaryMonitor(store, identity, generator=generator, emit=event_callback)
     record = manifest(
         target, harness, campaign=identity, seed=seed,
-        mutator="radamsa" if radamsa is not None else f"builtin/{seed}",
+        mutator=f"radamsa/{seed}" if radamsa is not None else f"builtin/{seed}",
         iterations=iterations,
     )
 
@@ -204,6 +204,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--root", default=str(DEFAULT_CORPUS_ROOT))
     parser.add_argument("--replay", action="store_true", help="corpus only, no generation")
     parser.add_argument("--rebaseline", action="store_true", help="adopt a changed oracle")
+    parser.add_argument(
+        "--radamsa", action="store_true",
+        help="mutate with radamsa instead of the built-in mutator. Reads the "
+             "shape of its input, so far more mutants survive to reach the "
+             "parser; needs the binary on PATH",
+    )
     parser.add_argument("--list", action="store_true", help="print the registry and exit")
     parser.add_argument(
         "--adapter",
@@ -254,6 +260,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     if unknown:
         parser.error(f"unknown target(s): {', '.join(unknown)}")
 
+    radamsa = None
+    if args.radamsa:
+        from ..generators.radamsa_generator import RadamsaGenerator
+
+        try:
+            radamsa = RadamsaGenerator(seed=args.seed)
+        except RuntimeError as error:
+            parser.error(f"{error}. Build it from https://gitlab.com/akihe/radamsa")
+
     failed = False
     for name in names:
         target = REGISTRY[name]
@@ -267,7 +282,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             report = run(
                 target, iterations=args.iterations, root=args.root,
-                seed=args.seed, rebaseline=args.rebaseline,
+                seed=args.seed, rebaseline=args.rebaseline, radamsa=radamsa,
             )
         except (StaleLedgerError, WorkerStartupError) as error:
             print(f"{name:32} SKIPPED: {error}")

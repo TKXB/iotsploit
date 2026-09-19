@@ -75,7 +75,9 @@ class _Worker:
                 "--adapter", target.adapter,
                 "--declared", ",".join(target.declared),
                 "--memory-mb", str(target.memory_mb),
-                "--output-kb", str(target.output_kb),
+                # Room for the payload itself plus whatever the target writes
+                # from it; the reply channel is capped separately, in _pump.
+                "--scratch-kb", str(max(target.output_kb, target.payload_max_bytes // 256)),
                 "--cpu-seconds", str(cpu_seconds),
             ],
             stdin=subprocess.PIPE,

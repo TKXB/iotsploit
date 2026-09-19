@@ -1,0 +1,27 @@
+date Mon Jan 1 00:00:00 2024
+base hex timestamps absolute
+Begin Triggerblock M""on Jan 1 00:00:00 2024
+base hex timestamps absolute
+Begin Triggerblock M""on Jan 1 00:00:00 2024
+00 2024
+00 2024
+00 2024
+00 2024
+00 2024
+00 2024
+00 2024
+00 2024
+   26452403606506901211414313.000100 1  123             Rx   d 8 11 22 12268274536891905 0 55 65 77 88
+   0.000200 1  1FFFFFFFx       Rx   d 3 AA BB
+00 2024
+00 2024
+00 2024
+00 2024
+00 0
+00 2024
+00 2024
+00 2024
+00 1
+   26452403606506901211414313.000100 1  123             Rx   d 8 11 22 123             Rx   d 8 11 22 12268274536891905 0 55 65 77 88
+   0.000200 1  1FFFFFFFx       Rx   d 3 AA BB
+End TriggerBlock

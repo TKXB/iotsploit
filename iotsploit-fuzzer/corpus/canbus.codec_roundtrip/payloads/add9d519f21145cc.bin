@@ -1,1 +1,0 @@
-{"definition": {"bus_id": "bus-1", "frame_id": 21000000000000000000, "is_extended": false, "name": "Engintus", "dlc": 8, "signals": [{"name": "Speed", "start_bit": 0, "length": 16, "factor": 0.1}, {"name": "Gear", "start_bit": 16, "length": 4}]}, "values": {"Speed": 12.8, "Gear": 3}}

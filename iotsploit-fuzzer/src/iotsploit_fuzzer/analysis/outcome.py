@@ -22,7 +22,7 @@ from typing import Any, Dict
 #: target's fingerprint, because a signature computed by one version of this
 #: module is not comparable with one computed by another -- and a ledger
 #: compared across that line reports every entry as a boundary movement.
-OUTCOME_VERSION = 6
+OUTCOME_VERSION = 8
 
 #: The parser returned a value.
 ACCEPT = "accept"
@@ -49,6 +49,16 @@ _MAX_REASON = 80
 #: *which* rejection this is.
 _MAX_WORDS = 8
 
+#: Characters of the message scrubbed at all. Only the first few words survive,
+#: so reading further buys nothing -- and a parser that quotes its input puts
+#: the whole payload in the message, which is how a 79 KB exception took 36
+#: seconds to normalise and was reported as the target timing out.
+_MAX_SCRUBBED = 2000
+
+#: Characters kept from the end of a long message, so the clause after the
+#: quoted input survives the clip.
+_MAX_TAIL = 200
+
 # Applied in this order: paths first, then the quoted span, then the numbers
 # that would otherwise survive inside what is left.
 #
@@ -60,7 +70,11 @@ _MAX_WORDS = 8
 # at worst, and over-merging costs resolution while under-merging costs the
 # whole corpus.
 _SCRUB = (
-    (re.compile(r"[\w./\\-]*[/\\][\w./\\-]*"), " "),
+    # Anchored on the separator rather than around it. The obvious spelling,
+    # ``[\w./\\-]*[/\\][\w./\\-]*``, lets the leading class consume a run that
+    # contains no separator at all and then backtrack one character at a time
+    # looking for one, which is quadratic in the length of the run.
+    (re.compile(r"[\w.-]*(?:[/\\][\w.-]*)+"), " "),
     (re.compile(r"['\"].*['\"]", re.DOTALL), " "),
     (re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-fx]{2,}\b"), " "),
     (re.compile(r"\b\d[\d_.]*\b"), " "),
@@ -85,7 +99,7 @@ def normalize_reason(message: str, payload: bytes = b"") -> str:
     first few whole words, since an error names its invariant before it
     quotes what violated it.
     """
-    text = (message or "").strip().lower()
+    text = _clip(message).strip().lower()
     for pattern, replacement in _SCRUB:
         text = pattern.sub(replacement, text)
     echoed = payload.decode("latin-1").lower()
@@ -94,13 +108,38 @@ def normalize_reason(message: str, payload: bytes = b"") -> str:
         # ``str(KeyError("x"))`` is ``"'x'"`` -- the whole message is quoted,
         # so scrubbing leaves nothing. Fall back to the raw text: dropping the
         # words the payload echoes is what keeps it stable, not the quoting.
-        words = _keep((message or "").lower(), echoed)
+        words = _keep(_clip(message).lower(), echoed)
     return " ".join(words[:_MAX_WORDS])[:_MAX_REASON]
 
 
+def _clip(message: str) -> str:
+    """Head and tail, never the middle.
+
+    An error that quotes its input puts the payload between the clause naming
+    the invariant and the clause naming what was expected. Taking only a
+    prefix drops the second one, which splits one rejection into a short-input
+    signature and a long-input signature.
+    """
+    raw = message or ""
+    if len(raw) <= _MAX_SCRUBBED:
+        return raw
+    return raw[: _MAX_SCRUBBED - _MAX_TAIL] + " " + raw[-_MAX_TAIL:]
+
+
 def _keep(text: str, echoed: str) -> list:
-    """Whole words that did not come from the input that provoked them."""
-    return [w for w in _WORD.findall(text) if len(w) < 3 or w not in echoed]
+    """Whole words that did not come from the input that provoked them.
+
+    Length is not a reason to keep one. Short words were exempted so that an
+    ordinary "is" or "be" could not be dropped by a payload that happened to
+    contain it -- but a two-letter fragment of the payload is exactly what
+    leaks through, and ``invalid host or cidr ss ss`` became two hundred
+    distinct reasons for one rejection.
+
+    Both mistakes are possible and they are not equally bad: dropping a real
+    word merges two reasons, keeping a payload fragment splits one into
+    hundreds. A bounded corpus prefers the merge.
+    """
+    return [w for w in _WORD.findall(text) if w not in echoed]
 
 
 #: Fields of a returned record that reach the signature, in declaration order

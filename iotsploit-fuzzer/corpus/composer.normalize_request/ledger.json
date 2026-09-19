@@ -1,668 +1,596 @@
 {
   "ledger_version": 1,
   "target": "composer.normalize_request",
-  "fingerprint": "d6950acbda637a0a",
-  "updated": "2026-09-19T06:28:34+00:00",
+  "fingerprint": "84f5f3e8246dd466",
+  "updated": "2026-09-19T10:31:30+00:00",
   "entries": {
     "000af0fd753264a5": {
       "signature": "accept|||dict[tens]<bool,dict[1],none>|",
       "kind": "accept",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "01b081640cbb8a04": {
+    "047f6dc8e878a809": {
+      "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "074b34507de67bab": {
+      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
+      "kind": "accept",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "reject|RequestError|no request supplied||"
+    },
+    "0cb43102770d68b5": {
+      "signature": "reject|RequestError|request is not valid json extra data line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "0d8747425f028940": {
+      "signature": "reject|RequestError|request is not valid json expecting property name||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "1551b18d6e74665b": {
       "signature": "accept|||dict[tens]<bool,dict[0],none>|",
       "kind": "accept",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "01f5c89e89f7cdb2": {
-      "signature": "reject|RequestError|request frame_id is required||",
+    "160c8ccfc9e4f669": {
+      "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "024c37a2d8e1e02d": {
-      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
+    "164c039a5a484d89": {
+      "signature": "reject|RequestError|request bus_id is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "097dea0c346583f0": {
-      "signature": "reject|RequestError|request must be an object naming the and||",
-      "kind": "reject",
-      "first_seen": "20260919T022624Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "0a8ff1d45dd39d02": {
-      "signature": "reject|RequestError|request is not valid json exceeds the limit||",
-      "kind": "reject",
-      "first_seen": "20260919T062351Z",
-      "edge_of": ""
-    },
-    "0affb30902450529": {
-      "signature": "reject|RequestError|request frame must be an object naming the||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "0c78dacd775d5414": {
+    "1871be138439bfcd": {
       "signature": "reject|RequestError|request is not valid json invalid control character||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "0f315bcaccb07e1e": {
-      "signature": "reject|RequestError|must be||",
+    "19ea5261b41fdadf": {
+      "signature": "reject|RequestError|request must be an object naming the bus||",
       "kind": "reject",
-      "first_seen": "20260919T022343Z",
+      "first_seen": "20260919T103127Z",
       "edge_of": ""
     },
-    "160709c608726d82": {
-      "signature": "reject|RequestError|request is not valid json expecting property enclosed||",
+    "1a21303be71f87d8": {
+      "signature": "reject|RequestError|request frame must be an object naming the||",
       "kind": "reject",
-      "first_seen": "20260919T022750Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "171c9aadaed64c5a": {
-      "signature": "reject|RequestError|request is not number||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "1ed440521160da94": {
-      "signature": "reject|RequestError|request frame_id is required||",
+    "1b04ec2735e8f314": {
+      "signature": "reject|RequestError|request bus_id is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
     },
-    "2284c0930420820c": {
+    "1c50ef008d34d147": {
+      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
+      "kind": "accept",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "1d2ac905135697f7": {
       "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "23f4ba705986f091": {
-      "signature": "reject|RequestError|must be||",
-      "kind": "reject",
-      "first_seen": "20260919T022624Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "219985b08e204d40": {
+      "signature": "reject|RequestError|request must be an object naming the and||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "23c4b6bf0506032b": {
+      "signature": "reject|RequestError|request is not valid json extra data line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
     },
     "2408ce21d947dbdd": {
       "signature": "reject|RequestError|unsupported request this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "2810eee1d6d46c84": {
+      "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "249994bf6895f181": {
+    "28d29b7a5f03c48b": {
+      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
+      "kind": "accept",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "reject|RequestError|no request supplied||"
+    },
+    "2a3b54062a625809": {
+      "signature": "reject|RequestError|request bus_id is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "2ac33b975a86e371": {
+      "signature": "reject|RequestError|request is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "2fac8203c7c810ff": {
+      "signature": "reject|RequestError|request is not number||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "30f2d9356ed66947": {
       "signature": "reject|RequestError|request is not valid json unterminated string starting||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "24fe735a7c5b6e06": {
-      "signature": "reject|RequestError|request is not valid json expecting property name||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "2529d80cc9c7f0be": {
-      "signature": "reject|RequestError|request is not valid json exceeds the limit||",
-      "kind": "reject",
-      "first_seen": "20260919T062351Z",
-      "edge_of": ""
-    },
-    "282c4901bdbdfeae": {
-      "signature": "reject|RequestError|request must be an object naming the and||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "2f5b48a6defcf4f7": {
-      "signature": "reject|RequestError|request frame must be an object naming the||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "3092e3e19e7ea369": {
-      "signature": "reject|RequestError|request is not valid json extra data line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "33d134f61c48cf76": {
+    "31b88dfc36f86c8f": {
       "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "3444e3e2ff6026a6": {
-      "signature": "reject|RequestError|request is not valid json expecting property name||",
+    "32fa359e8ffb8aa0": {
+      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "3e3088e48259a421": {
-      "signature": "reject|RequestError|request is not valid json expecting property name||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
+    },
+    "34badfac588b6002": {
+      "signature": "reject|RequestError|request must be an object naming the and||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "36b47a736e281a68": {
+      "signature": "reject|RequestError|must be||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "399a31c97b5c7460": {
+      "signature": "reject|RequestError|request is not valid json expecting property name||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "3a996f6cd7c8add1": {
+      "signature": "reject|RequestError|request is not valid json invalid control character||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "3c98072f587bbe17": {
+      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "3fcb20b0ea16d5ac": {
+      "signature": "reject|RequestError|request bus_id is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
     "44136fa355b3678a": {
       "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "442ed528fd065764": {
-      "signature": "reject|RequestError|request bus_id is required||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "45bc22947b21ad09": {
-      "signature": "reject|RequestError|request is not valid json extra data line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "47555107179db3a6": {
-      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "4b505aaf436d616c": {
-      "signature": "reject|RequestError|request is required||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "4f53cda18c2baa0c": {
-      "signature": "reject|RequestError|request must be an object or json object||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "4fb85f8ad26af87a": {
-      "signature": "reject|RequestError|must be not||",
-      "kind": "reject",
-      "first_seen": "20260919T062259Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
     "507ae6b58b61bd4e": {
       "signature": "accept|||dict[tens]<bool,dict[0],none>|",
       "kind": "accept",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "reject|RequestError|no request supplied||"
-    },
-    "53b523ca80a4b43a": {
-      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "57624b90f6919428": {
-      "signature": "reject|RequestError|request is not valid json expecting property enclosed||",
+    "561a97817a8e3882": {
+      "signature": "reject|RequestError|request must be an object or json object||",
       "kind": "reject",
-      "first_seen": "20260919T062351Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "5799a5b3e80129ed": {
-      "signature": "reject|RequestError|request is not valid json extra data line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "5a58aa0c81c434f4": {
-      "signature": "reject|RequestError|request is not number||",
+    "5b2140a44194a559": {
+      "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
       "kind": "reject",
-      "first_seen": "20260919T022624Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "5b9619d8889e06ad": {
+      "signature": "reject|RequestError|unsupported request this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
-    "5d81857b9af2ef2f": {
-      "signature": "reject|RequestError|must be||",
+    "5c4f82cf3cfaf21c": {
+      "signature": "reject|RequestError|unsupported request this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T022343Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "5c7df63ddfc79054": {
+      "signature": "reject|RequestError|request is not valid json extra data line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
     "5feceb66ffc86f38": {
       "signature": "reject|RequestError|request must be an object or json object||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "653e4f8c410ecd73": {
-      "signature": "reject|RequestError|request must be an object naming the bus||",
+    "6207c5c7d657ef3e": {
+      "signature": "reject|RequestError|request is not valid json expecting value line||",
       "kind": "reject",
-      "first_seen": "20260919T022624Z",
-      "edge_of": ""
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
-    "685791dea465c8b2": {
+    "62494d06893f32f1": {
       "signature": "reject|RequestError|request frame_id is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "6a4642c8c5a4872c": {
-      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "6ddb770a5e0fc08c": {
-      "signature": "reject|RequestError|request is not valid json expecting property enclosed||",
+    "64c0b5f7c62fb4b7": {
+      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
+      "kind": "accept",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "656163fb7e7cef31": {
+      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
       "kind": "reject",
-      "first_seen": "20260919T022624Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "66daca1b0d0dcbab": {
+      "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "676d20265144352d": {
+      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
+      "kind": "reject",
+      "first_seen": "20260919T103127Z",
+      "edge_of": ""
+    },
+    "6c8f91c911c912fe": {
+      "signature": "reject|RequestError|request is not valid json expecting value line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
     "6e340b9cffb37a98": {
       "signature": "reject|RequestError|request is not valid json expecting value line||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "70e671eeeeb21ee6": {
-      "signature": "reject|RequestError|request is not valid json expecting property name||",
+    "74234e98afe7498f": {
+      "signature": "reject|RequestError|request must be an object or json object||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "784bafe5a39a85cc": {
-      "signature": "reject|RequestError|unsupported request this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "78ddd13126fff707": {
-      "signature": "reject|RequestError|request is not valid json expecting property name||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "7a4e4dd006d2b36d": {
-      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "7cb1232a125e3291": {
-      "signature": "reject|RequestError|request is required||",
-      "kind": "reject",
-      "first_seen": "20260919T022750Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "7eb70257593da06f": {
-      "signature": "reject|RequestError|no request supplied||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "7fcb8c03c32da899": {
+    "8107749ec4a15042": {
       "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "831662e77017032d": {
-      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "842cabe05983c972": {
-      "signature": "reject|RequestError|request bus_id is required||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "846524adc511237a": {
-      "signature": "reject|RequestError|request is required||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "8a3c08c9c44c196d": {
-      "signature": "reject|RequestError|request must be an object naming the and||",
-      "kind": "reject",
-      "first_seen": "20260919T062259Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "8d6565a4a8f123e9": {
-      "signature": "reject|RequestError|request is required||",
-      "kind": "reject",
-      "first_seen": "20260919T022624Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "94da165c5e61ab5c": {
-      "signature": "reject|RequestError|unsupported request this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "95de5b057d9fb5d2": {
-      "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "96412be67ad0eb29": {
-      "signature": "reject|RequestError|request is required||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "9a0bfd1b26f7089e": {
+    "8314aebe14179501": {
       "signature": "reject|RequestError|must be||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "9c94d05cff327289": {
-      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T022624Z",
-      "edge_of": "reject|RequestError|request is not valid json extra data line||"
-    },
-    "9f98400e6c88d378": {
-      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
+    "8453d632ab8e1872": {
+      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
       "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "a09abd614cdd204a": {
-      "signature": "reject|RequestError|request is not valid json expecting value line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T103127Z",
       "edge_of": ""
     },
-    "a0d67d86baf59915": {
-      "signature": "reject|RequestError|request frame must be an object naming the||",
+    "8affe07494d5cc28": {
+      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "a2983b773f22e861": {
-      "signature": "reject|RequestError|request is not valid json invalid control character||",
+    "8d269799558c0c3e": {
+      "signature": "reject|RequestError|request is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "a470b133c0df715c": {
-      "signature": "reject|RequestError|request is not valid json expecting property enclosed||",
+    "902b2c303fb1f1b5": {
+      "signature": "reject|RequestError|must be||",
       "kind": "reject",
-      "first_seen": "20260919T022343Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "a78cbbc61fbb3127": {
-      "signature": "reject|RequestError|request is not valid json invalid control character||",
+    "93773295b919cd79": {
+      "signature": "reject|RequestError|request is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "96fefc2a4525b456": {
+      "signature": "reject|RequestError|request must be an object naming the and||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
-    "a80107c71901fa45": {
-      "signature": "reject|RequestError|request must be an object naming the bus||",
-      "kind": "reject",
-      "first_seen": "20260919T022624Z",
-      "edge_of": ""
-    },
-    "a98e540f236acda7": {
-      "signature": "reject|RequestError|request must be an object naming the and||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "aa8b3ac4450a6449": {
-      "signature": "reject|RequestError|request is not valid json expecting property enclosed||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "af2ce626df2dd815": {
-      "signature": "reject|RequestError|request must be an object naming the and||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "b04749c92eb65f39": {
+    "988c9bacb3694f5e": {
       "signature": "reject|RequestError|unsupported request this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "b0a89ba6d7fa309b": {
-      "signature": "reject|RequestError|request is not number||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "b1c58d9dd10e0dd4": {
-      "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
+    "9b94a0189bf818b5": {
+      "signature": "reject|RequestError|request is not valid json expecting property name||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "b4363c9921fc2a6e": {
-      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "b579a4e4996e59da": {
-      "signature": "reject|RequestError|request is not valid json expecting value line||",
+    "9c8d0d8dc8633ab1": {
+      "signature": "reject|RequestError|no request supplied||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "ba532c1224de69ac": {
-      "signature": "reject|RequestError|request is not valid json extra data line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "bb42348b9d4dc854": {
-      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "c05a590889bdc0c9": {
-      "signature": "reject|RequestError|request must be an object naming the bus||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "c27609704f6a0b02": {
-      "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "c58142640ed6c034": {
-      "signature": "reject|RequestError|must be not||",
-      "kind": "reject",
-      "first_seen": "20260919T062016Z",
-      "edge_of": ""
-    },
-    "c6e9ae6d5fa61243": {
+    "9fe7b373382dd99b": {
       "signature": "reject|RequestError|request frame_id is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "c7f6d27a5d1fe5c0": {
-      "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
+    "a8b84843785764cd": {
+      "signature": "reject|RequestError|request is not number||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
-    "c8aa77822cca5543": {
-      "signature": "reject|RequestError|request bus_id is required||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "cb3082fd9679e10e": {
-      "signature": "reject|RequestError|unsupported request this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "cd359dfbe4c66056": {
-      "signature": "reject|RequestError|request is not valid json expecting value line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "cee80b70115d4d7b": {
-      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T022343Z",
-      "edge_of": "reject|RequestError|must be||"
-    },
-    "d4d85f5df011a57c": {
+    "ad6ee2e6448fc128": {
       "signature": "reject|RequestError|request is not valid json invalid control character||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "b758dd38c0c14c6b": {
+      "signature": "reject|RequestError|request is not valid json expecting property name||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "b949cbe43b80bbda": {
+      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "ba75da3ae0a1b1c7": {
+      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "baa0209253ee7672": {
+      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "bb2692730a14458c": {
+      "signature": "reject|RequestError|request is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "bbc099a024c2352f": {
+      "signature": "reject|RequestError|request bus_id is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "bd20671a40a837b2": {
+      "signature": "reject|RequestError|request frame must be an object naming the||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "c0fbe560b8b273a6": {
+      "signature": "reject|RequestError|request bus_id required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "c1c52e99081ba42a": {
+      "signature": "reject|RequestError|request is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "c2e662e65b50813c": {
+      "signature": "reject|RequestError|request is not valid json expecting property name||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "c3dd2737c001d6c8": {
+      "signature": "reject|RequestError|request frame_id is required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "c7cc98721b2cd159": {
+      "signature": "reject|RequestError|request must be an object naming the and||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "cdfdff80f85e1135": {
+      "signature": "reject|RequestError|request must be an object naming the and||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "d0b015ffb55c2779": {
+      "signature": "reject|RequestError|request is not valid json extra data line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "d10b36aa74a59bcf": {
+      "signature": "reject|RequestError|request is not valid json expecting value line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
     "d5b592c05dc25b50": {
-      "signature": "reject|RequestError|request must be an object or json object||",
+      "signature": "reject|RequestError|request must be object or json object string||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "d7b7e489a42fe366": {
+    "d6250f7e0319f980": {
       "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
-    "d7bc12d26570a398": {
-      "signature": "reject|RequestError|request is not valid json invalid control character||",
+    "d8a2cfca2fad782d": {
+      "signature": "reject|RequestError|must be||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
-    "d92be104eec670f9": {
+    "d8ce4031aa4f5c98": {
       "signature": "reject|RequestError|request frame_id is required||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "daa8ed09ea4c9dc4": {
-      "signature": "reject|RequestError|request bus_id is required||",
+    "d9e7265e3556a7ff": {
+      "signature": "reject|RequestError|request frame_id is required||",
       "kind": "reject",
-      "first_seen": "20260919T022624Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
-    "dafd865df2698ae5": {
-      "signature": "reject|RequestError|request must be an object naming the bus||",
+    "de0178ce5e6c53ad": {
+      "signature": "reject|RequestError|request is not valid json invalid control character||",
       "kind": "reject",
-      "first_seen": "20260919T022624Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
-    "dcff23f6cdad0d40": {
+    "e11757c2f051fb2a": {
       "signature": "reject|RequestError|request is not valid json exceeds the limit||",
       "kind": "reject",
-      "first_seen": "20260919T062259Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "df1d431d902b0291": {
-      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "dfb23411a6872447": {
-      "signature": "reject|RequestError|no request supplied||",
+    "e13e9da6d586c188": {
+      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
+    },
+    "e151dfb87508da83": {
+      "signature": "reject|RequestError|request is not valid json expecting value line||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
     "e3b0c44298fc1c14": {
       "signature": "reject|RequestError|no request supplied||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "e442338cb4aea816": {
+      "signature": "reject|RequestError|request is not number||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
     "e4b4badfc7819859": {
       "signature": "reject|RequestError|request is not number||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "e54b8490ac6da95d": {
-      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
+    "e6c767aaabb678ed": {
+      "signature": "reject|RequestError|no request supplied||",
       "kind": "reject",
-      "first_seen": "20260919T022343Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": ""
     },
-    "e7ca6f984139772f": {
-      "signature": "reject|RequestError|request is not valid json expecting value line||",
+    "e78cbb7d34f1fd16": {
+      "signature": "reject|RequestError|request is not valid json invalid control character||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "e9c6cfcaa0b61381": {
-      "signature": "reject|RequestError|must be not||",
-      "kind": "reject",
-      "first_seen": "20260919T022750Z",
-      "edge_of": ""
-    },
-    "ee03ea3c53af8f34": {
-      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T022343Z",
-      "edge_of": "reject|RequestError|request bus_id is required||"
-    },
-    "f01507184fe7ce8f": {
-      "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "f508dbe3160d91d1": {
-      "signature": "reject|RequestError|must be not||",
-      "kind": "reject",
-      "first_seen": "20260919T062259Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "f764ff75a163b74a": {
-      "signature": "reject|RequestError|request frame must be an object naming the||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
-      "edge_of": ""
-    },
-    "fa2cb8706997d0ae": {
-      "signature": "reject|RequestError|request bus_id is required||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "fcf734c287f8d837": {
-      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": ""
-    },
-    "fd61a131ff24a05e": {
-      "signature": "reject|RequestError|request frame must be an object naming the||",
-      "kind": "reject",
-      "first_seen": "20260919T022343Z",
+      "first_seen": "20260919T102739Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
-    "ff02aff454b321df": {
-      "signature": "reject|RequestError|request is not valid json unterminated string starting||",
-      "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    "e96efd62afd2dc17": {
+      "signature": "accept|||dict[tens]<bool,dict[1],none>|",
+      "kind": "accept",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
     },
-    "ffb8479f328eca71": {
+    "ee09b6a4a5629959": {
       "signature": "reject|RequestError|request is not valid json extra data line||",
       "kind": "reject",
-      "first_seen": "20260919T021535Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "f50944b6a8faa220": {
+      "signature": "reject|RequestError|request must be an object naming the bus||",
+      "kind": "reject",
+      "first_seen": "20260919T103127Z",
+      "edge_of": ""
+    },
+    "f625c2680712f7ba": {
+      "signature": "reject|RequestError|unsupported request none this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "f63c6dfd97fce3b3": {
+      "signature": "reject|RequestError|unsupported request this plugin speaks||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "f6cba65b4e233e16": {
+      "signature": "reject|RequestError|request frame must be an object naming the||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
+    },
+    "f9144c3e33ec21a8": {
+      "signature": "reject|RequestError|request bus_id required||",
+      "kind": "reject",
+      "first_seen": "20260919T102739Z",
+      "edge_of": ""
     }
   }
 }

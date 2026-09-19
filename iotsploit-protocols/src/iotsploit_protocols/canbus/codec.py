@@ -77,6 +77,20 @@ def _check_fits_a_frame(definition: FrameDefinition) -> None:
                 f"frame {definition.name!r} places signal {signal.name!r} at bit "
                 f"{start!r} length {length!r}, outside its {bits}-bit payload"
             )
+        # The conversion fields are checked here for the same reason as the
+        # layout: cantools raises its own TypeError for a non-numeric scale,
+        # and TypeError is not what decode_frame catches -- so a definition
+        # whose factor arrived as text escaped a function that promises never
+        # to raise at all.
+        for field in ("factor", "offset", "minimum", "maximum"):
+            value = getattr(signal, field, None)
+            if value is None and field in ("minimum", "maximum"):
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise CanDefinitionError(
+                    f"frame {definition.name!r} signal {signal.name!r} has a "
+                    f"non-numeric {field} {value!r}"
+                )
 
 
 def build_message(definition: FrameDefinition) -> Message:

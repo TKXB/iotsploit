@@ -1,0 +1,15 @@
+date Mon Jan 1 00:00:00 0
+base hex timestamp 
+End TriggerBlo0 2024
+btasseoBulegin Triggerblock Mon Jan 2 00:00:00 2024
+   0.000100 0  123             Rx   d 0 11 22 33 44 -9 66 77 88
+   0.000100 0  123             Rx   d 0 11 22 33 44 -9 66 77 88
+   0.000100 2147483649  123             Rx   d 247 11 22 33 44 55 66 77 0
+   0.000200 1  1FFFFFFFx       Rx   d 2 AA BB
+End TriggerBlo0 2024
+   0.000100 1  123             Rx   d 0 -8 22 33 44 55 66 77 88
+   0.000200 1  1FFFFFFFx       Rx   d 340282366920938463463374607431768211456 AA BB
+End TriggerBlo9223372036854775808 2024
+   0.000100 1  123             Rx   d 8 2 22 33 44 55 66 77 0
+   0.000200 1  1FFFFFFFx       Rx   d 5 AA BB
+End TriggerBlock

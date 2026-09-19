@@ -1,6 +1,0 @@
-gan 1 00:00:00 2024
-   0.000100 1  123             Rx   d 8 11 22 33 44 55 66 """"""""""""""77 88
-   0.00020Begin Triggerblock Mon Jan 1 00:00:0on Jan 1 00:00:0on Jan 1 00:00:0on Jan 1 00:00:0on Jan 1 00:00:0on Jan 1 00:00:0on Jan 1 00:00:0on Jan 1 00:00:0on -1-1-1-1Jan 1 00:00:01 2024
-   1.65536 1  123             Rx   d 8 11 22 33 44 55 66 77 88
-   0.000200 1  1FFFFFFFx       Rx   d 2 AA BB
-End TriggerBlock

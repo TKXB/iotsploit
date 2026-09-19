@@ -102,6 +102,52 @@ poetry run python -m iotsploit_fuzzer.core.parser_campaign \
 Re-baselining keeps the payloads -- they are the expensive part -- and drops
 only the claim about what they do, which the next campaign re-derives.
 
+### Two mutators, and when to use which
+
+The built-in mutator is byte-level and seeded: bit flips, span deletes and
+duplicates, splices between seeds, and a digit-run replacement aimed at the
+"0-7 becomes 0-10000000" class of defect. It is the default because it is
+deterministic and costs about 0.01 ms per mutant.
+
+`--radamsa` uses [radamsa](https://gitlab.com/akihe/radamsa) instead, when the
+binary is on `PATH`:
+
+```bash
+poetry run python -m iotsploit_fuzzer.core.parser_campaign --radamsa --iterations 2000
+```
+
+radamsa reads the *shape* of its input, so a mutated JSON document is usually
+still JSON. Measured on this registry, at 2000 mutants per target:
+
+| Target | built-in skip rate | radamsa skip rate |
+|--------|-------------------|-------------------|
+| `canbus.decode_frame` | 92.8% | **54.5%** |
+| `canbus.from_target` | 90.0% | **76.2%** |
+| `django.parse_dbc` | **7.5%** | 23.4% |
+| `exploits.nmap_grepable` | **7.0%** | 21.6% |
+
+Skipped means the adapter could not build an input at all, so the parser never
+ran. radamsa is far better on the structured targets and *worse* on the text
+ones, where it injects invalid UTF-8 more freely than the byte mutator does.
+It also found more distinct behaviours on the text targets anyway.
+
+They are complementary, and the reason to keep both is not hedging: the two
+found different defects. radamsa builds deep nesting and long repetitions that
+a byte mutator reaches only by accident, which is how the `RecursionError` in
+the frame composer's JSON entry point was found. The built-in mutator's
+`_bump_number` targets a class radamsa spreads its effort over.
+
+The cost is real. radamsa spawns a process per batch and its cost scales with
+input size, which on a grown corpus is **~75 ms per mutant against 0.01 ms**.
+Its mutants also inflate: left alone they grow until they hit
+`payload_max_bytes`. Run it with a smaller `--iterations` than the built-in,
+and expect a nightly radamsa pass to take minutes rather than seconds.
+
+`--seed` is passed to radamsa's own `-s`, so a radamsa campaign reproduces
+exactly and the manifest's `mutator: radamsa/<seed>` is a real record. Lineage
+is preserved too -- the generator drives one parent at a time rather than
+handing radamsa the whole pool, so edge retention still works.
+
 ### The nightly run
 
 `tools/testing/nightly-parser-fuzz.sh` runs one campaign against every target

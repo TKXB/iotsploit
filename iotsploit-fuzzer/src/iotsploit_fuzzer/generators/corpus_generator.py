@@ -100,11 +100,25 @@ class CorpusGenerator(DataGenerator):
     def _radamsa(self, pool: List[bytes], total: int) -> Iterator[bytes]:
         """Delegate the bytes, keep the bookkeeping.
 
-        radamsa does not say which seed a mutant came from, so the parent link
-        -- and with it edge retention -- is not available in this mode.
+        Driven one parent at a time rather than handing radamsa the whole
+        pool. Given every seed at once it picks among them and does not say
+        which it chose, so the lineage -- and with it edge retention, the rule
+        that keeps both sides of an accept/reject crossing -- would be lost
+        for the mode that most needs it.
         """
-        for child in self.radamsa.generate(pool, total):
-            yield child[: self.max_payload]
+        produced = 0
+        while produced < total:
+            parent = self._random.choice(pool)
+            batch = self.radamsa.mutate(parent, min(self.radamsa.batch, total - produced))
+            if not batch:
+                return
+            for child in batch:
+                child = child[: self.max_payload]
+                self._parents[payload_id(child)] = payload_id(parent)
+                yield child
+                produced += 1
+                if produced >= total:
+                    return
 
     # -- lineage -----------------------------------------------------------
 

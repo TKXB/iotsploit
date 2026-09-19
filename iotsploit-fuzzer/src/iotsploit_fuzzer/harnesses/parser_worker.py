@@ -53,19 +53,25 @@ def resolve(dotted: str) -> Any:
     return getattr(importlib.import_module(module), attribute)
 
 
-def apply_limits(memory_mb: int, output_kb: int, cpu_seconds: int) -> None:
+def apply_limits(memory_mb: int, scratch_kb: int, cpu_seconds: int) -> None:
     """Hand the kernel the budget, after the imports the setup needs.
 
     Applied after resolution on purpose: the limit is on the parse, not on
     loading cantools. The CPU ceiling is cumulative and generous -- it exists
     for the orphaned case, where the controller died and nothing else will
     ever stop this process.
+
+    ``scratch_kb`` bounds files rather than the reply channel, and the two are
+    not the same number. An adapter that hands its target a path has to write
+    the payload down first, so sizing this from the reply cap made a large
+    payload fail inside the adapter with ``[Errno 27] File too large`` --
+    reported as the target violating its contract, which it had not.
     """
     if resource is None:
         return
     for name, limit in (
         ("RLIMIT_AS", memory_mb * 1024 * 1024),
-        ("RLIMIT_FSIZE", output_kb * 1024),
+        ("RLIMIT_FSIZE", scratch_kb * 1024),
         ("RLIMIT_CPU", cpu_seconds),
         ("RLIMIT_CORE", 0),
     ):
@@ -139,7 +145,7 @@ def main(argv: Any = None) -> int:
     parser.add_argument("--adapter", required=True, help="module:function")
     parser.add_argument("--declared", default="", help="comma-separated module:Exception")
     parser.add_argument("--memory-mb", type=int, default=768)
-    parser.add_argument("--output-kb", type=int, default=256)
+    parser.add_argument("--scratch-kb", type=int, default=4096)
     parser.add_argument("--cpu-seconds", type=int, default=600)
     args = parser.parse_args(argv)
 
@@ -151,7 +157,7 @@ def main(argv: Any = None) -> int:
 
     adapter = resolve(args.adapter)
     declared = tuple(resolve(name) for name in args.declared.split(",") if name)
-    apply_limits(args.memory_mb, args.output_kb, args.cpu_seconds)
+    apply_limits(args.memory_mb, args.scratch_kb, args.cpu_seconds)
 
     # The handshake separates a broken registry entry from a broken parser.
     # Without it, a target naming an exception that does not exist kills every
