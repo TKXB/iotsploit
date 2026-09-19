@@ -2,264 +2,264 @@
   "ledger_version": 1,
   "target": "canbus.codec_roundtrip",
   "fingerprint": "555e725462b96dea",
-  "updated": "2026-09-19T14:43:13+00:00",
+  "updated": "2026-09-19T15:38:55+00:00",
   "entries": {
     "004581376d93e3b0": {
       "signature": "reject|CanDefinitionError|has an unusable layout the and are overlapping||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "0065deba3fa0dc0a": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "01e3189ff6314cea": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "0f23a74a3890e602": {
       "signature": "reject|CanValueError|could not be encoded unsigned integer out of||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "135128a695f8dc5d": {
       "signature": "reject|CanValueError|convert negative int unsigned||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "1cb6c78ed5348908": {
       "signature": "reject|CanValueError|convert negative int unsigned||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "2c1a5d720e81695b": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "2faae41ee063439b": {
       "signature": "reject|CanValueError|could not be encoded int too big convert||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "35417f6125bd54de": {
       "signature": "reject|CanValueError|has no by this||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "39a9285344e05a23": {
       "signature": "reject|CanDefinitionError|outside its payload||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "3d0a2b572e962108": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[few],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "463d7745525f361c": {
       "signature": "reject|CanValueError|has no by this||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "501631a88bf79028": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[few],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "50872f11f6e40562": {
       "signature": "reject|CanDefinitionError|has an unusable layout standard more than bits||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "531535e1ae963b8d": {
       "signature": "reject|CanDefinitionError|has an unusable layout standard more than bits||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "53b582cf0a7d4a06": {
       "signature": "reject|CanValueError|could not be encoded int too big convert||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "561b83c39ba43fd7": {
       "signature": "reject|CanDefinitionError|has an unusable layout the and are overlapping||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "5a554103bed6a0c1": {
       "signature": "reject|CanDefinitionError|claims byte payload classic can carries most||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "5b601825eb90394c": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "5c39e19aeac52b3e": {
       "signature": "reject|CanValueError|could not be encoded float divmod||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "68b09cdf7f922f9f": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "7bb3b8dc6253b309": {
       "signature": "reject|CanDefinitionError|has an unusable layout the and are overlapping||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "8c0fc305ee5a9636": {
       "signature": "reject|CanDefinitionError|claims byte payload classic can carries most||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "8c1438012da3d9d5": {
       "signature": "reject|CanValueError|has no by this||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "8db1335ef251c4dc": {
       "signature": "reject|CanDefinitionError|has an unusable layout the and are overlapping||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "ada0ea4205f726b1": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "b51205567e7c9c0a": {
       "signature": "reject|CanDefinitionError|claims byte payload classic can carries most||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "bb9ab95954481d37": {
       "signature": "reject|CanValueError|convert negative int unsigned||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "bc4a62e50092fff1": {
       "signature": "reject|CanDefinitionError|outside its payload||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "be08cc3c2a6b4fdb": {
       "signature": "reject|CanValueError|could not be encoded unsigned integer out of||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "bea2d4fc9c5b5b01": {
       "signature": "reject|CanValueError|need attention||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "c293599491a8061e": {
       "signature": "reject|CanValueError|need attention||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "c6aacae36719e4da": {
       "signature": "reject|CanDefinitionError|has an unusable layout standard more than bits||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "caa0bd3e13b73160": {
       "signature": "reject|CanDefinitionError|outside its payload||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "d28bdbd6f9f9b0e6": {
       "signature": "reject|CanValueError|need attention||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "e256a019c012d27e": {
       "signature": "reject|CanValueError|has no by this||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "e3b7c1b3f71d3960": {
       "signature": "reject|CanDefinitionError|outside its payload||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "e6134e8bf7b7903b": {
       "signature": "reject|CanValueError|could not be encoded unsigned integer out of||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "ee98d5669a02bd0a": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[many],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "f17997dcb807c1ef": {
       "signature": "reject|CanValueError|need attention||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "f6e91d3270184779": {
       "signature": "reject|CanValueError|could not be encoded unsigned integer out of||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     },
     "fea98ea0a9cf134f": {
       "signature": "reject|CanDefinitionError|claims byte payload classic can carries most||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|"
     },
     "ff59884e01411080": {
       "signature": "reject|CanDefinitionError|has an unusable layout standard more than bits||",
       "kind": "reject",
-      "first_seen": "20260919T144307Z",
+      "first_seen": "20260919T153849Z",
       "edge_of": ""
     }
   }

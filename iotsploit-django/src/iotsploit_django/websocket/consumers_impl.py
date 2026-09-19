@@ -74,7 +74,12 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
             data = json.loads(text_data)
             if data.get('action') == 'get_status':
                 await self.send_task_status()
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
+            # Wider than JSONDecodeError on purpose. json.loads raises a plain
+            # ValueError for a number of more than 4300 digits and a
+            # RecursionError for a deeply nested document, and neither is a
+            # JSONDecodeError -- so both escaped this handler and took the
+            # socket with them, on text a client chooses.
             logger.error("Invalid JSON received")
 
     async def send_task_status(self):
@@ -165,7 +170,9 @@ class PluginExecutionConsumer(AsyncWebsocketConsumer):
         """
         try:
             data = json.loads(text_data)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
+            # See the note in the status consumer: a JSONDecodeError is not
+            # the only thing json.loads raises on text a client chooses.
             return
         if data.get("action") == "get_state":
             state = await self._state()
@@ -391,7 +398,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     )
                     await self.send(text_data=json.dumps(error_data.to_dict()))
                     
-        except json.JSONDecodeError as e:
+        except (ValueError, RecursionError) as e:
             error_data = StreamData(
                 stream_type=StreamType.CAN,
                 channel=self.channel,
@@ -518,7 +525,7 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
             elif message_type == 'unsubscribe_campaign':
                 await self.unsubscribe_from_campaign(data.get('campaign_id'))
                 
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
             await self.send(text_data=json.dumps({
                 'type': 'error',
                 'message': 'Invalid JSON format'
@@ -749,7 +756,7 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
             elif message_type == 'subscribe_logs':
                 await self.subscribe_to_logs(data.get('campaign_id'))
                 
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
             await self.send(text_data=json.dumps({
                 'type': 'error',
                 'message': 'Invalid JSON format'

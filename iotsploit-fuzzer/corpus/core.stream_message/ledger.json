@@ -1,0 +1,140 @@
+{
+  "ledger_version": 1,
+  "target": "core.stream_message",
+  "fingerprint": "b78c96291c5844c2",
+  "updated": "2026-09-19T15:41:32+00:00",
+  "entries": {
+    "1d32a53146d9f0d5": {
+      "signature": "reject|KeyError|channel||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "2b91597a681b55e7": {
+      "signature": "reject|ValueError|is not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "361ea7b78f63f052": {
+      "signature": "reject|ValueError|is not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "3813f993f29ef5a5": {
+      "signature": "reject|KeyError|channel||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "3c137a02954acef0": {
+      "signature": "reject|ValueError|is valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "44136fa355b3678a": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "5a08a0788bbc714a": {
+      "signature": "reject|ValueError|is not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "5cdb71443cc7f66f": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "60aebd13209a67ea": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "7681434eedc4495f": {
+      "signature": "reject|ValueError|is not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "7a8c80a3a6fe0a27": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "7f1d71eff401da73": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "8d5fa948058e3493": {
+      "signature": "reject|ValueError|is not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "a19493d067eeb02b": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "b2953b35a91a5546": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "c918eb82e0a02922": {
+      "signature": "reject|ValueError|is not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "cdb402b3a0583b34": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "df28f46de2b5d2bf": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "e0f26ffd106e5682": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "e2cec229112bed5f": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "f4f4647ee846cf89": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "f7a1e2334be2a980": {
+      "signature": "reject|KeyError|channel||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    }
+  }
+}

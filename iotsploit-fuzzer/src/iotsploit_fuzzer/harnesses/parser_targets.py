@@ -522,6 +522,99 @@ def resolve_facets(payload: bytes) -> Any:
     return target(_json_input(payload))
 
 
+
+# -- streaming --------------------------------------------------------------
+#
+# A stream message crosses a serialisation boundary twice on every hop: out to
+# Redis or a WebSocket as a dict, and back again. The interesting failures on
+# that path are not single-message crashes -- they are sequence and state, so
+# one of these targets fuzzes an ordered session rather than one input.
+
+
+def stream_message(payload: bytes) -> Any:
+    """`domain.stream.StreamData.from_dict`, and its round trip.
+
+    Every stream message is rebuilt by this from a dict that travelled through
+    Redis or a socket. It reads each key by subscript and puts three of them
+    through an Enum, so the contract it can hold is KeyError-free rejection --
+    and a message that does not survive ``from_dict(to_dict(m))`` is one that
+    arrives at the far end as something other than what was sent.
+    """
+    from iotsploit_core.domain.stream import StreamData
+
+    raw = _json_input(payload)
+    if not isinstance(raw, dict):
+        raise Skip("a stream message is an object")
+    message = StreamData.from_dict(raw)
+    again = StreamData.from_dict(message.to_dict())
+    if again.to_dict() != message.to_dict():
+        raise MetamorphicError("a stream message changed on its round trip")
+    return message
+
+
+def stream_session(payload: bytes) -> Any:
+    """An ordered session against the in-memory stream backend, run async.
+
+    The payload is a *sequence* of operations rather than one message, because
+    a streaming defect is almost never one bad frame -- it is a register that
+    never unregisters, a broadcast to a channel that is gone, a client queue
+    that grows without a reader. Fuzzing one message at a time cannot reach
+    any of those.
+
+    Run under ``asyncio.run`` in the worker, which is all it takes to fuzz
+    async code: the event loop is this process's problem, and this process is
+    the one we are willing to lose.
+
+    Three invariants are asserted at the end, all of them things the callers
+    of this backend assume:
+
+    * a channel registered and not unregistered is active
+    * a channel unregistered, or never registered, is not
+    * no channel is listed twice
+    """
+    import asyncio
+
+    from iotsploit_core.core.stream_manager import _NoopStreamBackend
+    from iotsploit_core.domain.stream import StreamData
+
+    operations = _json_input(payload)
+    if not isinstance(operations, list):
+        raise Skip("a session is a list of operations")
+
+    async def drive() -> Any:
+        backend = _NoopStreamBackend()
+        expected: set = set()
+        for step in operations[:200]:
+            if not isinstance(step, dict):
+                continue
+            action = str(step.get("op", ""))
+            channel = str(step.get("channel", ""))
+            if action == "register":
+                await backend.register_stream(channel)
+                expected.add(channel)
+            elif action == "unregister":
+                await backend.unregister_stream(channel)
+                expected.discard(channel)
+            elif action == "broadcast":
+                message = step.get("message")
+                if isinstance(message, dict):
+                    await backend.broadcast_data(StreamData.from_dict(message))
+            elif action == "stop":
+                await backend.stop_broadcast(channel)
+        return backend, expected
+
+    backend, expected = asyncio.run(drive())
+    active = backend.get_active_channels()
+    if len(active) != len(set(active)):
+        raise MetamorphicError(f"a channel is listed twice: {sorted(active)}")
+    if set(active) != expected:
+        raise MetamorphicError(
+            f"active channels {sorted(set(active))} are not the registered ones "
+            f"{sorted(expected)}"
+        )
+    return active
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -616,6 +709,35 @@ _LEGACY_TARGET_SEED = _json_seed(
         "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}],
         "interfaces": [{"interface_id": "i_eth0", "name": "eth0", "type": "ethernet"}],
     }
+)
+
+_STREAM_MESSAGE_SEED = _json_seed(
+    {
+        "stream_type": "can",
+        "channel": "can0",
+        "timestamp": 1758240000.0,
+        "source": "device",
+        "action": "data",
+        "data": {"frame_id": 291, "payload": "1122"},
+        "metadata": None,
+    }
+)
+
+_STREAM_SESSION_SEED = _json_seed(
+    [
+        {"op": "register", "channel": "can0"},
+        {"op": "register", "channel": "can1"},
+        {
+            "op": "broadcast",
+            "channel": "can0",
+            "message": {
+                "stream_type": "can", "channel": "can0", "timestamp": 1.0,
+                "source": "client", "action": "data", "data": {}, "metadata": None,
+            },
+        },
+        {"op": "stop", "channel": "can1"},
+        {"op": "unregister", "channel": "can1"},
+    ]
 )
 
 REGISTRY: Dict[str, ParseTarget] = {}
@@ -816,6 +938,19 @@ for _target in (
             b"null",
             b"[]",
         ),
+    ),
+    ParseTarget(
+        name="core.stream_message",
+        adapter=f"{_HERE}:stream_message",
+        declared=("builtins:KeyError", "builtins:ValueError"),
+        seeds=(_STREAM_MESSAGE_SEED, b"{}", _json_seed({"stream_type": "nope"})),
+    ),
+    ParseTarget(
+        name="core.stream_session",
+        adapter=f"{_HERE}:stream_session",
+        declared=("builtins:KeyError", "builtins:ValueError"),
+        seeds=(_STREAM_SESSION_SEED, b"[]", _json_seed([{"op": "unregister", "channel": "ghost"}])),
+        budget_seconds=10.0,
     ),
 ):
     register(_target)
