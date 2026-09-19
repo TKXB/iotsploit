@@ -2,174 +2,132 @@
   "ledger_version": 1,
   "target": "autosar.inspect_file",
   "fingerprint": "975de3215b17c40d",
-  "updated": "2026-09-19T10:31:36+00:00",
+  "updated": "2026-09-19T11:20:19+00:00",
   "entries": {
-    "082cb7d384099500": {
+    "001168e1858cec89": {
       "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "24295a9c545a402d": {
-      "signature": "accept|||tuple[few]<num[few],str[tens]>|",
+    "05fa54714df79ed2": {
+      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "24cd65512c0e19cf": {
+    "1aa2425d49e21719": {
       "signature": "accept|||tuple[few]<num[tens],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "24f354ad32c50a7e": {
-      "signature": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||",
-      "kind": "reject",
-      "first_seen": "20260919T102745Z",
-      "edge_of": "accept|||tuple[few]<num[tens],str[tens]>|"
-    },
-    "29114363f749a022": {
+    "2b4989d7426ff49c": {
       "signature": "accept|||tuple[few]<num[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
     },
-    "45f2abfe32906cdb": {
-      "signature": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||",
-      "kind": "reject",
-      "first_seen": "20260919T102745Z",
+    "34626ef02c2cde6e": {
+      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T112014Z",
+      "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
+    },
+    "36164e49ec71f611": {
+      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "46d31a590b6fe2f3": {
+    "38d08803771f60f8": {
       "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T103130Z",
-      "edge_of": "reject|ArxmlImportError|arxml files containing dtd entity declarations are rejected||"
-    },
-    "478508483cbb05de": {
-      "signature": "accept|||tuple[few]<num[1],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T103130Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
+    },
+    "421f1aefcda38bd7": {
+      "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T112014Z",
+      "edge_of": ""
+    },
+    "5333eca2341758f3": {
+      "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T112014Z",
+      "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
     },
     "62b67e1f685b7fef": {
       "signature": "accept|||tuple[few]<num[1],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "7931d0919e77081d": {
-      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": ""
+    "71ff0292d5039d06": {
+      "signature": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||",
+      "kind": "reject",
+      "first_seen": "20260919T112014Z",
+      "edge_of": "accept|||tuple[few]<num[tens],str[tens]>|"
     },
-    "7e560f87907dba93": {
-      "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": ""
-    },
-    "84c2eb790f180635": {
+    "86e735361ee631e7": {
       "signature": "accept|||tuple[few]<num[tens],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
-    },
-    "8631ebeac227bfa8": {
-      "signature": "reject|ArxmlImportError|arxml files containing dtd entity declarations are rejected||",
-      "kind": "reject",
-      "first_seen": "20260919T103130Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "8c7e963923858a98": {
-      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
-    },
-    "a5e41f741f0917b3": {
+    "97b6f7758e3e1da4": {
       "signature": "accept|||tuple[few]<num[tens],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": ""
+      "first_seen": "20260919T112014Z",
+      "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
     },
-    "b41242a82d8bc4a4": {
-      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": ""
-    },
-    "c2346b6d08735ccd": {
-      "signature": "accept|||tuple[few]<num[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": ""
-    },
-    "c95f7125f0d0e660": {
-      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": ""
-    },
-    "d7811ce65742132f": {
-      "signature": "reject|ArxmlImportError|arxml files containing dtd entity declarations are rejected||",
+    "a615e4a07cc193b6": {
+      "signature": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||",
       "kind": "reject",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "dabd3aff769f07eb": {
-      "signature": "accept|||tuple[few]<num[1],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T103130Z",
-      "edge_of": ""
-    },
-    "dbe1425f577d7257": {
+    "cbf46e82a51ddb3b": {
       "signature": "accept|||tuple[few]<num[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
+      "edge_of": ""
+    },
+    "cd7ddb8d12a92efe": {
+      "signature": "accept|||tuple[few]<num[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
     "dcb9a5c13b2d1582": {
       "signature": "accept|||tuple[few]<num[tens],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "dec10620b771f41e": {
-      "signature": "reject|ArxmlImportError|arxml files containing dtd entity declarations are rejected||",
-      "kind": "reject",
-      "first_seen": "20260919T103130Z",
-      "edge_of": ""
-    },
-    "e1dbaa4fb3ef7319": {
-      "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
+    "e74020a6f0729cca": {
+      "signature": "accept|||tuple[few]<num[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
-      "edge_of": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||"
-    },
-    "e3b0c44298fc1c14": {
-      "signature": "accept|||tuple[few]<num[0],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T103130Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "e52e1ceb206287e0": {
+    "e7eefbe1d718ef5f": {
       "signature": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||",
       "kind": "reject",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
     "eb8cd5135351c669": {
       "signature": "reject|ArxmlImportError|arxml files containing dtd or entity declarations are||",
       "kind": "reject",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     },
-    "eda02c1ac53c83f6": {
-      "signature": "accept|||tuple[few]<num[hundreds],str[tens]>|",
+    "f4d2f1ef91094f28": {
+      "signature": "accept|||tuple[few]<num[many],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T102745Z",
+      "first_seen": "20260919T112014Z",
       "edge_of": ""
     }
   }

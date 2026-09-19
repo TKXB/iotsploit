@@ -1,0 +1,8 @@
+BO_ 250] "km/h" TCM
+ SG_ Gear : 16|4@1+ (1,0) [0|8] "" TCM
+
+BO_ 2147483939 ExtFrame: 2 TCM
+ SG_ Flag : 0|1@1+ (1,0) [0|1] "" ECM
+
+VAL_ 291 Gear 3 "Drive" 1 "Park" ;
+CM_ BU_ ECM "Engine controller";

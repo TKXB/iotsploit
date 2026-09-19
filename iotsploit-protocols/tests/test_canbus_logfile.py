@@ -78,6 +78,16 @@ def test_a_length_code_is_expanded_to_its_byte_count(tmp_path, index, dlc, expec
     assert len(messages[index].data) == expected_length
 
 
+def test_a_number_too_long_to_parse_counts_as_unparsable(tmp_path):
+    """Found by fuzzing. ``int()`` refuses a string of more than 4300 digits,
+    and this reader's contract is that a line it cannot parse is counted and
+    skipped -- never guessed at and never fatal."""
+    frames, stats = read(tmp_path, f"   0.100000 1  123             Rx   d {'9' * 6000} AA BB\n")
+
+    assert frames == []
+    assert stats.unparsable_lines == 1
+
+
 def test_the_last_payload_byte_is_the_one_the_line_ends_with(tmp_path):
     """A payload read at the wrong offset can still have the right length.
     Anchoring on the final byte is what catches that."""

@@ -392,6 +392,97 @@ def as_number(payload: bytes) -> Any:
     return target(_text_input(payload), "value", minimum=0, maximum=0xFFFF)
 
 
+
+# -- the target document ----------------------------------------------------
+#
+# A target is a JSON document that arrives from an import file, an HTTP
+# request, or the database, and becomes a domain object. Everything the
+# toolkit does afterwards -- which buses exist, which frames a component
+# sends, where an exploit is pointed -- is read off it.
+
+
+def _hydrate(raw: Any) -> Any:
+    """The read path from `target_models._hydrate_target`, without Django."""
+    from iotsploit_core.domain.target import (
+        ComponentFactory,
+        Vehicle,
+        fold_legacy_interfaces,
+    )
+
+    if not isinstance(raw, dict):
+        raise Skip("a target document is an object")
+    data = fold_legacy_interfaces(raw)
+    components = [
+        ComponentFactory.create_component(c) if isinstance(c, dict) else c
+        for c in data.get("components") or []
+    ]
+    return Vehicle(
+        target_id=data.get("target_id", ""),
+        name=data.get("name", ""),
+        type=data.get("type", "vehicle"),
+        status=data.get("status", "active"),
+        properties=data.get("properties") or {},
+        ip_address=data.get("ip_address"),
+        location=data.get("location"),
+        components=components,
+        buses=data.get("buses") or [],
+        edges=data.get("edges") or [],
+    )
+
+
+def target_document(payload: bytes) -> Any:
+    """A stored target document becoming a Vehicle.
+
+    Pydantic validates, so ``ValidationError`` is the contract. Anything else
+    escaping means a field reached a model that the model did not get to
+    judge -- which is how a dangling edge or an unreadable component would
+    become a target the rest of the toolkit trusts.
+    """
+    return _hydrate(_json_input(payload))
+
+
+def create_component(payload: bytes) -> Any:
+    """`ComponentFactory.create_component`: one component of that document.
+
+    Worth its own entry because it does not simply validate -- it sorts
+    unknown keys into ``properties`` and fills defaults, so it can produce a
+    component the document never described.
+    """
+    from iotsploit_core.domain.target import ComponentFactory
+
+    raw = _json_input(payload)
+    if not isinstance(raw, dict):
+        raise Skip("a component is an object")
+    return ComponentFactory.create_component(raw)
+
+
+def fold_legacy(payload: bytes) -> Any:
+    """`fold_legacy_interfaces`, held to the two properties it claims.
+
+    Its docstring states both: "folding twice is a no-op, which is what makes
+    this safe to run on every read", and "returns a new dict; the argument is
+    left alone". The first runs on every target read, so a fold that is not
+    idempotent duplicates components on the second read; the second matters
+    because the caller keeps using the dict it passed in.
+    """
+    from copy import deepcopy
+
+    from iotsploit_core.domain.target import fold_legacy_interfaces
+
+    raw = _json_input(payload)
+    if not isinstance(raw, dict):
+        raise Skip("a target document is an object")
+
+    before = deepcopy(raw)
+    once = fold_legacy_interfaces(raw)
+    if raw != before:
+        raise MetamorphicError("fold_legacy_interfaces modified its argument")
+    twice = fold_legacy_interfaces(once)
+    if twice != once:
+        raise MetamorphicError("folding twice is not the same as folding once")
+    return once
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -459,6 +550,32 @@ _DID_PACK_SEED = _json_seed(
                 ],
             }
         ],
+    }
+)
+
+_TARGET_DOCUMENT_SEED = _json_seed(
+    {
+        "target_id": "t1",
+        "name": "Zeekr",
+        "type": "vehicle",
+        "status": "active",
+        "ip_address": "192.168.1.50",
+        "components": [
+            {"component_id": "c_vgm", "name": "VGM", "type": "ecu"},
+            {"component_id": "c_tcam", "name": "TCAM", "type": "ecu", "vendor": "X"},
+        ],
+        "buses": [{"bus_id": "bus_can_b", "name": "CAN-B", "type": "can"}],
+        "edges": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}],
+    }
+)
+
+#: The shape fold_legacy_interfaces exists to migrate.
+_LEGACY_TARGET_SEED = _json_seed(
+    {
+        "target_id": "t1",
+        "name": "Zeekr",
+        "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}],
+        "interfaces": [{"interface_id": "i_eth0", "name": "eth0", "type": "ethernet"}],
     }
 )
 
@@ -621,6 +738,28 @@ for _target in (
         seeds=(b"0x1000", b"42", b"", b"  7 "),
         budget_seconds=2.0,
         memory_mb=512,
+    ),
+    ParseTarget(
+        name="core.target_document",
+        adapter=f"{_HERE}:target_document",
+        declared=("pydantic:ValidationError",),
+        seeds=(_TARGET_DOCUMENT_SEED, _LEGACY_TARGET_SEED, b"{}", b"null"),
+    ),
+    ParseTarget(
+        name="core.create_component",
+        adapter=f"{_HERE}:create_component",
+        declared=("pydantic:ValidationError",),
+        seeds=(
+            _json_seed({"component_id": "c1", "name": "VGM", "type": "ecu"}),
+            _json_seed({"component_id": "c1", "name": "N", "type": "network", "ip": "10.0.0.1"}),
+            b"{}",
+        ),
+    ),
+    ParseTarget(
+        name="core.fold_legacy",
+        adapter=f"{_HERE}:fold_legacy",
+        declared=(),
+        seeds=(_LEGACY_TARGET_SEED, _TARGET_DOCUMENT_SEED, b"{}"),
     ),
 ):
     register(_target)

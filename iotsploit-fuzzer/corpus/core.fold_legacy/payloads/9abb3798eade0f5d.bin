@@ -1,0 +1,1 @@
+{"target_id": "t2147483648", "name": "Zeekr", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}], "interfaces": [{"interface_id": "i_eth0", "name": "eth0", "type": "ethernet"}]}

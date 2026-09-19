@@ -2,30 +2,36 @@
   "ledger_version": 1,
   "target": "canbus.from_target",
   "fingerprint": "179293758fd06a4a",
-  "updated": "2026-09-19T10:30:20+00:00",
+  "updated": "2026-09-19T11:19:19+00:00",
   "entries": {
+    "001bd640391fb11a": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260919T111915Z",
+      "edge_of": ""
+    },
     "44136fa355b3678a": {
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
-      "first_seen": "20260919T102711Z",
+      "first_seen": "20260919T111915Z",
       "edge_of": ""
     },
     "4f53cda18c2baa0c": {
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
-      "first_seen": "20260919T102711Z",
+      "first_seen": "20260919T111915Z",
       "edge_of": ""
     },
     "74234e98afe7498f": {
       "signature": "reject|CanDefinitionError|no target supplied||",
       "kind": "reject",
-      "first_seen": "20260919T102711Z",
+      "first_seen": "20260919T111915Z",
       "edge_of": ""
     },
     "bfbef90c7d59e20f": {
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
-      "first_seen": "20260919T102711Z",
+      "first_seen": "20260919T111915Z",
       "edge_of": ""
     }
   }

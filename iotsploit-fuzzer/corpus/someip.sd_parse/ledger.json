@@ -2,60 +2,54 @@
   "ledger_version": 1,
   "target": "someip.sd_parse",
   "fingerprint": "a28643c493253a92",
-  "updated": "2026-09-19T10:31:27+00:00",
+  "updated": "2026-09-19T11:20:04+00:00",
   "entries": {
-    "1d4ceae932a2184a": {
-      "signature": "accept|||list[few]<ServiceOffer>|",
-      "kind": "accept",
-      "first_seen": "20260919T103037Z",
-      "edge_of": ""
-    },
     "374708fff7719dd5": {
       "signature": "accept|||list[0]|",
       "kind": "accept",
-      "first_seen": "20260919T102726Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     },
-    "5444a61b0d938308": {
+    "5225a4ff5e8a2fcb": {
+      "signature": "accept|||list[1]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260919T111940Z",
+      "edge_of": ""
+    },
+    "7040e702059401e4": {
       "signature": "accept|||list[few]<ServiceOffer>|",
       "kind": "accept",
-      "first_seen": "20260919T103037Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     },
-    "6effd90db1126949": {
-      "signature": "accept|||list[1]<ServiceOffer>|",
+    "70bfb19e3f110d31": {
+      "signature": "accept|||list[few]<ServiceOffer>|",
       "kind": "accept",
-      "first_seen": "20260919T102726Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     },
-    "998f4640e5737aed": {
+    "8d9aac0c32d352d4": {
       "signature": "accept|||list[1]<ServiceOffer>|",
       "kind": "accept",
-      "first_seen": "20260919T103037Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     },
     "b3e62b26a7c4d945": {
       "signature": "accept|||list[0]|",
       "kind": "accept",
-      "first_seen": "20260919T102726Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     },
-    "be9909d3fd7761ec": {
+    "d2fb5655d1cb90f6": {
       "signature": "accept|||list[few]<ServiceOffer>|",
       "kind": "accept",
-      "first_seen": "20260919T103037Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     },
     "e3b0c44298fc1c14": {
       "signature": "accept|||list[0]|",
       "kind": "accept",
-      "first_seen": "20260919T102726Z",
-      "edge_of": ""
-    },
-    "ecf772e78bab3704": {
-      "signature": "accept|||list[1]<ServiceOffer>|",
-      "kind": "accept",
-      "first_seen": "20260919T103037Z",
+      "first_seen": "20260919T111940Z",
       "edge_of": ""
     }
   }

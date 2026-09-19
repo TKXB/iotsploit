@@ -238,8 +238,16 @@ def _parse_payload(tokens: Sequence[str], length: int) -> Optional[bytes]:
         return None
 
 
+#: Longest decimal field this reader will convert. ``int()`` refuses a string
+#: of more than 4300 digits and raises ValueError, and this reader's contract
+#: is that a line it cannot parse is counted and skipped, never fatal. No
+#: column in an ASC log -- a DLC, a channel, a length -- is more than a few
+#: digits, so a longer one means the line is not what it claims to be.
+MAX_DECIMAL_DIGITS = 18
+
+
 def _is_decimal(token: str) -> bool:
-    return token.isdigit()
+    return token.isdigit() and len(token) <= MAX_DECIMAL_DIGITS
 
 
 def _consume_frame_body(
