@@ -1,0 +1,56 @@
+{
+  "ledger_version": 1,
+  "target": "canbus.decode_frame",
+  "fingerprint": "ceae0f09a5e56511",
+  "updated": "2026-09-19T02:15:30+00:00",
+  "entries": {
+    "042fb9a4691f0fba": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "7aab393675680814": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "b2665bf05bbbe729": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "c731153fd4a1f6da": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "ce557cb25113091d": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "d49a2fa3f76a95da": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "d6161468922320bc": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    },
+    "db8877a400e89624": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
+      "kind": "accept",
+      "first_seen": "20260919T021529Z",
+      "edge_of": ""
+    }
+  }
+}

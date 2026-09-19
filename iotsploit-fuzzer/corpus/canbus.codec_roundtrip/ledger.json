@@ -1,0 +1,122 @@
+{
+  "ledger_version": 1,
+  "target": "canbus.codec_roundtrip",
+  "fingerprint": "4daafb953d75a0de",
+  "updated": "2026-09-19T02:15:32+00:00",
+  "entries": {
+    "07ab10035df2e005": {
+      "signature": "reject|CanValueError|need attention||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "1affe691f6b95c3b": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[many],signals=dict[few],raw_values=dict[few],reason=none)|",
+      "kind": "accept",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "1cb6c78ed5348908": {
+      "signature": "reject|CanValueError|convert negative int to unsigned||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "291c0e0f19ff8f00": {
+      "signature": "reject|CanValueError|need attention||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "2ce1bd2576e7e34c": {
+      "signature": "reject|CanDefinitionError|claims byte payload classic can carries at most||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "2ef9d746861620f1": {
+      "signature": "reject|CanValueError|has no by this||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "5310285f8d6a4b23": {
+      "signature": "reject|CanValueError|could not be encoded unsigned integer out of||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "540d9cadb09628bd": {
+      "signature": "reject|CanDefinitionError|at outside its payload||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "5bc7b2b2c72e75d6": {
+      "signature": "reject|CanDefinitionError|has an unusable layout standard id is more||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "66bdb4bb698b2f3a": {
+      "signature": "reject|CanDefinitionError|at outside its payload||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "6b5ab65f9bb3f84a": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
+      "kind": "accept",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "7a24ee694c5dd7b2": {
+      "signature": "reject|CanDefinitionError|has an unusable layout standard id is more||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "9513ac3e4f9b98e6": {
+      "signature": "reject|CanDefinitionError|at outside its payload||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "b4a2473cf9ed2aeb": {
+      "signature": "reject|CanValueError|need attention||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "b51205567e7c9c0a": {
+      "signature": "reject|CanDefinitionError|claims byte payload classic can carries at most||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "b59b51b5ecb2b2b6": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
+      "kind": "accept",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "c463cb3ae64178b8": {
+      "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
+      "kind": "accept",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "f227d47726080cdf": {
+      "signature": "reject|CanDefinitionError|has an unusable layout standard id is more||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    },
+    "fea98ea0a9cf134f": {
+      "signature": "reject|CanDefinitionError|claims byte payload classic can carries at most||",
+      "kind": "reject",
+      "first_seen": "20260919T021531Z",
+      "edge_of": ""
+    }
+  }
+}

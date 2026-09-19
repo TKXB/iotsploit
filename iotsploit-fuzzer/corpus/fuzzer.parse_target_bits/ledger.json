@@ -1,0 +1,404 @@
+{
+  "ledger_version": 1,
+  "target": "fuzzer.parse_target_bits",
+  "fingerprint": "302a0810c7d2e6a2",
+  "updated": "2026-09-19T02:15:43+00:00",
+  "entries": {
+    "00f58d86d74c8930": {
+      "signature": "reject|ValueError|invalid range format||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "02d20bbd7e394ad5": {
+      "signature": "accept|||list[1]<num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "05f50d7630c57917": {
+      "signature": "accept|||list[hundreds]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "0b055fc066774f2e": {
+      "signature": "accept|||list[few]<num[1],num[few],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "0bfe935e70c321c7": {
+      "signature": "reject|ValueError|invalid bit position must be non negative integer||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[1]<num[few]>|"
+    },
+    "0c8c42f187e16849": {
+      "signature": "accept|||list[many]<num[few],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "0e41ff5d7f5751ce": {
+      "signature": "accept|||list[1]<num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "246afedc70c7dc30": {
+      "signature": "reject|ValueError|invalid range format||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "25211fdfaea05e3c": {
+      "signature": "accept|||list[few]<num[1],num[few],num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "25e175de45b3c101": {
+      "signature": "reject|ValueError|range asks for bit positions the limit is||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[1]<num[few]>|"
+    },
+    "2f06c0d8bce58a0e": {
+      "signature": "reject|ValueError|invalid range format||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "321ffcda677e8f29": {
+      "signature": "reject|ValueError|invalid range start bit end bit||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "3361349b0b4eeae9": {
+      "signature": "reject|ValueError|invalid bit position must be non negative integer||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "362a04187e2a5f78": {
+      "signature": "accept|||list[few]<num[0],num[1],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "3791968fee79a54b": {
+      "signature": "accept|||list[few]<num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "3837de055fb5cc97": {
+      "signature": "accept|||list[few]<num[0],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "419a1f1bac1c4c4f": {
+      "signature": "accept|||list[few]<num[0],num[1],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "4523540f1504cd17": {
+      "signature": "accept|||list[1]<num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "49a84f16a2a63ac7": {
+      "signature": "accept|||list[few]<num[1],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "5057fe457233ed30": {
+      "signature": "accept|||list[few]<num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "5064c9abc5244d74": {
+      "signature": "accept|||list[few]<num[0],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "51c746f3b82018f8": {
+      "signature": "reject|ValueError|range asks for bit positions the limit is||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[few]<num[0],num[1],num[few]>|"
+    },
+    "52713146c6bd38f3": {
+      "signature": "reject|ValueError|invalid range start bit end bit||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "5aa51c3b9cfdbb05": {
+      "signature": "accept|||list[few]<num[few],num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "5c6e3c7b3a80ae3d": {
+      "signature": "accept|||list[few]<num[1],num[few],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "6540de382cb7d2e0": {
+      "signature": "reject|ValueError|exceeds the limit for integer string conversion value||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "68b77064763e90d5": {
+      "signature": "reject|ValueError|invalid bit position must be non negative integer||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "6b86b273ff34fce1": {
+      "signature": "accept|||list[1]<num[1]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "6ca7e522ce3a573b": {
+      "signature": "accept|||list[1]<num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "7132acb10735b7ee": {
+      "signature": "accept|||list[few]<num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "7902699be42c8a8e": {
+      "signature": "accept|||list[1]<num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "79af02aa0c3b05ea": {
+      "signature": "accept|||list[tens]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "7d6542f6e4bba231": {
+      "signature": "accept|||list[tens]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "7e91640a44c6e065": {
+      "signature": "accept|||list[1]<num[1]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "7fa73faa551d94ee": {
+      "signature": "accept|||list[few]<num[few],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "81783eb7ff520fad": {
+      "signature": "accept|||list[few]<num[0],num[1],num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "8524ca4ff0c16e52": {
+      "signature": "reject|ValueError|invalid range format||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[few]<num[0],num[1],num[few]>|"
+    },
+    "86f96b9f5e191ef5": {
+      "signature": "accept|||list[1]<num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "9556b82499cc0aaf": {
+      "signature": "accept|||list[1]<num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "98d55da181e253cf": {
+      "signature": "accept|||list[few]<num[0],num[1],num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "9983f17a347c88dd": {
+      "signature": "accept|||list[few]<num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "9c2e7a67f647f557": {
+      "signature": "accept|||list[few]<num[few],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "9cc4a544bf77a635": {
+      "signature": "accept|||list[few]<num[1],num[few],num[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "9ce955ee9a5881bb": {
+      "signature": "reject|ValueError|invalid range start bit end bit||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[few]<num[0],num[1],num[few]>|"
+    },
+    "9f77afccf9a9aafb": {
+      "signature": "accept|||list[few]<num[many],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "a0ed8e24af989b42": {
+      "signature": "accept|||list[few]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "a0f80d2131dad17e": {
+      "signature": "reject|ValueError|invalid range format||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[1]<num[few]>|"
+    },
+    "a1f5ce7064eec217": {
+      "signature": "accept|||list[few]<num[0],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "a469ceabe44bd359": {
+      "signature": "accept|||list[1]<num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "a67e92cef42bd0ea": {
+      "signature": "accept|||list[tens]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "aa35fa3239e2d609": {
+      "signature": "accept|||list[few]<num[few],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "aca8d347d8c11954": {
+      "signature": "accept|||list[1]<num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "ba432484d58f76dd": {
+      "signature": "accept|||list[few]<num[0],num[few],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "c549e4eabb3d0a21": {
+      "signature": "accept|||list[few]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "c7b35b35d88a825d": {
+      "signature": "accept|||list[few]<num[0],num[1],num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "c87626806a1610fa": {
+      "signature": "accept|||list[few]<num[1],num[few],num[many]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "c8b73c1b20c6fe8b": {
+      "signature": "reject|ValueError|invalid range start bit end bit||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "d89089db582f3dfc": {
+      "signature": "reject|ValueError|range asks for bit positions the limit is||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "dc470c7be98e3ee2": {
+      "signature": "reject|ValueError|invalid bit position must be non negative integer||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": "accept|||list[few]<num[0],num[1],num[few]>|"
+    },
+    "e2f747e63511521d": {
+      "signature": "reject|ValueError|invalid bit position must be non negative integer||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "e65cd77232b369dd": {
+      "signature": "accept|||list[few]<num[0],num[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "e7662540cd685b46": {
+      "signature": "reject|ValueError|range asks for bit positions the limit is||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "e80aac97582f2f82": {
+      "signature": "reject|ValueError|range asks for bit positions the limit is||",
+      "kind": "reject",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "e9586b616536950f": {
+      "signature": "accept|||list[1]<num[1]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "ef2d127de37b942b": {
+      "signature": "accept|||list[1]<num[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    },
+    "f9335a02febec1cc": {
+      "signature": "accept|||list[few]<num[0],num[1]>|",
+      "kind": "accept",
+      "first_seen": "20260919T021540Z",
+      "edge_of": ""
+    }
+  }
+}

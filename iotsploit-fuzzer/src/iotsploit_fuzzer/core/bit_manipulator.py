@@ -14,6 +14,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# A range is expanded into a set of positions, so its span is an allocation.
+# "0-10000000" is ten characters -- well inside the 255-character field the
+# string is stored in -- and asks for hundreds of megabytes; "0-999999999"
+# asks for tens of gigabytes on a host also running Django, Celery and Redis,
+# where the OOM killer picks the victim before any exception is raised.
+# 65536 positions covers an 8 KB payload, far past any protocol frame here.
+MAX_TARGET_BITS = 65536
+
 
 class BitManipulator:
     """
@@ -204,7 +212,8 @@ class BitManipulator:
             List of unique bit positions, sorted in ascending order
             
         Raises:
-            ValueError: If string format is invalid or contains invalid numbers
+            ValueError: If string format is invalid, contains invalid numbers,
+                or asks for more than MAX_TARGET_BITS positions
             
         Example:
             parse_target_bits("0,1,7") -> [0, 1, 7]
@@ -235,6 +244,15 @@ class BitManipulator:
                 
                 if start_bit > end_bit:
                     raise ValueError(f"Invalid range: start bit {start_bit} > end bit {end_bit}")
+                
+                # Checked before the range is materialised: afterwards the
+                # memory is already gone.
+                span = end_bit - start_bit + 1
+                if len(bit_positions) + span > MAX_TARGET_BITS:
+                    raise ValueError(
+                        f"Range '{part}' asks for {span} bit positions; "
+                        f"the limit is {MAX_TARGET_BITS}"
+                    )
                 
                 # Add all bits in range
                 bit_positions.update(range(start_bit, end_bit + 1))

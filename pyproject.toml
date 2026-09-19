@@ -85,6 +85,11 @@ markers = [
 target-version = "py310"
 line-length = 120
 
+# The gate lints project source and tests. Scripts kept alongside a plan as
+# reproduction evidence are neither: they are recorded exactly as they were
+# run, and tidying them would falsify the record.
+extend-exclude = ["docs/"]
+
 # Baseline: the existing codebase has pre-existing violations in the rules
 # listed below. New code must not introduce NEW categories of violations.
 # Remove individual entries from this list as the corresponding violations

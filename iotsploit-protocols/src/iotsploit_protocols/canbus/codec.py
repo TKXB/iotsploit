@@ -38,6 +38,38 @@ from iotsploit_protocols.canbus.definitions import (
 from iotsploit_protocols.canbus.errors import CanDefinitionError, CanValueError
 
 
+#: The largest payload either CAN carries. Not a policy choice -- classic CAN
+#: is 8 bytes and CAN FD is 64, and a definition claiming more does not
+#: describe a frame.
+MAX_PAYLOAD_BYTES = 64
+
+
+def _check_fits_a_frame(definition: FrameDefinition) -> None:
+    """Reject a layout no wire could carry, before ``cantools`` prices it.
+
+    ``strict=True`` below would reject these too, but it computes the layout
+    first, and that computation is quadratic in the payload length: a ``dlc``
+    of 32768 takes ten seconds and 65536 does not finish. A definition reaches
+    here straight from an ARXML import or a hand edit -- ``TargetCanCatalog``
+    records an oversized frame as unsupported rather than raising, so nothing
+    upstream guarantees these bounds. Checking them costs a comparison.
+    """
+    limit = MAX_PAYLOAD_BYTES if definition.is_fd else 8
+    if not 0 <= definition.dlc <= limit:
+        raise CanDefinitionError(
+            f"frame {definition.name!r} claims a {definition.dlc}-byte payload; "
+            f"{'CAN FD' if definition.is_fd else 'classic CAN'} carries at most {limit}"
+        )
+
+    bits = definition.dlc * 8
+    for signal in definition.signals:
+        if not 0 <= signal.start_bit < max(bits, 1) or not 0 < signal.length <= max(bits, 1):
+            raise CanDefinitionError(
+                f"frame {definition.name!r} places signal {signal.name!r} at bit "
+                f"{signal.start_bit} length {signal.length}, outside its {bits}-bit payload"
+            )
+
+
 def build_message(definition: FrameDefinition) -> Message:
     """Reconstruct the ``cantools`` message this definition describes.
 
@@ -50,6 +82,7 @@ def build_message(definition: FrameDefinition) -> Message:
         raise CanDefinitionError(
             f"frame {definition.name!r} is a container frame and cannot be encoded"
         )
+    _check_fits_a_frame(definition)
 
     signals = [_build_signal(s) for s in definition.signals]
     try:

@@ -1,0 +1,32 @@
+{
+  "ledger_version": 1,
+  "target": "canbus.from_target",
+  "fingerprint": "39981a9c608198ec",
+  "updated": "2026-09-19T02:15:29+00:00",
+  "entries": {
+    "0ba9fcf6c0d1c4c0": {
+      "signature": "accept|||TargetCanCatalog|",
+      "kind": "accept",
+      "first_seen": "20260919T021528Z",
+      "edge_of": ""
+    },
+    "4f53cda18c2baa0c": {
+      "signature": "accept|||TargetCanCatalog|",
+      "kind": "accept",
+      "first_seen": "20260919T021528Z",
+      "edge_of": ""
+    },
+    "74234e98afe7498f": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260919T021528Z",
+      "edge_of": ""
+    },
+    "dcb98af3c7b77187": {
+      "signature": "accept|||TargetCanCatalog|",
+      "kind": "accept",
+      "first_seen": "20260919T021528Z",
+      "edge_of": ""
+    }
+  }
+}

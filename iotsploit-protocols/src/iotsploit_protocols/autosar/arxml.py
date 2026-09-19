@@ -13,6 +13,7 @@ payload converted into the target today.
 
 from __future__ import annotations
 
+import codecs
 import gc
 import hashlib
 import json
@@ -179,6 +180,27 @@ def import_arxml(
     return ArxmlImportResult(target=target, warnings=tuple(warnings), counts=counts)
 
 
+# A byte-order mark is how ElementTree decides a file is not UTF-8, so it is
+# also what the DTD scan below has to agree with: a UTF-16 ``<!DOCTYPE`` is
+# ``<\x00!\x00d\x00...`` and walks straight past a byte-level substring match.
+# UTF-32-LE is tested before UTF-16-LE because its BOM starts with the UTF-16 one.
+_BOMS: Tuple[Tuple[bytes, str], ...] = (
+    (codecs.BOM_UTF32_LE, "utf-32-le"),
+    (codecs.BOM_UTF32_BE, "utf-32-be"),
+    (codecs.BOM_UTF8, "utf-8-sig"),
+    (codecs.BOM_UTF16_LE, "utf-16-le"),
+    (codecs.BOM_UTF16_BE, "utf-16-be"),
+)
+
+
+def _sniff_encoding(head: bytes) -> str:
+    """The encoding a byte-order mark declares, or UTF-8 when there is none."""
+    for bom, encoding in _BOMS:
+        if head.startswith(bom):
+            return encoding
+    return "utf-8"
+
+
 def _inspect_file(path: Path) -> Tuple[str, int]:
     try:
         size = path.stat().st_size
@@ -190,13 +212,16 @@ def _inspect_file(path: Path) -> Tuple[str, int]:
         )
 
     digest = hashlib.sha256()
-    markup_tail = b""
+    markup_tail = ""
+    decoder = None
     try:
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
-                markup = (markup_tail + chunk).lower()
-                if b"<!doctype" in markup or b"<!entity" in markup:
+                if decoder is None:
+                    decoder = codecs.getincrementaldecoder(_sniff_encoding(chunk))(errors="ignore")
+                markup = markup_tail + decoder.decode(chunk).lower()
+                if "<!doctype" in markup or "<!entity" in markup:
                     raise ArxmlImportError("ARXML files containing DTD or entity declarations are rejected")
                 markup_tail = markup[-16:]
     except ArxmlImportError:

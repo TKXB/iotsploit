@@ -13,6 +13,10 @@ class HarnessResult:
     info: Optional[str] = None
     timeout: bool = False
     error: Optional[str] = None
+    #: Where the result came from, when the harness can say: ``file:line`` for
+    #: an escaped exception. Reported, never compared -- a line number moves
+    #: under any edit.
+    site: Optional[str] = None
 
 
 class ProtocolHarness(abc.ABC):
