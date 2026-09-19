@@ -1,0 +1,110 @@
+{
+  "ledger_version": 1,
+  "target": "core.resolve_facets",
+  "fingerprint": "8629e80d6f2ae053",
+  "updated": "2026-09-19T14:45:48+00:00",
+  "entries": {
+    "028e60698782a700": {
+      "signature": "reject|TypeError|facets must be mapping got float||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "11afbecf6e28f1b4": {
+      "signature": "reject|TypeError|facets must be mapping got int||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "12ae32cb1ec02d01": {
+      "signature": "reject|TypeError|facets must be mapping got str||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "15fa3b6cf9a76993": {
+      "signature": "accept|||dict[1]<RawFacet>|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "174352ce310c2a08": {
+      "signature": "reject|TypeError|facet must be mapping got list||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "1f65364b6d73243b": {
+      "signature": "accept|||dict[1]<RawFacet>|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "3e91ce2d73ff755a": {
+      "signature": "accept|||dict[1]<RawFacet>|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "44136fa355b3678a": {
+      "signature": "accept|||dict[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "4f53cda18c2baa0c": {
+      "signature": "reject|TypeError|facets must be mapping got list||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "6c1ca4002509bc24": {
+      "signature": "reject|TypeError|facets must be mapping got int||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "74234e98afe7498f": {
+      "signature": "accept|||dict[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "abdfbffecbe18ed9": {
+      "signature": "accept|||dict[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": "reject|TypeError|facets must be mapping got list||"
+    },
+    "ac583618bf5c5588": {
+      "signature": "reject|TypeError|facets must be mapping got list||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "ceb49fa1eae63abc": {
+      "signature": "reject|TypeError|facets must be mapping got int||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "d124b23c696a8517": {
+      "signature": "reject|TypeError|facets must be mapping got list||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "d5b592c05dc25b50": {
+      "signature": "reject|TypeError|facets must be mapping got float||",
+      "kind": "reject",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    },
+    "e3566b3a06430868": {
+      "signature": "accept|||dict[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T144543Z",
+      "edge_of": ""
+    }
+  }
+}

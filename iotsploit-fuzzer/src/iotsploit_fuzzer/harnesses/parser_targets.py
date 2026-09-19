@@ -483,6 +483,45 @@ def fold_legacy(payload: bytes) -> Any:
     return once
 
 
+
+def target_roundtrip(payload: bytes) -> Any:
+    """A target saved and read back must be the same target.
+
+    The property target *management* rests on. ``get_info`` is
+    ``model_dump``, and every store and reload in the toolkit is a dump
+    followed by a rehydrate -- the JSON importer, the Django repository, the
+    HTTP layer. A field that does not survive that trip is not a crash: it is
+    a target that quietly loses a bus, a facet, or an edge between one read
+    and the next, and every answer given afterwards is about a target that no
+    longer matches the vehicle.
+    """
+    from iotsploit_core.domain.target import Vehicle
+
+    first = _hydrate(_json_input(payload))
+    dumped = first.get_info()
+    try:
+        second = Vehicle(**dumped)
+    except Exception as error:  # noqa: BLE001 - re-reading our own dump must work
+        raise MetamorphicError(
+            f"a dumped target did not survive being read back: {error}"
+        ) from None
+    if second.get_info() != dumped:
+        raise MetamorphicError("a target changed on its second round trip")
+    return second
+
+
+def resolve_facets(payload: bytes) -> Any:
+    """`domain.facet.resolve_facets`: the open, plugin-registered half.
+
+    Core registers no facets; plugins register their own, so this resolves
+    keys it has never seen against a registry it does not control. It
+    declares TypeError for a non-mapping.
+    """
+    from iotsploit_core.domain.facet import resolve_facets as target
+
+    return target(_json_input(payload))
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -760,6 +799,23 @@ for _target in (
         adapter=f"{_HERE}:fold_legacy",
         declared=(),
         seeds=(_LEGACY_TARGET_SEED, _TARGET_DOCUMENT_SEED, b"{}"),
+    ),
+    ParseTarget(
+        name="core.target_roundtrip",
+        adapter=f"{_HERE}:target_roundtrip",
+        declared=("pydantic:ValidationError",),
+        seeds=(_TARGET_DOCUMENT_SEED, _LEGACY_TARGET_SEED),
+    ),
+    ParseTarget(
+        name="core.resolve_facets",
+        adapter=f"{_HERE}:resolve_facets",
+        declared=("builtins:TypeError",),
+        seeds=(
+            _json_seed({"can": {"messages": []}}),
+            _json_seed({}),
+            b"null",
+            b"[]",
+        ),
     ),
 ):
     register(_target)

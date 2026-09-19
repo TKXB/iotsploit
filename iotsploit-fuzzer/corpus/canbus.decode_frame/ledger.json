@@ -2,114 +2,96 @@
   "ledger_version": 1,
   "target": "canbus.decode_frame",
   "fingerprint": "54ea7776aa44703c",
-  "updated": "2026-09-19T11:19:24+00:00",
+  "updated": "2026-09-19T14:43:07+00:00",
   "entries": {
     "16d6eae48f37704f": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[few],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
-      "edge_of": ""
-    },
-    "20618e289ba063ed": {
-      "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[few],raw_values=dict[few],reason=none)|",
-      "kind": "accept",
-      "first_seen": "20260919T111919Z",
-      "edge_of": ""
-    },
-    "2171405a4607c852": {
-      "signature": "accept|||DecodedFrame(ok=bool,name=str[many],signals=dict[few],raw_values=dict[few],reason=none)|",
-      "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "2dc44adb32f39141": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "3d1d28399b2744a9": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "402efd91ebba8818": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "46a482e3eccc59d8": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "60e89b442f9a6048": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[many],signals=dict[0],raw_values=dict[0],reason=str[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "6a5736cfbccee0c4": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "77e96f37ea8ca2ab": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "7924e234a92a5b3f": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
-      "edge_of": ""
-    },
-    "96a7b088fe158e02": {
-      "signature": "accept|||DecodedFrame(ok=bool,name=str[few],signals=dict[few],raw_values=dict[few],reason=none)|",
-      "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "9a1949719f988b52": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "a45ad17378b4b5ce": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[1],raw_values=dict[1],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "ae706da554845b9c": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[hundreds],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "b5f31811e4366113": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "ba7fc985a52d9aab": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[0],raw_values=dict[0],reason=str[tens])|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     },
     "fe7fb1683ea96184": {
       "signature": "accept|||DecodedFrame(ok=bool,name=str[tens],signals=dict[few],raw_values=dict[few],reason=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111919Z",
+      "first_seen": "20260919T144304Z",
       "edge_of": ""
     }
   }

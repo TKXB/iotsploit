@@ -2,462 +2,432 @@
   "ledger_version": 1,
   "target": "canbus.scan_log",
   "fingerprint": "029a097565639fef",
-  "updated": "2026-09-19T11:19:15+00:00",
+  "updated": "2026-09-19T14:43:00+00:00",
   "entries": {
     "0b164b91f5e7a57e": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "0eb2d23fb8479810": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "1ef5b04c2cdd5835": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "1fabf403e85e63ec": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[1],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
-      "edge_of": ""
-    },
-    "1fafefae2958721c": {
-      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
-      "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "233d4809807d21d1": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[0],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "38c0b5bd64309c20": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "3964821adcb5000f": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "3aaf9c3c4e422b7c": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "3b2fd9568398cf7a": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "3bc043e176c71ac9": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "3e4ab86e81ad87ff": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "4120bd9de8443a40": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "44a388a281bb9449": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "44aba19881672e01": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[few],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "4a52936af9879454": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "4aa46ee6c175872b": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "4b026d9b5ed819c3": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "4b09eb656264b7ea": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "501f9ada96356f00": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "55a22f69bf1f0e33": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "56bb3b3a6aa1747d": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[1],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
-      "edge_of": ""
-    },
-    "57b4005654c2766c": {
-      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[many])|",
-      "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "585f14c367859af2": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "591523fbf1a5c678": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "5bf831739732e5ef": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "6c9fbd4a114978f3": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "744fc61d6de275c9": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "75a11da44c802486": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[0],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "7d371d20e519338f": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "7ecfa00ed28708cb": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "825e309560a2df39": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "870b7af3c24bdafb": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
-      "edge_of": ""
-    },
-    "877e7e4ed6ae9a76": {
-      "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[few],first_timestamp=num[many])|",
-      "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "89fed43f77864986": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "8b712eaef250d10a": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "8d1aba442415705d": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "8d82271498473004": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "92b94815a304fe83": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "94652249478783d5": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "97df5508c65ced52": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "a364f1b3e049c302": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[few],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "a5ce73769548779e": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ad363e6fcc3c7696": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ae2f780260458597": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[few],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "b5745cb8f3b05148": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "b8f740f8951b18c6": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[few],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "bd65e62975988ac4": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "bddfaa59ec60d3fc": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[few],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "bdff720addbfac6d": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "bf64a4a9b176a014": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "c0480b7451e10741": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "c26509654ac3e4ea": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "c43b20ad45e55040": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ccfcb5f751b8722b": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "d091072587b9e0ed": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "d1db0a4817024e00": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "da199f9fef7d675c": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[hundreds])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "dcebd46ba8477342": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
-      "edge_of": ""
-    },
-    "e24e0bde31d0c607": {
-      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[many])|",
-      "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "e29acdba9880276f": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "e32f664068a96d8d": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[1],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "e3b0c44298fc1c14": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[0],error_frames=num[0],unparsable_lines=num[0],channels_present=set[0],first_timestamp=none)|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ea4075be536a57a7": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[tens],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ec52d555c06b8ba2": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=-num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ec9c132d3896e944": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[few],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ee2e9e770c688862": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ee47801e2463f0b2": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "ee808adc575dc2ca": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "efee719a7383b1e7": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[1],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "f030023257551388": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "f92440e105c61e9a": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[0])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "f9a05a837951e2b9": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[1])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "fb7c3120a81b9599": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     },
     "fcc9de1768ca8a5b": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[1],first_timestamp=num[many])|",
       "kind": "accept",
-      "first_seen": "20260919T111906Z",
-      "edge_of": ""
-    },
-    "fea2bd72ead3004b": {
-      "signature": "accept|||LogReadStats(format=str[few],frames=num[1],error_frames=num[0],unparsable_lines=num[hundreds],channels_present=set[1],first_timestamp=num[0])|",
-      "kind": "accept",
-      "first_seen": "20260919T111906Z",
+      "first_seen": "20260919T144253Z",
       "edge_of": ""
     }
   }
