@@ -36,12 +36,18 @@ NO_SENDER = "Vector__XXX"
 #: A frame id with bit 31 set is a 29-bit extended id; the rest is the id.
 _EXTENDED_FLAG = 0x80000000
 
+# Digit runs are bounded rather than open. ``int()`` refuses a string of more
+# than 4300 digits outright -- it raises ValueError, from a parser whose
+# contract is that it never does -- and no DBC number is anywhere near that
+# long: a frame id is at most 32 bits, a length at most four digits. An
+# over-long number now fails to match, so the line is skipped like any other
+# line this reader cannot parse, rather than inventing a frame with id 0.
 _NODES_RE = re.compile(r"^BU_\s*:\s*(.*)$")
-_MESSAGE_RE = re.compile(r"^BO_\s+(\d+)\s+(\w+)\s*:\s*(\d+)\s+(\S+)")
+_MESSAGE_RE = re.compile(r"^BO_\s+(\d{1,10})\s+(\w+)\s*:\s*(\d{1,4})\s+(\S+)")
 _SIGNAL_RE = re.compile(
     r"^\s*SG_\s+(\w+)\s*"
-    r"(?:(M|m\d+)\s+)?:\s*"  # multiplexer token, absent on ordinary signals
-    r"(\d+)\|(\d+)@([01])([+-])\s*"
+    r"(?:(M|m\d{1,4})\s+)?:\s*"  # multiplexer token, absent on ordinary signals
+    r"(\d{1,5})\|(\d{1,5})@([01])([+-])\s*"
     r"\(([^,]*),([^)]*)\)\s*"
     r"\[([^|]*)\|([^\]]*)\]\s*"
     r'"([^"]*)"'
@@ -50,9 +56,9 @@ _NODE_COMMENT_RE = re.compile(r'^CM_\s+BU_\s+(\w+)\s+"(.*)"\s*;?\s*$')
 # VAL_ <frame id> <signal> <code> "<label>" <code> "<label>" ... ;
 # The environment-variable form has a name where the id is, so requiring digits
 # is what separates the two without a second pattern.
-_VALUE_TABLE_RE = re.compile(r"^VAL_\s+(\d+)\s+(\w+)\s+(.*)$")
+_VALUE_TABLE_RE = re.compile(r"^VAL_\s+(\d{1,10})\s+(\w+)\s+(.*)$")
 # Codes may be negative: a signed signal's value table legitimately labels -1.
-_VALUE_PAIR_RE = re.compile(r'(-?\d+)\s+"([^"]*)"')
+_VALUE_PAIR_RE = re.compile(r'(-?\d{1,10})\s+"([^"]*)"')
 
 
 @dataclass(frozen=True)

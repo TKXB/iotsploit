@@ -81,6 +81,22 @@ def test_a_frame_lands_on_the_node_that_sends_it():
     assert bms.messages[0].dlc == 8
 
 
+def test_a_number_too_long_to_parse_skips_its_line_rather_than_raising():
+    """Found by fuzzing. ``int()`` refuses a string of more than 4300 digits,
+    and this reader's contract is that a line it cannot parse is skipped --
+    never that the import raises. The digit runs are bounded in the patterns,
+    so an over-long number stops the line matching at all."""
+    contents = parse_dbc(
+        "BU_: ECM\n"
+        f"BO_ {'9' * 6000} Bogus: 8 ECM\n"
+        "BO_ 291 Real: 8 ECM\n"
+        ' SG_ Speed : 0|16@1+ (1,0) [0|0] "" ECM\n'
+    )
+
+    names = [message.name for node in contents.nodes for message in node.messages]
+    assert names == ["Real"]
+
+
 def test_an_extended_id_keeps_its_flag_out_of_the_id():
     """Bit 31 is a marker, not part of the address; leaving it in would make
     the id unrecognisable next to anything a sniffer prints."""

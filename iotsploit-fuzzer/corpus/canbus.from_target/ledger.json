@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "canbus.from_target",
   "fingerprint": "39981a9c608198ec",
-  "updated": "2026-09-19T05:50:21+00:00",
+  "updated": "2026-09-19T06:27:51+00:00",
   "entries": {
     "0ba9fcf6c0d1c4c0": {
       "signature": "accept|||TargetCanCatalog|",

@@ -71,19 +71,21 @@ def test_the_fingerprint_changes_with_the_oracle_and_not_otherwise():
     assert readapted.fingerprint != target.fingerprint
 
 
-def test_the_registry_covers_the_surfaces_the_survey_ranked_by_exposure():
-    """`parser_robustness_fuzzing_proposal.md` section 1, in order. A surface
-    dropped from here is a surface nobody fuzzes, silently."""
-    assert NAMES == sorted(
-        [
-            "autosar.inspect_file",
-            "canbus.codec_roundtrip",
-            "canbus.decode_frame",
-            "canbus.from_target",
-            "canbus.scan_log",
-            "composer.normalize_request",
-            "doip.uds_parse",
-            "fuzzer.parse_target_bits",
-            "someip.sd_parse",
-        ]
-    )
+def test_the_registry_still_covers_the_surfaces_the_survey_ranked_by_exposure():
+    """`parser_robustness_fuzzing_proposal.md` section 1. Asserted as a subset
+    rather than an equality: the registry is meant to grow, and pinning it
+    exactly would make every new target a test failure. What must not happen
+    is a surface leaving -- silently, nobody fuzzes it again."""
+    surveyed = {
+        "autosar.inspect_file",
+        "canbus.codec_roundtrip",
+        "canbus.decode_frame",
+        "canbus.from_target",
+        "canbus.scan_log",
+        "composer.normalize_request",
+        "doip.uds_parse",
+        "fuzzer.parse_target_bits",
+        "someip.sd_parse",
+    }
+
+    assert surveyed <= set(NAMES)

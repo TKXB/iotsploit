@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "composer.normalize_request",
   "fingerprint": "d6950acbda637a0a",
-  "updated": "2026-09-19T05:50:28+00:00",
+  "updated": "2026-09-19T06:28:34+00:00",
   "entries": {
     "000af0fd753264a5": {
       "signature": "accept|||dict[tens]<bool,dict[1],none>|",
@@ -33,6 +33,12 @@
       "kind": "reject",
       "first_seen": "20260919T022624Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
+    "0a8ff1d45dd39d02": {
+      "signature": "reject|RequestError|request is not valid json exceeds the limit||",
+      "kind": "reject",
+      "first_seen": "20260919T062351Z",
+      "edge_of": ""
     },
     "0affb30902450529": {
       "signature": "reject|RequestError|request frame must be an object naming the||",
@@ -98,6 +104,12 @@
       "signature": "reject|RequestError|request is not valid json expecting property name||",
       "kind": "reject",
       "first_seen": "20260919T021535Z",
+      "edge_of": ""
+    },
+    "2529d80cc9c7f0be": {
+      "signature": "reject|RequestError|request is not valid json exceeds the limit||",
+      "kind": "reject",
+      "first_seen": "20260919T062351Z",
       "edge_of": ""
     },
     "282c4901bdbdfeae": {
@@ -172,6 +184,12 @@
       "first_seen": "20260919T021535Z",
       "edge_of": ""
     },
+    "4fb85f8ad26af87a": {
+      "signature": "reject|RequestError|must be not||",
+      "kind": "reject",
+      "first_seen": "20260919T062259Z",
+      "edge_of": ""
+    },
     "507ae6b58b61bd4e": {
       "signature": "accept|||dict[tens]<bool,dict[0],none>|",
       "kind": "accept",
@@ -183,6 +201,12 @@
       "kind": "accept",
       "first_seen": "20260919T021535Z",
       "edge_of": ""
+    },
+    "57624b90f6919428": {
+      "signature": "reject|RequestError|request is not valid json expecting property enclosed||",
+      "kind": "reject",
+      "first_seen": "20260919T062351Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
     "5799a5b3e80129ed": {
       "signature": "reject|RequestError|request is not valid json extra data line||",
@@ -297,6 +321,12 @@
       "kind": "reject",
       "first_seen": "20260919T022343Z",
       "edge_of": ""
+    },
+    "8a3c08c9c44c196d": {
+      "signature": "reject|RequestError|request must be an object naming the and||",
+      "kind": "reject",
+      "first_seen": "20260919T062259Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
     "8d6565a4a8f123e9": {
       "signature": "reject|RequestError|request is required||",
@@ -448,6 +478,12 @@
       "first_seen": "20260919T021535Z",
       "edge_of": ""
     },
+    "c58142640ed6c034": {
+      "signature": "reject|RequestError|must be not||",
+      "kind": "reject",
+      "first_seen": "20260919T062016Z",
+      "edge_of": ""
+    },
     "c6e9ae6d5fa61243": {
       "signature": "reject|RequestError|request frame_id is required||",
       "kind": "reject",
@@ -526,6 +562,12 @@
       "first_seen": "20260919T022624Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
+    "dcff23f6cdad0d40": {
+      "signature": "reject|RequestError|request is not valid json exceeds the limit||",
+      "kind": "reject",
+      "first_seen": "20260919T062259Z",
+      "edge_of": ""
+    },
     "df1d431d902b0291": {
       "signature": "accept|||dict[tens]<bool,dict[0],none>|",
       "kind": "accept",
@@ -579,6 +621,12 @@
       "kind": "reject",
       "first_seen": "20260919T021535Z",
       "edge_of": ""
+    },
+    "f508dbe3160d91d1": {
+      "signature": "reject|RequestError|must be not||",
+      "kind": "reject",
+      "first_seen": "20260919T062259Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
     "f764ff75a163b74a": {
       "signature": "reject|RequestError|request frame must be an object naming the||",

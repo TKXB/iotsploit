@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import tempfile
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
@@ -89,7 +90,9 @@ def _temp_file(payload: bytes, suffix: str) -> str:
 def _json_input(payload: bytes) -> Any:
     try:
         return json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (UnicodeDecodeError, ValueError) as error:
+        # ValueError covers JSONDecodeError and the 4300-digit int-string
+        # limit, which fails inside int() rather than in the scanner.
         raise Skip(str(error)) from None
     except RecursionError as error:
         # A payload nested past the interpreter's limit is not an input for
@@ -188,14 +191,24 @@ def codec_roundtrip(payload: bytes) -> Any:
 
 
 def _raw_representable(signal: Any, value: float) -> bool:
-    """Whether the raw encoding can hold this value exactly."""
+    """Whether the raw encoding can hold this value exactly.
+
+    Asked by quantising and rebuilding, not by looking at the fractional part
+    of the step count. With a factor of 1e20 every value sits a tiny fraction
+    of a step from an integer, so the fractional test called everything
+    representable and then reported the codec for losing it -- which is the
+    encoding working exactly as ``physical = raw * factor + offset`` says it
+    must.
+    """
     if signal is None:
         return False
     try:
-        steps = (float(value) - float(signal.offset)) / float(signal.factor)
-    except (TypeError, ValueError, ZeroDivisionError):
+        offset, factor = float(signal.offset), float(signal.factor)
+        steps = (float(value) - offset) / factor
+        rebuilt = round(steps) * factor + offset
+    except (TypeError, ValueError, ZeroDivisionError, OverflowError):
         return False
-    return abs(steps - round(steps)) < 1e-9
+    return abs(rebuilt - float(value)) <= 1e-6 * max(1.0, abs(float(value)))
 
 
 def uds_parse(payload: bytes) -> Any:
@@ -252,6 +265,133 @@ def parse_target_bits(payload: bytes) -> Any:
     return target(text)
 
 
+
+# -- the rest of the toolkit ------------------------------------------------
+#
+# The first nine targets came from one plan's survey of the CAN/DoIP/SOME/IP
+# parse path. These are the surfaces around it that take input from the same
+# three places: a file an operator was handed, the output of a tool this
+# repository does not own, and a person typing.
+
+
+def _text_input(payload: bytes) -> str:
+    try:
+        return payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise Skip(str(error)) from None
+
+
+def parse_dbc(payload: bytes) -> Any:
+    """`django.tools.dbc.parse_dbc`: an uploaded DBC, read without cantools.
+
+    The same exposure as the ARXML path -- a file a tester accepts from a
+    supplier -- but parsed by hand from line shapes rather than by a library,
+    which is where the docstring's promise to be "faithful about what the file
+    says" has to hold on its own.
+    """
+    from iotsploit_django.tools.dbc import parse_dbc as target
+
+    return target(_text_input(payload))
+
+
+def parse_ip_link_details(payload: bytes) -> Any:
+    """`drivers.socketcan.can_link`: whatever `ip -details link show` printed.
+
+    Output of a tool this repository does not own, on a host whose iproute2
+    version it does not choose.
+    """
+    from iotsploit_drivers.socketcan.can_link import parse_ip_link_details as target
+
+    return target(_text_input(payload))
+
+
+def decode_can_error_frame(payload: bytes) -> Any:
+    """`drivers.socketcan.can_errors.decode_error_frame`: bytes off the wire."""
+    from iotsploit_drivers.socketcan.can_errors import decode_error_frame as target
+
+    if len(payload) < 4:
+        raise Skip("needs four bytes of arbitration id")
+    return target(int.from_bytes(payload[:4], "big"), payload[4:])
+
+
+def parse_nmap_grepable(payload: bytes) -> Any:
+    """`exploits.nmap_scan`: nmap's grepable output, parsed by hand."""
+    from iotsploit_exploits.nmap_scan.nmap_scan import _parse_nmap_grepable as target
+
+    return target(_text_input(payload))
+
+
+def parse_hosts(payload: bytes) -> Any:
+    """`exploits.ip_scan.parse_hosts`: operator input, only ValueError."""
+    from iotsploit_exploits.ip_scan.ip_scan import parse_hosts as target
+
+    return target(_text_input(payload))
+
+
+def capture_request(payload: bytes) -> Any:
+    """`exploits.canbus.live_capture.parse_request`: any JSON, only ValueError."""
+    from iotsploit_exploits.canbus.live_capture import parse_request as target
+
+    return target(_text_input(payload))
+
+
+def uds_parse_command(payload: bytes) -> Any:
+    """`exploits.uds.interactive.parse_command`: a line someone typed.
+
+    Its contract is that the vocabulary never gets in the way -- anything
+    unrecognised is treated as raw hex rather than refused -- so nothing
+    should escape it at all.
+    """
+    from iotsploit_exploits.uds.interactive import catalog_by_name, parse_command
+
+    return parse_command(_text_input(payload), catalog_by_name())
+
+
+def did_pack(payload: bytes) -> Any:
+    """`exploits.uds` DID profile pack, from the file to the parsed registry.
+
+    The pack is an operator-installed file. ``load_did_pack`` declares
+    ``ValueError`` and checks the outer shape -- a dict carrying a ``dids``
+    list -- and ``definitions()`` then reads everything below it with
+    unguarded subscripting: ``item["fields"]``, ``field["byte_start"]``,
+    ``int(item["did"], 16)``, ``int(key)`` for every choice. The pair is the
+    target, because the validation and the consumption are in different
+    functions.
+
+    Aimed at the real file by pointing the module constant at a temporary
+    one. Both ``_pack`` and ``definitions`` are ``lru_cache``d, and *both*
+    have to be cleared: clearing only the outer one still answers every
+    payload after the first from the first one's file, which is a state leak
+    a batched worker would otherwise hide completely.
+    """
+    from iotsploit_exploits.uds import did_registry, local_profile
+
+    path = Path(_temp_file(payload, ".json"))
+    original = local_profile._DID_FILE
+    local_profile._DID_FILE = path
+    for cached in (did_registry._pack, did_registry.definitions):
+        cached.cache_clear()
+    try:
+        return did_registry.definitions()
+    finally:
+        local_profile._DID_FILE = original
+        for cached in (did_registry._pack, did_registry.definitions):
+            cached.cache_clear()
+        os.unlink(path)
+
+
+def as_number(payload: bytes) -> Any:
+    """`core.utils.as_number`: the parameter boundary every plugin sits behind.
+
+    In the registry for the same reason ``parse_target_bits`` is: it is a
+    parser this repository owns, and every declared int in every plugin now
+    goes through it.
+    """
+    from iotsploit_core.utils import as_number as target
+
+    return target(_text_input(payload), "value", minimum=0, maximum=0xFFFF)
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -288,6 +428,39 @@ _TARGET_SEED = {
 def _json_seed(obj: Any) -> bytes:
     return json.dumps(obj).encode()
 
+
+_DBC_SEED = 'VERSION ""\n\nBU_: ECM TCM\n\nBO_ 291 EngineStatus: 8 ECM\n SG_ Speed : 0|16@1+ (0.1,0) [0|250] "km/h" TCM\n SG_ Gear : 16|4@1+ (1,0) [0|8] "" TCM\n\nBO_ 2147483939 ExtFrame: 2 TCM\n SG_ Flag : 0|1@1+ (1,0) [0|1] "" ECM\n\nVAL_ 291 Gear 3 "Drive" 1 "Park" ;\nCM_ BU_ ECM "Engine controller";\n'
+
+_IP_LINK_SEED = '1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT\n    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n3: can0: <NOARP,UP,LOWER_UP,ECHO> mtu 16 qdisc pfifo_fast state UP mode DEFAULT qlen 10\n    link/can  promiscuity 0 minmtu 0 maxmtu 0\n    can state ERROR-ACTIVE restart-ms 0\n    bitrate 500000 sample-point 0.875\n    pcan_usb_fd: tseg1 1..256 tseg2 1..128 sjw 1..128 brp 1..1024 brp-inc 1\n4: can1: <NOARP,UP> mtu 72 qdisc pfifo_fast state UP mode DEFAULT qlen 10\n    link/can\n    can state ERROR-ACTIVE restart-ms 100\n    bitrate 500000 dbitrate 2000000 sample-point 0.750\n'
+
+_NMAP_SEED = '# Nmap 7.80 scan initiated\nHost: 192.168.1.10 ()\tStatus: Up\nHost: 192.168.1.10 ()\tPorts: 22/open/tcp//ssh///, 80/open/tcp//http///\nHost: 192.168.1.11 ()\tStatus: Down\n# Nmap done\n'
+
+_DID_PACK_SEED = _json_seed(
+    {
+        "schema_version": 1,
+        "source": {"file": "oem.xml"},
+        "dids": [
+            {
+                "did": "F190",
+                "name": "VIN",
+                "size_bytes": 17,
+                "access": {"read": True, "read_security_level": 0},
+                "fields": [
+                    {
+                        "name": "vin",
+                        "byte_start": 1,
+                        "byte_end": 17,
+                        "bit_low": 0,
+                        "bit_high": 7,
+                        "choices": {"0": "none"},
+                        "choice_format": "dec",
+                        "description": "Vehicle identification number",
+                    }
+                ],
+            }
+        ],
+    }
+)
 
 REGISTRY: Dict[str, ParseTarget] = {}
 
@@ -328,10 +501,11 @@ for _target in (
             "iotsploit_protocols.canbus.errors:CanValueError",
             "iotsploit_protocols.canbus.errors:CanDefinitionError",
         ),
-        # 2: the round trip is asserted only where the raw encoding can
-        # represent the value. Version 1 reported quantisation as a broken
-        # invariant, so its recorded signatures are not comparable.
-        adapter_version="2",
+        # 3: representability is decided by quantising and rebuilding the
+        # value. Versions 1 and 2 both reported quantisation as a broken
+        # invariant -- 1 for every value, 2 whenever the factor was large
+        # enough that any value sat a fraction of a step from an integer.
+        adapter_version="3",
         seeds=(
             _json_seed({"definition": _FRAME_SEED, "values": {"Speed": 12.8, "Gear": 3}}),
         ),
@@ -380,6 +554,71 @@ for _target in (
         adapter=f"{_HERE}:parse_target_bits",
         declared=("builtins:ValueError",),
         seeds=(b"0-7", b"0,1,7", b"0-7,16,17", b"5"),
+        budget_seconds=2.0,
+        memory_mb=512,
+    ),
+    ParseTarget(
+        name="django.parse_dbc",
+        adapter=f"{_HERE}:parse_dbc",
+        declared=(),
+        seeds=(_DBC_SEED.encode(), b"", b"BO_ 1 A: 8 X\n"),
+        budget_seconds=5.0,
+    ),
+    ParseTarget(
+        name="drivers.ip_link_details",
+        adapter=f"{_HERE}:parse_ip_link_details",
+        declared=(),
+        seeds=(_IP_LINK_SEED.encode(), b"", b"1: can0: <UP> mtu 16\n    link/can\n"),
+    ),
+    ParseTarget(
+        name="drivers.can_error_frame",
+        adapter=f"{_HERE}:decode_can_error_frame",
+        declared=(),
+        seeds=(
+            bytes.fromhex("00000004") + b"\x00\x08\x00\x00\x00\x00\x00\x00",
+            bytes.fromhex("00000040") + b"\x00\x00",
+            bytes.fromhex("00000001"),
+        ),
+    ),
+    ParseTarget(
+        name="exploits.nmap_grepable",
+        adapter=f"{_HERE}:parse_nmap_grepable",
+        declared=(),
+        seeds=(_NMAP_SEED.encode(), b"", b"Host: 10.0.0.1 ()\tPorts: 22/open/tcp//ssh///\n"),
+    ),
+    ParseTarget(
+        name="exploits.parse_hosts",
+        adapter=f"{_HERE}:parse_hosts",
+        declared=("builtins:ValueError",),
+        seeds=(b"192.168.1.0/24", b"10.0.0.1, 10.0.0.2", b"", b"::1"),
+    ),
+    ParseTarget(
+        name="exploits.capture_request",
+        adapter=f"{_HERE}:capture_request",
+        declared=("builtins:ValueError",),
+        seeds=(
+            _json_seed({"schema_version": 1, "operation": "start", "bus_id": "bus-1"}),
+            b"{}",
+            b"",
+        ),
+    ),
+    ParseTarget(
+        name="exploits.uds_command",
+        adapter=f"{_HERE}:uds_parse_command",
+        declared=(),
+        seeds=(b"help", b"session 3", b"22 F1 90", b"quit", b""),
+    ),
+    ParseTarget(
+        name="exploits.did_pack",
+        adapter=f"{_HERE}:did_pack",
+        declared=("builtins:ValueError",),
+        seeds=(_DID_PACK_SEED, b"{}", b'{"dids": []}', b'{"dids": [{}]}'),
+    ),
+    ParseTarget(
+        name="core.as_number",
+        adapter=f"{_HERE}:as_number",
+        declared=("builtins:ValueError",),
+        seeds=(b"0x1000", b"42", b"", b"  7 "),
         budget_seconds=2.0,
         memory_mb=512,
     ),

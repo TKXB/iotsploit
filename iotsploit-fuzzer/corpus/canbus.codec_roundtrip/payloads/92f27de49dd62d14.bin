@@ -1,0 +1,1 @@
+{"definition": {"bus_id": "bus-1", "frame_id": 291, "is_extended": false, "name": "Engi-1-1-1neStatus", "dlc": 8, "signals": [{"name": "Speed", "start_bit": 0, "length": 16, "factor": 0.1}, {"name": "Ge9999999999999999994294967296ab", "start_bit": 16, "length": 4}]}, "values": {"Spe96729496729642949672964294967296ar": 3}}

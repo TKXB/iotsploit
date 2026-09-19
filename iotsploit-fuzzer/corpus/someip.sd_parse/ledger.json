@@ -2,12 +2,18 @@
   "ledger_version": 1,
   "target": "someip.sd_parse",
   "fingerprint": "e9c6633e978640fa",
-  "updated": "2026-09-19T05:50:27+00:00",
+  "updated": "2026-09-19T06:28:29+00:00",
   "entries": {
     "12ae32cb1ec02d01": {
       "signature": "accept|||list[0]|",
       "kind": "accept",
       "first_seen": "20260919T021550Z",
+      "edge_of": ""
+    },
+    "1e63f6587bd7ad05": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260919T062332Z",
       "edge_of": ""
     },
     "41fa0ad0c20e5499": {
@@ -34,6 +40,12 @@
       "first_seen": "20260919T022742Z",
       "edge_of": ""
     },
+    "9f8e64e7bb00a4e2": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260919T062003Z",
+      "edge_of": ""
+    },
     "b604a91ff25d39e6": {
       "signature": "accept|||list[few]<ServiceOffer>|",
       "kind": "accept",
@@ -44,6 +56,12 @@
       "signature": "accept|||list[few]<ServiceOffer>|",
       "kind": "accept",
       "first_seen": "20260919T022615Z",
+      "edge_of": ""
+    },
+    "e35c733917fdc10b": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260919T062332Z",
       "edge_of": ""
     },
     "e76acb21f7c85592": {
