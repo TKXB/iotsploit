@@ -170,12 +170,32 @@ def codec_roundtrip(payload: bytes) -> Any:
     decoded = decode_frame(definition, bytes(encoded.data))
     if not decoded.ok:
         raise MetamorphicError(f"encode succeeded but decode failed: {decoded.reason}")
+
+    by_name = {signal.name: signal for signal in definition.signals}
     for name, sent in values.items():
         got = decoded.signals.get(name)
-        if isinstance(sent, (int, float)) and isinstance(got, (int, float)):
-            if abs(float(got) - float(sent)) > 1e-6:
-                raise MetamorphicError(f"signal {name} survived encode as {got}")
+        if not isinstance(sent, (int, float)) or not isinstance(got, (int, float)):
+            continue
+        if not _raw_representable(by_name.get(name), sent):
+            # ``physical = raw * factor + offset``, so a value between two raw
+            # steps cannot survive the trip and its loss is quantisation, not
+            # a defect. Asserting equality for those would report the codec
+            # working as designed.
+            continue
+        if abs(float(got) - float(sent)) > 1e-6:
+            raise MetamorphicError(f"signal {name} survived encode as {got}")
     return decoded
+
+
+def _raw_representable(signal: Any, value: float) -> bool:
+    """Whether the raw encoding can hold this value exactly."""
+    if signal is None:
+        return False
+    try:
+        steps = (float(value) - float(signal.offset)) / float(signal.factor)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return False
+    return abs(steps - round(steps)) < 1e-9
 
 
 def uds_parse(payload: bytes) -> Any:
@@ -308,6 +328,10 @@ for _target in (
             "iotsploit_protocols.canbus.errors:CanValueError",
             "iotsploit_protocols.canbus.errors:CanDefinitionError",
         ),
+        # 2: the round trip is asserted only where the raw encoding can
+        # represent the value. Version 1 reported quantisation as a broken
+        # invariant, so its recorded signatures are not comparable.
+        adapter_version="2",
         seeds=(
             _json_seed({"definition": _FRAME_SEED, "values": {"Speed": 12.8, "Gear": 3}}),
         ),

@@ -72,8 +72,22 @@ class CorpusGenerator(DataGenerator):
         return seeds
 
     def generate(self, seeds: Iterable[bytes], total: int) -> Iterator[bytes]:
+        """Replay what is retained, then mutate from it.
+
+        The replay is not a formality. A boundary movement is *defined* on a
+        payload the ledger already holds, so a campaign that only mutates
+        detects one when the mutator happens to reproduce a retained payload
+        byte for byte -- which is to say, almost never. Running the corpus
+        first is what makes ``BOUNDARY_MOVED`` a property of the run rather
+        than of luck.
+        """
         pool = [s for s in seeds] or [b""]
         self._seed_bytes.update({payload_id(s): s for s in pool})
+        for retained in pool[:total]:
+            yield retained
+        total -= min(len(pool), total)
+        if total <= 0:
+            return
         if self.radamsa is not None:
             yield from self._radamsa(pool, total)
             return

@@ -179,6 +179,8 @@ class BoundaryMonitor(Monitor):
                 "flaky": len(self.flaky),
                 "retained": self.retained,
                 "corpus_size": len(self.store.entries),
+                "signatures": len(self.store.signature_counts()),
+                "saturated": self.store.saturated,
             }
         )
         return stats

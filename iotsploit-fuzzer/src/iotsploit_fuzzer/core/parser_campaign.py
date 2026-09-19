@@ -232,6 +232,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             f"violations={stats['violations']} moved={stats['boundary_moves']} "
             f"new={stats['new_regions']} flaky={stats['flaky']} "
             f"corpus={stats['corpus_size']}"
+            + ("  SATURATED: the result shape is too fine-grained" if stats["saturated"] else "")
         )
         for finding in report["violations"]:
             print(f"    VIOLATION {finding['signature']}  {finding['site']}  {finding['detail'][:80]}")

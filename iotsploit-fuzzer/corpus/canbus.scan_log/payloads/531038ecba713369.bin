@@ -1,0 +1,7 @@
+date Mon Jan 1 00:00:00 65536
+base -1ex timestamps absolute
+Begin Triggerblock Mon Jan 1`00:00:00 2024
+   0.000100 1  123    .1 1  1FFFFFFFx       Rx   d 2 AA BB
+End TriggerBlock
+ 00200 1  1FFFFFFFx       Rx   d 2 AA BB
+End TriggerBlock

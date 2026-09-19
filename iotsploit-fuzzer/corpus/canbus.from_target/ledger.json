@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "canbus.from_target",
   "fingerprint": "39981a9c608198ec",
-  "updated": "2026-09-19T02:15:29+00:00",
+  "updated": "2026-09-19T02:27:03+00:00",
   "entries": {
     "0ba9fcf6c0d1c4c0": {
       "signature": "accept|||TargetCanCatalog|",
@@ -10,11 +10,29 @@
       "first_seen": "20260919T021528Z",
       "edge_of": ""
     },
+    "44136fa355b3678a": {
+      "signature": "accept|||TargetCanCatalog|",
+      "kind": "accept",
+      "first_seen": "20260919T022544Z",
+      "edge_of": "reject|CanDefinitionError|no target supplied||"
+    },
     "4f53cda18c2baa0c": {
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
       "first_seen": "20260919T021528Z",
       "edge_of": ""
+    },
+    "6691a401591d54ca": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260919T022323Z",
+      "edge_of": ""
+    },
+    "70fbf0b993ae7bcc": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260919T022544Z",
+      "edge_of": "accept|||TargetCanCatalog|"
     },
     "74234e98afe7498f": {
       "signature": "reject|CanDefinitionError|no target supplied||",
@@ -26,6 +44,12 @@
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
       "first_seen": "20260919T021528Z",
+      "edge_of": ""
+    },
+    "ea70d27e47c41318": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260919T022544Z",
       "edge_of": ""
     }
   }

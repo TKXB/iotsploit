@@ -22,6 +22,7 @@ from iotsploit_fuzzer.analysis.corpus import (
     MAX_EDGE_EXEMPLARS,
     MAX_EXEMPLARS,
     MAX_PER_SIGNATURE,
+    MAX_SIGNATURES,
     CorpusStore,
     payload_id,
 )
@@ -77,6 +78,18 @@ def test_a_signature_reachable_from_many_parents_still_has_a_ceiling(store):
         store.admit(f"p{n}".encode(), ACCEPTED, "c1", edge_of=f"reject|E|reason-{n}||")
 
     assert len(store.entries) <= MAX_PER_SIGNATURE
+
+
+def test_a_target_with_too_many_behaviours_stops_rather_than_grows(store):
+    """The per-signature caps bound payloads per behaviour, not the number of
+    behaviours. A result shape with six bucketed fields has a combinatorially
+    large space, so something has to stop -- visibly, because reaching this
+    means the shape is too fine-grained to be a boundary."""
+    for n in range(MAX_SIGNATURES + 50):
+        store.admit(f"p{n}".encode(), Outcome(kind=ACCEPT, shape=f"list[{n}]"), "c1")
+
+    assert store.saturated
+    assert len(store.signature_counts()) == MAX_SIGNATURES
 
 
 def test_a_known_payload_keeps_the_history_that_a_diff_is_made_against(store):

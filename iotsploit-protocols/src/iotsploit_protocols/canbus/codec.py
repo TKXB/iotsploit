@@ -55,18 +55,27 @@ def _check_fits_a_frame(definition: FrameDefinition) -> None:
     upstream guarantees these bounds. Checking them costs a comparison.
     """
     limit = MAX_PAYLOAD_BYTES if definition.is_fd else 8
-    if not 0 <= definition.dlc <= limit:
+    dlc = definition.dlc
+    # The type is checked, not assumed: a definition arrives from an importer
+    # or a hand edit, and comparing a str with ``<`` raises a TypeError this
+    # function does not declare.
+    if not isinstance(dlc, int) or isinstance(dlc, bool) or not 0 <= dlc <= limit:
         raise CanDefinitionError(
-            f"frame {definition.name!r} claims a {definition.dlc}-byte payload; "
+            f"frame {definition.name!r} claims a {dlc!r}-byte payload; "
             f"{'CAN FD' if definition.is_fd else 'classic CAN'} carries at most {limit}"
         )
 
-    bits = definition.dlc * 8
+    bits = max(dlc * 8, 1)
     for signal in definition.signals:
-        if not 0 <= signal.start_bit < max(bits, 1) or not 0 < signal.length <= max(bits, 1):
+        start, length = signal.start_bit, signal.length
+        numbers = all(
+            isinstance(value, int) and not isinstance(value, bool)
+            for value in (start, length)
+        )
+        if not numbers or not 0 <= start < bits or not 0 < length <= bits:
             raise CanDefinitionError(
                 f"frame {definition.name!r} places signal {signal.name!r} at bit "
-                f"{signal.start_bit} length {signal.length}, outside its {bits}-bit payload"
+                f"{start!r} length {length!r}, outside its {bits}-bit payload"
             )
 
 

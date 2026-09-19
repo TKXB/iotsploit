@@ -55,6 +55,13 @@ MAX_EDGE_EXEMPLARS = 1
 #: otherwise accumulate one exemplar per parent and escape both caps.
 MAX_PER_SIGNATURE = 5
 
+#: Distinct signatures one target may hold. The per-signature caps bound how
+#: many payloads each behaviour keeps, but not how many behaviours there are,
+#: and a result shape with six bucketed fields has a combinatorially large
+#: space. Sized generously: reaching it means the shape is too fine-grained to
+#: be a boundary, which is worth reporting rather than absorbing.
+MAX_SIGNATURES = 200
+
 #: Campaign manifests kept per target. Enough to compare a finding against the
 #: runs around it; bounded so a nightly loop does not accumulate a manifest a
 #: day for ever.
@@ -154,6 +161,8 @@ class CorpusStore:
         self.entries = {}
         self._counts: Dict[str, int] = {}
         self.stale = False
+        #: Set when a new signature was turned away by MAX_SIGNATURES.
+        self.saturated = False
         if not self.ledger_path.exists():
             return
         try:
@@ -227,6 +236,9 @@ class CorpusStore:
                 self._counts[outcome.signature] = self._counts.get(outcome.signature, 0) + 1
             return False
         if self._counts.get(outcome.signature, 0) >= MAX_PER_SIGNATURE:
+            return False
+        if outcome.signature not in self._counts and len(self._counts) >= MAX_SIGNATURES:
+            self.saturated = True
             return False
         if edge_of:
             held = sum(
