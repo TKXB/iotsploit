@@ -1,9 +1,15 @@
 {
   "ledger_version": 1,
   "target": "core.target_roundtrip",
-  "fingerprint": "bf983aaf658d9901",
-  "updated": "2026-09-19T15:41:22+00:00",
+  "fingerprint": "c0639b4fa4fabd72",
+  "updated": "2026-09-19T22:16:33+00:00",
   "entries": {
+    "056a82e74e4f5157": {
+      "signature": "reject|ValidationError|validation error for vehicle field required missing input_value||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
     "0a09888142c61e00": {
       "signature": "reject|ValidationError|validation errors for source field required missing input_value||",
       "kind": "reject",
@@ -20,6 +26,12 @@
       "signature": "reject|ValidationError|validation error for vehicle value error input_type dict||",
       "kind": "reject",
       "first_seen": "20260919T154115Z",
+      "edge_of": ""
+    },
+    "147dcf2e3d9d2e8e": {
+      "signature": "reject|ValidationError|validation errors for vehicle field required missing input_value||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
       "edge_of": ""
     },
     "1aba7938689e8021": {
@@ -58,6 +70,24 @@
       "first_seen": "20260919T154115Z",
       "edge_of": ""
     },
+    "2495ab3d0fb89be1": {
+      "signature": "reject|ValidationError|validation error for vehicle bus_id field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "24c486134ab52eca": {
+      "signature": "reject|ValidationError|validation error for vehicle relation field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "274a7285db00298f": {
+      "signature": "reject|ValidationError|validation error for vehicle relation field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
     "2a35c225e66ab4d5": {
       "signature": "reject|ValidationError|validation error for relation field required missing input_value||",
       "kind": "reject",
@@ -76,6 +106,18 @@
       "first_seen": "20260919T154115Z",
       "edge_of": "accept|||Vehicle|"
     },
+    "34721c16c154225d": {
+      "signature": "reject|ValidationError|validation error for vehicle bus_id field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "35bf29442a8ed48d": {
+      "signature": "reject|ValidationError|validation errors for bus_id field required missing input_value||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
     "35dcf17ccce7107e": {
       "signature": "accept|||Vehicle|",
       "kind": "accept",
@@ -88,10 +130,34 @@
       "first_seen": "20260919T154115Z",
       "edge_of": ""
     },
+    "3ca2c8e32fcb7577": {
+      "signature": "reject|ValidationError|validation errors for bus_id field required missing input_value||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
     "3cf2d7963b30a913": {
       "signature": "reject|ValidationError|validation error for field required missing input_value input_type||",
       "kind": "reject",
       "first_seen": "20260919T154115Z",
+      "edge_of": ""
+    },
+    "3d0c13d970e696e6": {
+      "signature": "reject|ValidationError|validation error for vehicle relation field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "3eda37de78911b17": {
+      "signature": "accept|||Vehicle|",
+      "kind": "accept",
+      "first_seen": "20260919T221630Z",
+      "edge_of": "reject|ValidationError|validation errors for source field required missing input_value||"
+    },
+    "428dc56d3868c92b": {
+      "signature": "reject|ValidationError|validation error for vehicle source field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
       "edge_of": ""
     },
     "4970847ef3d45b5c": {
@@ -142,10 +208,40 @@
       "first_seen": "20260919T154115Z",
       "edge_of": ""
     },
+    "6f1329c403fc5f03": {
+      "signature": "reject|ValidationError|validation errors for vehicle field required missing input_value||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "7028f7a7aa32534d": {
+      "signature": "reject|ValidationError|validation errors for vehicle bus_id field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "87d3d449f025cfe2": {
+      "signature": "accept|||Vehicle|",
+      "kind": "accept",
+      "first_seen": "20260919T221630Z",
+      "edge_of": "reject|ValidationError|validation error for value error input_type dict for||"
+    },
     "87de13637e133582": {
       "signature": "reject|ValidationError|validation error for bus_id field required missing input_value||",
       "kind": "reject",
       "first_seen": "20260919T154115Z",
+      "edge_of": ""
+    },
+    "8f513114c9f017c3": {
+      "signature": "reject|ValidationError|validation error for vehicle input should valid string||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "8fa9cffc6803d2ca": {
+      "signature": "reject|ValidationError|validation error for vehicle bus_id field required missing||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
       "edge_of": ""
     },
     "92426aacc9e056f3": {
@@ -153,6 +249,18 @@
       "kind": "reject",
       "first_seen": "20260919T154115Z",
       "edge_of": "accept|||Vehicle|"
+    },
+    "92dc1c1281d9d58b": {
+      "signature": "reject|ValidationError|validation errors for vehicle input should valid string||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "97d8653c6da34b50": {
+      "signature": "reject|ValidationError|validation errors for vehicle input should be valid||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
     },
     "994bc38451a00f5d": {
       "signature": "reject|ValidationError|validation errors for bus_id field required missing input_value||",
@@ -164,6 +272,12 @@
       "signature": "reject|ValidationError|validation error for field required missing input_value input_type||",
       "kind": "reject",
       "first_seen": "20260919T154115Z",
+      "edge_of": ""
+    },
+    "9e6be7b7a0fa84ae": {
+      "signature": "reject|ValidationError|validation errors for vehicle input should be valid||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
       "edge_of": ""
     },
     "a2273aad8676607a": {
@@ -195,6 +309,18 @@
       "kind": "reject",
       "first_seen": "20260919T154115Z",
       "edge_of": "accept|||Vehicle|"
+    },
+    "b44db0ee5f7469bd": {
+      "signature": "reject|ValidationError|validation error for vehicle input should valid string||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
+    },
+    "b76e9c1543d6df02": {
+      "signature": "reject|ValidationError|validation error for vehicle field required missing input_value||",
+      "kind": "reject",
+      "first_seen": "20260919T221630Z",
+      "edge_of": ""
     },
     "bef37eb9238d8365": {
       "signature": "reject|ValidationError|validation error for field required missing input_value input_type||",

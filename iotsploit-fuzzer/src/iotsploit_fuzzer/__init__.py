@@ -19,8 +19,7 @@ from .generators.radamsa_generator import RadamsaGenerator
 from .analysis.corpus import CorpusStore
 from .harnesses.can_harness import CANHarness
 from .harnesses.parser_harness import ParserHarness
-from .harnesses.parser_targets import REGISTRY as PARSER_TARGETS
-from .harnesses.parser_targets import ParseTarget
+from .harnesses.parser_targets import ParseTarget, register
 from .monitoring.boundary_monitor import BoundaryMonitor
 from .harnesses.uart_harness import UARTHarness
 from .harnesses.spi_harness import SPIHarness
@@ -54,7 +53,7 @@ __all__ = [
     # Inbound parser fuzzing: the same loop pointed at our own parsers
     "ParserHarness",
     "ParseTarget",
-    "PARSER_TARGETS",
+    "register",
     "CorpusStore",
     "BoundaryMonitor",
     

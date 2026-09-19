@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "drivers.ip_link_details",
-  "fingerprint": "0e423023bc50c1f9",
-  "updated": "2026-09-19T15:39:59+00:00",
+  "fingerprint": "d508cc2a65bc4148",
+  "updated": "2026-09-19T22:15:59+00:00",
   "entries": {
     "2a1471c8654cc1f2": {
       "signature": "accept|||dict[1]<CanLinkInfo>|",

@@ -1,0 +1,1 @@
+{"targecomponents": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}, {"component_id": "c_tcam", "name": "TCAM", "type": "ecu", "vende": "eth0", "type": "ethernet"}]}

@@ -20,6 +20,7 @@ Two modes:
 from __future__ import annotations
 
 import argparse
+import importlib
 import logging
 import subprocess
 import sys
@@ -40,12 +41,30 @@ from .orchestrator import Orchestrator
 
 logger = logging.getLogger("fuzzer.parser_campaign")
 
+#: The pack loaded when no ``--targets`` is given. IoTSploit's own, because
+#: this package ships inside it; another application names its own and the
+#: engine needs to know nothing else about it.
+DEFAULT_TARGET_PACK = "iotsploit_fuzzer.targets.iotsploit"
+
 #: Tracked in git on purpose. ``artifacts/`` is ignored, so a corpus there
 #: would be per-machine: the gate would replay nothing on a fresh clone and
 #: the loop would have no memory across the people who run it. Kept here, the
 #: ledger also diffs in review -- a boundary movement arrives as a JSON change
-#: in the pull request that caused it.
+#: in the pull request that caused it. An application fuzzing its own targets
+#: passes ``--root`` and keeps its corpus with its own source.
 DEFAULT_CORPUS_ROOT = Path(__file__).resolve().parents[3] / "corpus"
+
+
+def load_packs(names: Optional[List[str]] = None) -> Dict[str, ParseTarget]:
+    """Import each target pack so that its ``register`` calls run.
+
+    A pack is an ordinary module. Importing it is the whole protocol -- there
+    is no manifest and no entry point to declare, because a target is data and
+    the module that holds it is the only thing that needs to exist.
+    """
+    for name in names or [DEFAULT_TARGET_PACK]:
+        importlib.import_module(name)
+    return REGISTRY
 
 
 class StaleLedgerError(RuntimeError):
@@ -212,6 +231,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument("--list", action="store_true", help="print the registry and exit")
     parser.add_argument(
+        "--targets", action="append", metavar="MODULE",
+        help="import a target pack, a module that calls register(). Repeatable. "
+             f"Defaults to {DEFAULT_TARGET_PACK}; another application names its own",
+    )
+    parser.add_argument(
         "--adapter",
         help="try a function without touching the registry: 'module:function', "
              "taking bytes. Results are not kept unless --root is given too",
@@ -231,6 +255,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    try:
+        load_packs(args.targets)
+    except ImportError as error:
+        parser.error(f"cannot import target pack: {error}")
 
     if args.list:
         for name, target in REGISTRY.items():

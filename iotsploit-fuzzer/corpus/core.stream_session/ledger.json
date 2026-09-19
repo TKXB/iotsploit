@@ -1,14 +1,26 @@
 {
   "ledger_version": 1,
   "target": "core.stream_session",
-  "fingerprint": "c0d1ebd15d41a783",
-  "updated": "2026-09-19T15:41:37+00:00",
+  "fingerprint": "b8fc08739a7d55ea",
+  "updated": "2026-09-19T22:16:40+00:00",
   "entries": {
+    "0a7edcd9c69abbc8": {
+      "signature": "reject|ValueError|not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": ""
+    },
     "0c923e94171977b1": {
       "signature": "reject|ValueError|not valid streamsource||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
+    },
+    "132689eb54d2bb90": {
+      "signature": "accept|||list[few]<str[0],str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|ValueError|not valid streamsource||"
     },
     "1dd49ca46a7cd380": {
       "signature": "reject|KeyError|||",
@@ -16,17 +28,41 @@
       "first_seen": "20260919T154132Z",
       "edge_of": "accept|||list[1]<str[few]>|"
     },
+    "1ea861a766e7c015": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[few]>|"
+    },
+    "209d79dededa411b": {
+      "signature": "accept|||list[few]<str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|ValueError|not valid streamaction||"
+    },
     "25c075dcd52b582c": {
       "signature": "reject|KeyError|timestamp||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
       "edge_of": "accept|||list[1]<str[few]>|"
     },
+    "2c1100f5cf95132d": {
+      "signature": "accept|||list[1]<str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|KeyError|source||"
+    },
     "3c96c2ddfdf5ac7f": {
       "signature": "reject|KeyError|stream_type||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
+    },
+    "3d04b8b43ae4cb84": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[few]>|"
     },
     "474a68219863a9c5": {
       "signature": "accept|||list[few]<str[few]>|",
@@ -52,6 +88,12 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "5076efc0b53d36e3": {
+      "signature": "reject|ValueError|not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": ""
+    },
     "51687f68187c39ef": {
       "signature": "accept|||list[few]<str[few],str[tens]>|",
       "kind": "accept",
@@ -70,11 +112,23 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "5a5fe9902c0c7bd2": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[few],str[tens]>|"
+    },
     "5d2f25605314a836": {
       "signature": "reject|ValueError|not valid streamaction||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
+    },
+    "5dfdc8e347d6d212": {
+      "signature": "reject|KeyError|action||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[0],str[few]>|"
     },
     "614f21d28ee4c819": {
       "signature": "reject|ValueError|not valid streamaction||",
@@ -82,16 +136,34 @@
       "first_seen": "20260919T154132Z",
       "edge_of": "accept|||list[1]<str[few]>|"
     },
+    "61e8d58afa3dc8bb": {
+      "signature": "accept|||list[1]<str[0]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|KeyError|timestamp||"
+    },
     "637ae1da12c2b8f9": {
       "signature": "reject|ValueError|not valid streamaction||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "65dd675cc3425bcf": {
+      "signature": "accept|||list[1]<str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|KeyError|||"
+    },
     "66f8d0ad46d82256": {
       "signature": "reject|KeyError|||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
+      "edge_of": ""
+    },
+    "679fa1d3449b25bf": {
+      "signature": "accept|||list[few]<str[0],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
       "edge_of": ""
     },
     "6a7677e871b90d87": {
@@ -105,6 +177,12 @@
       "kind": "accept",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
+    },
+    "6cd49a266e7d0ac3": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[few]>|"
     },
     "71c6cc6e8ce8a396": {
       "signature": "reject|ValueError|not valid streamsource||",
@@ -154,6 +232,18 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "8bf3abc97296632b": {
+      "signature": "reject|ValueError|not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[0],str[few]>|"
+    },
+    "9698fa33e200e635": {
+      "signature": "accept|||list[few]<str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": ""
+    },
     "9c33071f5e0f4512": {
       "signature": "reject|KeyError|stream_type||",
       "kind": "reject",
@@ -195,6 +285,24 @@
       "kind": "accept",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
+    },
+    "af019276889147d2": {
+      "signature": "accept|||list[few]<str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|KeyError|||"
+    },
+    "afaaf080d7edac73": {
+      "signature": "accept|||list[few]<str[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|ValueError|not valid streamsource||"
+    },
+    "b170176dc23f5511": {
+      "signature": "accept|||list[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|ValueError|not valid streamsource||"
     },
     "b2706cb09b5c4178": {
       "signature": "accept|||list[1]<str[tens]>|",
@@ -256,6 +364,12 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "d6b3bdcb9f77d74e": {
+      "signature": "accept|||list[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "reject|KeyError|action||"
+    },
     "dfca3cbd54c21759": {
       "signature": "accept|||list[1]<str[few]>|",
       "kind": "accept",
@@ -280,6 +394,12 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "e8536a290163210f": {
+      "signature": "reject|ValueError|not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T221637Z",
+      "edge_of": "accept|||list[few]<str[few]>|"
+    },
     "ec62a32a1712f39c": {
       "signature": "accept|||list[few]<str[0],str[few]>|",
       "kind": "accept",
@@ -290,6 +410,12 @@
       "signature": "accept|||list[few]<str[few],str[tens]>|",
       "kind": "accept",
       "first_seen": "20260919T154132Z",
+      "edge_of": ""
+    },
+    "f60c84914aebddb7": {
+      "signature": "accept|||list[few]<str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
       "edge_of": ""
     },
     "f81d6ffbc76ae273": {
@@ -303,6 +429,12 @@
       "kind": "reject",
       "first_seen": "20260919T154132Z",
       "edge_of": "accept|||list[1]<str[few]>|"
+    },
+    "fb223e6c6e914198": {
+      "signature": "accept|||list[few]<str[0],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260919T221637Z",
+      "edge_of": ""
     }
   }
 }

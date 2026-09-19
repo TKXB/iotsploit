@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "canbus.from_target",
-  "fingerprint": "179293758fd06a4a",
-  "updated": "2026-09-19T15:38:45+00:00",
+  "fingerprint": "b068985e5a66abb8",
+  "updated": "2026-09-19T22:15:20+00:00",
   "entries": {
     "001bd640391fb11a": {
       "signature": "reject|CanDefinitionError|no target supplied||",
@@ -20,6 +20,12 @@
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
       "first_seen": "20260919T153842Z",
+      "edge_of": ""
+    },
+    "640d051948e52815": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260919T221518Z",
       "edge_of": ""
     },
     "74234e98afe7498f": {

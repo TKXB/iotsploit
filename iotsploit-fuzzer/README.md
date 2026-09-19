@@ -174,6 +174,55 @@ source line. `corpus/<target>/payloads/<hash>.bin` is the input. Fix the owner,
 then `--replay` that target to confirm; the payload stays in the corpus, so
 every commit from then on checks it.
 
+### Using it on another application
+
+The engine knows nothing about IoTSploit. Targets live in a **pack** -- an
+ordinary module that calls `register()` -- and IoTSploit's own pack is just
+the one that ships here. Another application writes its own:
+
+```python
+# myapp_fuzz.py, anywhere on PYTHONPATH
+from iotsploit_fuzzer.harnesses.parser_targets import (
+    ParseTarget, json_object, register, text_input,
+)
+
+
+def parse_config(payload: bytes):
+    """One adapter per surface: take bytes, call the thing, return what it returns."""
+    raw = json_object(payload, "a config object")
+    port = raw.get("port", 80)
+    if not isinstance(port, int):
+        raise ValueError(f"port must be an integer, not {type(port).__name__}")
+    return {"port": port, "host": str(raw.get("host", "localhost"))}
+
+
+register(ParseTarget(
+    name="myapp.config",
+    adapter="myapp_fuzz:parse_config",
+    declared=("builtins:ValueError",),
+    seeds=(b'{"port": 8080, "host": "example.com"}', b"{}"),
+))
+```
+
+```bash
+python -m iotsploit_fuzzer.core.parser_campaign \
+    --targets myapp_fuzz --root ~/myapp-corpus --iterations 3000
+```
+
+`--targets` is repeatable and replaces the default pack entirely, so nothing
+of IoTSploit's is loaded. `--root` keeps the corpus with your own source,
+where the gate that replays it lives.
+
+The only things a pack imports are `ParseTarget`, `register`, and whichever
+adapter helpers it wants: `temp_file` for a target that takes a path,
+`json_input` / `json_object` / `text_input` for the decoding every adapter
+otherwise repeats. Each raises `Skip` rather than letting a malformed payload
+look like a defect in your parser.
+
+Everything else -- the worker isolation, the outcome signatures, the corpus,
+the ledger and its fingerprint, the boundary diff, the gate replay -- works
+the same whatever the pack contains.
+
 ### Pointing it at something yourself
 
 **Try a function now, without editing anything.** Write an adapter -- one

@@ -1,0 +1,1 @@
+{"target_id": "99999999999truetruetruetruetruetruetruetrue9999999994294967296429496729642949672964294967296429496729642949672961", "name": "Zeekr", "type": "vehicle", "status": "active", "ip_address": "192.168.1.50", "components": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "core.stream_message",
-  "fingerprint": "b78c96291c5844c2",
-  "updated": "2026-09-19T15:41:32+00:00",
+  "fingerprint": "915593da2a5ff201",
+  "updated": "2026-09-19T22:16:37+00:00",
   "entries": {
     "1d32a53146d9f0d5": {
       "signature": "reject|KeyError|channel||",
@@ -14,6 +14,12 @@
       "signature": "reject|ValueError|is not valid streamtype||",
       "kind": "reject",
       "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "2d727e6b66e4d7c1": {
+      "signature": "reject|ValueError|is valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T221636Z",
       "edge_of": ""
     },
     "361ea7b78f63f052": {
@@ -56,6 +62,12 @@
       "signature": "reject|KeyError|timestamp||",
       "kind": "reject",
       "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "626403dabcc30d9e": {
+      "signature": "reject|ValueError|is valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T221636Z",
       "edge_of": ""
     },
     "7681434eedc4495f": {

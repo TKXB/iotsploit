@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "someip.sd_parse",
-  "fingerprint": "a28643c493253a92",
-  "updated": "2026-09-19T15:39:23+00:00",
+  "fingerprint": "07c0ec1e9aef5f43",
+  "updated": "2026-09-19T22:15:40+00:00",
   "entries": {
     "374708fff7719dd5": {
       "signature": "accept|||list[0]|",
@@ -34,6 +34,12 @@
       "first_seen": "20260919T153904Z",
       "edge_of": ""
     },
+    "90ba39bf030c6dbf": {
+      "signature": "accept|||list[1]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260919T221530Z",
+      "edge_of": ""
+    },
     "b3e62b26a7c4d945": {
       "signature": "accept|||list[0]|",
       "kind": "accept",
@@ -44,6 +50,12 @@
       "signature": "accept|||list[few]<ServiceOffer>|",
       "kind": "accept",
       "first_seen": "20260919T153904Z",
+      "edge_of": ""
+    },
+    "e1871efe8d353b14": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260919T221530Z",
       "edge_of": ""
     },
     "e3b0c44298fc1c14": {

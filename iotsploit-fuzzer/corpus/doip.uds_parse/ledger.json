@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "doip.uds_parse",
-  "fingerprint": "cb993168234038de",
-  "updated": "2026-09-19T15:39:04+00:00",
+  "fingerprint": "e351368aacbbb6ab",
+  "updated": "2026-09-19T22:15:30+00:00",
   "entries": {
     "0263d47d7f0070c8": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[few])|",
@@ -22,10 +22,40 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "04cebc0e8743239a": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response echoes service expected||"
+    },
+    "08a5fd73d51d9d53": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "08caa8f95149322e": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[tens],nrc=none,raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "105b3ed78817d8e3": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[few])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "10c6fd6704fdb123": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response truncated||"
+    },
+    "1142f73dbf5f8641": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "11491f76cf50eaf6": {
@@ -40,10 +70,34 @@
       "first_seen": "20260919T153855Z",
       "edge_of": "accept|||UdsResponse(service=num[tens],data=bytes[few],nrc=none,raw=bytes[few])|"
     },
+    "13193729f96c8f78": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "1364b6acb9968a66": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[1],nrc=none,raw=bytes[few])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "138ef14801192bdf": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "13a805b066bf6428": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "17c52f74263e1cad": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "182586a2c7eaf41d": {
@@ -82,6 +136,12 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "2064e467a25c64db": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response truncated||"
+    },
     "22b88696a97b1315": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[few],nrc=none,raw=bytes[few])|",
       "kind": "accept",
@@ -100,10 +160,28 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "2b7623ef506d6fbc": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response echoes service expected||"
+    },
     "300a07652d5e3701": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[tens],nrc=none,raw=bytes[tens])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "3365a841110aadee": {
+      "signature": "accept|||UdsResponse(service=num[0],data=bytes[hundreds],nrc=none,raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "35165ed94eb85062": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "38332fbbf93de781": {
@@ -160,6 +238,18 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "4ca315e4b05d9b10": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[tens],nrc=none,raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds response starts expected for service||"
+    },
+    "4d11e0d8fa1c4390": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[tens],nrc=none,raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "4d1cf2892f1a3216": {
       "signature": "reject|ProtocolError|uds negative response truncated||",
       "kind": "reject",
@@ -190,6 +280,18 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "5cb147b46b9f3e2a": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "5cb53be04d8db0ae": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "61ff1c14d29eb069": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[few])|",
       "kind": "accept",
@@ -200,6 +302,12 @@
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[hundreds])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "676972560d399bac": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "67884e5879a053a6": {
@@ -213,6 +321,12 @@
       "kind": "accept",
       "first_seen": "20260919T153855Z",
       "edge_of": "reject|ProtocolError|uds service empty response||"
+    },
+    "6cf31b8c2923d163": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds response starts expected for service||"
     },
     "6e340b9cffb37a98": {
       "signature": "reject|ProtocolError|uds service empty response||",
@@ -232,10 +346,28 @@
       "first_seen": "20260919T153855Z",
       "edge_of": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[few])|"
     },
+    "72af0dd11efbcb2e": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[0],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "72dbb5a562f54c14": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[few])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "73e155312ac9137d": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "751b60a47c7c0fc9": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "759447ce9315c5d7": {
@@ -268,16 +400,64 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "7bd91c8d73c2a2ee": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "7f7c5a43e24cb815": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response truncated||"
+    },
+    "7f7f9b80b4a50f20": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "8224760286fa7370": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "84ed0364df72a60f": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[few],nrc=none,raw=bytes[tens])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
       "edge_of": "reject|ProtocolError|uds service empty response||"
     },
+    "869c4c69420718e8": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "875612da8d78fe18": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response truncated||"
+    },
+    "888905bb2a3bc06d": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "8a331fdde7032f33": {
       "signature": "reject|ProtocolError|uds service empty response||",
       "kind": "reject",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "8bc9d1ba10199f2e": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "8d0557384e9d260e": {
@@ -292,10 +472,34 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "8f35e3a92998b35e": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "94ed8d38570f8669": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "95417bf62dd89f13": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "95f5fc6e0feb9efa": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[hundreds])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "98701ffe48c36f37": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "9dcf97a184f32623": {
@@ -315,6 +519,12 @@
       "kind": "accept",
       "first_seen": "20260919T153855Z",
       "edge_of": "reject|ProtocolError|uds service empty response||"
+    },
+    "9f2a0cd3256264c8": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds negative response truncated||"
     },
     "a01864d19443c821": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[few])|",
@@ -346,6 +556,12 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "a5c8be08dce20036": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "a705855017a2681b": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[few])|",
       "kind": "accept",
@@ -370,10 +586,28 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "acfa6b0e008d0208": {
+      "signature": "accept|||UdsResponse(service=num[1],data=bytes[0],nrc=none,raw=bytes[1])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "ae26509fa6f65372": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "aff991ab07ed0473": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "b140766775274056": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "b2d2aa1de19d20b4": {
@@ -400,10 +634,22 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "ba80f919b1c9cd8e": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "bd1e4da752f4d424": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=none,raw=bytes[1])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "bfc9f39b367e8aff": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "bffdf1f181feb626": {
@@ -442,10 +688,22 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "c6ed20e8f822f0c8": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "c7e6df341bc7608e": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[tens])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "ccf9f746d02d629b": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[many])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "d0a89959c7403bb5": {
@@ -453,6 +711,12 @@
       "kind": "accept",
       "first_seen": "20260919T153855Z",
       "edge_of": "reject|ProtocolError|uds service empty response||"
+    },
+    "d0cfcd0a24db83eb": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[1],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
     },
     "d49e5ebf9c1d4f82": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[tens])|",
@@ -471,6 +735,18 @@
       "kind": "accept",
       "first_seen": "20260919T153855Z",
       "edge_of": "reject|ProtocolError|uds service empty response||"
+    },
+    "da0bbed50a850cf8": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "da4146ab366b94ee": {
+      "signature": "accept|||UdsResponse(service=num[0],data=bytes[few],nrc=none,raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
     },
     "dbc1b4c900ffe48d": {
       "signature": "reject|ProtocolError|uds service empty response||",
@@ -520,6 +796,12 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "e23f50d084cc7c97": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
     "e37b4575f27ce1f7": {
       "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[few])|",
       "kind": "accept",
@@ -536,6 +818,12 @@
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[many])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "ed2bc862b5d19f71": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[0],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "ef9335ee91d3b5df": {
@@ -556,10 +844,40 @@
       "first_seen": "20260919T153855Z",
       "edge_of": ""
     },
+    "f6af62aefcc5310e": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[hundreds],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds service empty response||"
+    },
+    "f76e8f223b9a3228": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[tens],raw=bytes[tens])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "f77c20e9756d07df": {
+      "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[few],raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": ""
+    },
+    "f9a2dd0e43a024e6": {
+      "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[few])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
+      "edge_of": "reject|ProtocolError|uds response starts expected for service||"
+    },
     "fbfdc7d4baa370d4": {
       "signature": "accept|||UdsResponse(service=num[hundreds],data=bytes[0],nrc=num[hundreds],raw=bytes[tens])|",
       "kind": "accept",
       "first_seen": "20260919T153855Z",
+      "edge_of": ""
+    },
+    "fdce2cbda273ce9a": {
+      "signature": "accept|||UdsResponse(service=num[0],data=bytes[hundreds],nrc=none,raw=bytes[hundreds])|",
+      "kind": "accept",
+      "first_seen": "20260919T221526Z",
       "edge_of": ""
     },
     "feb78dae361cad48": {

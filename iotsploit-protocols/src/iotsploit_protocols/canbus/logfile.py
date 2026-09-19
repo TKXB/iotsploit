@@ -470,7 +470,7 @@ class AscLogReader:
 
     @staticmethod
     def _read_channel(token: str) -> Optional[int]:
-        return int(token) if token.isdigit() else None
+        return int(token) if _is_decimal(token) else None
 
     def _read_fd_frame(self, timestamp: float, tokens: List[str]) -> Optional[ReplayMessage]:
         """Read a CAN FD line in either of the two column orders found in real logs.

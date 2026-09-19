@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "core.create_component",
-  "fingerprint": "2eb365e0fc2411c2",
-  "updated": "2026-09-19T15:41:10+00:00",
+  "fingerprint": "2fb6d439eff6b479",
+  "updated": "2026-09-19T22:16:27+00:00",
   "entries": {
     "39ad8a6aae1966ee": {
       "signature": "accept|||Component|",

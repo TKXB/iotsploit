@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "core.as_number",
-  "fingerprint": "fda6475c0abea5b7",
-  "updated": "2026-09-19T15:40:58+00:00",
+  "fingerprint": "f3f4293f03a28721",
+  "updated": "2026-09-19T22:16:21+00:00",
   "entries": {
     "0315b4020af3ecca": {
       "signature": "accept|||num[many]|",
@@ -33,6 +33,12 @@
       "kind": "reject",
       "first_seen": "20260919T154053Z",
       "edge_of": ""
+    },
+    "309c7da7aa059522": {
+      "signature": "accept|||num[few]|",
+      "kind": "accept",
+      "first_seen": "20260919T221619Z",
+      "edge_of": "reject|ValueError|value must be an integer||"
     },
     "33570ac00aa1e958": {
       "signature": "accept|||num[1]|",
@@ -172,6 +178,12 @@
       "first_seen": "20260919T154053Z",
       "edge_of": ""
     },
+    "b9d87412a7170a4c": {
+      "signature": "accept|||num[tens]|",
+      "kind": "accept",
+      "first_seen": "20260919T221619Z",
+      "edge_of": "reject|ValueError|value must be between and||"
+    },
     "be6eb70d9330c165": {
       "signature": "accept|||num[hundreds]|",
       "kind": "accept",
@@ -214,6 +226,12 @@
       "first_seen": "20260919T154053Z",
       "edge_of": ""
     },
+    "d9963b3df943e4c0": {
+      "signature": "accept|||num[many]|",
+      "kind": "accept",
+      "first_seen": "20260919T221619Z",
+      "edge_of": "reject|ValueError|value must be between and||"
+    },
     "db77fd01af957221": {
       "signature": "reject|ValueError|value must be an integer||",
       "kind": "reject",
@@ -237,6 +255,12 @@
       "kind": "reject",
       "first_seen": "20260919T154053Z",
       "edge_of": ""
+    },
+    "fe76d1b803327e4b": {
+      "signature": "accept|||num[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T221619Z",
+      "edge_of": "reject|ValueError|value must be an integer||"
     }
   }
 }

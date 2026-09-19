@@ -1,0 +1,7 @@
+date Mon Jan 1 00:00:00 0024
+base hex timestamps absolute
+Begin Triggerblock Mon Jan 1 00:00:00 2024
+   0.000100 1  123             R4294967296   d 8 11 22 33 44 55 66 77 88
+   0.0000100 NaN  123             Rx   d 8 11 22 33 44 55 66 77 88
+   0.000200 1  1FFFFFFFx       Rx   d 2 AA BB
+End TriggerBlock

@@ -261,15 +261,6 @@ class CorpusStore:
         self._counts[outcome.signature] = self._counts.get(outcome.signature, 0) + 1
         return True
 
-    def forget(self, identity: str) -> None:
-        entry = self.entries.pop(identity, None)
-        if entry is not None and self._counts.get(entry.signature):
-            self._counts[entry.signature] -= 1
-        try:
-            (self.payload_dir / f"{identity}.bin").unlink()
-        except OSError:
-            pass
-
     def rebaseline(self) -> None:
         """Adopt the current oracle, discarding recorded signatures.
 
