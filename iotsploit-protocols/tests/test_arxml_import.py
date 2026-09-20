@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from iotsploit_core.domain.target import Vehicle
-from iotsploit_protocols.autosar.arxml import ArxmlImportError, import_arxml
+from iotsploit_protocols.autosar.arxml import _inspect_file, ArxmlImportError, import_arxml
 
 pytestmark = pytest.mark.unit
 
@@ -217,3 +217,46 @@ def test_dtd_is_rejected_before_cantools_runs(tmp_path):
     with pytest.raises(ArxmlImportError, match="DTD or entity"):
         import_arxml(path, target_id="demo", name="Demo", load_file=loader)
     assert called is False
+
+
+# ── the declaration guard, in every encoding ElementTree accepts ──────
+
+_DTD = '<?xml version="1.0"?><!DOCTYPE a [<!ENTITY x "y">]><AUTOSAR/>'
+_PLAIN = '<?xml version="1.0"?><AUTOSAR><AR-PACKAGES/></AUTOSAR>'
+
+
+@pytest.mark.parametrize(
+    "encoding",
+    ["utf-8", "utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be"],
+)
+def test_a_declaration_is_refused_whatever_the_encoding(tmp_path, encoding):
+    """Found by fuzzing. The scan reads decoded text, so it has to know the
+    encoding first -- and an earlier fix knew it only from a byte-order mark,
+    which a UTF-16 file is not obliged to carry. Without one the bytes were
+    scanned as UTF-8, where ``<\x00!\x00d\x00`` is invisible, and
+    ElementTree went on to read the document anyway."""
+    path = tmp_path / "bomb.arxml"
+    path.write_bytes(_DTD.encode(encoding))
+
+    with pytest.raises(ArxmlImportError, match="DTD or entity"):
+        _inspect_file(path)
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-16-le", "utf-32-be"])
+def test_an_ordinary_document_still_reads(tmp_path, encoding):
+    path = tmp_path / "plain.arxml"
+    path.write_bytes(_PLAIN.encode(encoding))
+
+    digest, size = _inspect_file(path)
+
+    assert size == path.stat().st_size and len(digest) == 64
+
+
+def test_a_declaration_after_the_first_read_is_still_found(tmp_path):
+    """The scan is streaming, so the token has to survive a chunk boundary."""
+    path = tmp_path / "late.arxml"
+    body = '<?xml version="1.0"?><a>' + "x" * (1024 * 1024) + "</a><!DOCTYPE late []>"
+    path.write_bytes(body.encode("utf-16-le"))
+
+    with pytest.raises(ArxmlImportError, match="DTD or entity"):
+        _inspect_file(path)
