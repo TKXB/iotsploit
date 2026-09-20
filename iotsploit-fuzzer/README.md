@@ -174,33 +174,74 @@ source line. `corpus/<target>/payloads/<hash>.bin` is the input. Fix the owner,
 then `--replay` that target to confirm; the payload stays in the corpus, so
 every commit from then on checks it.
 
-### Using it on another application
+### Fuzzing one function
+
+```bash
+tools/testing/fuzz mypkg.parser:parse_config --raises ValueError --seed '{"port": 80}'
+tools/testing/fuzz ./newfile.py:parse_range --raises ValueError --seed 'bytes=0-1023'
+tools/testing/fuzz mypkg.log:scan --raises LogError --seed @capture.asc
+```
+
+That is the whole thing. It reads the function's signature to work out whether
+to hand it bytes, text, JSON or a path; it finds `ValueError` in builtins and
+`LogError` beside the function itself; and the corpus goes to a temporary
+directory unless you pass `--keep DIR`.
+
+**`--raises` is the experiment.** It is the contract you are holding the
+function to -- the exceptions it says it can raise. Anything else escaping is
+the finding. Empty means "this never raises", which is right for a decoder
+that returns a failure object and wrong for a validator.
+
+Get it wrong and the run stops before it starts:
+
+```
+Stopping: the seeds already break the contract you gave.
+Every one of them raised something --raises does not cover:
+
+    AttributeError
+
+... Re-run with:
+
+    --raises AttributeError
+```
+
+Without that check a wrong contract does not fail, it just never finishes:
+every input becomes a violation and every violation is replayed three times in
+a fresh process to confirm it.
+
+**Seeds decide how deep it gets.** One real input is worth more than any
+number of iterations. On the same function, same budget:
+
+| Seed | Result |
+|------|--------|
+| none | 1 signature, corpus 3 -- never got past the first check |
+| `bytes=0-1023` | 16 signatures, corpus 36 |
+
+**Reading the result.** `violations` is a broken contract, and the payload is
+in the corpus directory. `moved` is a payload that used to do something else
+-- not necessarily a bug. `new` is behaviour never seen before, and should
+fall towards zero as the corpus fills. Zero violations is the normal outcome;
+the signature count is the map of what your function does.
+
+### Fuzzing another application
 
 The engine knows nothing about IoTSploit. Targets live in a **pack** -- an
-ordinary module that calls `register()` -- and IoTSploit's own pack is just
-the one that ships here. Another application writes its own:
+ordinary module that calls `register()` -- and IoTSploit's is just the one
+that ships here:
 
 ```python
 # myapp_fuzz.py, anywhere on PYTHONPATH
-from iotsploit_fuzzer.harnesses.parser_targets import (
-    ParseTarget, json_object, register, text_input,
-)
-
+from iotsploit_fuzzer.harnesses.parser_targets import ParseTarget, json_object, register
 
 def parse_config(payload: bytes):
-    """One adapter per surface: take bytes, call the thing, return what it returns."""
     raw = json_object(payload, "a config object")
-    port = raw.get("port", 80)
-    if not isinstance(port, int):
-        raise ValueError(f"port must be an integer, not {type(port).__name__}")
-    return {"port": port, "host": str(raw.get("host", "localhost"))}
-
+    ...
 
 register(ParseTarget(
     name="myapp.config",
     adapter="myapp_fuzz:parse_config",
     declared=("builtins:ValueError",),
-    seeds=(b'{"port": 8080, "host": "example.com"}', b"{}"),
+    seeds=(b'{"port": 8080}',),
 ))
 ```
 
@@ -209,77 +250,23 @@ python -m iotsploit_fuzzer.core.parser_campaign \
     --targets myapp_fuzz --root ~/myapp-corpus --iterations 3000
 ```
 
-`--targets` is repeatable and replaces the default pack entirely, so nothing
-of IoTSploit's is loaded. `--root` keeps the corpus with your own source,
-where the gate that replays it lives.
+`--targets` replaces the default pack entirely, so none of IoTSploit's load.
+`--root` keeps the corpus with your own source, where the gate that replays it
+lives. A pack imports `ParseTarget`, `register`, and whichever adapter helpers
+it wants -- `temp_file`, `json_input`, `json_object`, `text_input` -- each of
+which raises `Skip` rather than letting a malformed payload look like a defect
+in your parser.
 
-The only things a pack imports are `ParseTarget`, `register`, and whichever
-adapter helpers it wants: `temp_file` for a target that takes a path,
-`json_input` / `json_object` / `text_input` for the decoding every adapter
-otherwise repeats. Each raises `Skip` rather than letting a malformed payload
-look like a defect in your parser.
-
-Everything else -- the worker isolation, the outcome signatures, the corpus,
-the ledger and its fingerprint, the boundary diff, the gate replay -- works
-the same whatever the pack contains.
-
-### Pointing it at something yourself
-
-**Try a function now, without editing anything.** Write an adapter -- one
-function taking `bytes` and calling the thing you want to test -- put it
-anywhere on `PYTHONPATH`, and name it with `--adapter`:
-
-```python
-# ~/mytargets/mine.py
-import os, tempfile
-
-def logic_capture(payload: bytes):
-    """One surface, one adapter. Raise nothing yourself; just make the call."""
-    from iotsploit_drivers.logic.protocol import read_logic_analyzer_data_from_file
-
-    handle, path = tempfile.mkstemp(suffix=".json")
-    with os.fdopen(handle, "wb") as fh:
-        fh.write(payload)
-    try:
-        return read_logic_analyzer_data_from_file(path)
-    finally:
-        os.unlink(path)
-```
-
-```bash
-PYTHONPATH=~/mytargets poetry run python -m iotsploit_fuzzer.core.parser_campaign \
-    --adapter mine:logic_capture \
-    --declared "builtins:ValueError,builtins:TypeError" \
-    --seed-file ~/good_capture.json \
-    --iterations 500
-```
-
-The corpus goes to a temporary directory and is thrown away, so an experiment
-leaves no ledger for the gate to replay. Pass `--root ~/my-corpus` to keep it.
-
-**`--declared` is the whole experiment.** It is the contract you are holding
-the function to, and getting it wrong is the usual reason a run is useless:
-
-| You declare | You are asking |
-|-------------|----------------|
-| `--declared ""` | "this never raises" -- right for a decoder that returns a failure object, wrong for a validator |
-| `--declared "builtins:ValueError"` | "it rejects bad input by raising ValueError, and nothing else escapes" |
-| everything it might raise | nothing. A target that declares too much can never report anything again |
-
-Run the example above with `--declared ""` and it reports 33 violations in 151
-seconds; with the line shown, 0 in half a second. Same code, same inputs. Start
-from what the function's own docstring promises -- and if it promises nothing,
-deciding what it *should* promise is the useful half of the exercise.
-
-**Seeds matter as much.** `--seed-file` should be a real, valid input. Mutating
-a good capture finds things; mutating `b""` explores the first ten bytes of the
-parser and stops.
+Everything else -- worker isolation, outcome signatures, the corpus, the
+ledger and its fingerprint, the boundary diff, the gate replay -- works the
+same whatever the pack contains.
 
 ### Making it permanent
 
-When a scratch target earns its place, move it into
-`harnesses/parser_targets.py` -- the adapter next to the others, and a
-`ParseTarget` entry in the registry list:
+`tools/testing/fuzz` throws its corpus away, which is right for a question you
+are asking once. When a target earns a permanent slot, move it into a pack --
+`targets/iotsploit.py` for this codebase -- as an adapter next to the others
+and an entry in the registry list:
 
 ```python
 ParseTarget(
@@ -297,7 +284,10 @@ the target instead of being skipped. Once it has a corpus, the gate replays it.
 
 ### Known limits
 
-- **Mutation is byte-level.** For the JSON-shaped targets (`canbus.from_target`,
+- **`--radamsa` mutants inflate.** Left alone they grow until they hit
+  `payload_max_bytes`, and radamsa's cost scales with input size, so a long
+  radamsa campaign gets slower as it goes.
+- **Mutation is byte-level by default.** For the JSON-shaped targets (`canbus.from_target`,
   `canbus.decode_frame`) roughly 90% of mutants are not valid JSON and are
   skipped. Structure-aware mutation would fix it and has not been written.
 - **`someip.sd_parse` has almost no observable boundary** from random bytes: it

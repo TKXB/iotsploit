@@ -212,6 +212,22 @@ def run(
     return record
 
 
+def describe(name: str, report: Dict[str, Any]) -> None:
+    """One campaign's result, in the one format every caller prints."""
+    stats = report["stats"]
+    print(
+        f"{name:32} {report['elapsed_seconds']:6.1f}s  "
+        f"violations={stats['violations']} moved={stats['boundary_moves']} "
+        f"new={stats['new_regions']} flaky={stats['flaky']} "
+        f"corpus={stats['corpus_size']}"
+        + ("  SATURATED: the result shape is too fine-grained" if stats["saturated"] else "")
+    )
+    for finding in report["violations"]:
+        print(f"    VIOLATION {finding['signature']}  {finding['site']}  {finding['detail'][:80]}")
+    for move in report["boundary_moves"]:
+        print(f"    MOVED     {move['was']}  ->  {move['signature']}")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Run a parser fuzzing campaign.")
     parser.add_argument("--target", action="append", help="registry name; repeatable")
@@ -321,18 +337,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"{name:32} SKIPPED: {error}")
             failed = True
             continue
-        stats = report["stats"]
-        print(
-            f"{name:32} {report['elapsed_seconds']:6.1f}s  "
-            f"violations={stats['violations']} moved={stats['boundary_moves']} "
-            f"new={stats['new_regions']} flaky={stats['flaky']} "
-            f"corpus={stats['corpus_size']}"
-            + ("  SATURATED: the result shape is too fine-grained" if stats["saturated"] else "")
-        )
-        for finding in report["violations"]:
-            print(f"    VIOLATION {finding['signature']}  {finding['site']}  {finding['detail'][:80]}")
-        for move in report["boundary_moves"]:
-            print(f"    MOVED     {move['was']}  ->  {move['signature']}")
+        describe(name, report)
         failed = failed or bool(report["violations"])
     return 1 if failed else 0
 
