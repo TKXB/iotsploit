@@ -1,1 +1,0 @@
-{"target_id": "t0", "name": "Zeekr", "components": [{"ame": "CAN-B", "type": "can"}], "edges": [{"source": "c_vgm", "target": "bus_can_b", "rel`tion": "bus_member"}]}

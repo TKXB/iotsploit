@@ -1,1 +1,0 @@
-[{"op": "register", "channel": "can340282366920938463463374607431768211457"}, {"op": "stop", "channel": "can1"}, {"op": "unregister", "channel": "can1"}]

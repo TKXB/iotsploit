@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Z", "name": "Zeekr", "components": [{"cNaNNaNNaNNaNNaNNaNNaNNaNomponent_id": "c_vgm", "name": "can"}], "edges": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

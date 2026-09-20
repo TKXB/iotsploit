@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "django.parse_dbc",
   "fingerprint": "92f59eff9a965807",
-  "updated": "2026-09-20T02:55:29+00:00",
+  "updated": "2026-09-20T03:41:50+00:00",
   "entries": {
     "0127ce8e09abc756": {
       "signature": "accept|||DbcContents(nodes=list[few],unsent=list[0],warnings=list[1])|",

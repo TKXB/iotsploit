@@ -1,6 +1,0 @@
-VERSION ""
-
-BU_: ECM TCM
-
-BO_ 2 Gear 1 "Drive" 9223372036854775807 "Park" ;
-CM_ BU_ ECM "Engine controller";

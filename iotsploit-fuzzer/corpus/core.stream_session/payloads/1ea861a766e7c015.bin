@@ -1,1 +1,0 @@
-[{"op": "register", "channel": "can0"}, {"op": "register", "channel": "can1"}, {"op": "broadcast", "channel": "can0", "message": {"stream_type": "can", "channel": "can0", "timestamp": 1.0, "soource": "client", "action": "data", "data": {}, "metadata": null}}, {"op": "stop", "channel": "can1"}, {"op": "0nregister", "channel": "can2147483648"}]

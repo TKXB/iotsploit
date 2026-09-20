@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "doip.uds_parse",
   "fingerprint": "e351368aacbbb6ab",
-  "updated": "2026-09-20T02:54:00+00:00",
+  "updated": "2026-09-20T03:41:50+00:00",
   "entries": {
     "0263d47d7f0070c8": {
       "signature": "accept|||UdsResponse(service=num[tens],data=bytes[0],nrc=num[tens],raw=bytes[few])|",

@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "core.as_number",
   "fingerprint": "f3f4293f03a28721",
-  "updated": "2026-09-20T03:36:18+00:00",
+  "updated": "2026-09-20T03:42:09+00:00",
   "entries": {
     "0315b4020af3ecca": {
       "signature": "accept|||num[many]|",

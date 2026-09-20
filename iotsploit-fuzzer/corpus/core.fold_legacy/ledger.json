@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "core.fold_legacy",
   "fingerprint": "5c9916fe555a3541",
-  "updated": "2026-09-20T02:57:19+00:00",
+  "updated": "2026-09-20T03:41:51+00:00",
   "entries": {
     "064412a48bb5802d": {
       "signature": "accept|||dict[few]<list[few],str[few],str[tens]>|",

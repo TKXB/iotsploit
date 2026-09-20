@@ -20,9 +20,11 @@ import hashlib
 import json
 import logging
 import os
+import zipfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import Dict, Iterator, Optional, Tuple
 
@@ -144,7 +146,15 @@ class CorpusStore:
     def __init__(self, root: Path | str, target: ParseTarget) -> None:
         self.target = target
         self.root = Path(root) / target.name
-        self.payload_dir = self.root / "payloads"
+        #: One archive per target rather than one file per payload. The
+        #: corpus is a thousand-odd inputs of a hundred-odd bytes each, and
+        #: as loose files it was 74% of the repository's tracked file count
+        #: for 1% of its bytes -- plus a 4 KB block apiece, which turned
+        #: 1.1 MB of payloads into 9.4 MB on disk.
+        self.archive_path = self.root / "payloads.zip"
+        #: Where payloads used to live, read once so an existing corpus
+        #: migrates itself on the next save.
+        self.legacy_dir = self.root / "payloads"
         self.ledger_path = self.root / "ledger.json"
         self.lock_path = self.root / ".lock"
         self.entries: Dict[str, LedgerEntry] = {}
@@ -159,6 +169,7 @@ class CorpusStore:
 
     def load(self) -> None:
         self.entries = {}
+        self._payloads: Dict[str, bytes] = self._read_payloads()
         self._counts: Dict[str, int] = {}
         self.stale = False
         #: Set when a new signature was turned away by MAX_SIGNATURES.
@@ -188,12 +199,22 @@ class CorpusStore:
         for entry in self.entries.values():
             self._counts[entry.signature] = self._counts.get(entry.signature, 0) + 1
 
-    def payload(self, identity: str) -> Optional[bytes]:
-        path = self.payload_dir / f"{identity}.bin"
+    def _read_payloads(self) -> Dict[str, bytes]:
+        """Every retained payload, from the archive and any loose leftovers."""
+        found: Dict[str, bytes] = {}
+        if self.legacy_dir.is_dir():
+            for path in self.legacy_dir.glob("*.bin"):
+                found[path.stem] = path.read_bytes()
         try:
-            return path.read_bytes()
-        except OSError:
-            return None
+            with zipfile.ZipFile(self.archive_path) as archive:
+                for name in archive.namelist():
+                    found[Path(name).stem] = archive.read(name)
+        except (OSError, zipfile.BadZipFile):
+            pass
+        return found
+
+    def payload(self, identity: str) -> Optional[bytes]:
+        return self._payloads.get(identity)
 
     def payloads(self) -> Iterator[Tuple[str, bytes]]:
         """Every retained payload, for a replay or a new campaign's seeds."""
@@ -251,7 +272,7 @@ class CorpusStore:
             cap = MAX_EXEMPLARS
         if held >= cap and not self._displace(payload, outcome, edge_of):
             return False
-        _write_atomic(self.payload_dir / f"{identity}.bin", payload)
+        self._payloads[identity] = payload
         self.entries[identity] = LedgerEntry(
             signature=outcome.signature,
             kind=outcome.kind,
@@ -262,10 +283,7 @@ class CorpusStore:
         return True
 
     def _payload_size(self, identity: str) -> int:
-        try:
-            return (self.payload_dir / f"{identity}.bin").stat().st_size
-        except OSError:
-            return 0
+        return len(self._payloads.get(identity, b""))
 
     def _displace(self, payload: bytes, outcome: Outcome, edge_of: str) -> bool:
         """Make room by dropping a larger payload that proves the same point.
@@ -303,10 +321,7 @@ class CorpusStore:
             self._counts[entry.signature] -= 1
             if not self._counts[entry.signature]:
                 del self._counts[entry.signature]
-        try:
-            (self.payload_dir / f"{identity}.bin").unlink()
-        except OSError:
-            pass
+        self._payloads.pop(identity, None)
 
     def rebaseline(self) -> None:
         """Adopt the current oracle, discarding recorded signatures.
@@ -322,6 +337,27 @@ class CorpusStore:
         self._counts = {}
         self.stale = False
 
+    def _write_archive(self) -> None:
+        """Rewrite the archive in one atomic step, holding only what the
+        ledger still names.
+
+        Written whole rather than appended to: a payload displaced by a
+        smaller one has to leave, and the ledger and the archive have to agree
+        after a kill. They are written under the same lock, so an interrupted
+        run leaves the previous pair, not a mixed one.
+        """
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for identity in sorted(self.entries):
+                payload = self._payloads.get(identity)
+                if payload is not None:
+                    archive.writestr(f"{identity}.bin", payload)
+        _write_atomic(self.archive_path, buffer.getvalue())
+        if self.legacy_dir.is_dir():
+            for path in self.legacy_dir.glob("*.bin"):
+                path.unlink()
+            self.legacy_dir.rmdir()
+
     def save(self, campaign: Optional[Dict[str, object]] = None) -> None:
         """Commit the ledger, and the manifest of the run that produced it."""
         document = {
@@ -332,6 +368,7 @@ class CorpusStore:
             "entries": {k: v.to_dict() for k, v in sorted(self.entries.items())},
         }
         with _locked(self.lock_path):
+            self._write_archive()
             _write_atomic(self.ledger_path, json.dumps(document, indent=2).encode())
             if campaign:
                 manifests = self.root / "campaigns"

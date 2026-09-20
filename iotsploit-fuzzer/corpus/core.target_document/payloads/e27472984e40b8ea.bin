@@ -1,1 +1,0 @@
-{"target_id": "t4047860237", "name": "Zeekr", "type": "vehicle", "status": "active", "ip_address": "vehicle", "status": "active", "ip_address": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

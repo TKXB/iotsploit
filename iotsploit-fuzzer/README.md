@@ -80,7 +80,13 @@ corpus.
 
 ### The ledger is a contract, and it is versioned
 
-`corpus/<target>/ledger.json` is tracked in git on purpose -- it is the loop's
+`corpus/<target>/` holds two files: `payloads.zip` and `ledger.json`. One
+archive per target rather than one file per payload -- a thousand inputs of a
+hundred bytes each, stored loose, was 74% of the repository's tracked file
+count for 1% of its bytes, and a 4 KB block apiece turned 1.1 MB into 9.4 MB
+on disk. An existing loose corpus migrates itself on the next save.
+
+The ledger is tracked in git on purpose -- it is the loop's
 memory, the gate's regression corpus, and a boundary movement arrives as a
 JSON diff in the pull request that caused it. Each entry carries the payload's
 content hash, its normalised outcome signature, and the campaign that first

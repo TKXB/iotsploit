@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Zeekr", "type": "vehicle", "status": "active", "ip_address": "447.1.1.50", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}, {"component_id": "c_tcam", "name": "TCAM", "type": "ecu", "vendor": "X"}], "buses": [{"bustruetruetruetrue_id": "bus_can_b", "relation": "bus_member"}]}

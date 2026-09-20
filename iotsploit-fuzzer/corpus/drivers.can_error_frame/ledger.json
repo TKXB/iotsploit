@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "drivers.can_error_frame",
   "fingerprint": "e792bef6ffee92cf",
-  "updated": "2026-09-20T02:55:56+00:00",
+  "updated": "2026-09-20T03:41:51+00:00",
   "entries": {
     "000b86fb204c7db0": {
       "signature": "accept|||dict[few]<list[1],num[many],str[many]>|",

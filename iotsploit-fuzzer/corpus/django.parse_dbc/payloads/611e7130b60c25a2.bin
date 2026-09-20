@@ -1,9 +1,0 @@
-BO_ 2147483939 ExtFrame: 19 TCM
-BO_ 2147483939 ExtFrame: 2 TCM
-BO_ 2147483939 ExtFrame: 2 TCM
- SG_ Flag : 0|1@1+ (1,0) [0|,0) [-1|1] "" ECM
-
-VAL_ -170141183460469231722463931679029329920 Gear 2147483647 "Drive" 1 "Park" ;
-CM_ BU_ ECM "Engine controller";
-CM_ BU_ ECM "Engine controller";
-CM_ BU_ ECM "Engine controller";

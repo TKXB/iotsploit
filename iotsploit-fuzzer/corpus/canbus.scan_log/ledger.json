@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "canbus.scan_log",
   "fingerprint": "2234c1f04c6a56a8",
-  "updated": "2026-09-20T02:53:21+00:00",
+  "updated": "2026-09-20T03:41:50+00:00",
   "entries": {
     "003dae44af2763ad": {
       "signature": "accept|||LogReadStats(format=str[few],frames=num[few],error_frames=num[0],unparsable_lines=num[0],channels_present=set[few],first_timestamp=num[many])|",

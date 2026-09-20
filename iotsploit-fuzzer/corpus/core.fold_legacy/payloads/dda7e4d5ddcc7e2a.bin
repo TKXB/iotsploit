@@ -1,3 +1,0 @@
-{"target_id": "48214748364[][][]1kr", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}], "interfaces": [{
-
-"interface_id": "i_eth1", "name": "eth0", "type": "ethernet"}]}

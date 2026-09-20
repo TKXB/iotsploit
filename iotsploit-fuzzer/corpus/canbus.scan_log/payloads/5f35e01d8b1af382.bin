@@ -1,4 +1,0 @@
-1  121             Rx   d 8 11 22 33 44 55 66 77 0
-  .000200 1  1FFFFFFFx   d 8 11 4294967295 33 44 54 66 77 0
-  .000200 1  0FFFFFFFx       Rx   d 2 AA BB
-End TriggerBlock

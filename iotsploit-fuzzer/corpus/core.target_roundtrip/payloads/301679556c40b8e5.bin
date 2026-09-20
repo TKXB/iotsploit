@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Zeekr", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}], "interfaces": [{"inte": "CAN-B", "type": "can"}], "edges": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

@@ -1,1 +1,0 @@
-{"target_id": "t128", "name": "Zeekr", "type": "vehicle", "status ": "active", "ip_address": "-1829185668053.3.32767.32768", "components": [{"component_id": "c_vgm", "name": "TCAM", "type": "ecu", "vd": "bus_can_b", "name": "CAN-B", "type": "can"}], "edges": [{"s/urce": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

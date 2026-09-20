@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "core.resolve_facets",
   "fingerprint": "5d192f52e8a988f5",
-  "updated": "2026-09-20T02:57:33+00:00",
+  "updated": "2026-09-20T03:41:51+00:00",
   "entries": {
     "12ae32cb1ec02d01": {
       "signature": "reject|TypeError|facets must be mapping got str||",

@@ -19,6 +19,7 @@ import json
 import pytest
 
 from iotsploit_fuzzer.analysis.corpus import (
+    LedgerEntry,
     MAX_EDGE_EXEMPLARS,
     MAX_EXEMPLARS,
     MAX_PER_SIGNATURE,
@@ -136,6 +137,38 @@ def test_a_ledger_survives_a_reload(store, tmp_path):
     assert not reloaded.stale
     assert reloaded.known_signatures() == {ACCEPTED.signature, REJECTED.signature}
     assert dict(reloaded.payloads())[payload_id(b"0-7")] == b"0-7"
+
+
+def test_payloads_live_in_one_archive_per_target(store, tmp_path):
+    """A thousand inputs of a hundred bytes each, stored one file apiece, was
+    74% of the repository's tracked file count for 1% of its bytes -- and a
+    4 KB block each, turning 1.1 MB of payloads into 9.4 MB on disk."""
+    store.admit(b"0-7", ACCEPTED, "c1")
+    store.admit(b"bogus", REJECTED, "c1")
+    store.save()
+
+    assert store.archive_path.exists()
+    assert not list(store.root.glob("payloads/*.bin"))
+    assert dict(CorpusStore(tmp_path, TARGET).payloads()) == {
+        payload_id(b"0-7"): b"0-7",
+        payload_id(b"bogus"): b"bogus",
+    }
+
+
+def test_a_corpus_of_loose_files_migrates_itself(store, tmp_path):
+    """So an existing corpus does not have to be rebuilt to move house."""
+    loose = store.legacy_dir
+    loose.mkdir(parents=True, exist_ok=True)
+    (loose / f"{payload_id(b'0-7')}.bin").write_bytes(b"0-7")
+    reopened = CorpusStore(tmp_path, TARGET)
+    reopened.entries[payload_id(b"0-7")] = LedgerEntry(
+        signature=ACCEPTED.signature, kind=ACCEPTED.kind, first_seen="old"
+    )
+
+    reopened.save()
+
+    assert not loose.exists()
+    assert dict(CorpusStore(tmp_path, TARGET).payloads())[payload_id(b"0-7")] == b"0-7"
 
 
 def test_a_half_written_ledger_is_never_visible(store, tmp_path):

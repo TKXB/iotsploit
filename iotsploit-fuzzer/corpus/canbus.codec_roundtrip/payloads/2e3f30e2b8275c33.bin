@@ -1,1 +1,0 @@
-{"definition": {"bus_id": "bus-1", "frame_id": 291, "is_extended": false, "name": "EngineSta{}{}{}{}{}{}{}{}tus", "dlc": 255, "signals": [{"name": "Speed", "start_bit": 16, "length": 4}]}, "values": {"Speed": 12.32769, "Gear": 3}}
