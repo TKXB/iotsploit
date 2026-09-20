@@ -531,6 +531,112 @@ def stream_session(payload: bytes) -> Any:
 
 
 
+
+# -- plugin services --------------------------------------------------------
+#
+# Everything a plugin receives crosses one of these, and everything it returns
+# crosses another. The input is operator JSON over HTTP or the CLI on one
+# side, and a plugin author's own code on the other.
+
+
+class _Declaring:
+    """A stand-in plugin carrying whatever schema the payload describes."""
+
+    def __init__(self, declared: Any) -> None:
+        self._declared = declared
+
+    def get_info(self) -> Any:
+        return {"Name": "fuzzed", "Parameters": self._declared}
+
+
+class _Result:
+    """An object shaped like the one a plugin returns."""
+
+    def __init__(self, **fields: Any) -> None:
+        for key, value in fields.items():
+            setattr(self, key, value)
+
+
+def coerce_parameters(payload: bytes) -> Any:
+    """`ExploitPluginManager._coerce_parameters`: the parameter boundary.
+
+    Every plugin's parameters cross it, and both halves are fuzzed together
+    because both can be wrong independently: the schema is written by a plugin
+    author, and the values arrive from a transport that sends everything as
+    text. It declares ValueError naming the parameter -- which is what the
+    four hand-written copies it replaced all raised.
+    """
+    from iotsploit_core.core.exploit_manager import ExploitPluginManager
+
+    raw = json_object(payload, "an object with declared and parameters")
+    parameters = raw.get("parameters")
+    if not isinstance(parameters, dict):
+        raise Skip("parameters must be an object")
+    return ExploitPluginManager._coerce_parameters(
+        _Declaring(raw.get("declared")), parameters
+    )
+
+
+def resolve_plugin_file(payload: bytes) -> Any:
+    """`ExploitPluginManager._resolve_plugin_file`: the path guard.
+
+    A security boundary, so the contract is stronger than "does not raise":
+    **whatever it returns must be inside the configured plugins directory**.
+    Refusing is always allowed; returning a path that escapes the root, or one
+    reached through a symlink, is not.
+
+    The root is built fresh per payload with a real plugin in it, a nested
+    directory, and a symlink pointing outside -- so a payload has something
+    real to try to reach past.
+    """
+    import shutil
+    import tempfile
+    from types import SimpleNamespace
+
+    from iotsploit_core.core.exploit_manager import ExploitPluginManager
+
+    text = text_input(payload)
+    root = Path(tempfile.mkdtemp(prefix="plugins_"))
+    outside = Path(tempfile.mkdtemp(prefix="outside_"))
+    try:
+        (root / "real_plugin.py").write_text("# a plugin\n")
+        (root / "nested").mkdir()
+        (root / "nested" / "deep.py").write_text("# nested\n")
+        (outside / "secret.py").write_text("# not yours\n")
+        try:
+            (root / "escape.py").symlink_to(outside / "secret.py")
+        except OSError:
+            pass
+
+        manager = SimpleNamespace(plugins_dir=root)
+        resolved = Path(ExploitPluginManager._resolve_plugin_file(manager, text))
+
+        real_root = root.resolve()
+        if not str(resolved.resolve()).startswith(str(real_root) + os.sep):
+            raise MetamorphicError(
+                f"accepted a path outside the plugins directory: {resolved}"
+            )
+        return str(resolved.resolve().relative_to(real_root))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+        shutil.rmtree(outside, ignore_errors=True)
+
+
+def format_result(payload: bytes) -> Any:
+    """`ExploitPluginManager._format_result`: whatever a plugin handed back.
+
+    It reads attributes off the result and falls back to ``str(result)``, so
+    the object is the plugin author's rather than the framework's. It declares
+    nothing, which means nothing should escape it.
+    """
+    from iotsploit_core.core.exploit_manager import ExploitPluginManager
+
+    raw = json_input(payload)
+    result: Any = _Result(**raw) if isinstance(raw, dict) and "success" in raw else raw
+    provenance = raw.get("provenance") if isinstance(raw, dict) else None
+    return ExploitPluginManager._format_result(result, provenance)
+
+
 # ---- the registry ----
 
 
@@ -653,6 +759,22 @@ _STREAM_SESSION_SEED = _json_seed(
         {"op": "stop", "channel": "can1"},
         {"op": "unregister", "channel": "can1"},
     ]
+)
+
+_COERCE_SEED = _json_seed(
+    {
+        "declared": {
+            "port": {"type": "int", "min": 1, "max": 65535, "default": 13400},
+            "enable": {"type": "bool", "default": False},
+            "label": {"type": "str"},
+            "ratio": {"type": "float"},
+        },
+        "parameters": {"port": "0x3A98", "enable": "false", "label": "x", "ratio": "2.5"},
+    }
+)
+
+_RESULT_SEED = _json_seed(
+    {"success": True, "message": "done", "data": {"frames": 3}, "provenance": {"source": "p"}}
 )
 
 for _target in (
@@ -857,6 +979,24 @@ for _target in (
         declared=("builtins:KeyError", "builtins:ValueError"),
         seeds=(_STREAM_SESSION_SEED, b"[]", _json_seed([{"op": "unregister", "channel": "ghost"}])),
         budget_seconds=10.0,
+    ),
+    ParseTarget(
+        name="plugins.coerce_parameters",
+        adapter=f"{_HERE}:coerce_parameters",
+        declared=("builtins:ValueError",),
+        seeds=(_COERCE_SEED, b'{"declared": {}, "parameters": {}}'),
+    ),
+    ParseTarget(
+        name="plugins.resolve_plugin_file",
+        adapter=f"{_HERE}:resolve_plugin_file",
+        declared=("builtins:ValueError",),
+        seeds=(b"real_plugin.py", b"../../etc/passwd", b"escape.py", b""),
+    ),
+    ParseTarget(
+        name="plugins.format_result",
+        adapter=f"{_HERE}:format_result",
+        declared=(),
+        seeds=(_RESULT_SEED, b'{"message": "plain"}', b"null", b"[]"),
     ),
 ):
     register(_target)

@@ -79,6 +79,19 @@ def test_a_number_that_is_not_one_is_refused_by_name(parameters, message):
         coerce(DeclaringPlugin(), parameters)
 
 
+def test_a_schema_declaring_a_non_numeric_bound_is_refused_not_crashed_on():
+    """Found by fuzzing the schema alongside the parameters. The bounds are
+    written by hand by a plugin author, so ``"min": "0"`` is as likely as
+    ``"min": 0`` -- and comparing a str with an int raised a TypeError that
+    this boundary does not declare, on every call to that plugin."""
+    class BadBound(BasePlugin):
+        def __init__(self):
+            super().__init__({'Parameters': {'port': {'type': 'int', 'min': '0'}}})
+
+    with pytest.raises(ValueError, match="non-numeric min"):
+        coerce(BadBound(), {'port': '5'})
+
+
 def test_undeclared_and_string_parameters_are_passed_through_untouched():
     original = {'label': 'false', 'undeclared': 'no'}
 

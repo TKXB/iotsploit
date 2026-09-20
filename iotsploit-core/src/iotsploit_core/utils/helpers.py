@@ -123,6 +123,15 @@ def as_number(
             parsed = float(value)
     except (TypeError, ValueError):
         raise ValueError(f"{name} must be an {'integer' if kind is int else 'number'}") from None
+    # The bounds come from a plugin's declared schema, which its author wrote
+    # by hand -- so "min": "0" is as likely as "min": 0, and comparing a str
+    # with an int raises a TypeError this function does not declare. Reported
+    # as the schema error it is rather than blamed on the value.
+    for label, bound in (("min", minimum), ("max", maximum)):
+        if bound is not None and not isinstance(bound, (int, float)):
+            raise ValueError(
+                f"{name} declares a non-numeric {label} {bound!r}"
+            )
     if minimum is not None and maximum is not None and not minimum <= parsed <= maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
     if minimum is not None and parsed < minimum:
