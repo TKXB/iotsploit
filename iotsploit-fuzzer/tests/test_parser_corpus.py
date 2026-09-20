@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import zipfile
 
 import pytest
 
@@ -184,6 +185,55 @@ def test_a_half_written_ledger_is_never_visible(store, tmp_path):
     assert json.loads(first)["entries"]
     assert len(json.loads(store.ledger_path.read_bytes())["entries"]) == 2
     assert not list(store.root.glob("*.tmp-*"))
+
+
+def test_a_ledger_naming_a_payload_the_archive_lacks_is_damaged(store, tmp_path):
+    """The case that has to fail closed.
+
+    The ledger and the archive are two renames; a kill between them leaves a
+    mixed pair. ``payloads()`` would skip what it cannot find, so the replay
+    would check fewer inputs than the ledger claims and still report success
+    -- a green gate that covered less than it says."""
+    store.admit(b"0-7", ACCEPTED, "c1")
+    store.admit(b"bogus", REJECTED, "c1")
+    store.save()
+    with zipfile.ZipFile(store.archive_path, "w"):
+        pass
+
+    reopened = CorpusStore(tmp_path, TARGET)
+
+    assert "not in the archive" in reopened.damaged
+
+
+def test_an_unreadable_archive_is_not_an_empty_corpus(store, tmp_path):
+    store.admit(b"0-7", ACCEPTED, "c1")
+    store.save()
+    store.archive_path.write_bytes(b"not a zip at all")
+
+    reopened = CorpusStore(tmp_path, TARGET)
+
+    assert "cannot be read" in reopened.damaged
+
+
+def test_a_payload_the_ledger_does_not_name_is_only_noise(store, tmp_path):
+    """The harmless direction: it costs space and nothing else, so it is
+    reported and ignored rather than failing a run."""
+    store.admit(b"0-7", ACCEPTED, "c1")
+    store.save()
+    with zipfile.ZipFile(store.archive_path, "a") as archive:
+        archive.writestr("deadbeefdeadbeef.bin", b"orphan")
+
+    reopened = CorpusStore(tmp_path, TARGET)
+
+    assert reopened.damaged == ""
+    assert len(list(reopened.payloads())) == 1
+
+
+def test_a_healthy_corpus_is_not_damaged(store, tmp_path):
+    store.admit(b"0-7", ACCEPTED, "c1")
+    store.save()
+
+    assert CorpusStore(tmp_path, TARGET).damaged == ""
 
 
 def test_a_changed_oracle_makes_the_ledger_stale_rather_than_wrong(store, tmp_path):

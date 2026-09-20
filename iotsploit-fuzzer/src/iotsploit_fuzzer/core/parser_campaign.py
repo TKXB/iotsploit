@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from ..analysis.corpus import CorpusStore
+from ..analysis.corpus import CorpusDamagedError, CorpusStore
 from ..analysis.logger import TestLogger
 from ..generators.corpus_generator import CorpusGenerator
 from ..harnesses.parser_harness import ParserHarness, WorkerStartupError
@@ -155,6 +155,8 @@ def replay(target: ParseTarget, *, root: Path | str = DEFAULT_CORPUS_ROOT) -> Li
     the regression protection comes from the corpus, not from new inputs.
     """
     store = CorpusStore(root, target)
+    if store.damaged:
+        raise CorpusDamagedError(f"{target.name}: {store.damaged}")
     findings: List[Dict[str, Any]] = []
     with ParserHarness(target) as harness:
         for identity, payload in store.payloads():
@@ -184,6 +186,8 @@ def run(
 ) -> Dict[str, Any]:
     """Run one campaign and commit what it learned."""
     store = CorpusStore(root, target)
+    if store.damaged:
+        raise CorpusDamagedError(f"{target.name}: {store.damaged}")
     if store.stale:
         if not rebaseline:
             raise StaleLedgerError(
@@ -347,7 +351,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     for name in names:
         target = REGISTRY[name]
         if args.replay:
-            findings = replay(target, root=args.root)
+            try:
+                findings = replay(target, root=args.root)
+            except CorpusDamagedError as error:
+                print(f"{name:32} DAMAGED: {error}")
+                failed = True
+                continue
             print(f"{name:32} replay: {len(findings)} finding(s)")
             for finding in findings:
                 print(f"    {finding['signature']}  {finding['payload']}  {finding['detail'][:80]}")
@@ -358,7 +367,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 target, iterations=args.iterations, root=args.root,
                 seed=args.seed, rebaseline=args.rebaseline, radamsa=radamsa,
             )
-        except (StaleLedgerError, WorkerStartupError) as error:
+        except (StaleLedgerError, WorkerStartupError, CorpusDamagedError) as error:
             print(f"{name:32} SKIPPED: {error}")
             failed = True
             continue

@@ -70,6 +70,15 @@ MAX_SIGNATURES = 200
 KEEP_MANIFESTS = 10
 
 
+class CorpusDamagedError(RuntimeError):
+    """The ledger and the archive do not agree, so replay coverage is unknown.
+
+    Raised rather than worked around. A replay that silently skips the
+    payloads it cannot find still reports success, and a green gate that
+    checked fewer inputs than it claims to is worse than a red one.
+    """
+
+
 def payload_id(payload: bytes) -> str:
     """A payload's identity: what it is, never where it appeared."""
     return hashlib.sha256(payload).hexdigest()[:16]
@@ -169,6 +178,12 @@ class CorpusStore:
 
     def load(self) -> None:
         self.entries = {}
+        #: Set when the ledger and the archive disagree. Not raised here -- a
+        #: caller may want to inspect a damaged corpus -- but anything that
+        #: replays or extends it must refuse. Assigned before the payloads
+        #: are read, because reading them is one of the things that can
+        #: discover the damage.
+        self.damaged = ""
         self._payloads: Dict[str, bytes] = self._read_payloads()
         self._counts: Dict[str, int] = {}
         self.stale = False
@@ -198,6 +213,36 @@ class CorpusStore:
         }
         for entry in self.entries.values():
             self._counts[entry.signature] = self._counts.get(entry.signature, 0) + 1
+        self._check_archive_agrees()
+
+    def _check_archive_agrees(self) -> None:
+        """The ledger and the archive are two files, written one after the
+        other under one lock -- which bounds the window but does not remove
+        it. A process killed between the two renames leaves a mixed pair.
+
+        A payload the ledger names and the archive does not have is the case
+        that must fail: ``payloads()`` would skip it, the replay would check
+        fewer inputs than the ledger claims, and it would still pass. The
+        other direction is harmless -- an unreferenced payload costs space
+        and nothing else -- so it is reported and ignored.
+        """
+        if self.damaged:
+            return
+        named = set(self.entries)
+        held = set(self._payloads)
+        missing = named - held
+        if missing:
+            self.damaged = (
+                f"{len(missing)} payload(s) named by the ledger are not in the "
+                f"archive, e.g. {sorted(missing)[0]}"
+            )
+            return
+        orphaned = held - named
+        if orphaned:
+            logger.warning(
+                "%s: %d payload(s) in the archive are not in the ledger; ignoring",
+                self.target.name, len(orphaned),
+            )
 
     def _read_payloads(self) -> Dict[str, bytes]:
         """Every retained payload, from the archive and any loose leftovers."""
@@ -205,12 +250,15 @@ class CorpusStore:
         if self.legacy_dir.is_dir():
             for path in self.legacy_dir.glob("*.bin"):
                 found[path.stem] = path.read_bytes()
-        try:
-            with zipfile.ZipFile(self.archive_path) as archive:
-                for name in archive.namelist():
-                    found[Path(name).stem] = archive.read(name)
-        except (OSError, zipfile.BadZipFile):
-            pass
+        if self.archive_path.exists():
+            try:
+                with zipfile.ZipFile(self.archive_path) as archive:
+                    for name in archive.namelist():
+                        found[Path(name).stem] = archive.read(name)
+            except (OSError, zipfile.BadZipFile) as error:
+                # An unreadable archive is not an empty corpus. Treating it as
+                # one is how a replay reports success having checked nothing.
+                self.damaged = f"payloads.zip cannot be read: {error}"
         return found
 
     def payload(self, identity: str) -> Optional[bytes]:
@@ -363,10 +411,14 @@ class CorpusStore:
         """Rewrite the archive in one atomic step, holding only what the
         ledger still names.
 
-        Written whole rather than appended to: a payload displaced by a
-        smaller one has to leave, and the ledger and the archive have to agree
-        after a kill. They are written under the same lock, so an interrupted
-        run leaves the previous pair, not a mixed one.
+        Written whole rather than appended to, because a payload displaced by
+        a smaller one has to leave.
+
+        This and the ledger are two renames under one lock. The lock keeps
+        two campaigns from interleaving; it does nothing about a kill between
+        the two writes, which can still leave a mixed pair. That is not
+        claimed to be transactional -- it is detected on load instead, by
+        :meth:`_check_archive_agrees`.
         """
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
