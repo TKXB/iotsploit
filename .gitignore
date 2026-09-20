@@ -29,6 +29,11 @@ tests/plug/ut_device_model.py
 tests/ut_shell.py
 ui/
 artifacts/
+
+# Files uploaded through the app at runtime -- ARXML, DBC, CAN logs. Whatever
+# a tester happened to hand the running server, not source. Six copies of a
+# 47,801-line CAN capture reached a commit before this line existed.
+iotsploit-django/uploads/
 build/
 
 # Python build/distribution artifacts
