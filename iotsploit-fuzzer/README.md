@@ -108,39 +108,43 @@ poetry run python -m iotsploit_fuzzer.core.parser_campaign \
 Re-baselining keeps the payloads -- they are the expensive part -- and drops
 only the claim about what they do, which the next campaign re-derives.
 
-### The mutator
+### Two mutators
 
-[radamsa](https://gitlab.com/akihe/radamsa) does the mutation, and it is a
-required tool rather than an option. It is not on PATH by default and is not
-a Python package:
+The default is eight byte-level operations on a seeded PRNG. It needs nothing
+installed, which is the point: a campaign has to be able to run on a machine
+nobody has prepared -- CI, a Pi, the Windows target.
+
+`--radamsa` selects [radamsa](https://gitlab.com/akihe/radamsa) instead, which
+reads the *shape* of its input, so a mutated JSON document is usually still
+JSON and far more mutants survive the adapter:
 
 ```bash
 git clone --depth 1 https://gitlab.com/akihe/radamsa
 cd radamsa && make && make install PREFIX=$HOME/.local
+
+poetry run python -m iotsploit_fuzzer.core.parser_campaign --radamsa --iterations 2000
 ```
 
-A campaign without it stops and prints those lines. **`--replay` does not need
-it** -- it runs the retained corpus and generates nothing, which is what the
-commit gate uses, so the gate is unaffected on a machine that has never had
-radamsa installed.
+Measured on this registry, fresh corpus, same seed, all targets:
 
-It was chosen over a byte-level mutator because it reads the *shape* of its
-input: a mutated JSON document is usually still JSON, so far more mutants
-survive the adapter and reach the parser. On the structured targets that
-halves the waste -- `canbus.decode_frame` skipped 92.8% of byte-level mutants
-before the parser saw them, and 54.5% of radamsa's.
+| | signatures | time | per second |
+|---|---:|---:|---:|
+| built-in, 2,000 inputs | 304 | 41 s | **7.4** |
+| radamsa, 2,000 inputs | **331** | 848 s | 0.4 |
+| built-in, 32,000 inputs | **443** | 614 s | 0.7 |
 
-`--seed` is passed to radamsa's own `-s`, so a campaign reproduces exactly and
-the manifest's `mutator: radamsa/<seed>` is a real record. The generator hands
-it one parent at a time rather than the whole pool: given every seed at once
-radamsa does not say which it picked, and that lineage is what edge retention
-needs.
+Per input radamsa wins by 9%; per second the built-in wins by 19x. Given equal
+wall clock the built-in found 34% more signatures and two defects radamsa did
+not -- and five of the six product defects the loop has found came from it.
 
-**It is the slower half of the loop** -- a separate process, roughly 1-3 ms
-per mutant even batched 64 to a spawn, and its cost scales with input size
-(1.25 ms at 64 bytes, 42.8 ms at 256 KB). The corpus keeping the smallest
-example of each signature is what stops that becoming a feedback loop; see
-the note in `analysis/corpus.py`.
+Keep radamsa for what it reaches rather than for volume: it builds the deep
+nesting and long repetitions a byte mutator hits only by accident, which is
+how the `RecursionError` in the frame composer was found.
+
+Both modes are seeded and reproducible, both record which payload a mutant
+came from, and the manifest says which one ran (`builtin/<seed>` or
+`radamsa/<seed>`). Neither the commit gate nor `--replay` uses a mutator at
+all.
 
 ### The nightly run
 

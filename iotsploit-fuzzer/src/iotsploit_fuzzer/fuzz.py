@@ -201,6 +201,7 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("--input", choices=KINDS, help="override the guessed input kind")
     parser.add_argument("-n", "--iterations", type=int, default=2000)
     parser.add_argument("--seconds", type=float, default=5.0, help="budget for one call")
+    parser.add_argument("--radamsa", action="store_true", help="use radamsa instead of the built-in mutator")
     parser.add_argument("--keep", metavar="DIR", help="keep the corpus here")
     args = parser.parse_args(argv)
 
@@ -239,11 +240,13 @@ def main(argv: Optional[list] = None) -> int:
     ))
     # Checked before the pre-flight, which spawns workers: there is no point
     # discovering the contract is wrong for a run that cannot happen anyway.
-    try:
-        mutator(0)
-    except MutatorMissingError as error:
-        print(error)
-        return 2
+    radamsa = None
+    if args.radamsa:
+        try:
+            radamsa = mutator(0)
+        except MutatorMissingError as error:
+            print(error)
+            return 2
 
     unexpected = preflight(target)
     if unexpected:
@@ -261,7 +264,8 @@ def main(argv: Optional[list] = None) -> int:
         return 2
 
     root = args.keep or tempfile.mkdtemp(prefix="fuzz_")
-    report = run(target, iterations=args.iterations, root=root, rebaseline=True)
+    report = run(target, iterations=args.iterations, root=root, rebaseline=True,
+                 radamsa=radamsa)
     describe(target.name, report)
     if not args.keep:
         print(f"\ncorpus (temporary): {root}")
