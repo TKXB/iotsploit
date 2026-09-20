@@ -98,8 +98,9 @@ class BoundaryMonitor(Monitor):
             record = self._record(idx, payload, outcome, was=known.signature)
             self.boundary_moves.append(record)
             self.emit(EventType.BOUNDARY_MOVED, record)
-            known.signature = outcome.signature
-            known.kind = outcome.kind
+            # Through the store, which owns the counts that back
+            # known_signatures() and both caps.
+            self.store.reclassify(identity, outcome)
         elif novel:
             record = self._record(idx, payload, outcome)
             self.new_regions.append(record)

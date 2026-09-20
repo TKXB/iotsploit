@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from iotsploit_fuzzer.analysis.corpus import CorpusStore
+from iotsploit_fuzzer.analysis.corpus import CorpusStore, payload_id
 from iotsploit_fuzzer.analysis.outcome import ACCEPT, REJECT, VIOLATE, Outcome
 from iotsploit_fuzzer.core.config import EventType
 from iotsploit_fuzzer.harnesses.base import HarnessResult
@@ -117,6 +117,38 @@ def test_an_unchanged_parser_reports_nothing_at_all(tmp_path):
 
     assert events.events == []
     assert second.get_stats()["boundary_moves"] == 0
+
+
+def test_a_movement_moves_the_counts_with_the_entry(tmp_path):
+    """The entry is not the only thing that records what a payload does.
+
+    ``_counts`` backs ``known_signatures()``, the per-signature cap and the
+    saturation ceiling. The monitor used to assign to ``entry.signature``
+    directly and leave the counts behind, so the ledger said rejected while
+    the count that decides novelty still read accepted.
+    """
+    store = CorpusStore(tmp_path, TARGET)
+    BoundaryMonitor(store, "c1").process_case(1, b"0-7", result_for(ACCEPTED))
+    assert store.signature_counts() == {ACCEPTED.signature: 1}
+
+    BoundaryMonitor(store, "c2").process_case(1, b"0-7", result_for(REJECTED))
+
+    entry = store.entries[payload_id(b"0-7")]
+    assert entry.signature == REJECTED.signature
+    assert entry.kind == REJECTED.kind
+    assert store.signature_counts() == {REJECTED.signature: 1}
+    assert store.known_signatures() == {REJECTED.signature}
+
+
+def test_a_signature_nothing_holds_any_more_leaves_the_counts(tmp_path):
+    """Zero counts are deleted rather than left at zero, or the saturation
+    ceiling would fill up with signatures the corpus no longer has."""
+    store = CorpusStore(tmp_path, TARGET)
+    BoundaryMonitor(store, "c1").process_case(1, b"0-7", result_for(ACCEPTED))
+
+    BoundaryMonitor(store, "c2").process_case(1, b"0-7", result_for(REJECTED))
+
+    assert ACCEPTED.signature not in store.signature_counts()
 
 
 def test_a_violation_is_a_finding_and_keeps_the_payload_that_caused_it(parts):

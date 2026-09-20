@@ -282,6 +282,28 @@ class CorpusStore:
         self._counts[outcome.signature] = self._counts.get(outcome.signature, 0) + 1
         return True
 
+    def reclassify(self, identity: str, outcome: Outcome) -> None:
+        """Record that a payload already held now does something else.
+
+        The one way an entry's signature may change after it is admitted, and
+        it lives here because the entry is not the only thing that has to
+        move: ``_counts`` backs ``known_signatures()``, the per-signature cap
+        and the saturation ceiling. The monitor used to assign to
+        ``entry.signature`` directly, which left the ledger saying one thing
+        and the counts another -- a payload recorded as rejected while the
+        count that decides novelty still read accepted.
+        """
+        entry = self.entries.get(identity)
+        if entry is None or entry.signature == outcome.signature:
+            return
+        if self._counts.get(entry.signature):
+            self._counts[entry.signature] -= 1
+            if not self._counts[entry.signature]:
+                del self._counts[entry.signature]
+        entry.signature = outcome.signature
+        entry.kind = outcome.kind
+        self._counts[outcome.signature] = self._counts.get(outcome.signature, 0) + 1
+
     def _payload_size(self, identity: str) -> int:
         return len(self._payloads.get(identity, b""))
 
