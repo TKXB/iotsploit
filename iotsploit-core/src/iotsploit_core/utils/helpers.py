@@ -116,13 +116,32 @@ def as_number(
     """
     if value is None or value == "":
         raise ValueError(f"{name} is required")
+
+    # A bool is an int in Python and neither declared type means it. Letting
+    # it through turned `True` into 1 and `False` into 0 silently, which for
+    # a port or an address is a value nobody wrote.
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'}")
+
     try:
-        if kind is int:
-            parsed = int(value, 0) if isinstance(value, str) else int(value)
-        else:
+        if kind is not int:
             parsed = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{name} must be an {'integer' if kind is int else 'number'}") from None
+        elif isinstance(value, str):
+            parsed = int(value, 0)
+        elif isinstance(value, float):
+            # int(1.5) is 1. A declared int that quietly loses its fraction
+            # is worse than a refusal: the caller believes the value arrived.
+            if not value.is_integer():
+                raise ValueError(f"{name} must be a whole number, not {value!r}")
+            parsed = int(value)
+        else:
+            parsed = int(value)
+    except ValueError as error:
+        if "whole number" in str(error):
+            raise
+        raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'}") from None
+    except TypeError:
+        raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'}") from None
     # The bounds come from a plugin's declared schema, which its author wrote
     # by hand -- so "min": "0" is as likely as "min": 0, and comparing a str
     # with an int raises a TypeError this function does not declare. Reported

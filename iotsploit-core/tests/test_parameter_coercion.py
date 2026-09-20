@@ -79,6 +79,37 @@ def test_a_number_that_is_not_one_is_refused_by_name(parameters, message):
         coerce(DeclaringPlugin(), parameters)
 
 
+@pytest.mark.parametrize(
+    ("sent", "expected"),
+    [("3", 3), ("0x10", 16), ("  7 ", 7), (3, 3), (2.0, 2)],
+)
+def test_a_declared_int_accepts_whole_numbers_however_they_arrive(sent, expected):
+    assert coerce(DeclaringPlugin(), {'count': sent})['count'] == expected
+
+
+@pytest.mark.parametrize(
+    ("sent", "message"),
+    [
+        (1.5, "whole number"),
+        (True, "must be an integer"),
+        (False, "must be an integer"),
+        ("1.5", "must be an integer"),
+    ],
+)
+def test_a_declared_int_refuses_what_it_would_have_to_round_or_reinterpret(sent, message):
+    """Found by fuzzing the schema alongside the parameters. ``int(1.5)`` is
+    1 and ``int(True)`` is 1, so a declared int used to accept both and the
+    caller never learned the value had changed. For a port or an address
+    that is a number nobody wrote."""
+    with pytest.raises(ValueError, match=message):
+        coerce(DeclaringPlugin(), {'count': sent})
+
+
+def test_a_declared_float_is_not_a_place_to_put_a_bool():
+    with pytest.raises(ValueError, match="must be a number"):
+        coerce(DeclaringPlugin(), {'ratio': True})
+
+
 def test_a_schema_declaring_a_non_numeric_bound_is_refused_not_crashed_on():
     """Found by fuzzing the schema alongside the parameters. The bounds are
     written by hand by a plugin author, so ``"min": "0"`` is as likely as
