@@ -238,8 +238,16 @@ def _parse_payload(tokens: Sequence[str], length: int) -> Optional[bytes]:
         return None
 
 
+#: Longest decimal field this reader will convert. ``int()`` refuses a string
+#: of more than 4300 digits and raises ValueError, and this reader's contract
+#: is that a line it cannot parse is counted and skipped, never fatal. No
+#: column in an ASC log -- a DLC, a channel, a length -- is more than a few
+#: digits, so a longer one means the line is not what it claims to be.
+MAX_DECIMAL_DIGITS = 18
+
+
 def _is_decimal(token: str) -> bool:
-    return token.isdigit()
+    return token.isdigit() and len(token) <= MAX_DECIMAL_DIGITS
 
 
 def _consume_frame_body(
@@ -462,7 +470,7 @@ class AscLogReader:
 
     @staticmethod
     def _read_channel(token: str) -> Optional[int]:
-        return int(token) if token.isdigit() else None
+        return int(token) if _is_decimal(token) else None
 
     def _read_fd_frame(self, timestamp: float, tokens: List[str]) -> Optional[ReplayMessage]:
         """Read a CAN FD line in either of the two column orders found in real logs.

@@ -106,14 +106,29 @@ def classify_error_frame(arbitration_id: int, data: Any = None) -> ErrorFrame:
 
     ``arbitration_id`` is what python-can exposes after masking off
     ``CAN_ERR_FLAG``: a bitmask of error classes, never an address.
+
+    Never raises. A live capture is a long-running loop, so a message-shaped
+    object carrying something other than an ``int`` and ``bytes`` degrades to
+    ``unknown-error-class`` rather than ending the capture.
     """
-    classes = tuple(_flag_names(ERROR_CLASSES, int(arbitration_id or 0)))
+    try:
+        flags = int(arbitration_id or 0)
+    except (TypeError, ValueError):
+        flags = 0
+
+    classes = tuple(_flag_names(ERROR_CLASSES, flags))
     if not classes:
         classes = ("unknown-error-class",)
 
     status: Tuple[str, ...] = ()
-    if int(arbitration_id or 0) & CAN_ERR_CRTL:
-        payload = bytes(data or b"")
+    if flags & CAN_ERR_CRTL:
+        # An int is excluded rather than coerced: bytes(n) would allocate n
+        # zero bytes, which is both a wrong reading and a way to exhaust a
+        # long-running capture's memory from one malformed message.
+        try:
+            payload = b"" if isinstance(data, int) else bytes(data or b"")
+        except (TypeError, ValueError):
+            payload = b""
         if len(payload) > 1:
             status = tuple(_flag_names(CONTROLLER_STATUS, payload[1]))
 

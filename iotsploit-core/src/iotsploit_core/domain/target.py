@@ -32,6 +32,30 @@ class Target(BaseModel, ABC):
     buses: List["Bus"] = Field(default_factory=list)
     edges: List["Edge"] = Field(default_factory=list)
 
+    @field_validator("components", mode="before")
+    @classmethod
+    def _resolve_components(cls, value: Any) -> Any:
+        """Build each component through the factory, as a stored read does.
+
+        Without this the model has two ways in and they disagree. The storage
+        path calls ``ComponentFactory`` and gets an ``ECUComponent`` carrying
+        ``ecu_type``, ``protocol``, ``address`` and ``firmware_version``;
+        constructing the model from a plain dict gets a base ``Component``,
+        and pydantic drops those fields silently because unknown keys are
+        ignored rather than refused.
+
+        The visible consequence is that a target does not survive its own
+        round trip: dump it and read the dump back and the typed half is
+        gone, with no error anywhere. Resolving here makes the model the one
+        owner, which is what ``_resolve_facets`` already does for facets.
+        """
+        if not isinstance(value, list):
+            return value
+        return [
+            ComponentFactory.create_component(item) if isinstance(item, dict) else item
+            for item in value
+        ]
+
     @model_validator(mode="after")
     def _check_edge_endpoints(self) -> "Target":
         """Every edge endpoint must resolve to something on this target.

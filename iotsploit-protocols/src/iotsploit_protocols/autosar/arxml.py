@@ -13,6 +13,7 @@ payload converted into the target today.
 
 from __future__ import annotations
 
+import codecs
 import gc
 import hashlib
 import json
@@ -179,6 +180,60 @@ def import_arxml(
     return ArxmlImportResult(target=target, warnings=tuple(warnings), counts=counts)
 
 
+# How the DTD scan below decides what it is reading. A UTF-16 ``<!DOCTYPE``
+# is ``<\x00!\x00d\x00...`` and walks straight past a byte-level substring
+# match, so the bytes have to be decoded before they are scanned -- and that
+# means knowing the encoding before the declaration inside them can be read.
+#
+# A byte-order mark answers it when there is one. When there is not, the XML
+# specification's own rule applies: a document begins with ``<``, so the
+# placement of the null bytes around that first character names the encoding.
+# Relying on the BOM alone left a no-BOM UTF-16 file scanned as UTF-8, where
+# a DTD declaration is invisible and ElementTree reads it anyway.
+#
+# UTF-32-LE is tested before UTF-16-LE because its BOM starts with the
+# UTF-16-LE one, and the four-byte patterns before the two-byte ones for the
+# same reason.
+_BOMS: Tuple[Tuple[bytes, str], ...] = (
+    (codecs.BOM_UTF32_LE, "utf-32-le"),
+    (codecs.BOM_UTF32_BE, "utf-32-be"),
+    (codecs.BOM_UTF8, "utf-8-sig"),
+    (codecs.BOM_UTF16_LE, "utf-16-le"),
+    (codecs.BOM_UTF16_BE, "utf-16-be"),
+)
+
+#: The first character of an XML document is "<" (0x3C). Where its null
+#: padding falls says how wide the encoding is and which way round it runs.
+_OPENINGS: Tuple[Tuple[bytes, str], ...] = (
+    (b"\x3c\x00\x00\x00", "utf-32-le"),
+    (b"\x00\x00\x00\x3c", "utf-32-be"),
+    (b"\x3c\x00\x3f\x00", "utf-16-le"),
+    (b"\x00\x3c\x00\x3f", "utf-16-be"),
+)
+
+
+def _sniff_encoding(head: bytes) -> str:
+    """The encoding of an XML document, from its first few bytes.
+
+    A byte-order mark first, then the shape of the opening ``<``. Anything
+    else is read as UTF-8, which is what an ARXML without either is.
+    """
+    for bom, encoding in _BOMS:
+        if head.startswith(bom):
+            return encoding
+    for opening, encoding in _OPENINGS:
+        if head.startswith(opening):
+            return encoding
+    # A bare "<" followed by a null is UTF-16-LE even when the second
+    # character is not "?"; the reverse for big-endian.
+    if len(head) >= 2:
+        if head[0] == 0x3C and head[1] == 0x00:
+            return "utf-16-le"
+        if head[0] == 0x00 and head[1] == 0x3C:
+            return "utf-16-be"
+    return "utf-8"
+
+
 def _inspect_file(path: Path) -> Tuple[str, int]:
     try:
         size = path.stat().st_size
@@ -190,18 +245,21 @@ def _inspect_file(path: Path) -> Tuple[str, int]:
         )
 
     digest = hashlib.sha256()
-    markup_tail = b""
+    markup_tail = ""
+    decoder = None
     try:
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
-                markup = (markup_tail + chunk).lower()
-                if b"<!doctype" in markup or b"<!entity" in markup:
+                if decoder is None:
+                    decoder = codecs.getincrementaldecoder(_sniff_encoding(chunk))(errors="ignore")
+                markup = markup_tail + decoder.decode(chunk).lower()
+                if "<!doctype" in markup or "<!entity" in markup:
                     raise ArxmlImportError("ARXML files containing DTD or entity declarations are rejected")
                 markup_tail = markup[-16:]
     except ArxmlImportError:
         raise
-    except OSError as exc:
+    except (OSError, UnicodeError, LookupError) as exc:
         raise ArxmlImportError(f"cannot read ARXML file {path}: {exc}") from exc
     return digest.hexdigest(), size
 

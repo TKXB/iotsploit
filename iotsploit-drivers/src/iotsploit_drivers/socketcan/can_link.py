@@ -30,10 +30,16 @@ CANFD_MTU = 72
 
 _HEADER = re.compile(r"^\d+:\s+(?P<name>[^:@]+)[:@]")
 _FLAGS = re.compile(r"<(?P<flags>[^>]*)>")
-_MTU = re.compile(r"\bmtu\s+(?P<mtu>\d+)")
+# Digit runs are bounded, and the bound is followed by ``(?!\d)``. ``int()``
+# refuses a string of more than 4300 digits and raises ValueError, and this
+# parser's contract is that it indexes whatever ip(8) printed without raising
+# at all. Without the lookahead a bound matches the *prefix* of a longer run,
+# so a six-thousand-digit mtu would be read as 999999999 -- a number the
+# kernel never printed, which is worse than not reading it.
+_MTU = re.compile(r"\bmtu\s+(?P<mtu>\d{1,9})(?!\d)")
 # \b stops this matching the "bitrate" inside "dbitrate".
-_BITRATE = re.compile(r"\bbitrate\s+(?P<bitrate>\d+)")
-_DBITRATE = re.compile(r"\bdbitrate\s+(?P<dbitrate>\d+)")
+_BITRATE = re.compile(r"\bbitrate\s+(?P<bitrate>\d{1,9})(?!\d)")
+_DBITRATE = re.compile(r"\bdbitrate\s+(?P<dbitrate>\d{1,9})(?!\d)")
 _CAN_STATE = re.compile(r"^can\b.*?\bstate\s+(?P<state>\S+)")
 # The kernel prints its bit-timing constants under the name of the controller
 # driver that owns the interface -- "pcan_usb_fd: tseg1 1..256 ...". It is the

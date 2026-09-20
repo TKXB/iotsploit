@@ -1,0 +1,80 @@
+{
+  "ledger_version": 1,
+  "target": "someip.sd_parse",
+  "fingerprint": "07c0ec1e9aef5f43",
+  "updated": "2026-09-20T03:41:50+00:00",
+  "entries": {
+    "225c6b282917efac": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "2d0f6562f0575944": {
+      "signature": "accept|||list[1]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "478623233930ae8e": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "6a4ac0dcc59a628e": {
+      "signature": "accept|||list[few]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "78e56fce430c1b41": {
+      "signature": "accept|||list[tens]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "7a4a4b50f5121ed5": {
+      "signature": "accept|||list[0]|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "ab432a815b66ac63": {
+      "signature": "accept|||list[few]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "c337ded6f56c0720": {
+      "signature": "accept|||list[0]|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "df10754e35f9d579": {
+      "signature": "accept|||list[1]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "e3b0c44298fc1c14": {
+      "signature": "accept|||list[0]|",
+      "kind": "accept",
+      "first_seen": "20260919T153904Z",
+      "edge_of": ""
+    },
+    "e41feb0bd5eb2dc8": {
+      "signature": "accept|||list[1]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    },
+    "e46c6d2f3f59b703": {
+      "signature": "accept|||list[few]<ServiceOffer>|",
+      "kind": "accept",
+      "first_seen": "20260920T025400Z",
+      "edge_of": ""
+    }
+  }
+}

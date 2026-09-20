@@ -13,7 +13,6 @@ from sqlalchemy.sql import func
 
 from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
 from iotsploit_core.domain.target import (
-    ComponentFactory,
     GenericTarget,
     Target,
     Vehicle,
@@ -280,10 +279,9 @@ class TargetManager:
         Vehicle and GenericTarget. Only the field hydration is shared.
         """
         target_data = fold_legacy_interfaces(target_data)
-        components = [
-            ComponentFactory.create_component(c) if isinstance(c, dict) else c
-            for c in target_data.get("components") or []
-        ]
+        # Components are resolved by the model itself, so that constructing a
+        # target anywhere gets the same typed components this path used to
+        # build by hand -- including create_target below, which never did.
         return target_class(
             target_id=target_data.get("target_id", ""),
             name=target_data.get("name", ""),
@@ -292,7 +290,7 @@ class TargetManager:
             properties=target_data.get("properties") or {},
             ip_address=target_data.get("ip_address"),
             location=target_data.get("location"),
-            components=components,
+            components=target_data.get("components") or [],
             buses=target_data.get("buses") or [],
             edges=target_data.get("edges") or [],
         )

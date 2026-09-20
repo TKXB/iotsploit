@@ -16,7 +16,11 @@ from .core.fuzzing_engine import (
     FuzzTestCase, MutationResult, default_engine, default_registry
 )
 from .generators.radamsa_generator import RadamsaGenerator
+from .analysis.corpus import CorpusStore
 from .harnesses.can_harness import CANHarness
+from .harnesses.parser_harness import ParserHarness
+from .harnesses.parser_targets import ParseTarget, register
+from .monitoring.boundary_monitor import BoundaryMonitor
 from .harnesses.uart_harness import UARTHarness
 from .harnesses.spi_harness import SPIHarness
 
@@ -45,6 +49,13 @@ __all__ = [
     "CANHarness",
     "UARTHarness",
     "SPIHarness",
+
+    # Inbound parser fuzzing: the same loop pointed at our own parsers
+    "ParserHarness",
+    "ParseTarget",
+    "register",
+    "CorpusStore",
+    "BoundaryMonitor",
     
     # Fuzzing engine components
     "FuzzingEngine",

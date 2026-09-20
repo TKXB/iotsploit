@@ -66,6 +66,22 @@ def test_the_controller_behind_an_interface_is_read_from_its_bit_timing_block():
     assert links["vcan0"].timing_const is None
 
 
+def test_a_number_too_long_to_parse_is_not_read_at_all():
+    """Found by fuzzing. ``int()`` refuses a string of more than 4300 digits,
+    and this parser's contract is that it indexes whatever ip(8) printed
+    without raising. The bound carries a lookahead so an over-long run fails
+    to match outright -- matching its prefix would report an mtu the kernel
+    never printed."""
+    links = parse_ip_link_details(
+        f"1: can0: <NOARP,UP> mtu {'9' * 6000} qdisc pfifo state UP\n"
+        "    link/can\n"
+        "    bitrate 500000 sample-point 0.875\n"
+    )
+
+    assert links["can0"].mtu is None
+    assert links["can0"].bitrate == 500000
+
+
 def test_a_down_classic_interface_is_reported_as_such():
     can1 = parse_ip_link_details(IP_OUTPUT)["can1"]
 

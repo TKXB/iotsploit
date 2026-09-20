@@ -38,6 +38,61 @@ from iotsploit_protocols.canbus.definitions import (
 from iotsploit_protocols.canbus.errors import CanDefinitionError, CanValueError
 
 
+#: The largest payload either CAN carries. Not a policy choice -- classic CAN
+#: is 8 bytes and CAN FD is 64, and a definition claiming more does not
+#: describe a frame.
+MAX_PAYLOAD_BYTES = 64
+
+
+def _check_fits_a_frame(definition: FrameDefinition) -> None:
+    """Reject a layout no wire could carry, before ``cantools`` prices it.
+
+    ``strict=True`` below would reject these too, but it computes the layout
+    first, and that computation is quadratic in the payload length: a ``dlc``
+    of 32768 takes ten seconds and 65536 does not finish. A definition reaches
+    here straight from an ARXML import or a hand edit -- ``TargetCanCatalog``
+    records an oversized frame as unsupported rather than raising, so nothing
+    upstream guarantees these bounds. Checking them costs a comparison.
+    """
+    limit = MAX_PAYLOAD_BYTES if definition.is_fd else 8
+    dlc = definition.dlc
+    # The type is checked, not assumed: a definition arrives from an importer
+    # or a hand edit, and comparing a str with ``<`` raises a TypeError this
+    # function does not declare.
+    if not isinstance(dlc, int) or isinstance(dlc, bool) or not 0 <= dlc <= limit:
+        raise CanDefinitionError(
+            f"frame {definition.name!r} claims a {dlc!r}-byte payload; "
+            f"{'CAN FD' if definition.is_fd else 'classic CAN'} carries at most {limit}"
+        )
+
+    bits = max(dlc * 8, 1)
+    for signal in definition.signals:
+        start, length = signal.start_bit, signal.length
+        numbers = all(
+            isinstance(value, int) and not isinstance(value, bool)
+            for value in (start, length)
+        )
+        if not numbers or not 0 <= start < bits or not 0 < length <= bits:
+            raise CanDefinitionError(
+                f"frame {definition.name!r} places signal {signal.name!r} at bit "
+                f"{start!r} length {length!r}, outside its {bits}-bit payload"
+            )
+        # The conversion fields are checked here for the same reason as the
+        # layout: cantools raises its own TypeError for a non-numeric scale,
+        # and TypeError is not what decode_frame catches -- so a definition
+        # whose factor arrived as text escaped a function that promises never
+        # to raise at all.
+        for field in ("factor", "offset", "minimum", "maximum"):
+            value = getattr(signal, field, None)
+            if value is None and field in ("minimum", "maximum"):
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise CanDefinitionError(
+                    f"frame {definition.name!r} signal {signal.name!r} has a "
+                    f"non-numeric {field} {value!r}"
+                )
+
+
 def build_message(definition: FrameDefinition) -> Message:
     """Reconstruct the ``cantools`` message this definition describes.
 
@@ -50,6 +105,7 @@ def build_message(definition: FrameDefinition) -> Message:
         raise CanDefinitionError(
             f"frame {definition.name!r} is a container frame and cannot be encoded"
         )
+    _check_fits_a_frame(definition)
 
     signals = [_build_signal(s) for s in definition.signals]
     try:

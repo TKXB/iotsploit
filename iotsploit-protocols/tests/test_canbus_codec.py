@@ -15,10 +15,13 @@ The asymmetry between the two directions is deliberate and tested:
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from iotsploit_protocols.canbus import TargetCanCatalog, decode_frame, encode_frame
 from iotsploit_protocols.canbus.codec import CanCodec, build_message
+from iotsploit_protocols.canbus.definitions import FrameDefinition, SignalDefinition
 from iotsploit_protocols.canbus.errors import CanDefinitionError, CanValueError
 
 pytestmark = pytest.mark.unit
@@ -313,7 +316,11 @@ def test_decoding_a_container_frame_fails_without_raising(target):
 
 def test_a_signal_reaching_past_the_payload_is_refused(target):
     """The catalogue's structural checks stop short of bit layout on purpose:
-    cantools packs it, so cantools judges it."""
+    cantools packs it, so cantools judges it.
+
+    One bound comes first, and only because cantools' judgement is priced by
+    the payload length -- see
+    ``test_an_oversized_payload_is_refused_before_it_is_laid_out``."""
     target["buses"][0]["properties"]["messages"].append(
         {
             "frame_id": 0x704,
@@ -326,8 +333,55 @@ def test_a_signal_reaching_past_the_payload_is_refused(target):
     )
     definition = TargetCanCatalog.from_target(target).resolve(POWERTRAIN, 0x704)
 
-    with pytest.raises(CanDefinitionError, match="unusable layout"):
+    with pytest.raises(CanDefinitionError, match="outside its 8-bit payload"):
         build_message(definition)
+
+
+def test_an_oversized_payload_is_refused_before_it_is_laid_out():
+    """Found by fuzzing, and the reason the bound is not left to cantools.
+
+    Laying out a frame is quadratic in its length: a dlc of 32768 takes ten
+    seconds and 65536 does not finish. A definition arrives from an ARXML
+    import or a hand edit, and the catalogue records an oversized frame as
+    unsupported rather than raising, so nothing upstream bounds this.
+    """
+    huge = FrameDefinition(
+        bus_id="b", frame_id=0x123, is_extended=False, name="Huge", dlc=65536,
+        signals=(SignalDefinition(name="S", start_bit=0, length=16),),
+    )
+
+    started = time.monotonic()
+    with pytest.raises(CanDefinitionError, match="claims a 65536-byte payload"):
+        build_message(huge)
+
+    assert time.monotonic() - started < 1.0
+
+
+def test_a_non_numeric_factor_is_refused_rather_than_handed_to_cantools():
+    """Found by fuzzing. ``decode_frame`` promises it never raises, and a
+    definition whose factor arrived as text broke that promise from inside
+    cantools -- which raises TypeError, and TypeError is not what
+    ``decode_frame`` catches."""
+    definition = FrameDefinition(
+        bus_id="b", frame_id=0x123, is_extended=False, name="F", dlc=8,
+        signals=(SignalDefinition(name="S", start_bit=0, length=16, factor="Gear"),),
+    )
+
+    decoded = decode_frame(definition, bytes(8))
+
+    assert decoded.ok is False
+    assert "non-numeric factor" in decoded.reason
+
+
+def test_can_fd_keeps_its_sixty_four_bytes():
+    """The bound is the protocol's, not a round number: classic CAN stops at
+    8 and CAN FD at 64."""
+    definition = FrameDefinition(
+        bus_id="b", frame_id=0x123, is_extended=False, name="Fd", dlc=64, is_fd=True,
+        signals=(SignalDefinition(name="S", start_bit=0, length=16),),
+    )
+
+    assert build_message(definition).length == 64
 
 
 # ── the cache ─────────────────────────────────────────────────────────

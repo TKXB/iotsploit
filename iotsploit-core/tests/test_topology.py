@@ -37,6 +37,27 @@ def test_a_target_without_topology_is_unchanged():
     assert plain.buses == [] and plain.edges == []
 
 
+def test_a_typed_component_survives_the_round_trip():
+    """Found by fuzzing. ComponentFactory builds an ECUComponent carrying
+    ecu_type, protocol, address and firmware_version; constructing the model
+    from a plain dict used to build a base Component, and pydantic ignores
+    unknown keys rather than refusing them -- so a target dumped and read back
+    silently lost its typed half, with no error anywhere."""
+    original = Vehicle(
+        target_id="t1", name="T", type="vehicle",
+        components=[{
+            "component_id": "c_vgm", "name": "VGM", "type": "ecu",
+            "ecu_type": "gateway", "protocol": "doip", "address": "0x1000",
+        }],
+    )
+
+    reloaded = Vehicle(**original.model_dump())
+
+    assert reloaded.model_dump() == original.model_dump()
+    assert reloaded.components[0].ecu_type == "gateway"
+    assert reloaded.components[0].protocol == "doip"
+
+
 def test_buses_and_edges_round_trip():
     original = target(edges=[Edge(source="c_vgm", target="bus_can_b", relation="bus_member")])
     reloaded = Vehicle(**original.model_dump())

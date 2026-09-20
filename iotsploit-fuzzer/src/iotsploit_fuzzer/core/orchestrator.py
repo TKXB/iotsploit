@@ -361,8 +361,6 @@ class Orchestrator:
                 })
 
                 if result.crashed and self.config.save_crashes:
-                    self.logger_backend.save_crash(idx, payload, result)
-                    
                     # Emit crash detected event with enhanced information
                     self._emit_event(EventType.CRASH_DETECTED, {
                         'test_case_id': idx,

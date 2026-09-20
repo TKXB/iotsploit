@@ -29,6 +29,11 @@ tests/plug/ut_device_model.py
 tests/ut_shell.py
 ui/
 artifacts/
+
+# Files uploaded through the app at runtime -- ARXML, DBC, CAN logs. Whatever
+# a tester happened to hand the running server, not source. Six copies of a
+# 47,801-line CAN capture reached a commit before this line existed.
+iotsploit-django/uploads/
 build/
 
 # Python build/distribution artifacts
@@ -46,3 +51,14 @@ build/
 # Fails closed: the whole oem/ tree is ignored, so a new vendor profile is private by
 # default rather than by remembering to add a line here.
 iotsploit-exploits/src/iotsploit_exploits/oem/
+
+# The index-keyed artifacts/ directory, tarred once before the parser loop
+# started writing content-addressed payloads elsewhere. Nothing reads it; it is
+# kept rather than deleted because five campaigns' crash files are in there.
+artifacts-legacy-*.tar.gz
+
+# Parser-fuzzing campaign manifests. The ledger and its payloads are tracked --
+# they are the loop's memory and the gate's regression corpus. A manifest is a
+# record of one run, changes nightly, and would be pure churn in review.
+iotsploit-fuzzer/corpus/*/campaigns/
+iotsploit-fuzzer/corpus/*/.lock

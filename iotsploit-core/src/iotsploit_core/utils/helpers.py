@@ -6,7 +6,7 @@ import tempfile
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 
 def runtime_dir() -> Path:
@@ -94,6 +94,70 @@ def format_duration(duration: Union[timedelta, float, int], style: str = "compac
 
     raise ValueError(f"Unknown style: {style}")
 
+
+
+def as_number(
+    value: Any,
+    name: str,
+    *,
+    minimum: Optional[float] = None,
+    maximum: Optional[float] = None,
+    kind: type = int,
+) -> Any:
+    """Parse a number that may arrive as a real number or as a string.
+
+    The sibling of :func:`as_bool`, and it exists for the same reason: the web
+    and CLI layers send parameters as JSON strings, so a plugin declaring
+    ``'type': 'int'`` was handed ``"3"`` and had to parse it itself. Four
+    plugins wrote a byte-identical helper for this and twelve wrote none.
+
+    Integers are parsed with base 0, so ``"0x1000"`` is 4096 -- the address
+    and identifier fields these carry are habitually written in hex.
+    """
+    if value is None or value == "":
+        raise ValueError(f"{name} is required")
+
+    # A bool is an int in Python and neither declared type means it. Letting
+    # it through turned `True` into 1 and `False` into 0 silently, which for
+    # a port or an address is a value nobody wrote.
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'}")
+
+    try:
+        if kind is not int:
+            parsed = float(value)
+        elif isinstance(value, str):
+            parsed = int(value, 0)
+        elif isinstance(value, float):
+            # int(1.5) is 1. A declared int that quietly loses its fraction
+            # is worse than a refusal: the caller believes the value arrived.
+            if not value.is_integer():
+                raise ValueError(f"{name} must be a whole number, not {value!r}")
+            parsed = int(value)
+        else:
+            parsed = int(value)
+    except ValueError as error:
+        if "whole number" in str(error):
+            raise
+        raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'}") from None
+    except TypeError:
+        raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'}") from None
+    # The bounds come from a plugin's declared schema, which its author wrote
+    # by hand -- so "min": "0" is as likely as "min": 0, and comparing a str
+    # with an int raises a TypeError this function does not declare. Reported
+    # as the schema error it is rather than blamed on the value.
+    for label, bound in (("min", minimum), ("max", maximum)):
+        if bound is not None and not isinstance(bound, (int, float)):
+            raise ValueError(
+                f"{name} declares a non-numeric {label} {bound!r}"
+            )
+    if minimum is not None and maximum is not None and not minimum <= parsed <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    if minimum is not None and parsed < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    if maximum is not None and parsed > maximum:
+        raise ValueError(f"{name} must be at most {maximum}")
+    return parsed
 
 
 def as_bool(value: Any) -> bool:

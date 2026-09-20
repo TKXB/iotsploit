@@ -1,0 +1,380 @@
+"""One campaign against one parse target, and the record it leaves behind.
+
+This is the middle loop: the inner loop (generate, execute, classify) is the
+existing :class:`~iotsploit_fuzzer.core.orchestrator.Orchestrator`, and the
+outer loop is a human triaging what this reports. What it adds is memory --
+campaign N+1 starts from campaign N's corpus and ledger rather than from zero.
+
+Two modes:
+
+``run``
+    Mutate, classify, diff against the ledger, update the corpus. Minutes.
+    Nightly.
+``replay``
+    Drive the retained corpus through the harness and generate nothing. Fast
+    and deterministic, which is what lets it sit in the commit gate: every
+    input the loop has ever found interesting is checked on every commit,
+    while the generation that would make the gate flaky stays out of it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import logging
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+from ..analysis.corpus import CorpusDamagedError, CorpusStore
+from ..analysis.logger import TestLogger
+from ..generators.corpus_generator import CorpusGenerator
+from ..harnesses.parser_harness import ParserHarness, WorkerStartupError
+from ..harnesses.parser_targets import REGISTRY, ParseTarget
+from ..monitoring.boundary_monitor import BoundaryMonitor
+from .config import CampaignConfig, EventType
+from .orchestrator import Orchestrator
+
+logger = logging.getLogger("fuzzer.parser_campaign")
+
+#: The pack loaded when no ``--targets`` is given. IoTSploit's own, because
+#: this package ships inside it; another application names its own and the
+#: engine needs to know nothing else about it.
+DEFAULT_TARGET_PACK = "iotsploit_fuzzer.targets.iotsploit"
+
+#: Tracked in git on purpose. ``artifacts/`` is ignored, so a corpus there
+#: would be per-machine: the gate would replay nothing on a fresh clone and
+#: the loop would have no memory across the people who run it. Kept here, the
+#: ledger also diffs in review -- a boundary movement arrives as a JSON change
+#: in the pull request that caused it. An application fuzzing its own targets
+#: passes ``--root`` and keeps its corpus with its own source.
+DEFAULT_CORPUS_ROOT = Path(__file__).resolve().parents[3] / "corpus"
+
+
+def load_packs(names: Optional[List[str]] = None) -> Dict[str, ParseTarget]:
+    """Import each target pack so that its ``register`` calls run.
+
+    A pack is an ordinary module. Importing it is the whole protocol -- there
+    is no manifest and no entry point to declare, because a target is data and
+    the module that holds it is the only thing that needs to exist.
+    """
+    for name in names or [DEFAULT_TARGET_PACK]:
+        importlib.import_module(name)
+    return REGISTRY
+
+
+#: What to say when radamsa was asked for and is not there. It is an external
+#: binary and deliberately not vendored, so the message has to be enough to
+#: act on without going looking.
+RADAMSA_MISSING = (
+    "radamsa is not on PATH, and --radamsa asked for it.\n"
+    "  Build it once:\n"
+    "    git clone --depth 1 https://gitlab.com/akihe/radamsa\n"
+    "    cd radamsa && make && make install PREFIX=$HOME/.local\n"
+    "  Nothing else needs it: the built-in mutator is the default, and\n"
+    "  --replay generates nothing at all."
+)
+
+
+def mutator(seed: int = 0) -> "RadamsaGenerator":
+    """The mutator, or a refusal that says how to get one."""
+    from ..generators.radamsa_generator import RadamsaGenerator
+
+    try:
+        return RadamsaGenerator(seed=seed)
+    except RuntimeError:
+        raise MutatorMissingError(RADAMSA_MISSING) from None
+
+
+class MutatorMissingError(RuntimeError):
+    """radamsa is not installed, so nothing can be generated."""
+
+
+class StaleLedgerError(RuntimeError):
+    """The ledger was recorded against a different oracle.
+
+    Raised rather than worked around. Re-baselining silently would erase the
+    history that makes a boundary diff worth anything, and diffing anyway
+    would report every entry as a movement nobody caused.
+    """
+
+
+def code_revision() -> str:
+    """The commit a campaign ran against, so a finding can be located in time."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
+def campaign_id(now: Optional[datetime] = None) -> str:
+    return (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
+
+
+def manifest(
+    target: ParseTarget, harness: ParserHarness, *, campaign: str, seed: int,
+    mutator: str, iterations: int,
+) -> Dict[str, Any]:
+    """Everything needed to run this campaign again and get this answer again."""
+    return {
+        "campaign": campaign,
+        "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "target": target.name,
+        "adapter": target.adapter,
+        "adapter_version": target.adapter_version,
+        "fingerprint": target.fingerprint,
+        "declared": list(target.declared),
+        "code_revision": code_revision(),
+        "python": sys.version.split()[0],
+        "generator_seed": seed,
+        "mutator": mutator,
+        "iterations": iterations,
+        "limits": {
+            "budget_seconds": target.budget_seconds,
+            "memory_mb": target.memory_mb,
+            "output_kb": target.output_kb,
+            "payload_max_bytes": target.payload_max_bytes,
+            "worker_quota": harness.quota,
+            "confirm_repeats": harness.repeats,
+        },
+    }
+
+
+def replay(target: ParseTarget, *, root: Path | str = DEFAULT_CORPUS_ROOT) -> List[Dict[str, Any]]:
+    """Re-run every retained payload. Returns the findings, newest first.
+
+    Generation is deliberately absent: the gate has to be deterministic, and
+    the regression protection comes from the corpus, not from new inputs.
+    """
+    store = CorpusStore(root, target)
+    if store.damaged:
+        raise CorpusDamagedError(f"{target.name}: {store.damaged}")
+    findings: List[Dict[str, Any]] = []
+    with ParserHarness(target) as harness:
+        for identity, payload in store.payloads():
+            outcome = harness.evaluate(payload)
+            if outcome.is_finding:
+                findings.append(
+                    {
+                        "target": target.name,
+                        "payload": identity,
+                        "signature": outcome.signature,
+                        "detail": outcome.detail,
+                        "site": outcome.site,
+                    }
+                )
+    return findings
+
+
+def run(
+    target: ParseTarget,
+    *,
+    iterations: int = 500,
+    root: Path | str = DEFAULT_CORPUS_ROOT,
+    seed: int = 0,
+    radamsa: Any = None,
+    rebaseline: bool = False,
+    event_callback: Optional[Callable[[EventType, Dict[str, Any]], None]] = None,
+) -> Dict[str, Any]:
+    """Run one campaign and commit what it learned."""
+    store = CorpusStore(root, target)
+    if store.damaged:
+        raise CorpusDamagedError(f"{target.name}: {store.damaged}")
+    if store.stale:
+        if not rebaseline:
+            raise StaleLedgerError(
+                f"{target.name}: ledger was recorded against a different oracle "
+                f"(now {target.fingerprint}). Re-run with rebaseline=True to adopt "
+                f"the current one; the payloads are kept either way."
+            )
+        store.rebaseline()
+
+    identity = campaign_id()
+    generator = CorpusGenerator(store, radamsa, seed=seed)
+    harness = ParserHarness(target)
+    monitor = BoundaryMonitor(store, identity, generator=generator, emit=event_callback)
+    record = manifest(
+        target, harness, campaign=identity, seed=seed,
+        mutator=f"radamsa/{seed}" if radamsa is not None else f"builtin/{seed}",
+        iterations=iterations,
+    )
+
+    started = time.time()
+    try:
+        Orchestrator(
+            generator=generator,
+            harness=harness,
+            monitor=monitor,
+            # The corpus store owns retention; a second copy of every payload
+            # under artifacts/ is the graveyard this loop exists to replace.
+            logger_backend=TestLogger(str(Path(root) / target.name / "cases"),
+                                      keep=lambda payload, result: False),
+            # The retained corpus is replayed on top of the mutation budget,
+            # not out of it: a boundary movement is defined on a payload the
+            # ledger already holds, so a corpus larger than the budget would
+            # silently stop the campaign mutating at all.
+            config=CampaignConfig(
+                iterations=iterations + len(store.entries),
+                event_callback=event_callback,
+            ),
+        ).run()
+    finally:
+        harness.close()
+        record.update(
+            {
+                "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "elapsed_seconds": round(time.time() - started, 1),
+                "stats": monitor.get_stats(),
+                "violations": monitor.violations,
+                "boundary_moves": monitor.boundary_moves,
+                "new_regions": monitor.new_regions[:50],
+                "flaky": monitor.flaky,
+            }
+        )
+        store.save(record)
+    return record
+
+
+def describe(name: str, report: Dict[str, Any]) -> None:
+    """One campaign's result, in the one format every caller prints."""
+    stats = report["stats"]
+    print(
+        f"{name:32} {report['elapsed_seconds']:6.1f}s  "
+        f"violations={stats['violations']} moved={stats['boundary_moves']} "
+        f"new={stats['new_regions']} flaky={stats['flaky']} "
+        f"corpus={stats['corpus_size']}"
+        + ("  SATURATED: the result shape is too fine-grained" if stats["saturated"] else "")
+    )
+    for finding in report["violations"]:
+        print(f"    VIOLATION {finding['signature']}  {finding['site']}  {finding['detail'][:80]}")
+    for move in report["boundary_moves"]:
+        print(f"    MOVED     {move['was']}  ->  {move['signature']}")
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Run a parser fuzzing campaign.")
+    parser.add_argument("--target", action="append", help="registry name; repeatable")
+    parser.add_argument(
+        "--iterations", type=int, default=500,
+        help="mutations per target; the retained corpus is replayed on top",
+    )
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--root", default=str(DEFAULT_CORPUS_ROOT))
+    parser.add_argument("--replay", action="store_true", help="corpus only, no generation")
+    parser.add_argument("--rebaseline", action="store_true", help="adopt a changed oracle")
+    parser.add_argument(
+        "--radamsa", action="store_true",
+        help="mutate with radamsa instead of the built-in mutator. Reads the "
+             "shape of its input, so more mutants survive to reach the parser; "
+             "roughly 20x the cost per input, and needs the binary on PATH",
+    )
+    parser.add_argument("--list", action="store_true", help="print the registry and exit")
+    parser.add_argument(
+        "--targets", action="append", metavar="MODULE",
+        help="import a target pack, a module that calls register(). Repeatable. "
+             f"Defaults to {DEFAULT_TARGET_PACK}; another application names its own",
+    )
+    parser.add_argument(
+        "--adapter",
+        help="try a function without touching the registry: 'module:function', "
+             "taking bytes. Results are not kept unless --root is given too",
+    )
+    parser.add_argument(
+        "--declared", default="",
+        help="with --adapter: comma-separated 'module:Exception' the target's own "
+             "docstring promises. Empty means it promises never to raise",
+    )
+    parser.add_argument(
+        "--seed-file", action="append",
+        help="with --adapter: a file to start mutating from; repeatable",
+    )
+    parser.add_argument(
+        "--budget", type=float, default=5.0,
+        help="with --adapter: wall-clock seconds one parse may take",
+    )
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+    # A scratch target names its own adapter, so nothing has to be loaded for
+    # it. Loading the default pack anyway would make --adapter depend on
+    # IoTSploit being importable, which is exactly what a pack is for avoiding.
+    if args.targets or not args.adapter:
+        try:
+            load_packs(args.targets)
+        except ImportError as error:
+            parser.error(f"cannot import target pack: {error}")
+
+    if args.list:
+        for name, target in REGISTRY.items():
+            print(f"{name:32} {target.fingerprint}  {target.adapter}")
+        return 0
+
+    if args.adapter:
+        # A scratch target, so that trying a function is a command rather than
+        # an edit. Its corpus goes under a temporary root unless one is given,
+        # because an experiment should not leave a ledger behind that the gate
+        # then replays.
+        scratch = ParseTarget(
+            name=args.adapter.replace(":", "."),
+            adapter=args.adapter,
+            declared=tuple(d for d in args.declared.split(",") if d),
+            seeds=tuple(Path(f).read_bytes() for f in (args.seed_file or [])) or (b"",),
+            budget_seconds=args.budget,
+        )
+        REGISTRY[scratch.name] = scratch
+        names = [scratch.name]
+        if args.root == str(DEFAULT_CORPUS_ROOT):
+            args.root = tempfile.mkdtemp(prefix="fuzz_scratch_")
+            print(f"scratch corpus: {args.root}")
+    else:
+        names = args.target or list(REGISTRY)
+    unknown = [n for n in names if n not in REGISTRY]
+    if unknown:
+        parser.error(f"unknown target(s): {', '.join(unknown)}")
+
+    radamsa = None
+    if args.radamsa:
+        try:
+            radamsa = mutator(args.seed)
+        except MutatorMissingError as error:
+            parser.exit(2, f"{error}\n")
+
+    failed = False
+    for name in names:
+        target = REGISTRY[name]
+        if args.replay:
+            try:
+                findings = replay(target, root=args.root)
+            except CorpusDamagedError as error:
+                print(f"{name:32} DAMAGED: {error}")
+                failed = True
+                continue
+            print(f"{name:32} replay: {len(findings)} finding(s)")
+            for finding in findings:
+                print(f"    {finding['signature']}  {finding['payload']}  {finding['detail'][:80]}")
+            failed = failed or bool(findings)
+            continue
+        try:
+            report = run(
+                target, iterations=args.iterations, root=args.root,
+                seed=args.seed, rebaseline=args.rebaseline, radamsa=radamsa,
+            )
+        except (StaleLedgerError, WorkerStartupError, CorpusDamagedError) as error:
+            print(f"{name:32} SKIPPED: {error}")
+            failed = True
+            continue
+        describe(name, report)
+        failed = failed or bool(report["violations"])
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
