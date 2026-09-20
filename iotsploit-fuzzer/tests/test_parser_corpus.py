@@ -187,6 +187,19 @@ def test_a_half_written_ledger_is_never_visible(store, tmp_path):
     assert not list(store.root.glob("*.tmp-*"))
 
 
+def test_a_campaign_that_learned_nothing_leaves_the_ledger_alone(store, tmp_path):
+    """The normal night. Rewriting the timestamp anyway put every target's
+    ledger in every diff, which buries the one line saying a boundary moved
+    -- and that line is what tracking the corpus in git is for."""
+    store.admit(b"0-7", ACCEPTED, "c1")
+    store.save()
+    before = store.ledger_path.read_bytes()
+
+    CorpusStore(tmp_path, TARGET).save()
+
+    assert store.ledger_path.read_bytes() == before
+
+
 def test_a_ledger_naming_a_payload_the_archive_lacks_is_damaged(store, tmp_path):
     """The case that has to fail closed.
 

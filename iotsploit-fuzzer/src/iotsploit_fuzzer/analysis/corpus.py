@@ -442,13 +442,39 @@ class CorpusStore:
             "entries": {k: v.to_dict() for k, v in sorted(self.entries.items())},
         }
         with _locked(self.lock_path):
+            if self._already_recorded(document):
+                # Nothing was learned, so nothing is written. A campaign that
+                # finds no new behaviour is the normal night, and rewriting
+                # the timestamp anyway put all 28 ledgers in every diff --
+                # which buries the one line that says a boundary moved, the
+                # thing tracking the corpus in git is for.
+                self._write_manifest(campaign)
+                return
             self._write_archive()
             _write_atomic(self.ledger_path, json.dumps(document, indent=2).encode())
-            if campaign:
-                manifests = self.root / "campaigns"
-                _write_atomic(
-                    manifests / f"{campaign['campaign']}.json",
-                    json.dumps(campaign, indent=2).encode(),
-                )
-                for stale in sorted(manifests.glob("*.json"))[:-KEEP_MANIFESTS]:
-                    stale.unlink(missing_ok=True)
+            self._write_manifest(campaign)
+
+    def _already_recorded(self, document: Dict[str, object]) -> bool:
+        """Whether the ledger on disk already says this, timestamp aside."""
+        try:
+            existing = json.loads(self.ledger_path.read_text())
+        except (OSError, ValueError):
+            return False
+        comparable = dict(document)
+        comparable.pop("updated", None)
+        existing.pop("updated", None)
+        return existing == comparable
+
+    def _write_manifest(self, campaign: Optional[Dict[str, object]]) -> None:
+        """The record of one run, which is written whether or not it learned
+        anything -- it is how a night that found nothing is distinguished
+        from a night that did not run."""
+        if not campaign:
+            return
+        manifests = self.root / "campaigns"
+        _write_atomic(
+            manifests / f"{campaign['campaign']}.json",
+            json.dumps(campaign, indent=2).encode(),
+        )
+        for stale in sorted(manifests.glob("*.json"))[:-KEEP_MANIFESTS]:
+            stale.unlink(missing_ok=True)

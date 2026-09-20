@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "plugins.coerce_parameters",
   "fingerprint": "d012069a11afe602",
-  "updated": "2026-09-20T04:43:47+00:00",
+  "updated": "2026-09-20T08:51:52+00:00",
   "entries": {
     "008c67457ad7f71d": {
       "signature": "accept|||dict[few]<-num[hundreds],bool,num[many]>|",
@@ -89,7 +89,7 @@
       "edge_of": ""
     },
     "15eb1575d570c85e": {
-      "signature": "reject|ValueError|must an number||",
+      "signature": "reject|ValueError|must number||",
       "kind": "reject",
       "first_seen": "20260920T044219Z",
       "edge_of": ""
@@ -527,7 +527,7 @@
       "edge_of": ""
     },
     "6c0d4fe8a13d55cf": {
-      "signature": "reject|ValueError|must an number||",
+      "signature": "reject|ValueError|must number||",
       "kind": "reject",
       "first_seen": "20260920T043652Z",
       "edge_of": ""
@@ -539,7 +539,7 @@
       "edge_of": ""
     },
     "6e76b46075f16e67": {
-      "signature": "reject|ValueError|must an number||",
+      "signature": "reject|ValueError|must number||",
       "kind": "reject",
       "first_seen": "20260920T044219Z",
       "edge_of": "accept|||dict[few]<bool,num[0],num[many]>|"
@@ -653,7 +653,7 @@
       "edge_of": ""
     },
     "845dfd8d5668caf5": {
-      "signature": "reject|ValueError|must an number||",
+      "signature": "reject|ValueError|must number||",
       "kind": "reject",
       "first_seen": "20260920T044219Z",
       "edge_of": ""
@@ -785,7 +785,7 @@
       "edge_of": "reject|ValueError|must an integer||"
     },
     "9eb27e1c86e88b59": {
-      "signature": "reject|ValueError|must be an number||",
+      "signature": "reject|ValueError|must be number||",
       "kind": "reject",
       "first_seen": "20260920T044334Z",
       "edge_of": ""
@@ -863,7 +863,7 @@
       "edge_of": ""
     },
     "aaad680ab051c2c9": {
-      "signature": "reject|ValueError|must an number||",
+      "signature": "reject|ValueError|must number||",
       "kind": "reject",
       "first_seen": "20260920T043652Z",
       "edge_of": ""
@@ -1031,7 +1031,7 @@
       "edge_of": ""
     },
     "d495a1cc8c25250a": {
-      "signature": "reject|ValueError|must be an number||",
+      "signature": "reject|ValueError|must be number||",
       "kind": "reject",
       "first_seen": "20260920T044334Z",
       "edge_of": ""
@@ -1067,7 +1067,7 @@
       "edge_of": ""
     },
     "dad89e647bf507ea": {
-      "signature": "reject|ValueError|must be an number||",
+      "signature": "reject|ValueError|must be number||",
       "kind": "reject",
       "first_seen": "20260920T044334Z",
       "edge_of": ""
