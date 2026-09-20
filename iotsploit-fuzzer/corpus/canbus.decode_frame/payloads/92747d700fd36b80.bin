@@ -1,0 +1,1 @@
+{"definition": {"bus_id": "bus-1", "frame_id": 291, "is_extended": false, "name": "Engtus", "dlc": 8, "signals": [{"name": "Gear", "start_bit": 1, "length": 2147483648}]}, "nullnullnullnulldata": ""}

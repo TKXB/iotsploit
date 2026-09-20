@@ -249,7 +249,7 @@ class CorpusStore:
         else:
             held = self._counts.get(outcome.signature, 0)
             cap = MAX_EXEMPLARS
-        if held >= cap:
+        if held >= cap and not self._displace(payload, outcome, edge_of):
             return False
         _write_atomic(self.payload_dir / f"{identity}.bin", payload)
         self.entries[identity] = LedgerEntry(
@@ -260,6 +260,53 @@ class CorpusStore:
         )
         self._counts[outcome.signature] = self._counts.get(outcome.signature, 0) + 1
         return True
+
+    def _payload_size(self, identity: str) -> int:
+        try:
+            return (self.payload_dir / f"{identity}.bin").stat().st_size
+        except OSError:
+            return 0
+
+    def _displace(self, payload: bytes, outcome: Outcome, edge_of: str) -> bool:
+        """Make room by dropping a larger payload that proves the same point.
+
+        Without this the corpus is bounded in entries but not in bytes, and
+        radamsa's repetition mutations exploit exactly that: a mutant grows,
+        is retained because its signature is new, becomes the next
+        generation's parent, and grows again. Measured from a 61-byte seed it
+        reached 567 KB in eight generations -- and radamsa's cost scales with
+        input size, so the loop makes itself slower as it runs.
+
+        Keeping the smallest example of each signature bounds the corpus in
+        bytes, keeps the gate replay fast, and hands triage the smallest
+        reproduction rather than whichever one happened to arrive first.
+        """
+        candidates = [
+            identity for identity, entry in self.entries.items()
+            if entry.signature == outcome.signature
+            and (not edge_of or entry.edge_of == edge_of)
+        ]
+        if not candidates:
+            return False
+        largest = max(candidates, key=self._payload_size)
+        if self._payload_size(largest) <= len(payload):
+            return False
+        self._drop(largest)
+        return True
+
+    def _drop(self, identity: str) -> None:
+        """Remove one payload and the ledger's memory of it."""
+        entry = self.entries.pop(identity, None)
+        if entry is None:
+            return
+        if self._counts.get(entry.signature):
+            self._counts[entry.signature] -= 1
+            if not self._counts[entry.signature]:
+                del self._counts[entry.signature]
+        try:
+            (self.payload_dir / f"{identity}.bin").unlink()
+        except OSError:
+            pass
 
     def rebaseline(self) -> None:
         """Adopt the current oracle, discarding recorded signatures.

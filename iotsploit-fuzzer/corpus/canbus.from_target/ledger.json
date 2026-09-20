@@ -2,14 +2,8 @@
   "ledger_version": 1,
   "target": "canbus.from_target",
   "fingerprint": "b068985e5a66abb8",
-  "updated": "2026-09-19T22:15:20+00:00",
+  "updated": "2026-09-20T02:53:27+00:00",
   "entries": {
-    "001bd640391fb11a": {
-      "signature": "reject|CanDefinitionError|no target supplied||",
-      "kind": "reject",
-      "first_seen": "20260919T153842Z",
-      "edge_of": ""
-    },
     "44136fa355b3678a": {
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
@@ -22,22 +16,28 @@
       "first_seen": "20260919T153842Z",
       "edge_of": ""
     },
-    "640d051948e52815": {
-      "signature": "reject|CanDefinitionError|no target supplied||",
-      "kind": "reject",
-      "first_seen": "20260919T221518Z",
-      "edge_of": ""
-    },
     "74234e98afe7498f": {
       "signature": "reject|CanDefinitionError|no target supplied||",
       "kind": "reject",
       "first_seen": "20260919T153842Z",
       "edge_of": ""
     },
-    "bfbef90c7d59e20f": {
+    "abdfbffecbe18ed9": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260920T025321Z",
+      "edge_of": ""
+    },
+    "cf1cbb66a638b486": {
       "signature": "accept|||TargetCanCatalog|",
       "kind": "accept",
-      "first_seen": "20260919T153842Z",
+      "first_seen": "20260920T025321Z",
+      "edge_of": ""
+    },
+    "d08e54f6aa60dc06": {
+      "signature": "reject|CanDefinitionError|no target supplied||",
+      "kind": "reject",
+      "first_seen": "20260920T025321Z",
       "edge_of": ""
     }
   }

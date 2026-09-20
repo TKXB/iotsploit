@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Zeekr", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ec2147483648"}], "interfaces": [{"interface_id": "i_eth0", "name": "eth0", "tame": "TCAM", "type": "ecu", "vendor": "X"}], "buses": [{"bus_id": "bus_can_b", "name": "CAN-B", "type": "can"}], "edges": [{"source": "c_vgm", "target": "bus_can_b", "rehation": "bus_member"}]}

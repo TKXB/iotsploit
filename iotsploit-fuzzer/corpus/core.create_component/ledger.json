@@ -2,18 +2,12 @@
   "ledger_version": 1,
   "target": "core.create_component",
   "fingerprint": "2fb6d439eff6b479",
-  "updated": "2026-09-19T22:16:27+00:00",
+  "updated": "2026-09-20T02:57:11+00:00",
   "entries": {
-    "39ad8a6aae1966ee": {
+    "29f2dbdddcd71a20": {
       "signature": "accept|||Component|",
       "kind": "accept",
-      "first_seen": "20260919T154105Z",
-      "edge_of": ""
-    },
-    "41392e14ef509f06": {
-      "signature": "accept|||Component|",
-      "kind": "accept",
-      "first_seen": "20260919T154105Z",
+      "first_seen": "20260920T025707Z",
       "edge_of": ""
     },
     "44136fa355b3678a": {
@@ -22,40 +16,46 @@
       "first_seen": "20260919T154105Z",
       "edge_of": ""
     },
-    "78e8da73da7b074a": {
-      "signature": "accept|||ECUComponent|",
+    "605834589672e9f7": {
+      "signature": "accept|||Component|",
       "kind": "accept",
-      "first_seen": "20260919T154105Z",
+      "first_seen": "20260920T025707Z",
       "edge_of": ""
     },
-    "b2099e96238304ff": {
-      "signature": "accept|||ECUComponent|",
-      "kind": "accept",
-      "first_seen": "20260919T154105Z",
-      "edge_of": ""
-    },
-    "bf827f6160c70d9b": {
+    "6296b4b82d976332": {
       "signature": "accept|||NetworkComponent|",
       "kind": "accept",
-      "first_seen": "20260919T154105Z",
+      "first_seen": "20260920T025707Z",
       "edge_of": ""
     },
-    "d1d958be03bff1d2": {
+    "689ef969bbc02105": {
       "signature": "accept|||ECUComponent|",
       "kind": "accept",
-      "first_seen": "20260919T154105Z",
+      "first_seen": "20260920T025707Z",
       "edge_of": ""
     },
-    "e82cfa0a99ce5069": {
+    "6a73dd45fe52f9bd": {
       "signature": "accept|||NetworkComponent|",
       "kind": "accept",
-      "first_seen": "20260919T154105Z",
+      "first_seen": "20260920T025707Z",
       "edge_of": ""
     },
-    "f7dc90c578592ae8": {
+    "6f56b39340b295bc": {
+      "signature": "accept|||ECUComponent|",
+      "kind": "accept",
+      "first_seen": "20260920T025707Z",
+      "edge_of": ""
+    },
+    "a49ef30840de9362": {
+      "signature": "accept|||ECUComponent|",
+      "kind": "accept",
+      "first_seen": "20260920T025707Z",
+      "edge_of": ""
+    },
+    "c0a781eb71bdd1de": {
       "signature": "accept|||NetworkComponent|",
       "kind": "accept",
-      "first_seen": "20260919T154105Z",
+      "first_seen": "20260920T025707Z",
       "edge_of": ""
     }
   }

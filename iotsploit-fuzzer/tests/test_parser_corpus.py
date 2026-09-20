@@ -92,6 +92,32 @@ def test_a_target_with_too_many_behaviours_stops_rather_than_grows(store):
     assert len(store.signature_counts()) == MAX_SIGNATURES
 
 
+def test_the_smallest_example_of_a_signature_is_the_one_kept(store):
+    """Bounds the corpus in bytes, not only in entries.
+
+    radamsa's repetition mutations grow their input, and an entry-only cap
+    lets a grown mutant be retained, become the next generation's parent and
+    grow again -- 61 bytes to 567 KB in eight generations, measured. It also
+    hands triage the smallest reproduction rather than whichever arrived
+    first."""
+    for n in range(MAX_EXEMPLARS):
+        store.admit(b"x" * (500 + n), ACCEPTED, "c1")
+
+    assert store.admit(b"tiny", ACCEPTED, "c2") is True
+
+    kept = sorted(len(p) for _, p in store.payloads())
+    assert kept[0] == 4
+    assert len(kept) == MAX_EXEMPLARS
+
+
+def test_a_larger_example_of_a_known_signature_is_turned_away(store):
+    for n in range(MAX_EXEMPLARS):
+        store.admit(b"x" * (10 + n), ACCEPTED, "c1")
+
+    assert store.admit(b"x" * 5000, ACCEPTED, "c2") is False
+    assert len(store.entries) == MAX_EXEMPLARS
+
+
 def test_a_known_payload_keeps_the_history_that_a_diff_is_made_against(store):
     store.admit(b"0-7", ACCEPTED, "c1")
 

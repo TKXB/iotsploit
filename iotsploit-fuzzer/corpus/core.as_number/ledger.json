@@ -2,16 +2,10 @@
   "ledger_version": 1,
   "target": "core.as_number",
   "fingerprint": "f3f4293f03a28721",
-  "updated": "2026-09-19T22:16:21+00:00",
+  "updated": "2026-09-20T02:56:59+00:00",
   "entries": {
     "0315b4020af3ecca": {
       "signature": "accept|||num[many]|",
-      "kind": "accept",
-      "first_seen": "20260919T154053Z",
-      "edge_of": ""
-    },
-    "1082df5266c9badb": {
-      "signature": "accept|||num[1]|",
       "kind": "accept",
       "first_seen": "20260919T154053Z",
       "edge_of": ""
@@ -28,6 +22,12 @@
       "first_seen": "20260919T154053Z",
       "edge_of": "accept|||num[many]|"
     },
+    "2747b7c718564ba5": {
+      "signature": "accept|||num[hundreds]|",
+      "kind": "accept",
+      "first_seen": "20260920T025656Z",
+      "edge_of": ""
+    },
     "27607b224e0cff44": {
       "signature": "reject|ValueError|value must be integer||",
       "kind": "reject",
@@ -40,10 +40,10 @@
       "first_seen": "20260919T221619Z",
       "edge_of": "reject|ValueError|value must be an integer||"
     },
-    "33570ac00aa1e958": {
-      "signature": "accept|||num[1]|",
+    "37834f2f25762f23": {
+      "signature": "accept|||num[hundreds]|",
       "kind": "accept",
-      "first_seen": "20260919T154053Z",
+      "first_seen": "20260920T025656Z",
       "edge_of": ""
     },
     "38688597e9b8eaef": {
@@ -52,11 +52,23 @@
       "first_seen": "20260919T154053Z",
       "edge_of": ""
     },
+    "38d66d9692ac5900": {
+      "signature": "accept|||num[hundreds]|",
+      "kind": "accept",
+      "first_seen": "20260920T025656Z",
+      "edge_of": ""
+    },
     "41cfc0d1f2d127b0": {
       "signature": "accept|||num[tens]|",
       "kind": "accept",
       "first_seen": "20260919T154053Z",
       "edge_of": "reject|ValueError|value is required||"
+    },
+    "4c970004b0678d43": {
+      "signature": "accept|||num[hundreds]|",
+      "kind": "accept",
+      "first_seen": "20260920T025656Z",
+      "edge_of": "reject|ValueError|value must be between and||"
     },
     "5c6ca77bfdd09eca": {
       "signature": "reject|ValueError|value must be integer||",
@@ -130,12 +142,6 @@
       "first_seen": "20260919T154053Z",
       "edge_of": ""
     },
-    "7e82a2c779a05ecf": {
-      "signature": "accept|||num[hundreds]|",
-      "kind": "accept",
-      "first_seen": "20260919T154053Z",
-      "edge_of": "reject|ValueError|value is required||"
-    },
     "7f3be24870503a91": {
       "signature": "accept|||num[many]|",
       "kind": "accept",
@@ -154,16 +160,22 @@
       "first_seen": "20260919T154053Z",
       "edge_of": ""
     },
+    "9556b82499cc0aaf": {
+      "signature": "accept|||num[hundreds]|",
+      "kind": "accept",
+      "first_seen": "20260920T025656Z",
+      "edge_of": ""
+    },
     "98f184c203488d1b": {
       "signature": "reject|ValueError|value must be between and||",
       "kind": "reject",
       "first_seen": "20260919T154053Z",
       "edge_of": ""
     },
-    "b5d13645e9961be0": {
-      "signature": "accept|||num[hundreds]|",
+    "a03279d346f55099": {
+      "signature": "accept|||num[1]|",
       "kind": "accept",
-      "first_seen": "20260919T154053Z",
+      "first_seen": "20260920T025656Z",
       "edge_of": ""
     },
     "b70a14ee1e15d7aa": {
@@ -184,10 +196,10 @@
       "first_seen": "20260919T221619Z",
       "edge_of": "reject|ValueError|value must be between and||"
     },
-    "be6eb70d9330c165": {
-      "signature": "accept|||num[hundreds]|",
+    "c0527d0a6cc99395": {
+      "signature": "accept|||num[1]|",
       "kind": "accept",
-      "first_seen": "20260919T154053Z",
+      "first_seen": "20260920T025656Z",
       "edge_of": ""
     },
     "c2df35004019b165": {
@@ -204,12 +216,6 @@
     },
     "c74edfeee7c1475a": {
       "signature": "accept|||num[few]|",
-      "kind": "accept",
-      "first_seen": "20260919T154053Z",
-      "edge_of": ""
-    },
-    "cc96e5002c5388b6": {
-      "signature": "accept|||num[hundreds]|",
       "kind": "accept",
       "first_seen": "20260919T154053Z",
       "edge_of": ""

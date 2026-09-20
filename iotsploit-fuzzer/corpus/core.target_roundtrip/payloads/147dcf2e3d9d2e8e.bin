@@ -1,1 +1,0 @@
-{"target_id": "t65536", "name": "Zeekr", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}], "interfaces": [{"in": "c_vgm", "name": "VGM", "type": "ecu"}, {"component_id": "c_tcam", "name": "TCAM", "type": "ecu", "vendor": "X"}], "buses": [{"bus_id": "bus_can_b", "na": "bus_member"}]}

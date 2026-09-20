@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Zeekr", "c": "t1", "name": "Zeekr", "components": [{"component_id": "c_vgm", "name": "VGM", "type": "ecu"}], "interfaces": [{"interface_id": "i_eth0", "name": "eth0", "type": "ethernet"}]}

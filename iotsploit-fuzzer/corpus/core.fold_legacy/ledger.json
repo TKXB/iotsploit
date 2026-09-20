@@ -2,42 +2,48 @@
   "ledger_version": 1,
   "target": "core.fold_legacy",
   "fingerprint": "5c9916fe555a3541",
-  "updated": "2026-09-19T22:16:30+00:00",
+  "updated": "2026-09-20T02:57:19+00:00",
   "entries": {
-    "05463ea5eb5f57f6": {
-      "signature": "accept|||dict[few]<list[1],list[few]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154110Z",
-      "edge_of": ""
-    },
-    "05ace34feb9c7824": {
-      "signature": "accept|||dict[1]<list[1]>|",
-      "kind": "accept",
-      "first_seen": "20260919T221627Z",
-      "edge_of": ""
-    },
     "064412a48bb5802d": {
       "signature": "accept|||dict[few]<list[few],str[few],str[tens]>|",
       "kind": "accept",
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
-    "0703ed3c70f6c8d9": {
-      "signature": "accept|||dict[few]<list[few],str[tens]>|",
+    "0b704059718948b5": {
+      "signature": "accept|||dict[few]<list[few],str[hundreds]>|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "18baf2561948eb1c": {
+    "0bbb6545f7a7e093": {
       "signature": "accept|||dict[few]<list[1],str[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "29628c4cb1092408": {
-      "signature": "accept|||dict[few]<list[1],str[tens]>|",
+    "0cd43ee88af1a428": {
+      "signature": "accept|||dict[few]<list[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "15bff4cf4feabe05": {
+      "signature": "accept|||dict[few]<list[1],str[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "1d993900d3fa9422": {
+      "signature": "accept|||dict[few]<list[few],str[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "2277b3cd6448a46c": {
+      "signature": "accept|||dict[few]<list[1],list[few]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "29d52c39ff531daa": {
@@ -46,22 +52,28 @@
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
+    "2a6106bebd44b7b6": {
+      "signature": "accept|||dict[1]<list[1]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
     "2feeca9c0f3a51a2": {
       "signature": "accept|||dict[few]<list[few],str[few],str[tens]>|",
       "kind": "accept",
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
-    "35dcf17ccce7107e": {
-      "signature": "accept|||dict[few]<list[few],str[few]>|",
+    "33dc2e05d8823628": {
+      "signature": "accept|||dict[few]<list[1],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "43457802498d7076": {
-      "signature": "accept|||dict[0]|",
+    "3d9dd0722119873b": {
+      "signature": "accept|||dict[few]<list[1],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "44136fa355b3678a": {
@@ -70,34 +82,22 @@
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
-    "4821d0d69ce5b186": {
-      "signature": "accept|||dict[few]<list[1],str[tens]>|",
+    "5bf556d843e5e8aa": {
+      "signature": "accept|||dict[few]<list[1]>|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "48eb0d835696e50a": {
+    "5cf24a1b38760fad": {
+      "signature": "accept|||dict[few]<list[few],str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "6d638a70fc8d4054": {
       "signature": "accept|||dict[few]<list[1],str[few]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
-      "edge_of": ""
-    },
-    "5e47afae081290ab": {
-      "signature": "accept|||dict[few]<list[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154110Z",
-      "edge_of": ""
-    },
-    "67b54f64e248c35d": {
-      "signature": "accept|||dict[few]<list[1]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154110Z",
-      "edge_of": ""
-    },
-    "6c7b29df86c7b6bc": {
-      "signature": "accept|||dict[few]<list[1]>|",
-      "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "721947c922e8ee7f": {
@@ -106,34 +106,28 @@
       "first_seen": "20260919T221627Z",
       "edge_of": ""
     },
-    "78db7cf5a73c6644": {
-      "signature": "accept|||dict[few]<list[1],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T221627Z",
-      "edge_of": ""
-    },
-    "7beba8ced1d1b057": {
+    "7567637d6afd3a05": {
       "signature": "accept|||dict[few]<list[1],str[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "81d169d993144b7c": {
-      "signature": "accept|||dict[few]<list[1],str[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154110Z",
-      "edge_of": ""
-    },
-    "897925574c2f50ed": {
-      "signature": "accept|||dict[few]<list[few],str[few]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154110Z",
-      "edge_of": ""
-    },
-    "926dbaf475080650": {
+    "893c75d4cf9c1464": {
       "signature": "accept|||dict[few]<list[1],list[few]>|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "8980248f900a5de4": {
+      "signature": "accept|||dict[few]<list[few],str[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "8f4b92b6d9edf340": {
+      "signature": "accept|||dict[few]<list[1],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "9abb3798eade0f5d": {
@@ -142,16 +136,34 @@
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
-    "a7108198baf5cf0b": {
-      "signature": "accept|||dict[few]<list[1],str[few]>|",
+    "9e798bd5e5700823": {
+      "signature": "accept|||dict[few]<list[1],str[hundreds]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "a90395fea99c1f81": {
+    "a6ac055a40ddd58a": {
+      "signature": "accept|||dict[few]<list[1],list[few]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "aa74eb72eaf699b1": {
+      "signature": "accept|||dict[few]<list[1],str[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "ab5a010cd2ba7cda": {
+      "signature": "accept|||dict[few]<list[1],str[hundreds]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "b57798a4e1a7e5a6": {
       "signature": "accept|||dict[few]<list[few],str[few]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "b5cca9aecc441414": {
@@ -160,22 +172,34 @@
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
-    "bd3777ba1ef50e86": {
-      "signature": "accept|||dict[1]<list[1]>|",
-      "kind": "accept",
-      "first_seen": "20260919T221627Z",
-      "edge_of": ""
-    },
     "c4ff8ea19fbd3a06": {
       "signature": "accept|||dict[1]<list[few]>|",
       "kind": "accept",
       "first_seen": "20260919T221627Z",
       "edge_of": ""
     },
-    "d0cc970fd373da3c": {
+    "c69459a35b26b575": {
+      "signature": "accept|||dict[few]<list[1]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "d04403db203df867": {
+      "signature": "accept|||dict[few]<list[1],str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "d07d639112b8b237": {
       "signature": "accept|||dict[few]<list[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
+      "edge_of": ""
+    },
+    "d3dd7c03d0618df7": {
+      "signature": "accept|||dict[1]<list[1]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "da95ddaf78296297": {
@@ -184,16 +208,16 @@
       "first_seen": "20260919T154110Z",
       "edge_of": ""
     },
-    "dea6ac924fbdfe02": {
-      "signature": "accept|||dict[few]<list[1],str[few]>|",
+    "dda7e4d5ddcc7e2a": {
+      "signature": "accept|||dict[few]<list[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154110Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
-    "e0cdd40937f8383b": {
-      "signature": "accept|||dict[few]<list[few],str[hundreds]>|",
+    "defdecd24463a62d": {
+      "signature": "accept|||dict[0]|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "e1f981c60bcf5b2a": {
@@ -214,16 +238,10 @@
       "first_seen": "20260919T221627Z",
       "edge_of": ""
     },
-    "e54f29aa5707b2c0": {
-      "signature": "accept|||dict[few]<list[few],str[hundreds]>|",
+    "ec4cd7af4afc073a": {
+      "signature": "accept|||dict[few]<list[1],str[few]>|",
       "kind": "accept",
-      "first_seen": "20260919T221627Z",
-      "edge_of": ""
-    },
-    "e5a0e9f99987ca71": {
-      "signature": "accept|||dict[few]<list[1],list[few]>|",
-      "kind": "accept",
-      "first_seen": "20260919T221627Z",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     },
     "f3e76694a76e7308": {
@@ -242,6 +260,12 @@
       "signature": "accept|||dict[few]<list[1],list[few],str[few]>|",
       "kind": "accept",
       "first_seen": "20260919T154110Z",
+      "edge_of": ""
+    },
+    "fe8255b5011dc678": {
+      "signature": "accept|||dict[few]<list[few],str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025711Z",
       "edge_of": ""
     }
   }

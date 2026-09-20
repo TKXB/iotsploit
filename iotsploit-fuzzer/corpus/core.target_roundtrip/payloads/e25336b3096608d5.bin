@@ -1,0 +1,1 @@
+{"target_id": "t340282366920938463463374607431768848976", "name": "Zeekr", "type": "vehicle", "ss": [{"bus_id": "bus_can_b", "name": "CAN-B", "type": "can"}], "edges": [{"sou{}{}{}{}rce": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

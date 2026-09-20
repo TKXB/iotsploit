@@ -2,12 +2,24 @@
   "ledger_version": 1,
   "target": "core.stream_session",
   "fingerprint": "b8fc08739a7d55ea",
-  "updated": "2026-09-19T22:16:40+00:00",
+  "updated": "2026-09-20T02:57:45+00:00",
   "entries": {
+    "0a7a082eba42ff33": {
+      "signature": "accept|||list[few]<str[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
     "0a7edcd9c69abbc8": {
       "signature": "reject|ValueError|not valid streamtype||",
       "kind": "reject",
       "first_seen": "20260919T221637Z",
+      "edge_of": ""
+    },
+    "0c8bbd3e71327639": {
+      "signature": "accept|||list[few]<str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "0c923e94171977b1": {
@@ -16,11 +28,23 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
-    "132689eb54d2bb90": {
-      "signature": "accept|||list[few]<str[0],str[few]>|",
+    "127c45b1f5a45346": {
+      "signature": "accept|||list[few]<str[0],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T221637Z",
-      "edge_of": "reject|ValueError|not valid streamsource||"
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
+    "16481989d564ff75": {
+      "signature": "accept|||list[1]<str[0]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
+    "1b402686d18c4f3d": {
+      "signature": "accept|||list[few]<str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
     },
     "1dd49ca46a7cd380": {
       "signature": "reject|KeyError|||",
@@ -33,6 +57,12 @@
       "kind": "reject",
       "first_seen": "20260919T221637Z",
       "edge_of": "accept|||list[few]<str[few]>|"
+    },
+    "1f9e426991654eda": {
+      "signature": "accept|||list[few]<str[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
     },
     "209d79dededa411b": {
       "signature": "accept|||list[few]<str[few]>|",
@@ -51,6 +81,18 @@
       "kind": "accept",
       "first_seen": "20260919T221637Z",
       "edge_of": "reject|KeyError|source||"
+    },
+    "31767388e9d6be98": {
+      "signature": "reject|ValueError|not valid streamaction||",
+      "kind": "reject",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
+    "36ddbe95967c47e7": {
+      "signature": "accept|||list[few]<str[0],str[few]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
     },
     "3c96c2ddfdf5ac7f": {
       "signature": "reject|KeyError|stream_type||",
@@ -94,12 +136,6 @@
       "first_seen": "20260919T221637Z",
       "edge_of": ""
     },
-    "51687f68187c39ef": {
-      "signature": "accept|||list[few]<str[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
     "596db8ea21374305": {
       "signature": "accept|||list[few]<str[0],str[few]>|",
       "kind": "accept",
@@ -118,35 +154,17 @@
       "first_seen": "20260919T221637Z",
       "edge_of": "accept|||list[few]<str[few],str[tens]>|"
     },
-    "5d2f25605314a836": {
-      "signature": "reject|ValueError|not valid streamaction||",
-      "kind": "reject",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
     "5dfdc8e347d6d212": {
       "signature": "reject|KeyError|action||",
       "kind": "reject",
       "first_seen": "20260919T221637Z",
       "edge_of": "accept|||list[few]<str[0],str[few]>|"
     },
-    "614f21d28ee4c819": {
-      "signature": "reject|ValueError|not valid streamaction||",
-      "kind": "reject",
-      "first_seen": "20260919T154132Z",
-      "edge_of": "accept|||list[1]<str[few]>|"
-    },
     "61e8d58afa3dc8bb": {
       "signature": "accept|||list[1]<str[0]>|",
       "kind": "accept",
       "first_seen": "20260919T221637Z",
       "edge_of": "reject|KeyError|timestamp||"
-    },
-    "637ae1da12c2b8f9": {
-      "signature": "reject|ValueError|not valid streamaction||",
-      "kind": "reject",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
     },
     "65dd675cc3425bcf": {
       "signature": "accept|||list[1]<str[few]>|",
@@ -202,6 +220,12 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
+    "7a7c1d984273896a": {
+      "signature": "reject|ValueError|not valid streamaction||",
+      "kind": "reject",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
     "7f3f8f57a539bd22": {
       "signature": "reject|ValueError|not valid streamtype||",
       "kind": "reject",
@@ -238,10 +262,10 @@
       "first_seen": "20260919T221637Z",
       "edge_of": "accept|||list[few]<str[0],str[few]>|"
     },
-    "9698fa33e200e635": {
-      "signature": "accept|||list[few]<str[tens]>|",
+    "8f58540f1ebe64b3": {
+      "signature": "accept|||list[1]<str[0]>|",
       "kind": "accept",
-      "first_seen": "20260919T221637Z",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "9c33071f5e0f4512": {
@@ -250,14 +274,14 @@
       "first_seen": "20260919T154132Z",
       "edge_of": "accept|||list[1]<str[few]>|"
     },
+    "9dae9297989731db": {
+      "signature": "accept|||list[few]<str[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": "reject|ValueError|not valid streamaction||"
+    },
     "9e8187b2659fff5d": {
       "signature": "accept|||list[0]|",
-      "kind": "accept",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
-    "9f1c182e011292db": {
-      "signature": "accept|||list[1]<str[0]>|",
       "kind": "accept",
       "first_seen": "20260919T154132Z",
       "edge_of": ""
@@ -274,16 +298,10 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
-    "abe6e61da6d9ed0c": {
+    "acb65bf0e8e69ae3": {
       "signature": "reject|ValueError|not valid streamaction||",
       "kind": "reject",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
-    "ad7ab0673c9e9c3d": {
-      "signature": "accept|||list[few]<str[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154132Z",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "af019276889147d2": {
@@ -292,28 +310,28 @@
       "first_seen": "20260919T221637Z",
       "edge_of": "reject|KeyError|||"
     },
-    "afaaf080d7edac73": {
-      "signature": "accept|||list[few]<str[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T221637Z",
-      "edge_of": "reject|ValueError|not valid streamsource||"
-    },
     "b170176dc23f5511": {
       "signature": "accept|||list[0]|",
       "kind": "accept",
       "first_seen": "20260919T221637Z",
       "edge_of": "reject|ValueError|not valid streamsource||"
     },
-    "b2706cb09b5c4178": {
-      "signature": "accept|||list[1]<str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
     "ba2112484ec6bf6b": {
       "signature": "reject|KeyError|||",
       "kind": "reject",
       "first_seen": "20260919T154132Z",
+      "edge_of": ""
+    },
+    "bb68dbd7472daab5": {
+      "signature": "reject|ValueError|not valid streamaction||",
+      "kind": "reject",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
+    "befd8ae377a2b085": {
+      "signature": "accept|||list[few]<str[few],str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "c133adde85511b5c": {
@@ -340,16 +358,10 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
-    "c7ae1d7e301363f0": {
-      "signature": "accept|||list[1]<str[0]>|",
+    "cc5121d33c0b76b6": {
+      "signature": "accept|||list[few]<str[few],str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
-    "d1ee05d7388b7a77": {
-      "signature": "accept|||list[1]<str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154132Z",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "d277b7bc7b366b31": {
@@ -376,10 +388,10 @@
       "first_seen": "20260919T154132Z",
       "edge_of": ""
     },
-    "e4061e42311eb465": {
-      "signature": "accept|||list[1]<str[tens]>|",
+    "e2425f07131ed96a": {
+      "signature": "accept|||list[few]<str[0],str[few]>|",
       "kind": "accept",
-      "first_seen": "20260919T154132Z",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "e492b85ad950690c": {
@@ -400,16 +412,10 @@
       "first_seen": "20260919T221637Z",
       "edge_of": "accept|||list[few]<str[few]>|"
     },
-    "ec62a32a1712f39c": {
-      "signature": "accept|||list[few]<str[0],str[few]>|",
+    "edc91b2d153ad2bb": {
+      "signature": "accept|||list[1]<str[tens]>|",
       "kind": "accept",
-      "first_seen": "20260919T154132Z",
-      "edge_of": ""
-    },
-    "f5498c95219ed25e": {
-      "signature": "accept|||list[few]<str[few],str[tens]>|",
-      "kind": "accept",
-      "first_seen": "20260919T154132Z",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     },
     "f60c84914aebddb7": {
@@ -434,6 +440,18 @@
       "signature": "accept|||list[few]<str[0],str[tens]>|",
       "kind": "accept",
       "first_seen": "20260919T221637Z",
+      "edge_of": ""
+    },
+    "fbd26c2fec76fed1": {
+      "signature": "accept|||list[1]<str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
+      "edge_of": ""
+    },
+    "fce028e8b220a65a": {
+      "signature": "accept|||list[1]<str[tens]>|",
+      "kind": "accept",
+      "first_seen": "20260920T025739Z",
       "edge_of": ""
     }
   }

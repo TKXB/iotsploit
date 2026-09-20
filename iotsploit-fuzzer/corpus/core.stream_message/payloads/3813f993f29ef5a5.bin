@@ -1,1 +1,0 @@
-{"stream_type": "can", "cha0x0xnnel": "can0", "timestamp": 17581.0, "source": "device", "action": "data", "data": {"frame_id": 291, "payload": "1122"}, "metadata": null}

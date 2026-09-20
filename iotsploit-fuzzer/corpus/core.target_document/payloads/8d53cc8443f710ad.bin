@@ -1,0 +1,1 @@
+{"target_id": "t-1874966390", "name": "Zeekr", "components": [{"component_id": "c_vgm", "ns_id": "bus_can_b", "name": "CAN-B", "type": "can"}], "edges": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

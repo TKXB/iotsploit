@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Zeekr", "type": "vehicle", "status": "active", "ip_address": "192.168.1.50", "components": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

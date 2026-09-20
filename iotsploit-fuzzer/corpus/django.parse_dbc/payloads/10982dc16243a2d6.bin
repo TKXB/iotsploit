@@ -1,0 +1,12 @@
+ ʵSG_ Flag :󠁦 0|1@0+ (1,0) [0|1] "" ECM
+
+VAL_ 291 Gear 3 "Drive" 1 "Park" ;
+CM_ BU_ ECM "Eng6@1+ (0.1,0) [0|250] "‭km/h" TCM
+ SG_m/h" TCM
+ SG_ Gear : 16|4@1+ (1,0) [0|8] "" TCM
+
+BO_ 2147483939 ExtFrame: 2 TCM
+ SG_ Flag : 0|1@1+ (1,127) [0|1] "" ECM
+
+VAL_ 4294967295 Gear 0x0x-1x1x0x0x3 "Drive" 1 "Park" ;
+CM_ BU_ ECM "Engine controller";

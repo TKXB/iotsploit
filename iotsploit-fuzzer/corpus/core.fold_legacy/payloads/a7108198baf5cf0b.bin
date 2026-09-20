@@ -1,1 +1,0 @@
-{"target_id": "t1", "name": "Zeekr", "components": [{"cot_id": "c_tcam", "name": "TCAM", "type": "ecu", "vendor": "X"}], "buses": [{"bus_id": "bus_can_b", "name": "CAN-B", "type": "can"}], "edges": [{"source": "c_vgm", "target": "bus_can_b", "relation": "bus_member"}]}

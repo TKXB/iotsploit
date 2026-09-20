@@ -2,7 +2,7 @@
   "ledger_version": 1,
   "target": "composer.normalize_request",
   "fingerprint": "307dbfe03a42cd42",
-  "updated": "2026-09-19T22:15:43+00:00",
+  "updated": "2026-09-20T02:54:40+00:00",
   "entries": {
     "000af0fd753264a5": {
       "signature": "accept|||dict[tens]<bool,dict[1],none>|",
@@ -26,12 +26,6 @@
       "signature": "reject|RequestError|request not valid json expecting property name enclosed||",
       "kind": "reject",
       "first_seen": "20260919T221540Z",
-      "edge_of": ""
-    },
-    "02eac63aaac9c727": {
-      "signature": "reject|RequestError|request must be an integer||",
-      "kind": "reject",
-      "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
     "03297637d1d17963": {
@@ -82,6 +76,12 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
+    "1565e7476cd62afb": {
+      "signature": "reject|RequestError|request not valid json expecting property name enclosed||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "1a643a924210c30c": {
       "signature": "reject|RequestError|must be||",
       "kind": "reject",
@@ -98,6 +98,12 @@
       "signature": "reject|RequestError|unsupported request none this plugin speaks||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
+      "edge_of": ""
+    },
+    "1e3b178050e62f1a": {
+      "signature": "reject|RequestError|request not valid json invalid control character line||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "231c44f35cd699ab": {
@@ -124,12 +130,6 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
-    "2d4ac307cae0703c": {
-      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T153924Z",
-      "edge_of": "reject|RequestError|no request supplied||"
-    },
     "313a8f4a0f174d59": {
       "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
       "kind": "reject",
@@ -154,10 +154,10 @@
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
     },
-    "3eb9ca3e48576066": {
-      "signature": "reject|RequestError|request is not number||",
+    "3d0363dcf4ccc68d": {
+      "signature": "reject|RequestError|request not valid json unterminated string starting at||",
       "kind": "reject",
-      "first_seen": "20260919T153924Z",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "3f6670c7cbbbd212": {
@@ -208,10 +208,22 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
+    "444ec313b08eb03a": {
+      "signature": "reject|RequestError|request is not number||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+    },
     "479d380440ac33c9": {
       "signature": "reject|RequestError|request not valid json extra data line column||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
+      "edge_of": ""
+    },
+    "47dbf22f758943c8": {
+      "signature": "reject|RequestError|request not valid json invalid control character line||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "49a5cea41f0c91d8": {
@@ -230,18 +242,6 @@
       "signature": "reject|RequestError|unsupported request schema_version none this plugin speaks||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
-      "edge_of": ""
-    },
-    "4dd76f79d65bf1ad": {
-      "signature": "reject|RequestError|request not valid json invalid control character line||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
-      "edge_of": ""
-    },
-    "4e04e84d0da7ef2f": {
-      "signature": "reject|RequestError|request must be an integer||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
       "edge_of": ""
     },
     "4ef0df6a0b2796af": {
@@ -292,12 +292,6 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
-    "574cf7727d2c5e9c": {
-      "signature": "reject|RequestError|request not valid json unterminated string starting at||",
-      "kind": "reject",
-      "first_seen": "20260919T153924Z",
-      "edge_of": ""
-    },
     "5b5cdf91aa629ca4": {
       "signature": "reject|RequestError|request frame_id is required||",
       "kind": "reject",
@@ -322,6 +316,12 @@
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
+    "5f594244639df844": {
+      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
+      "kind": "accept",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "603ea494405a9bd5": {
       "signature": "reject|RequestError|unsupported request this plugin speaks||",
       "kind": "reject",
@@ -332,12 +332,6 @@
       "signature": "reject|RequestError|request must be an object or json object||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
-      "edge_of": ""
-    },
-    "62b2e4b4f1cd1c56": {
-      "signature": "reject|RequestError|request not valid json expecting value line column||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
       "edge_of": ""
     },
     "638a60a2c7d376f6": {
@@ -364,12 +358,6 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
-    "75bb38cec664fbd0": {
-      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
-      "edge_of": ""
-    },
     "76821baac5c01adc": {
       "signature": "reject|RequestError|request is required||",
       "kind": "reject",
@@ -380,6 +368,18 @@
       "signature": "reject|RequestError|request is not number||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
+      "edge_of": ""
+    },
+    "78113207705758f4": {
+      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
+    "78ae12ba120c6d94": {
+      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "796347f6a168a4fc": {
@@ -394,17 +394,23 @@
       "first_seen": "20260919T221540Z",
       "edge_of": ""
     },
+    "7a46281348e4104c": {
+      "signature": "reject|RequestError|request is not number||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
+    "7c2c4aa5b167f3b6": {
+      "signature": "reject|RequestError|request not valid json invalid control character line||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "7f6e73bd2f3cf46e": {
       "signature": "reject|RequestError|request is not valid json unterminated string starting||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
-    },
-    "8247dfbe388f42a3": {
-      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
-      "kind": "accept",
-      "first_seen": "20260919T153924Z",
-      "edge_of": ""
     },
     "831366732e0995c4": {
       "signature": "reject|RequestError|must be||",
@@ -424,22 +430,22 @@
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
-    "91f7f6d06ce6909b": {
+    "84b91d12e2e7727c": {
+      "signature": "reject|RequestError|request not valid json invalid control character at||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
+    "8ef2003f07ef9ddb": {
       "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
       "kind": "reject",
-      "first_seen": "20260919T221540Z",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "94a36e5e81e059d1": {
       "signature": "reject|RequestError|request is required||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
-      "edge_of": ""
-    },
-    "9968aada53082641": {
-      "signature": "reject|RequestError|request not valid json unterminated string starting at||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
       "edge_of": ""
     },
     "998925996d68d15b": {
@@ -484,6 +490,18 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
+    "a123688fa72bf862": {
+      "signature": "reject|RequestError|request not valid json expecting property name enclosed||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
+    "a26572981d70fe4b": {
+      "signature": "accept|||dict[tens]<bool,dict[0],none>|",
+      "kind": "accept",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "a3679468b3af2217": {
       "signature": "reject|RequestError|request must be object naming the and||",
       "kind": "reject",
@@ -508,11 +526,11 @@
       "first_seen": "20260919T221540Z",
       "edge_of": ""
     },
-    "accae8450001ea55": {
-      "signature": "reject|RequestError|request is not number||",
+    "ab3bb1cb56751ad9": {
+      "signature": "reject|RequestError|request must be an integer||",
       "kind": "reject",
-      "first_seen": "20260919T153924Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[0],none>|"
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
     },
     "b0c2777d10a21780": {
       "signature": "reject|RequestError|request is not valid json expecting value line||",
@@ -556,16 +574,16 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
-    "b7fed1e4fc11fa90": {
-      "signature": "reject|RequestError|request not valid json expecting property name enclosed||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
-      "edge_of": ""
-    },
     "b923daa52f7a7c41": {
       "signature": "reject|RequestError|request is not valid json expecting delimiter line||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
+      "edge_of": ""
+    },
+    "b929c9a3106547f1": {
+      "signature": "reject|RequestError|request not valid json expecting value line column||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "bbeba53186b88c51": {
@@ -580,22 +598,16 @@
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
+    "be4997961539553e": {
+      "signature": "reject|RequestError|request not valid json unterminated string starting at||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "c272226008cc25a9": {
       "signature": "reject|RequestError|request must be object naming the and||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
-      "edge_of": ""
-    },
-    "c5e0f84edcbe045e": {
-      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
-      "kind": "reject",
-      "first_seen": "20260919T153924Z",
-      "edge_of": ""
-    },
-    "c89245921b407756": {
-      "signature": "reject|RequestError|request not valid json expecting value line column||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
       "edge_of": ""
     },
     "c8fc87776c159ec5": {
@@ -620,6 +632,18 @@
       "signature": "reject|RequestError|request is not valid json invalid control character||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
+      "edge_of": ""
+    },
+    "cb7657077bf92e4f": {
+      "signature": "reject|RequestError|request is not number||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
+    "cbe65024a2d961c5": {
+      "signature": "reject|RequestError|request must be an integer||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
       "edge_of": ""
     },
     "cce081d0009e0899": {
@@ -652,6 +676,12 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
+    "d6b370f3a4967d37": {
+      "signature": "reject|RequestError|request must be an integer||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "d74cb94aa072f018": {
       "signature": "reject|RequestError|request bus_id is required||",
       "kind": "reject",
@@ -663,6 +693,12 @@
       "kind": "reject",
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "d7ed17888e5311ff": {
+      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
     },
     "d944bc7c8b2ff326": {
       "signature": "reject|RequestError|request is not valid json extra data line||",
@@ -681,6 +717,12 @@
       "kind": "reject",
       "first_seen": "20260919T153924Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
+    },
+    "de1c82cf6303e82a": {
+      "signature": "reject|RequestError|request not valid json invalid control character at||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
     },
     "deac92f4a2a23320": {
       "signature": "reject|RequestError|request is not valid json exceeds the limit||",
@@ -730,16 +772,16 @@
       "first_seen": "20260919T153924Z",
       "edge_of": ""
     },
+    "f0b2f7a872e949fe": {
+      "signature": "reject|RequestError|request not valid json expecting value line column||",
+      "kind": "reject",
+      "first_seen": "20260920T025435Z",
+      "edge_of": ""
+    },
     "f332e460af0f4661": {
       "signature": "reject|RequestError|request is not valid json invalid control character||",
       "kind": "reject",
       "first_seen": "20260919T153924Z",
-      "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
-    },
-    "f39dc85ffb831719": {
-      "signature": "reject|RequestError|request not valid json expecting delimiter line column||",
-      "kind": "reject",
-      "first_seen": "20260919T221540Z",
       "edge_of": "accept|||dict[tens]<bool,dict[1],none>|"
     },
     "fa8484144a2ff66e": {
