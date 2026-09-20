@@ -256,10 +256,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    try:
-        load_packs(args.targets)
-    except ImportError as error:
-        parser.error(f"cannot import target pack: {error}")
+    # A scratch target names its own adapter, so nothing has to be loaded for
+    # it. Loading the default pack anyway would make --adapter depend on
+    # IoTSploit being importable, which is exactly what a pack is for avoiding.
+    if args.targets or not args.adapter:
+        try:
+            load_packs(args.targets)
+        except ImportError as error:
+            parser.error(f"cannot import target pack: {error}")
 
     if args.list:
         for name, target in REGISTRY.items():
