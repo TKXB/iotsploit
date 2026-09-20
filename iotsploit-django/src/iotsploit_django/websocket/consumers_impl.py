@@ -17,6 +17,40 @@ MAX_LOG_ENTRIES = 1000
 console_log_buffer = deque(maxlen=MAX_LOG_ENTRIES)
 log_buffer_lock = threading.Lock()
 
+
+class NotAMessage(Exception):
+    """The client sent something that is not a message this socket reads."""
+
+
+def decoded_message(text_data: object) -> dict:
+    """The client's text as a message object, or a refusal.
+
+    Only ``json.loads`` sits inside the try. A ``ValueError`` raised further
+    down by a consumer's own handler is a different thing entirely, and
+    reporting it as bad JSON hides the real fault -- which is what the single
+    wide try in each of these handlers used to do.
+
+    ``json.loads`` raises more than ``JSONDecodeError`` on text a client
+    chooses: a plain ``ValueError`` for a number of more than 4300 digits,
+    and a ``RecursionError`` for a deeply nested document. Both escaped and
+    took the socket with them.
+
+    A well-formed document that is not an object is refused here too. Every
+    consumer below reads its message with ``.get()``, so ``null``, a list, a
+    bare string or a number reached that call and raised ``AttributeError``
+    -- a valid JSON value closing a socket.
+    """
+    try:
+        message = json.loads(text_data)
+    except (ValueError, RecursionError) as error:
+        raise NotAMessage(f"invalid JSON: {error}") from None
+    if not isinstance(message, dict):
+        raise NotAMessage(
+            f"a message must be a JSON object, not {type(message).__name__}"
+        )
+    return message
+
+
 class SystemUsageConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         logger.info("WebSocket connection attempt received")
@@ -71,16 +105,13 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming messages - could be used for requesting status updates"""
         try:
-            data = json.loads(text_data)
-            if data.get('action') == 'get_status':
-                await self.send_task_status()
-        except (ValueError, RecursionError):
-            # Wider than JSONDecodeError on purpose. json.loads raises a plain
-            # ValueError for a number of more than 4300 digits and a
-            # RecursionError for a deeply nested document, and neither is a
-            # JSONDecodeError -- so both escaped this handler and took the
-            # socket with them, on text a client chooses.
-            logger.error("Invalid JSON received")
+            data = decoded_message(text_data)
+        except NotAMessage as error:
+            logger.error("Ignoring a message from the client: %s", error)
+            return
+
+        if data.get('action') == 'get_status':
+            await self.send_task_status()
 
     async def send_task_status(self):
         """Fetch and send task status from the durable execution row."""
@@ -169,10 +200,8 @@ class PluginExecutionConsumer(AsyncWebsocketConsumer):
         anything that changes a run.
         """
         try:
-            data = json.loads(text_data)
-        except (ValueError, RecursionError):
-            # See the note in the status consumer: a JSONDecodeError is not
-            # the only thing json.loads raises on text a client chooses.
+            data = decoded_message(text_data)
+        except NotAMessage:
             return
         if data.get("action") == "get_state":
             state = await self._state()
@@ -221,7 +250,19 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            json_data = json.loads(text_data)
+            json_data = decoded_message(text_data)
+        except NotAMessage as error:
+            await self.send(text_data=json.dumps(StreamData(
+                stream_type=StreamType.CAN,
+                channel=self.channel,
+                timestamp=time.time(),
+                source=StreamSource.SYSTEM,
+                action=StreamAction.ERROR,
+                data={'message': f'Invalid message: {error}'},
+            ).to_dict()))
+            return
+
+        try:
             stream_data = StreamData.from_dict(json_data)
 
             driver_name = None
@@ -398,7 +439,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     )
                     await self.send(text_data=json.dumps(error_data.to_dict()))
                     
-        except (ValueError, RecursionError) as e:
+        except (KeyError, ValueError) as e:
             error_data = StreamData(
                 stream_type=StreamType.CAN,
                 channel=self.channel,
@@ -513,7 +554,15 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(text_data)
+            data = decoded_message(text_data)
+        except NotAMessage as error:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Invalid message: {error}'
+            }))
+            return
+
+        try:
             message_type = data.get('type')
             
             if message_type == 'get_status':
@@ -525,11 +574,6 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
             elif message_type == 'unsubscribe_campaign':
                 await self.unsubscribe_from_campaign(data.get('campaign_id'))
                 
-        except (ValueError, RecursionError):
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': 'Invalid JSON format'
-            }))
         except Exception as e:
             logger.error(f"Error handling WebSocket message: {str(e)}")
             await self.send(text_data=json.dumps({
@@ -746,7 +790,15 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(text_data)
+            data = decoded_message(text_data)
+        except NotAMessage as error:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Invalid message: {error}'
+            }))
+            return
+
+        try:
             message_type = data.get('type')
             
             if message_type == 'get_logs':
@@ -756,11 +808,6 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
             elif message_type == 'subscribe_logs':
                 await self.subscribe_to_logs(data.get('campaign_id'))
                 
-        except (ValueError, RecursionError):
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': 'Invalid JSON format'
-            }))
         except Exception as e:
             logger.error(f"Error handling WebSocket message: {str(e)}")
             await self.send(text_data=json.dumps({
