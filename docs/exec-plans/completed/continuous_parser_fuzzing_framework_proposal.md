@@ -363,7 +363,7 @@ discarded at the end of the campaign.
 
 That is novelty search on observable outcomes, not coverage-guided fuzzing. It
 is the honest choice for Python 3.10: real coverage feedback needs per-input
-arc collection, and on 3.10 that means `sys.settrace` at roughly 10–30× 
+arc collection, and on 3.10 that means `sys.settrace` at roughly 10–30×
 slowdown. `sys.monitoring` (3.12+) makes it cheap, so this is worth revisiting
 if the project moves; the interface does not change when it does.
 
