@@ -2,12 +2,18 @@
   "ledger_version": 1,
   "target": "core.as_number",
   "fingerprint": "f3f4293f03a28721",
-  "updated": "2026-09-20T02:56:59+00:00",
+  "updated": "2026-09-20T03:36:18+00:00",
   "entries": {
     "0315b4020af3ecca": {
       "signature": "accept|||num[many]|",
       "kind": "accept",
       "first_seen": "20260919T154053Z",
+      "edge_of": ""
+    },
+    "0fc5165686190ca8": {
+      "signature": "accept|||num[1]|",
+      "kind": "accept",
+      "first_seen": "20260920T033606Z",
       "edge_of": ""
     },
     "1114e8440f8d4bdd": {
@@ -170,12 +176,6 @@
       "signature": "reject|ValueError|value must be between and||",
       "kind": "reject",
       "first_seen": "20260919T154053Z",
-      "edge_of": ""
-    },
-    "a03279d346f55099": {
-      "signature": "accept|||num[1]|",
-      "kind": "accept",
-      "first_seen": "20260920T025656Z",
       "edge_of": ""
     },
     "b70a14ee1e15d7aa": {

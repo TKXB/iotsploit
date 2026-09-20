@@ -202,7 +202,6 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("-n", "--iterations", type=int, default=2000)
     parser.add_argument("--seconds", type=float, default=5.0, help="budget for one call")
     parser.add_argument("--keep", metavar="DIR", help="keep the corpus here")
-    parser.add_argument("--radamsa", action="store_true")
     args = parser.parse_args(argv)
 
     function, dotted = load_target(args.target)
@@ -229,8 +228,7 @@ def main(argv: Optional[list] = None) -> int:
     # code, might not even be able to import.
     import tempfile
 
-    from .core.parser_campaign import describe, run
-    from .generators.radamsa_generator import RadamsaGenerator
+    from .core.parser_campaign import MutatorMissingError, describe, mutator, run
 
     target = register(ParseTarget(
         name=dotted.replace(":", "."),
@@ -239,6 +237,14 @@ def main(argv: Optional[list] = None) -> int:
         seeds=seeds,
         budget_seconds=args.seconds,
     ))
+    # Checked before the pre-flight, which spawns workers: there is no point
+    # discovering the contract is wrong for a run that cannot happen anyway.
+    try:
+        mutator(0)
+    except MutatorMissingError as error:
+        print(error)
+        return 2
+
     unexpected = preflight(target)
     if unexpected:
         print("Stopping: the seeds already break the contract you gave.")
@@ -255,13 +261,7 @@ def main(argv: Optional[list] = None) -> int:
         return 2
 
     root = args.keep or tempfile.mkdtemp(prefix="fuzz_")
-    report = run(
-        target,
-        iterations=args.iterations,
-        root=root,
-        rebaseline=True,
-        radamsa=RadamsaGenerator(seed=0) if args.radamsa else None,
-    )
+    report = run(target, iterations=args.iterations, root=root, rebaseline=True)
     describe(target.name, report)
     if not args.keep:
         print(f"\ncorpus (temporary): {root}")

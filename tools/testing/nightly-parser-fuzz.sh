@@ -34,6 +34,15 @@ LOG="$LOG_DIR/$(date +%Y-%m-%d).log"
 
 mkdir -p "$LOG_DIR"
 
+# radamsa is the mutator and is not installed by default. Checked here so a
+# cron failure names the cause in the first line of the log.
+if ! command -v radamsa >/dev/null 2>&1; then
+    echo "$(date -Is) radamsa is not on PATH; campaigns cannot run." | tee -a "$LOG"
+    echo "  git clone --depth 1 https://gitlab.com/akihe/radamsa" | tee -a "$LOG"
+    echo "  cd radamsa && make && make install PREFIX=\$HOME/.local" | tee -a "$LOG"
+    exit 1
+fi
+
 {
     echo "=== $(date -Is) rev $(git rev-parse --short HEAD) seed $SEED iterations $ITERATIONS"
     "$POETRY" run python -m iotsploit_fuzzer.core.parser_campaign \

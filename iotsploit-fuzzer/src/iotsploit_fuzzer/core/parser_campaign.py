@@ -67,6 +67,33 @@ def load_packs(names: Optional[List[str]] = None) -> Dict[str, ParseTarget]:
     return REGISTRY
 
 
+#: What to say when the one mutator is not installed. It is an external
+#: binary and deliberately not vendored, so the message has to be enough to
+#: act on without going looking.
+RADAMSA_MISSING = (
+    "radamsa is not on PATH, and it is the mutator.\n"
+    "  Build it once:\n"
+    "    git clone --depth 1 https://gitlab.com/akihe/radamsa\n"
+    "    cd radamsa && make && make install PREFIX=$HOME/.local\n"
+    "  Campaigns need it. --replay does not: it runs the retained corpus and\n"
+    "  generates nothing, which is what the commit gate uses."
+)
+
+
+def mutator(seed: int = 0) -> "RadamsaGenerator":
+    """The mutator, or a refusal that says how to get one."""
+    from ..generators.radamsa_generator import RadamsaGenerator
+
+    try:
+        return RadamsaGenerator(seed=seed)
+    except RuntimeError:
+        raise MutatorMissingError(RADAMSA_MISSING) from None
+
+
+class MutatorMissingError(RuntimeError):
+    """radamsa is not installed, so nothing can be generated."""
+
+
 class StaleLedgerError(RuntimeError):
     """The ledger was recorded against a different oracle.
 
@@ -151,7 +178,6 @@ def run(
     iterations: int = 500,
     root: Path | str = DEFAULT_CORPUS_ROOT,
     seed: int = 0,
-    radamsa: Any = None,
     rebaseline: bool = False,
     event_callback: Optional[Callable[[EventType, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
@@ -167,12 +193,12 @@ def run(
         store.rebaseline()
 
     identity = campaign_id()
-    generator = CorpusGenerator(store, seed=seed, radamsa=radamsa)
+    generator = CorpusGenerator(store, mutator(seed), seed=seed)
     harness = ParserHarness(target)
     monitor = BoundaryMonitor(store, identity, generator=generator, emit=event_callback)
     record = manifest(
         target, harness, campaign=identity, seed=seed,
-        mutator=f"radamsa/{seed}" if radamsa is not None else f"builtin/{seed}",
+        mutator=f"radamsa/{seed}",
         iterations=iterations,
     )
 
@@ -239,12 +265,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--root", default=str(DEFAULT_CORPUS_ROOT))
     parser.add_argument("--replay", action="store_true", help="corpus only, no generation")
     parser.add_argument("--rebaseline", action="store_true", help="adopt a changed oracle")
-    parser.add_argument(
-        "--radamsa", action="store_true",
-        help="mutate with radamsa instead of the built-in mutator. Reads the "
-             "shape of its input, so far more mutants survive to reach the "
-             "parser; needs the binary on PATH",
-    )
     parser.add_argument("--list", action="store_true", help="print the registry and exit")
     parser.add_argument(
         "--targets", action="append", metavar="MODULE",
@@ -309,14 +329,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if unknown:
         parser.error(f"unknown target(s): {', '.join(unknown)}")
 
-    radamsa = None
-    if args.radamsa:
-        from ..generators.radamsa_generator import RadamsaGenerator
-
+    if not args.replay:
         try:
-            radamsa = RadamsaGenerator(seed=args.seed)
-        except RuntimeError as error:
-            parser.error(f"{error}. Build it from https://gitlab.com/akihe/radamsa")
+            mutator(args.seed)
+        except MutatorMissingError as error:
+            parser.exit(2, f"{error}\n")
 
     failed = False
     for name in names:
@@ -331,7 +348,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             report = run(
                 target, iterations=args.iterations, root=args.root,
-                seed=args.seed, rebaseline=args.rebaseline, radamsa=radamsa,
+                seed=args.seed, rebaseline=args.rebaseline,
             )
         except (StaleLedgerError, WorkerStartupError) as error:
             print(f"{name:32} SKIPPED: {error}")
