@@ -81,6 +81,17 @@ STATICFILES_DIRS = [BASE_DIR]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# An ARXML import round-trips its candidate target through the client: the
+# preview parses the upload and returns the whole candidate, and create_target
+# reads it back as a JSON body. Django's 2.5 MB default bounds that body, so a
+# real vehicle's candidate is refused with "Request body exceeded
+# settings.DATA_UPLOAD_MAX_MEMORY_SIZE" even though its ARXML passed the
+# importer's own 256 MiB limit. Matching that limit keeps one wall instead of
+# two: a candidate is smaller than the ARXML it came from, so a file the parser
+# accepted always has a candidate the create accepts. File parts never count
+# against this -- the upload handlers spool them to disk.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 256 * 1024 * 1024
+
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ORIGIN_ALLOW_ALL = True
