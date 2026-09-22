@@ -18,6 +18,11 @@ from iotsploit_core.domain.target import (
     Vehicle,
     fold_legacy_interfaces,
 )
+from iotsploit_core.domain.target_transfer import (
+    TargetTransferError,
+    build_envelope,
+    read_envelope,
+)
 from iotsploit_django.tools.xlogger import xlog
 
 _db = get_default_sqlalchemy_db()
@@ -375,7 +380,7 @@ class TargetManager:
                 xlog.info(f"Backed up original file to: {backup_path}", name="target_model")
             
             # Write targets to JSON file
-            data = {"targets": targets}
+            data = build_envelope(targets, source="export_targets_to_json")
             with open(json_file_path, "w") as file:
                 json.dump(data, file, indent=2)
             
@@ -394,6 +399,15 @@ class TargetManager:
         with open(json_file_path, "r") as file:
             data = json.load(file)
 
+        # A file that is not an export used to read as zero targets and report
+        # success, because ``data.get("targets", [])`` cannot tell an empty
+        # export from a wrong file. Say which it was.
+        try:
+            incoming = read_envelope(data)
+        except TargetTransferError as exc:
+            xlog.error(f"{json_file_path}: {exc}", name="target_model")
+            return
+
         existing_ids: set[str] = set()
         if not force_overwrite:
             session = self.Session()
@@ -404,7 +418,7 @@ class TargetManager:
 
         imported_count = 0
         skipped_count = 0
-        for target in data.get("targets", []):
+        for target in incoming:
             target_id = target.get("target_id", "")
             if not target_id:
                 xlog.warning("Skipping target import: missing target_id", name="target_model")

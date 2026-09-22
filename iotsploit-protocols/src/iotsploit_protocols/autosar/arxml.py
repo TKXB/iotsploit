@@ -28,6 +28,8 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
 import cantools
 
+from iotsploit_core.domain.target_transfer import build_envelope
+
 MAX_ARXML_BYTES = 256 * 1024 * 1024
 PARTIAL_SYSTEM_CATEGORY = "ECU_SYSTEM_DESCRIPTION"
 
@@ -753,10 +755,11 @@ def _unique(values: Iterable[str]) -> List[str]:
 
 
 def dump_target(result: ArxmlImportResult, output: str | Path) -> None:
-    """Write a result in the existing ``target_import`` envelope."""
+    """Write a result in the shared ``target_import`` envelope."""
+    envelope = build_envelope([result.target], source="import_arxml")
     try:
         with Path(output).open("w", encoding="utf-8") as handle:
-            json.dump({"targets": [result.target]}, handle, indent=2, ensure_ascii=False)
+            json.dump(envelope, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
     except OSError as exc:
         raise ArxmlImportError(f"cannot write target JSON {output}: {exc}") from exc

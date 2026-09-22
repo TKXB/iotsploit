@@ -25,6 +25,7 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 django.setup()
 
+from iotsploit_core.domain.target_transfer import build_envelope  # noqa: E402
 from iotsploit_django.tools.can_facet import FACET_KEY  # noqa: E402
 from iotsploit_django.tools.dbc import apply_dbc  # noqa: E402
 
@@ -61,7 +62,7 @@ def main() -> None:
         target = apply_dbc(base, handle.read(), bus_id=args.bus_id, bus_name=args.bus_name)
 
     with open(args.out, "w") as handle:
-        json.dump({"targets": [target]}, handle, indent=2)
+        json.dump(build_envelope([target], source="import_dbc"), handle, indent=2)
         handle.write("\n")
 
     facets = [c["facets"][FACET_KEY] for c in target["components"] if FACET_KEY in c.get("facets", {})]
