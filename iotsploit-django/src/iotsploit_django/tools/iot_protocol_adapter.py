@@ -277,11 +277,15 @@ class IoTProtocolAdapter:
             # Create protocol interface adapter
             interface_adapter = self.create_protocol_interface_adapter(protocol_config)
             
-            # Test connection
+            # Test connection; None means the adapter has no real interface to check
             result = interface_adapter.test_connection()
-            
+            if result is None:
+                status = 'untested'
+            else:
+                status = 'success' if result else 'failure'
+
             return {
-                'status': 'success' if result else 'failure',
+                'status': status,
                 'protocol_type': protocol_config.get('protocol_type'),
                 'connection_result': result,
                 'timestamp': datetime.now().isoformat()

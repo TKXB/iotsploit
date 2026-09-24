@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,9 @@ class ProtocolInterfaceAdapter:
         self.fuzzer_available = fuzzer_available
         self.interface_instance = None
 
-    def test_connection(self) -> bool:
-        """Test protocol connection"""
-        return False
+    def test_connection(self) -> Optional[bool]:
+        """Test protocol connection; None means this adapter cannot check it."""
+        return None
 
     def send_data(self, data: bytes) -> bytes:
         """Send data through protocol interface"""
@@ -32,6 +32,7 @@ class CANInterfaceAdapter(ProtocolInterfaceAdapter):
     def __init__(self, protocol_config: Dict[str, Any], fuzzer_available: bool = True):
         super().__init__(protocol_config, fuzzer_available)
         self.real_interface = None
+        self._init_failed = False
         self._initialize_interface()
 
     def _initialize_interface(self):
@@ -55,10 +56,13 @@ class CANInterfaceAdapter(ProtocolInterfaceAdapter):
         except ImportError as e:
             logger.warning(f"Failed to import CAN interface: {e}")
         except Exception as e:
+            self._init_failed = True
             logger.error(f"Error initializing CAN interface: {e}")
 
-    def test_connection(self) -> bool:
+    def test_connection(self) -> Optional[bool]:
         """Test CAN connection"""
+        if self._init_failed:
+            return False
         if self.real_interface:
             try:
                 # Try to send a test message
@@ -69,41 +73,28 @@ class CANInterfaceAdapter(ProtocolInterfaceAdapter):
             except Exception as e:
                 logger.error(f"Real CAN connection test failed: {e}")
                 return False
-        else:
-            logger.info("Testing CAN connection (mock)")
-            return True  # Mock implementation always succeeds
+        logger.info("CAN interface unavailable; connection not checked")
+        return None
 
 class UARTInterfaceAdapter(ProtocolInterfaceAdapter):
     """UART protocol interface adapter"""
 
-    def test_connection(self) -> bool:
-        """Test UART connection"""
-        logger.info("Testing UART connection (mock)")
-        return True  # Mock implementation always succeeds
+    # No real interface yet: inherits test_connection() -> None (not checked).
 
 class SPIInterfaceAdapter(ProtocolInterfaceAdapter):
     """SPI protocol interface adapter"""
 
-    def test_connection(self) -> bool:
-        """Test SPI connection"""
-        logger.info("Testing SPI connection (mock)")
-        return True  # Mock implementation always succeeds
+    # No real interface yet: inherits test_connection() -> None (not checked).
 
 class EthernetInterfaceAdapter(ProtocolInterfaceAdapter):
     """Ethernet protocol interface adapter"""
 
-    def test_connection(self) -> bool:
-        """Test Ethernet connection"""
-        logger.info("Testing Ethernet connection (mock)")
-        return True  # Mock implementation always succeeds
+    # No real interface yet: inherits test_connection() -> None (not checked).
 
 class DoIPInterfaceAdapter(ProtocolInterfaceAdapter):
     """DoIP protocol interface adapter"""
 
-    def test_connection(self) -> bool:
-        """Test DoIP connection"""
-        logger.info("Testing DoIP connection (mock)")
-        return True  # Mock implementation always succeeds
+    # No real interface yet: inherits test_connection() -> None (not checked).
 
 class MockOrchestratorInstance:
     """Mock orchestrator instance"""
