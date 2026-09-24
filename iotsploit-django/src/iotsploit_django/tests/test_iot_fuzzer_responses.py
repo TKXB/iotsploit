@@ -15,6 +15,7 @@ if not apps.ready:
 
 from iotsploit_django.iot_fuzzer import views
 from iotsploit_django.iot_fuzzer import views_campaign
+from iotsploit_django.iot_fuzzer import views_results
 
 
 ENDPOINT_METHODS = {
@@ -161,3 +162,13 @@ class TestIoTFuzzerCampaignResponses(SimpleTestCase):
             self.payload(response),
             {"status": "error", "message": "Campaign ID is required"},
         )
+
+    def test_files_tree_never_lists_a_path_from_the_query(self):
+        service = Mock()
+        service.get_files_tree.return_value = {"root": "results", "tree": []}
+
+        with patch.object(views_results.IoTFuzzerService, "get_instance", return_value=service):
+            response = views.get_files_tree(self.factory.get("/", {"campaign_id": "/etc"}))
+
+        self.assertEqual(response.status_code, 200)
+        service.get_files_tree.assert_called_once_with()

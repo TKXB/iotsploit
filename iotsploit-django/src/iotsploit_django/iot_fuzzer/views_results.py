@@ -32,10 +32,11 @@ def get_files_tree(request: HttpRequest):
         return method_not_allowed("GET")
 
     try:
-        campaign_id = request.GET.get('campaign_id')
-
+        # campaign_id used to be passed through as the directory to list, so
+        # ?campaign_id=/etc listed any path on the host. Always list the
+        # results root; nothing files results by campaign yet.
         fuzzer_service = IoTFuzzerService.get_instance()
-        file_tree = fuzzer_service.get_files_tree(campaign_id)
+        file_tree = fuzzer_service.get_files_tree()
 
         return JsonResponse({
             "status": "success",
