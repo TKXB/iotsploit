@@ -29,7 +29,9 @@ def run(*args: str, cwd: Path = ROOT) -> None:
 
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="iotsploit-wheels-") as workspace:
-        _build_and_verify(Path(workspace))
+        # Resolved once: on Windows the temp dir is an 8.3 short path, and pip
+        # rejects a wheel whose path differs from the one its constraint names.
+        _build_and_verify(Path(workspace).resolve())
 
 
 def _build_and_verify(workspace: Path) -> None:
@@ -45,7 +47,7 @@ def _build_and_verify(workspace: Path) -> None:
     local_constraints = wheelhouse / "local-constraints.txt"
     local_constraints.write_text(
         "".join(
-            f"{wheel.name.split('-', 1)[0]} @ {wheel.resolve().as_uri()}\n"
+            f"{wheel.name.split('-', 1)[0]} @ {wheel.as_uri()}\n"
             for wheel in wheels
         ),
         encoding="utf-8",

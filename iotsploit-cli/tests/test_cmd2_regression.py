@@ -183,7 +183,7 @@ class TestCmd2AdapterWithRealCmd2:
 
     def test_adapter_restores_readline(self, shell, adapter):
         """Readline functions must be restored after the adapter call."""
-        import readline
+        from cmd2.rl_utils import readline
 
         orig_lb = readline.get_line_buffer
         doc = Document(text="ex", cursor_position=2)

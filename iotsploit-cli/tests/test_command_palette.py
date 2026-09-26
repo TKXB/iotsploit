@@ -432,7 +432,7 @@ class TestCmd2CompletionAdapter:
 
         def fake_complete(text, state, custom_settings=None):
             if state == 0:
-                import readline as rl
+                from cmd2.rl_utils import readline as rl
 
                 captured["line"] = rl.get_line_buffer()
                 captured["begidx"] = rl.get_begidx()
@@ -464,7 +464,7 @@ class TestCmd2CompletionAdapter:
 
         def fake_complete(text, state, custom_settings=None):
             if state == 0:
-                import readline as rl
+                from cmd2.rl_utils import readline as rl
 
                 captured["begidx"] = rl.get_begidx()
                 captured["endidx"] = rl.get_endidx()
@@ -505,7 +505,7 @@ class TestCmd2CompletionAdapter:
 
     def test_restores_readline_after_use(self):
         """Verify readline originals are restored even on success."""
-        import readline as rl
+        from cmd2.rl_utils import readline as rl
 
         orig_lb = rl.get_line_buffer
         shell = FakeShell()
