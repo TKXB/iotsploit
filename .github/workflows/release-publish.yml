@@ -17,6 +17,9 @@ env:
     iotsploit-cli
     iotsploit-platforms
     iotsploit-mcp
+    iotsploit-protocols
+    iotsploit-priv
+    iotsploit-fuzzer
 
 jobs:
   # ──────────────────────────────────────────────
