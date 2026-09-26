@@ -36,6 +36,8 @@ iotsploit-exploits = "*"
 iotsploit-mcp = "*"
 iotsploit-priv = "*"
 cmd2 = "^2.4"
+# cmd2 refuses libedit, the readline macOS Python ships, and then cannot complete.
+gnureadline = { version = "^8.1", markers = "sys_platform == 'darwin'" }
 prompt-toolkit = "^3.0.48"
 websockets = "^12.0"
 

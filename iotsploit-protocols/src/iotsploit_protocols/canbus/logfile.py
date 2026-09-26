@@ -433,8 +433,13 @@ class AscLogReader:
             # only available interpretation; stamping the zone on makes that
             # assumption visible in the result instead of leaving a bare naive
             # time that reads as UTC next to arrival times that are not.
-            self.stats.started_at = parsed.astimezone()
-            self._epoch = parsed.timestamp()
+            # Windows cannot place a local time outside roughly 1970..3000, and
+            # a header it cannot place anchors nothing.
+            try:
+                self.stats.started_at = parsed.astimezone()
+                self._epoch = parsed.timestamp()
+            except (OverflowError, OSError, ValueError):
+                self.stats.started_at = None
             return
 
     # ── frames ────────────────────────────────────────────────────────

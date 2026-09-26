@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import textwrap
 import time
 
@@ -96,6 +97,9 @@ def test_a_well_behaved_target_is_accepted(hostile):
     assert outcome.shape.startswith("list[")
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="the worker's memory cap is RLIMIT_AS, which only Linux enforces"
+)
 def test_allocating_without_bound_is_a_limit_not_a_dead_host(hostile):
     """The defect that motivated the design: ``parse_target_bits('0-10000000')``
     asked for hundreds of megabytes, and no ``except`` runs early enough."""
@@ -119,7 +123,12 @@ def test_a_native_crash_is_a_violation_and_names_the_signal(hostile):
     outcome = evaluate("segfault")
 
     assert outcome.kind == VIOLATE
-    assert "SIGSEGV" in outcome.reason
+    if sys.platform == "win32":
+        # ctypes turns the access violation into an OSError before the
+        # process dies, so there is no signal to name.
+        assert "access violation" in outcome.reason
+    else:
+        assert "SIGSEGV" in outcome.reason
 
 
 def test_a_target_that_exits_is_a_violation(hostile):
