@@ -13,7 +13,7 @@ scapy import lives inside the module that needs it rather than here.
 
 from __future__ import annotations
 
-__version__ = "0.0.8"
+__version__ = "0.0.9"
 
 __all__ = ["NegativeResponse", "NotConfigured", "ProtocolError"]
 

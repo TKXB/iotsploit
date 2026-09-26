@@ -4,7 +4,7 @@ IoT Protocol Fuzzer
 A modular fuzzing framework for IoT communication protocols including CAN, UART, and SPI.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.0.9"
 __author__ = "IoT Security Research"
 __description__ = "Modular fuzzing framework for IoT protocols"
 

@@ -6,5 +6,5 @@ This package provides platform-specific implementations for WiFi, Input, and SSH
 
 from iotsploit_platforms.selector import build_context, get_wifi_backend, get_shared_wifi_backend
 
-__version__ = "0.1.0"
+__version__ = "0.0.9"
 __all__ = ["get_wifi_backend", "get_shared_wifi_backend", "build_context"]

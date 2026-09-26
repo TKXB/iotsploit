@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-fuzzer"
-version = "0.0.6"
+version = "0.0.9"
 description = "IoTSploit fuzzer library (ports + core + adapters), extracted from zeekr_sat_main"
 authors = ["IoTSploit Team <devnull@example.com>"]
 readme = "README.md"

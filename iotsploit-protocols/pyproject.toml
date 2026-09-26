@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iotsploit-protocols"
-version = "0.0.8"
+version = "0.0.9"
 description = "Automotive protocol clients and description parsers for IoTSploit"
 authors = ["IoTSploit Team <support@iotsploit.org>"]
 readme = "README.md"
