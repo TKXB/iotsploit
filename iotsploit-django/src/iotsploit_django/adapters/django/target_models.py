@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from typing import Any, Dict, List, Optional, Type
 
 from sqlalchemy import Column, JSON, String, DateTime, text as sqlalchemy_text
@@ -75,11 +76,19 @@ class TargetDBModel(Base):
 
 class TargetManager:
     _instance = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls):
+        # Published only once initialize() has finished. It used to be stored
+        # first, so a request arriving while the first one was still creating
+        # the tables got an object with no Session yet -- and if initialize()
+        # raised, every later request got that half-built object for good.
         if cls._instance is None:
-            cls._instance = super(TargetManager, cls).__new__(cls)
-            cls._instance.initialize()
+            with cls._instance_lock:
+                if cls._instance is None:
+                    instance = super(TargetManager, cls).__new__(cls)
+                    instance.initialize()
+                    cls._instance = instance
         return cls._instance
 
     def initialize(self):
