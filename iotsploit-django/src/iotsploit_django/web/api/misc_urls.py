@@ -4,6 +4,8 @@ from iotsploit_django.web import views
 
 
 urlpatterns = [
+    # Liveness, version and dependency checks polled by the UI
+    path("health/", views.health, name="health"),
     # New endpoint to list all URLs
     path("list_urls/", views.list_urls, name="list_urls"),
     # Logging configuration

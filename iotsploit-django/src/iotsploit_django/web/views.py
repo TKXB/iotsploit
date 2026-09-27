@@ -29,6 +29,7 @@ from iotsploit_django.view_handlers.plugin_views import (
 from iotsploit_django.view_handlers.can_views import identify_can_bus, inspect_can_log
 from iotsploit_django.view_handlers.misc_legacy_views import (
     active_channels,
+    health,
     list_urls,
     set_log_level,
 )
@@ -75,6 +76,7 @@ __all__ = [
     "enable_driver",
     "disable_driver",
     "active_channels",
+    "health",
     "list_urls",
     "set_log_level",
     "file_download",
