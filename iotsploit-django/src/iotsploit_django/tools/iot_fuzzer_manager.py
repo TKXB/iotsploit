@@ -609,17 +609,21 @@ class IoTFuzzerManager:
             self.update_campaign_state(campaign_id, final_detail)
             if getattr(orchestrator_adapter, "failure", None):
                 raise RuntimeError(orchestrator_adapter.failure)
+            stop_reason = getattr(getattr(orchestrator_adapter, "orchestrator", None), "stop_reason", None)
+            current_state = self.get_campaign_state(campaign_id) or {}
+            final_status = "stopped" if stop_reason or current_state.get("status") != "running" else "completed"
             self.update_campaign_state(
                 campaign_id,
                 {
-                    "status": "stopped",
+                    "status": final_status,
+                    "stop_reason": stop_reason,
                     "completed_at": timezone.now().isoformat(),
                     "last_update": int(time.time()),
                 },
             )
             final_state = self.get_campaign_state(campaign_id)
             self._send_campaign_event(campaign_id, "campaign_status", {"status": final_state})
-            return {"status": "success", "campaign_id": campaign_id, "final_status": "stopped"}
+            return {"status": "success", "campaign_id": campaign_id, "final_status": final_status}
         except Exception as exc:
             logger.exception("Fuzzing campaign %s failed", campaign_id)
             self.update_campaign_state(

@@ -52,3 +52,99 @@ def test_short_read_keeps_partial_evidence():
     assert result["state"] == "unavailable"
     assert result["registers"] == {"cpuid": 0x410FC241}
     assert "Incomplete dhcsr" in result["stop_reason"]
+
+
+def test_nrf5340_uses_application_core_profile():
+    reads = []
+
+    def read(address, count):
+        reads.append(address)
+        return [{0xE000ED00: 0x410FD213, 0xE000EDF0: 1 << 24}.get(address, 0)]
+
+    driver = object.__new__(JLinkAbility)
+    driver.jlink = SimpleNamespace(memory_read32=read)
+    device = SimpleNamespace(
+        attributes={"target_device": "NRF5340_XXAA_APP", "emulator_sn": "123"}
+    )
+
+    result = driver.core_status(device)
+
+    assert result["state"] == "running"
+    assert 0x40005400 in reads
+
+
+def test_fault_snapshot_captures_stacked_exception_context():
+    names = [f"R{index}" for index in range(16)] + ["XPSR", "MSP", "PSP", "CONTROL"]
+    registers = dict.fromkeys(names, 0)
+    registers.update({"R14": 0xFFFFFFFD, "XPSR": 3, "PSP": 0x20000100})
+    frame = [1, 2, 3, 4, 12, 0x08000111, 0x08000222, 0x21000000]
+
+    def read(address, count):
+        if address in (0xE000ED28, 0xE000ED2C):
+            return [0]
+        if address == 0x20000100:
+            return frame
+        raise AssertionError(f"Unexpected read at 0x{address:08X}")
+
+    probe = SimpleNamespace(
+        halt=lambda: None,
+        halted=lambda: True,
+        register_read_multiple=lambda requested: [registers[name] for name in requested],
+        memory_read32=read,
+    )
+    driver = object.__new__(JLinkAbility)
+    driver.jlink = probe
+    device = SimpleNamespace(
+        attributes={"target_device": "NRF52840_XXAA", "emulator_sn": "123"}
+    )
+
+    snapshot = driver.fault_snapshot(device)
+
+    assert snapshot["stack"]["pc"] == 0x08000222
+    assert snapshot["stack"]["lr"] == 0x08000111
+    assert snapshot["stack"]["pointer"] == 0x20000100
+
+
+def test_fault_status_is_decoded_without_discarding_raw_registers():
+    values = {
+        0xE000ED00: 0x410FC241,
+        0xE000EDF0: 1 << 24,
+        0xE000ED04: 3,
+        0xE000ED28: (1 << 9) | (1 << 15),
+        0xE000ED2C: 1 << 30,
+        0xE000ED38: 0x20001234,
+    }
+    driver = object.__new__(JLinkAbility)
+    driver.jlink = SimpleNamespace(memory_read32=lambda address, count: [values.get(address, 0)])
+    device = SimpleNamespace(
+        attributes={"target_device": "NRF52840_XXAA", "emulator_sn": "123"}
+    )
+
+    result = driver.core_status(device)
+
+    assert result["fault_causes"] == [
+        "precise data bus error",
+        "escalated configurable fault",
+    ]
+    assert result["registers"]["bfar"] == 0x20001234
+    assert "precise data bus error" in result["stop_reason"]
+
+
+def test_recover_target_resets_without_halting_and_establishes_baseline():
+    reset_calls = []
+    samples = iter(
+        [
+            {"state": "reset", "stop_reason": "reset"},
+            {"state": "running", "stop_reason": None, "sample": 1},
+            {"state": "running", "stop_reason": None, "sample": 2},
+        ]
+    )
+    driver = object.__new__(JLinkAbility)
+    driver.jlink = SimpleNamespace(reset=lambda **kwargs: reset_calls.append(kwargs))
+    driver.core_status = lambda device: next(samples)
+
+    result = driver.recover_target(SimpleNamespace(), timeout_ms=100)
+
+    assert reset_calls == [{"halt": False}]
+    assert result["recovered"] is True
+    assert result["baseline"]["sample"] == 2

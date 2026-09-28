@@ -137,3 +137,70 @@ def test_recording_failure_prevents_next_send(tmp_path):
 def test_observation_window_is_bounded(value):
     with pytest.raises(ValueError, match="settle_ms"):
         JtagHarness(UARTHarness(HarnessResult(ok=True)), lambda: observation(), value)
+
+
+def test_confirmed_fault_is_snapshotted_then_recovered_for_next_case():
+    samples = iter(
+        [
+            observation(),
+            observation("fault", 3),
+            observation("fault", 3),
+            observation(),
+            observation(),
+        ]
+    )
+    calls = []
+    inner = UARTHarness(HarnessResult(ok=True))
+    harness = JtagHarness(
+        inner,
+        lambda: next(samples),
+        settle_ms=0,
+        snapshot=lambda: calls.append("snapshot") or {"stack": {"pc": 0x1234}},
+        recover=lambda expected: calls.append(("recover", expected)) or {"recovered": True},
+        recovery_policy="reset_continue",
+    )
+
+    failed = harness.execute(b"fault")
+    clean = harness.execute(b"next")
+
+    assert failed.crashed and failed.stop_reason is None
+    assert failed.core_observation["snapshot"]["stack"]["pc"] == 0x1234
+    assert failed.core_observation["recovery"]["recovered"] is True
+    assert calls == ["snapshot", ("recover", False)]
+    assert clean.ok and not clean.crashed
+    assert inner.sent == [b"fault", b"next"]
+
+
+def test_expected_reset_waits_for_readiness_without_failing_case():
+    samples = iter([observation(), observation("reset")])
+    inner = UARTHarness(HarnessResult(ok=True))
+    harness = JtagHarness(
+        inner,
+        lambda: next(samples),
+        settle_ms=0,
+        recover=lambda expected: {"recovered": expected},
+        expected_reset_prefixes=(b"\x11\x01",),
+    )
+
+    result = harness.execute(b"\x11\x01\x99")
+
+    assert result.ok and not result.crashed and result.stop_reason is None
+    assert result.core_observation["expected_reset"] is True
+    assert result.core_observation["recovery"]["recovered"] is True
+
+
+def test_recovery_limit_stops_campaign():
+    samples = iter([observation(), observation("lockup")])
+    harness = JtagHarness(
+        UARTHarness(HarnessResult(ok=True)),
+        lambda: next(samples),
+        settle_ms=0,
+        recover=lambda expected: {"recovered": True},
+        recovery_policy="reset_continue",
+        max_recoveries=0,
+    )
+
+    result = harness.execute(b"fault")
+
+    assert result.stop_reason == "Recovery limit of 0 reached"
+    assert result.core_observation["recovery"]["recovered"] is False
