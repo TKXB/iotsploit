@@ -20,4 +20,4 @@ class CANHarness(ProtocolHarness):
                 return HarnessResult(ok=True, response=response)
                 
         except Exception as exc:
-            return HarnessResult(ok=False, crashed=True, info=str(exc), error=str(exc)) 
+            return HarnessResult(ok=False, crashed=False, info=str(exc), error=str(exc))

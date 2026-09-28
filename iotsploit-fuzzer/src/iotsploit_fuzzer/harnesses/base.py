@@ -17,6 +17,9 @@ class HarnessResult:
     #: an escaped exception. Reported, never compared -- a line number moves
     #: under any edit.
     site: Optional[str] = None
+    core_observation: Optional[dict] = None
+    stop_reason: Optional[str] = None
+    sent: bool = True
 
 
 class ProtocolHarness(abc.ABC):

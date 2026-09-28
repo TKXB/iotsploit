@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import pylink
@@ -90,6 +91,7 @@ class JLinkAbility(BaseDeviceDriver):
                 },
             },
             "reset": "Reset the target MCU",
+            "core_status": "Observe nRF52840 core state without halting",
         }
 
     # ------------------------------------------------------------------
@@ -147,6 +149,8 @@ class JLinkAbility(BaseDeviceDriver):
         self.jlink.open(serial_no=int(emulator_sn))
 
         target_device = device.attributes.get("target_device", "STM32F407VG")
+        if device.attributes.get("interface") == "swd":
+            self.jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
         self.jlink.connect(target_device)
         logger.info("J-Link initialized: %s -> %s", device.name, target_device)
         return True
@@ -163,6 +167,9 @@ class JLinkAbility(BaseDeviceDriver):
 
         if args is None:
             args = {}
+
+        if command == "core_status":
+            return self.core_status(device)
 
         if command == "read_memory":
             address = int(args.get("address", 0x08000000))
@@ -181,6 +188,61 @@ class JLinkAbility(BaseDeviceDriver):
             return {"status": "success", "message": f"Reset {device.name}"}
 
         raise ValueError(f"Unsupported command: {command}")
+
+    def core_status(self, device: Device) -> dict:
+        """Read-to-clear DHCSR is consumed exactly once per observation."""
+        if device.attributes.get("target_device") != "NRF52840_XXAA":
+            raise ValueError("Core monitoring currently supports NRF52840_XXAA only")
+        if self.jlink is None:
+            raise RuntimeError("J-Link is not initialized")
+        started = time.monotonic()
+        registers = {}
+        observation = {
+            "target": "NRF52840_XXAA", "probe_serial": device.attributes["emulator_sn"],
+            "observed_at": time.time(), "sample_started": started,
+            "registers": registers, "state": "unavailable", "crashed": False,
+            "stop_reason": None,
+        }
+        try:
+            for name, address in (
+                ("cpuid", 0xE000ED00), ("dhcsr", 0xE000EDF0), ("icsr", 0xE000ED04),
+                ("cfsr", 0xE000ED28), ("hfsr", 0xE000ED2C),
+                ("resetreas", 0x40000400),
+            ):
+                words = self.jlink.memory_read32(address, 1)
+                if len(words) != 1:
+                    raise RuntimeError(f"Incomplete {name} read")
+                registers[name] = words[0]
+            if registers["cpuid"] & 0xFF00FFF0 != 0x4100C240:
+                raise RuntimeError(f"Expected Cortex-M4 CPUID, read 0x{registers['cpuid']:08X}; verify target and debug access")
+            cfsr = registers["cfsr"]
+            for name, address, valid in (
+                ("mmfar", 0xE000ED34, cfsr & (1 << 7)),
+                ("bfar", 0xE000ED38, cfsr & (1 << 15)),
+            ):
+                if valid:
+                    registers[name] = self.jlink.memory_read32(address, 1)[0]
+            dhcsr = registers["dhcsr"]
+            exception = registers["icsr"] & 0x1FF
+            observation.update(retired=bool(dhcsr & (1 << 24)),
+                               reset_observed=bool(dhcsr & (1 << 25)),
+                               active_exception=exception)
+            if dhcsr & (1 << 19):
+                state, cause, crashed = "lockup", "CPU lockup", True
+            elif dhcsr & (1 << 17):
+                state, cause, crashed = "halted", "Unexpected debug halt", False
+            elif cfsr or registers["hfsr"] or exception in (3, 4, 5, 6):
+                state, cause, crashed = "fault", "Fault evidence observed; recovery not established", False
+            elif dhcsr & (1 << 25):
+                state, cause, crashed = "reset", "Reset observed; cause and input attribution unconfirmed", False
+            else:
+                state = "sleeping" if dhcsr & (1 << 18) else "running"
+                cause, crashed = None, False
+            observation.update(state=state, stop_reason=cause, crashed=crashed)
+        except Exception as exc:
+            observation["stop_reason"] = f"Core monitoring unavailable: {exc}"
+        observation["sample_ended"] = time.monotonic()
+        return observation
 
     def _reset_impl(self, device: Device) -> bool:
         if self.jlink:

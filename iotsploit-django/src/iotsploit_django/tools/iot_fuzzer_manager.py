@@ -605,7 +605,10 @@ class IoTFuzzerManager:
                     last_reported_execs = execs_done
                 time.sleep(0.1)
 
-            orchestrator_adapter.stop()
+            final_detail = monitor_adapter.get_statistics() or {}
+            self.update_campaign_state(campaign_id, final_detail)
+            if getattr(orchestrator_adapter, "failure", None):
+                raise RuntimeError(orchestrator_adapter.failure)
             self.update_campaign_state(
                 campaign_id,
                 {

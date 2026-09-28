@@ -13,6 +13,30 @@ from iotsploit_django.tools.iot_protocol_components import (
 logger = logging.getLogger(__name__)
 
 
+class SelectedCaseGenerator:
+    """Feed selected case mutations into the single protocol execution loop."""
+    def __init__(self, engine, cases):
+        from iotsploit_fuzzer.core.fuzzing_engine import FuzzTestCase
+        from iotsploit_django.tools.frame_utils import frame_data_from_fields
+        self.payloads = []
+        for case in cases:
+            source = FuzzTestCase(str(case["id"]), case["name"], case["protocol_type"],
+                                 frame_data_from_fields(case.get("frame_fields", [])),
+                                 case.get("frame_fields", []), case.get("fuzzing_rules", []),
+                                 case.get("target_bits"))
+            mutations = engine.generate_mutations([source], iterations=int(case.get("iterations", 100)))
+            self.payloads.extend(m.mutated_data for batch in mutations.values() for m in batch)
+        if not self.payloads:
+            raise ValueError("Selected cases generated no executable payloads")
+        self.total = len(self.payloads)
+
+    def seed_corpus(self):
+        return self.payloads[:1]
+
+    def generate(self, seeds, total):
+        yield from self.payloads[:total]
+
+
 class OrchestratorAdapter:
     """
     Adapter for iotsploit_fuzzer orchestrator component
@@ -26,6 +50,11 @@ class OrchestratorAdapter:
         self.orchestrator = None
         self.is_running = False
 
+        self.protocol_interface = None
+        self.core_driver = None
+        self.core_device = None
+        self.failure = None
+
         # Store fuzzing engine if provided
         self.fuzzing_engine = campaign_config.get('fuzzing_engine')
         if self.fuzzing_engine:
@@ -38,7 +67,7 @@ class OrchestratorAdapter:
         """Initialize fuzzer components"""
         if not self.fuzzer_available:
             logger.warning("iotsploit_fuzzer not available, using mock implementation")
-            self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+            self._use_mock()
             return
 
         try:
@@ -53,38 +82,41 @@ class OrchestratorAdapter:
 
             logger.info("Initializing real fuzzer components")
 
-            # Create generator
-            generator_config = self.campaign_config.get('generator_config', {})
-            generator_type = generator_config.get('generator_type', 'radamsa')
-
-            if generator_type == 'radamsa':
-                radamsa_path = PathResolver().resolve_tool_path("radamsa")
-
-                if radamsa_path:
-                    generator = RadamsaGenerator(radamsa_path=radamsa_path)
-                    # Set up default seed corpus for CAN fuzzing
-                    default_seeds = [
-                        b"\x00\x01\x02\x03\x04\x05\x06\x07",  # Basic CAN frame
-                        b"\x02\x01\x00",                       # UDS DiagnosticSessionControl
-                        b"\x10\x01",                           # UDS DiagnosticSessionControl (default)
-                        b"\x10\x02",                           # UDS DiagnosticSessionControl (programming)
-                        b"\x10\x03",                           # UDS DiagnosticSessionControl (extended)
-                        b"\x11\x01",                           # UDS ECU Reset (hard reset)
-                        b"\x27\x01",                           # UDS SecurityAccess (request seed)
-                        b"\x3E\x00",                           # UDS TesterPresent
-                        b"\x22\xF1\x90",                       # UDS ReadDataByIdentifier
-                        b"\x2E\xF1\x90\x00\x01\x02\x03",     # UDS WriteDataByIdentifier
-                    ]
-                    generator.seed_corpus = lambda: default_seeds
-                    logger.info(f"Using radamsa at: {radamsa_path} with {len(default_seeds)} seed templates")
-                else:
-                    logger.warning("Radamsa not found, falling back to mock")
-                    self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
-                    return
+            if self.fuzzing_engine:
+                generator = SelectedCaseGenerator(self.fuzzing_engine, self.campaign_config["test_cases"])
             else:
-                logger.warning(f"Unsupported generator type: {generator_type}, using mock")
-                self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
-                return
+                # Create generator
+                generator_config = self.campaign_config.get('generator_config', {})
+                generator_type = generator_config.get('generator_type', 'radamsa')
+
+                if generator_type == 'radamsa':
+                    radamsa_path = PathResolver().resolve_tool_path("radamsa")
+
+                    if radamsa_path:
+                        generator = RadamsaGenerator(radamsa_path=radamsa_path)
+                        # Set up default seed corpus for CAN fuzzing
+                        default_seeds = [
+                            b"\x00\x01\x02\x03\x04\x05\x06\x07",  # Basic CAN frame
+                            b"\x02\x01\x00",                       # UDS DiagnosticSessionControl
+                            b"\x10\x01",                           # UDS DiagnosticSessionControl (default)
+                            b"\x10\x02",                           # UDS DiagnosticSessionControl (programming)
+                            b"\x10\x03",                           # UDS DiagnosticSessionControl (extended)
+                            b"\x11\x01",                           # UDS ECU Reset (hard reset)
+                            b"\x27\x01",                           # UDS SecurityAccess (request seed)
+                            b"\x3E\x00",                           # UDS TesterPresent
+                            b"\x22\xF1\x90",                       # UDS ReadDataByIdentifier
+                            b"\x2E\xF1\x90\x00\x01\x02\x03",     # UDS WriteDataByIdentifier
+                        ]
+                        generator.seed_corpus = lambda: default_seeds
+                        logger.info(f"Using radamsa at: {radamsa_path} with {len(default_seeds)} seed templates")
+                    else:
+                        logger.warning("Radamsa not found, falling back to mock")
+                        self._use_mock()
+                        return
+                else:
+                    logger.warning(f"Unsupported generator type: {generator_type}, using mock")
+                    self._use_mock()
+                    return
 
             # Create harness based on protocol type
             protocol_config = self.campaign_config.get('protocol_config', {})
@@ -130,16 +162,45 @@ class OrchestratorAdapter:
                 harness = SPIHarness(interface)
             else:
                 logger.warning(f"Unsupported protocol type: {protocol_type}, using mock")
-                self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+                self._use_mock()
                 return
+
+            self.protocol_interface = interface
+            core_config = self.campaign_config.get("core_monitor")
+            if core_config is not None:
+                from iotsploit_drivers.jlink.drv_jlink import JLinkAbility
+                from iotsploit_core.domain.device import Device, DeviceType
+                from iotsploit_fuzzer.harnesses.jtag_harness import JtagHarness
+                serial = str(core_config.get("probe_serial", ""))
+                if not serial.isdigit() or int(serial) <= 0:
+                    raise ValueError("A J-Link probe serial is required")
+                if core_config.get("target_device") != "NRF52840_XXAA":
+                    raise ValueError("Core monitor target must be NRF52840_XXAA")
+                self.core_device = Device(device_id=f"jlink_{serial}", name="Campaign J-Link",
+                    device_type=DeviceType.JTAG,
+                    attributes={"emulator_sn": serial, "target_device": "NRF52840_XXAA", "interface": "swd"})
+                self.core_driver = JLinkAbility()
+                self.core_driver.initialize(self.core_device)
+                harness = JtagHarness(harness, lambda: self.core_driver.core_status(self.core_device),
+                                      core_config.get("settle_ms", 20))
+                baseline = harness.check()
+                # The first reset indication describes time before this campaign.
+                # Consume it here, before any case, and require a usable second sample.
+                if baseline["state"] == "reset":
+                    baseline = harness.check()
+                self._handle_fuzzer_event("core_status", {"core_observation": baseline})
+                if baseline["stop_reason"]:
+                    raise RuntimeError(f"MCU preflight failed: {baseline['stop_reason']}")
 
             # Create monitor and logger (pluggable by protocol)
             self.monitor = create_monitor(protocol_type, self.campaign_config.get('monitoring'))
             logger_backend = TestLogger()
+            if self.campaign_config.get("campaign_id"):
+                logger_backend.campaign_id = self.campaign_config["campaign_id"]
 
             # Create campaign config with event callback
             campaign_config = CampaignConfig(
-                iterations=self.campaign_config.get('iterations_total', 1000),
+                iterations=generator.total if isinstance(generator, SelectedCaseGenerator) else self.campaign_config.get('iterations_total', 1000),
                 delay=self.campaign_config.get('delay', 0.1),
                 save_crashes=True,
                 event_callback=self._handle_fuzzer_event
@@ -157,11 +218,32 @@ class OrchestratorAdapter:
             logger.info("Real fuzzer components initialized successfully")
 
         except ImportError as e:
+            self._close_resources()
+            if self.campaign_config.get("core_monitor") is not None:
+                raise
             logger.warning(f"Failed to import fuzzer module: {e}, using mock implementation")
-            self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+            self._use_mock()
         except Exception as e:
+            self._close_resources()
+            if self.campaign_config.get("core_monitor") is not None:
+                raise
             logger.error(f"Error initializing fuzzer components: {e}, using mock implementation")
-            self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+            self._use_mock()
+
+    def _use_mock(self):
+        if self.campaign_config.get("core_monitor") is not None:
+            raise RuntimeError("Monitored campaigns require real generator and protocol hardware; mock fallback disabled")
+        self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+
+    def _close_resources(self):
+        try:
+            if self.core_driver is not None:
+                self.core_driver.close(self.core_device)
+                self.core_driver = None
+        finally:
+            if self.protocol_interface is not None:
+                self.protocol_interface.close()
+                self.protocol_interface = None
 
     def start(self):
         """Start fuzzing campaign"""
@@ -181,90 +263,23 @@ class OrchestratorAdapter:
     def _run_campaign(self):
         """Run the actual fuzzing campaign"""
         try:
-            if self.fuzzing_engine:
-                # Use fuzzing engine if available
-                logger.info("Running campaign with fuzzing engine")
-                self._run_with_fuzzing_engine()
-            elif self.orchestrator:
-                # Use traditional orchestrator
+            if self.orchestrator:
                 self.orchestrator.run()
-            else:
-                logger.warning("No fuzzing engine or orchestrator available")
         except Exception as e:
+            self.failure = str(e)
             logger.error(f"Error during fuzzing campaign: {e}")
         finally:
-            self.is_running = False
-
-    def _run_with_fuzzing_engine(self):
-        """Run campaign using the fuzzing engine"""
-        try:
-            if not self.fuzzing_engine:
-                logger.error("No fuzzing engine available")
-                return
-
-            # Get test cases from campaign config
-            test_cases = self.campaign_config.get('test_cases', [])
-            if not test_cases:
-                logger.warning("No test cases provided for fuzzing engine")
-                return
-
-            logger.info(f"Starting fuzzing engine with {len(test_cases)} test cases")
-
-            # Execute mutations using fuzzing engine
-            for test_case in test_cases:
-                try:
-                    # Generate mutations for this test case
-                    mutations = self.fuzzing_engine.generate_mutations(
-                        test_case,
-                        iterations=test_case.get('iterations', 100)
-                    )
-
-                    # Execute each mutation
-                    for mutation in mutations:
-                        self._execute_mutation(mutation, test_case)
-
-                except Exception as e:
-                    logger.error(f"Error processing test case {test_case.get('id', 'unknown')}: {e}")
-                    continue
-
-            logger.info("Fuzzing engine campaign completed")
-
-        except Exception as e:
-            logger.error(f"Error in fuzzing engine campaign: {e}")
-
-    def _execute_mutation(self, mutation: Dict[str, Any], test_case: Dict[str, Any]):
-        """Execute a single mutation"""
-        try:
-            # Extract mutation data
-            original_payload = mutation.get('original', '')
-            mutated_payload = mutation.get('mutated', '')
-            strategy_used = mutation.get('strategy', 'unknown')
-            target_bits = mutation.get('target_bits', '')
-
-            # Log mutation execution
-            logger.debug(f"Executing mutation: {strategy_used} -> {target_bits}")
-
-            # Here you would send the mutated payload to the target
-            # For now, we'll just log the execution
-            logger.info(f"Mutation executed for test case {test_case.get('id')}: {strategy_used}")
-
-            # Emit event for mutation execution
-            self._handle_fuzzer_event('mutation_executed', {
-                'test_case_id': test_case.get('id'),
-                'mutation_type': strategy_used,
-                'target_bits': target_bits,
-                'original_payload': original_payload,
-                'mutated_payload': mutated_payload
-            })
-
-        except Exception as e:
-            logger.error(f"Error executing mutation: {e}")
+            try:
+                self._close_resources()
+            finally:
+                self.is_running = False
 
     def stop(self):
         """Stop fuzzing campaign"""
         if self.orchestrator:
             self.orchestrator.stop()
-            self.is_running = False
+            if hasattr(self, "fuzzer_thread"):
+                self.fuzzer_thread.join(timeout=5)
             logger.info("Real orchestrator stopped")
         elif self.fuzzer_instance:
             self.fuzzer_instance.stop()
@@ -345,6 +360,7 @@ class OrchestratorAdapter:
                 'test_case_started': 'test_case_update',
                 'test_case_completed': 'test_case_update',
                 'crash_detected': 'crash_alert',
+                'core_status': 'core_status',
                 'statistics_update': 'statistics_update',
                 'progress_update': 'progress_update',
             }
@@ -365,6 +381,15 @@ class OrchestratorAdapter:
                     'is_running': self.orchestrator.is_running() if self.orchestrator else False,
                     'is_paused': self.orchestrator.is_paused() if self.orchestrator else False,
                     'status': self._get_campaign_status()
+                })
+
+            if enhanced_data["event_type"] in ("campaign_stopped", "campaign_completed"):
+                enhanced_data["is_running"] = False
+
+            if enhanced_data.get("core_observation") is not None:
+                from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager
+                IoTFuzzerManager.get_instance().update_campaign_state(campaign_id, {
+                    "core_observation": enhanced_data["core_observation"],
                 })
 
             # Emit event to Django WebSocket system
@@ -438,7 +463,7 @@ class MonitorAdapter:
             return {
                 'cycles_done': stats.get('current_iteration', 0) or 0,
                 'execs_done': stats.get('total_cases', 0) or 0,
-                'saved_crashes': stats.get('crash_count', 0) or 0,
+                'saved_crashes': stats.get('crashes', 0) or 0,
                 'is_running': getattr(self.orchestrator_adapter, 'is_running', False)
             }
         elif self.monitor_instance:
@@ -470,9 +495,9 @@ class MonitorAdapter:
                 'pending_total': stats.get('pending_total', 0),
                 'pending_favs': stats.get('pending_favs', 0),
                 'bitmap_cvg': stats.get('bitmap_cvg', 0.0),
-                'saved_crashes': stats.get('crash_count', 0),
+                'saved_crashes': stats.get('crashes', 0),
                 'saved_hangs': stats.get('hang_count', 0),
-                'total_tmout': stats.get('timeout_count', 0),
+                'total_tmout': stats.get('timeouts', 0),
                 'run_time': stats.get('run_time', 0),
             }
         elif self.monitor_instance:
