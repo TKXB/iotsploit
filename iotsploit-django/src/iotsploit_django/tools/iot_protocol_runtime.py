@@ -243,7 +243,7 @@ class OrchestratorAdapter:
                 if not 100 <= boot_timeout_ms <= 30000:
                     raise ValueError("boot_timeout_ms must be between 100 and 30000")
                 self.core_device = Device(device_id=f"jlink_{serial}", name="Campaign J-Link",
-                    device_type=DeviceType.JTAG,
+                    device_type=DeviceType.USB,
                     attributes={"emulator_sn": serial, "target_device": target_device, "interface": "swd"})
                 self.core_driver = JLinkAbility()
                 self.core_driver.initialize(self.core_device)

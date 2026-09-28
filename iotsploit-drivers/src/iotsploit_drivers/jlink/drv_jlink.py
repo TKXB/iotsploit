@@ -173,7 +173,7 @@ class JLinkAbility(BaseDeviceDriver):
             device = Device(
                 device_id=f"jlink_{sn}",
                 name=f"J-Link ({sn})",
-                device_type=DeviceType.JTAG,
+                device_type=DeviceType.USB,
                 attributes={
                     "emulator_sn": sn,
                     "target_device": "STM32F407VG",

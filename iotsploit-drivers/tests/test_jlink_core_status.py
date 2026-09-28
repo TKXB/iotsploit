@@ -3,9 +3,27 @@ from types import SimpleNamespace
 
 import pytest
 
+from iotsploit_core.domain.device import DeviceType
+from iotsploit_drivers.jlink import drv_jlink
 from iotsploit_drivers.jlink.drv_jlink import JLinkAbility
 
 pytestmark = pytest.mark.unit
+
+
+def test_scan_classifies_jlink_probe_as_usb(monkeypatch):
+    probe = SimpleNamespace(
+        connected_emulators=lambda: [SimpleNamespace(SerialNumber=1050298903)]
+    )
+    monkeypatch.setattr(drv_jlink.pylink, "JLink", lambda lib: probe, raising=False)
+    driver = object.__new__(JLinkAbility)
+    driver._sdk_available = True
+    driver._jlink_lib = object()
+    driver.connected_emulators = []
+
+    devices = driver._scan_impl()
+
+    assert devices[0].device_type is DeviceType.USB
+    assert devices[0].attributes["emulator_sn"] == "1050298903"
 
 
 @pytest.mark.parametrize("dhcsr,state", [(1 << 24, "running"), (1 << 18, "sleeping"),
