@@ -8,6 +8,7 @@ from django.test import TestCase
 
 
 IOT_FUZZER_HTTP_ROUTES = {
+    "iot_fuzzer_check_mcu_core": "iot-fuzzer/monitors/mcu-core/check/",
     "iot_fuzzer_start_campaign": "iot-fuzzer/testing/campaign/start/",
     "iot_fuzzer_stop_campaign": "iot-fuzzer/testing/campaign/stop/",
     "iot_fuzzer_pause_campaign": "iot-fuzzer/testing/campaign/pause/",

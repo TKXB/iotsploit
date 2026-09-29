@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import patch
 
 import django
 import pytest
@@ -12,7 +13,11 @@ if not apps.ready:
 
 from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingCampaign  # noqa: E402
 from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager  # noqa: E402
-from iotsploit_django.tools.iot_protocol_runtime import CoreObservationRecorder  # noqa: E402
+from iotsploit_django.tools.iot_protocol_runtime import (  # noqa: E402
+    CoreMonitorSession,
+    CoreObservationRecorder,
+    CoreProbeBusyError,
+)
 from iotsploit_core.domain.observation import StartedScan  # noqa: E402
 
 pytestmark = [pytest.mark.django, pytest.mark.integration]
@@ -83,3 +88,16 @@ def test_core_failure_is_recorded_in_target_history():
     assert sink.completed[0][1][0].value == observation
     assert sink.completed[0][2] is False
     assert sink.failed == []
+
+
+def test_core_monitor_session_exclusively_owns_probe_serial():
+    config = {"probe_serial": "1050298903", "target_device": "NRF52840_XXAA"}
+    first = CoreMonitorSession(config, owner="campaign one")
+    second = CoreMonitorSession(config, owner="manual check")
+    with patch("iotsploit_drivers.jlink.drv_jlink.JLinkAbility"):
+        first.open()
+        with pytest.raises(CoreProbeBusyError, match="campaign one"):
+            second.open()
+        first.close()
+        second.open()
+        second.close()

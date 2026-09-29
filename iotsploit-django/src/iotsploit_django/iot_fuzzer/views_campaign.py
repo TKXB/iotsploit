@@ -3,17 +3,76 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpRequest
 import json
 import logging
+import uuid
 
 from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerManager,
 )
 from iotsploit_django.iot_fuzzer.http import method_not_allowed, parse_json_body
+from iotsploit_django.tools.iot_protocol_runtime import (
+    CoreMonitorSession,
+    CoreObservationRecorder,
+    CoreProbeBusyError,
+)
 
 # Import Django models
 
 logger = logging.getLogger(__name__)
 
 # Campaign Control Endpoints
+
+@csrf_exempt
+def check_mcu_core(request: HttpRequest):
+    """Read the configured MCU core once without starting a campaign."""
+    if request.method != "POST":
+        return method_not_allowed("POST")
+    try:
+        data = parse_json_body(request)
+        if not isinstance(data, dict):
+            return JsonResponse(
+                {"status": "error", "message": "Invalid JSON format: expected object"},
+                status=400,
+            )
+        session = CoreMonitorSession(
+            data.get("monitor", data),
+            owner=f"manual check {uuid.uuid4()}",
+        )
+    except json.JSONDecodeError:
+        return JsonResponse({"status": "error", "message": "Invalid JSON format"}, status=400)
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+
+    try:
+        session.open()
+        observation = session.observe()
+        if session.target_id:
+            try:
+                from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+                recorder = CoreObservationRecorder(
+                    ObservationRepository(),
+                    campaign_id=f"manual-{uuid.uuid4()}",
+                    target_id=session.target_id,
+                    target=session.target_device,
+                    probe_serial=session.serial,
+                )
+                recorder.observe(observation)
+                recorder.finish()
+            except Exception as exc:
+                logger.warning("Core target-history recording unavailable: %s", exc)
+        return JsonResponse({
+            "status": "success",
+            "monitor": {"id": "mcu-core", "kind": "mcu_core", "observation": observation},
+        })
+    except CoreProbeBusyError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=409)
+    except Exception as exc:
+        logger.error("MCU core check failed: %s", exc)
+        return JsonResponse(
+            {"status": "error", "message": f"MCU core check failed: {exc}"},
+            status=503,
+        )
+    finally:
+        session.close()
 
 @csrf_exempt
 def start_campaign(request: HttpRequest):

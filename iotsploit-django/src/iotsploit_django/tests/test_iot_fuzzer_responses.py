@@ -19,6 +19,7 @@ from iotsploit_django.iot_fuzzer import views_results
 
 
 ENDPOINT_METHODS = {
+    "check_mcu_core": "POST",
     "start_campaign": "POST",
     "stop_campaign": "POST",
     "pause_campaign": "POST",
@@ -162,6 +163,45 @@ class TestIoTFuzzerCampaignResponses(SimpleTestCase):
             self.payload(response),
             {"status": "error", "message": "Campaign ID is required"},
         )
+
+    def test_manual_mcu_check_returns_observation_and_closes_probe(self):
+        session = Mock()
+        session.target_id = ""
+        session.observe.return_value = {"state": "running", "crashed": False}
+        with patch.object(views_campaign, "CoreMonitorSession", return_value=session):
+            response = views.check_mcu_core(
+                self.factory.post(
+                    "/",
+                    data=json.dumps({"monitor": {
+                        "probe_serial": "1050298903",
+                        "target_device": "NRF52840_XXAA",
+                    }}),
+                    content_type="application/json",
+                )
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.payload(response)["monitor"]["observation"]["state"], "running")
+        session.open.assert_called_once_with()
+        session.observe.assert_called_once_with()
+        session.close.assert_called_once_with()
+
+    def test_manual_mcu_check_reports_busy_probe_and_closes_session(self):
+        session = Mock()
+        session.open.side_effect = views_campaign.CoreProbeBusyError("probe is busy")
+        with patch.object(views_campaign, "CoreMonitorSession", return_value=session):
+            response = views.check_mcu_core(
+                self.factory.post(
+                    "/",
+                    data=json.dumps({
+                        "probe_serial": "1050298903",
+                        "target_device": "NRF52840_XXAA",
+                    }),
+                    content_type="application/json",
+                )
+            )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.payload(response), {"status": "error", "message": "probe is busy"})
+        session.close.assert_called_once_with()
 
     def test_files_tree_never_lists_a_path_from_the_query(self):
         service = Mock()

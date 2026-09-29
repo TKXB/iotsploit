@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from typing import Dict, Any
 import time
@@ -11,6 +12,102 @@ from iotsploit_django.tools.iot_protocol_components import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class CoreProbeBusyError(RuntimeError):
+    """Raised when another monitor session owns the requested probe."""
+
+
+_core_probe_owners: dict[str, str] = {}
+_core_probe_owners_lock = threading.Lock()
+
+
+class CoreMonitorSession:
+    """Own validation, probe access, and J-Link core-monitor operations."""
+
+    def __init__(self, config: dict, *, owner: str):
+        if not isinstance(config, dict):
+            raise ValueError("core_monitor must be an object")
+        self.serial = str(config.get("probe_serial", "")).strip()
+        if not self.serial.isdigit() or int(self.serial) <= 0:
+            raise ValueError("A J-Link probe serial is required")
+        self.target_device = config.get("target_device")
+        if self.target_device not in ("NRF52840_XXAA", "NRF5340_XXAA_APP"):
+            raise ValueError("Core monitor target is not supported")
+        self.recovery_policy = config.get("recovery_policy", "stop")
+        if self.recovery_policy not in ("stop", "reset_continue"):
+            raise ValueError("Core monitor recovery_policy is invalid")
+        prefixes = config.get("expected_reset_prefixes", [])
+        if not isinstance(prefixes, list):
+            raise ValueError("expected_reset_prefixes must be a list of hexadecimal strings")
+        try:
+            self.expected_reset_prefixes = tuple(bytes.fromhex(value) for value in prefixes)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("expected_reset_prefixes must contain hexadecimal strings") from exc
+        if any(not value for value in self.expected_reset_prefixes):
+            raise ValueError("expected_reset_prefixes cannot contain an empty prefix")
+        self.boot_timeout_ms = int(config.get("boot_timeout_ms", 5000))
+        if not 100 <= self.boot_timeout_ms <= 30000:
+            raise ValueError("boot_timeout_ms must be between 100 and 30000")
+        self.settle_ms = int(config.get("settle_ms", 20))
+        self.max_recoveries = int(config.get("max_recoveries", 3))
+        self.target_id = str(config.get("target_id", "")).strip()
+        self.owner = owner
+        self.driver = None
+        self.device = None
+        self._owns_probe = False
+
+    def open(self) -> None:
+        with _core_probe_owners_lock:
+            current_owner = _core_probe_owners.get(self.serial)
+            if current_owner is not None:
+                raise CoreProbeBusyError(f"J-Link probe {self.serial} is in use by {current_owner}")
+            _core_probe_owners[self.serial] = self.owner
+            self._owns_probe = True
+        try:
+            from iotsploit_core.domain.device import Device, DeviceType
+            from iotsploit_drivers.jlink.drv_jlink import JLinkAbility
+            self.device = Device(
+                device_id=f"jlink_{self.serial}",
+                name="J-Link Core Monitor",
+                device_type=DeviceType.USB,
+                attributes={
+                    "emulator_sn": self.serial,
+                    "target_device": self.target_device,
+                    "interface": "swd",
+                },
+            )
+            self.driver = JLinkAbility()
+            self.driver.initialize(self.device)
+        except Exception:
+            self.close()
+            raise
+
+    def observe(self) -> dict:
+        return self.driver.core_status(self.device)
+
+    def snapshot(self) -> dict:
+        return self.driver.fault_snapshot(self.device)
+
+    def recover(self, expected: bool) -> dict:
+        return self.driver.recover_target(
+            self.device,
+            reset=not expected,
+            timeout_ms=self.boot_timeout_ms,
+        )
+
+    def close(self) -> None:
+        try:
+            if self.driver is not None:
+                self.driver.close(self.device)
+        finally:
+            self.driver = None
+            self.device = None
+            if self._owns_probe:
+                with _core_probe_owners_lock:
+                    if _core_probe_owners.get(self.serial) == self.owner:
+                        del _core_probe_owners[self.serial]
+                self._owns_probe = False
 
 
 class CoreObservationRecorder:
@@ -98,8 +195,7 @@ class OrchestratorAdapter:
         self.is_running = False
 
         self.protocol_interface = None
-        self.core_driver = None
-        self.core_device = None
+        self.core_session = None
         self.core_observation_recorder = None
         self.failure = None
 
@@ -216,52 +312,23 @@ class OrchestratorAdapter:
             self.protocol_interface = interface
             core_config = self.campaign_config.get("core_monitor")
             if core_config is not None:
-                if not isinstance(core_config, dict):
-                    raise ValueError("core_monitor must be an object")
-                from iotsploit_drivers.jlink.drv_jlink import JLinkAbility
-                from iotsploit_core.domain.device import Device, DeviceType
                 from iotsploit_fuzzer.harnesses.jtag_harness import JtagHarness
-                serial = str(core_config.get("probe_serial", ""))
-                if not serial.isdigit() or int(serial) <= 0:
-                    raise ValueError("A J-Link probe serial is required")
-                target_device = core_config.get("target_device")
-                if target_device not in ("NRF52840_XXAA", "NRF5340_XXAA_APP"):
-                    raise ValueError("Core monitor target is not supported")
-                recovery_policy = core_config.get("recovery_policy", "stop")
-                if recovery_policy not in ("stop", "reset_continue"):
-                    raise ValueError("Core monitor recovery_policy is invalid")
-                prefixes = core_config.get("expected_reset_prefixes", [])
-                if not isinstance(prefixes, list):
-                    raise ValueError("expected_reset_prefixes must be a list of hexadecimal strings")
-                try:
-                    expected_reset_prefixes = tuple(bytes.fromhex(value) for value in prefixes)
-                except (TypeError, ValueError) as exc:
-                    raise ValueError("expected_reset_prefixes must contain hexadecimal strings") from exc
-                if any(not value for value in expected_reset_prefixes):
-                    raise ValueError("expected_reset_prefixes cannot contain an empty prefix")
-                boot_timeout_ms = int(core_config.get("boot_timeout_ms", 5000))
-                if not 100 <= boot_timeout_ms <= 30000:
-                    raise ValueError("boot_timeout_ms must be between 100 and 30000")
-                self.core_device = Device(device_id=f"jlink_{serial}", name="Campaign J-Link",
-                    device_type=DeviceType.USB,
-                    attributes={"emulator_sn": serial, "target_device": target_device, "interface": "swd"})
-                self.core_driver = JLinkAbility()
-                self.core_driver.initialize(self.core_device)
+                self.core_session = CoreMonitorSession(
+                    core_config,
+                    owner=f"campaign {self.campaign_config['campaign_id']}",
+                )
+                self.core_session.open()
                 harness = JtagHarness(
                     harness,
-                    lambda: self.core_driver.core_status(self.core_device),
-                    core_config.get("settle_ms", 20),
-                    snapshot=lambda: self.core_driver.fault_snapshot(self.core_device),
-                    recover=lambda expected: self.core_driver.recover_target(
-                        self.core_device,
-                        reset=not expected,
-                        timeout_ms=boot_timeout_ms,
-                    ),
-                    recovery_policy=recovery_policy,
-                    max_recoveries=int(core_config.get("max_recoveries", 3)),
-                    expected_reset_prefixes=expected_reset_prefixes,
+                    self.core_session.observe,
+                    self.core_session.settle_ms,
+                    snapshot=self.core_session.snapshot,
+                    recover=self.core_session.recover,
+                    recovery_policy=self.core_session.recovery_policy,
+                    max_recoveries=self.core_session.max_recoveries,
+                    expected_reset_prefixes=self.core_session.expected_reset_prefixes,
                 )
-                target_id = str(core_config.get("target_id", "")).strip()
+                target_id = self.core_session.target_id
                 if target_id:
                     try:
                         from iotsploit_django.adapters.django.observation_repository import ObservationRepository
@@ -270,8 +337,8 @@ class OrchestratorAdapter:
                             ObservationRepository(),
                             campaign_id=self.campaign_config["campaign_id"],
                             target_id=target_id,
-                            target=target_device,
-                            probe_serial=serial,
+                            target=self.core_session.target_device,
+                            probe_serial=self.core_session.serial,
                         )
                     except Exception as exc:
                         logger.warning("Core target-history recording unavailable: %s", exc)
@@ -329,9 +396,9 @@ class OrchestratorAdapter:
 
     def _close_resources(self):
         try:
-            if self.core_driver is not None:
-                self.core_driver.close(self.core_device)
-                self.core_driver = None
+            if self.core_session is not None:
+                self.core_session.close()
+                self.core_session = None
         finally:
             if self.core_observation_recorder is not None:
                 try:
