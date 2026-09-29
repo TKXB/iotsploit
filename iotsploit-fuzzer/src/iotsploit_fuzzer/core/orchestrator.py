@@ -443,12 +443,8 @@ class Orchestrator:
         })
 
     def stop(self) -> None:
-        """Stop the fuzzing campaign"""
+        """Stop the fuzzing campaign; run() emits CAMPAIGN_STOPPED once it exits."""
         self._should_stop = True
-        self._emit_event(EventType.CAMPAIGN_STOPPED, {
-            'completed_iterations': self._current_iteration,
-            'protocol_type': self._protocol_type,
-        })
 
     def is_running(self) -> bool:
         """Check if the campaign is running"""

@@ -28,7 +28,59 @@ def test_scan_classifies_jlink_probe_as_usb(monkeypatch):
     assert devices[0].device_type is DeviceType.USB
     assert devices[0].name == "J-Link OB-nRF5340-NordicSemi (1050298903)"
     assert devices[0].attributes["emulator_sn"] == "1050298903"
-    assert devices[0].attributes["recommended_target"] == "NRF5340_XXAA_APP"
+    # The product names the probe's MCU; an nRF52840-DK reports this nRF5340 probe.
+    assert "target_device" not in devices[0].attributes
+
+
+def test_initialize_without_target_never_opens_the_probe(monkeypatch):
+    monkeypatch.setattr(drv_jlink.pylink, "JLink", lambda **kwargs: pytest.fail("probe opened"),
+                        raising=False)
+    driver = object.__new__(JLinkAbility)
+    driver._sdk_available = True
+    driver._jlink_lib = object()
+    device = SimpleNamespace(name="J-Link", attributes={"emulator_sn": "1050298903"})
+
+    with pytest.raises(ValueError, match="explicit target_device"):
+        driver._initialize_impl(device)
+
+
+def test_secured_target_is_reported_and_probe_released(monkeypatch):
+    closed = []
+    decline = object()
+    monkeypatch.setattr(drv_jlink.pylink, "enums", SimpleNamespace(
+        JLinkFlags=SimpleNamespace(DLG_BUTTON_NO=decline),
+        JLinkInterfaces=SimpleNamespace(SWD="swd"),
+    ), raising=False)
+
+    class SecuredProbe:
+        def __init__(self, lib, unsecure_hook):
+            self.unsecure_hook = unsecure_hook
+
+        def open(self, serial_no):
+            pass
+
+        def set_tif(self, interface):
+            pass
+
+        def connect(self, target):
+            answer = self.unsecure_hook(b"J-Link", b"CTRL-AP indicates that the device is secured.", 0)
+            assert answer is decline
+            raise RuntimeError("Unspecified error.")
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(drv_jlink.pylink, "JLink", SecuredProbe, raising=False)
+    driver = object.__new__(JLinkAbility)
+    driver._sdk_available = True
+    driver._jlink_lib = object()
+    device = SimpleNamespace(name="J-Link", attributes={
+        "emulator_sn": "1050298903", "target_device": "NRF52840_XXAA", "interface": "swd"})
+
+    with pytest.raises(RuntimeError, match="readback-protected"):
+        driver._initialize_impl(device)
+    assert closed == [True]
+    assert driver.jlink is None
 
 
 @pytest.mark.parametrize("dhcsr,state", [(1 << 24, "running"), (1 << 18, "sleeping"),
@@ -51,6 +103,33 @@ def test_core_register_classification(dhcsr, state):
     assert reads.count(0xE000EDF0) == 1
     assert result["crashed"] is (state == "lockup")
     assert result["sample_ended"] >= result["sample_started"]
+
+
+def test_core_halted_inside_hardfault_is_a_fault_not_a_debug_halt():
+    # Measured on an nRF52840 whose locked-up core J-Link halted on connect.
+    values = {0xE000ED00: 0x410FC241, 0xE000EDF0: 0x00030003, 0xE000ED04: 0x803,
+              0xE000ED28: 0x1001, 0xE000ED2C: 0x40000000}
+    driver = object.__new__(JLinkAbility)
+    driver.jlink = SimpleNamespace(memory_read32=lambda address, count: [values.get(address, 0)])
+    device = SimpleNamespace(attributes={"target_device": "NRF52840_XXAA", "emulator_sn": "123"})
+
+    result = driver.core_status(device)
+
+    assert result["state"] == "fault"
+    assert "instruction access violation" in result["stop_reason"]
+
+
+def test_handled_fault_bits_without_active_handler_are_evidence_only():
+    values = {0xE000ED00: 0x410FC241, 0xE000EDF0: 1 << 24, 0xE000ED28: 1 << 25}
+    driver = object.__new__(JLinkAbility)
+    driver.jlink = SimpleNamespace(memory_read32=lambda address, count: [values.get(address, 0)])
+    device = SimpleNamespace(attributes={"target_device": "NRF52840_XXAA", "emulator_sn": "123"})
+
+    result = driver.core_status(device)
+
+    assert result["state"] == "running"
+    assert result["stop_reason"] is None
+    assert result["fault_causes"] == ["divide by zero"]
 
 
 def test_invalid_cpuid_is_unavailable_not_running():
@@ -96,10 +175,15 @@ def test_nrf5340_uses_application_core_profile():
     assert 0x40005400 in reads
 
 
-def test_fault_snapshot_captures_stacked_exception_context():
-    names = [f"R{index}" for index in range(16)] + ["XPSR", "MSP", "PSP", "CONTROL"]
+# 0xFFFFFFED: floating-point extended frame; R0-xPSR still sit at the stack pointer.
+@pytest.mark.parametrize("exc_return", [0xFFFFFFFD, 0xFFFFFFED])
+def test_fault_snapshot_captures_stacked_exception_context(exc_return):
+    # Names exactly as the J-Link DLL lists them for a Cortex-M4.
+    names = [f"R{index}" for index in range(13)] + [
+        "R13 (SP)", "R14", "R15 (PC)", "XPSR", "MSP", "PSP", "CONTROL"
+    ]
     registers = dict.fromkeys(names, 0)
-    registers.update({"R14": 0xFFFFFFFD, "XPSR": 3, "PSP": 0x20000100})
+    registers.update({"R14": exc_return, "XPSR": 3, "PSP": 0x20000100})
     frame = [1, 2, 3, 4, 12, 0x08000111, 0x08000222, 0x21000000]
 
     def read(address, count):
@@ -112,6 +196,7 @@ def test_fault_snapshot_captures_stacked_exception_context():
     probe = SimpleNamespace(
         halt=lambda: None,
         halted=lambda: True,
+        # The DLL rejects any name it does not list.
         register_read_multiple=lambda requested: [registers[name] for name in requested],
         memory_read32=read,
     )

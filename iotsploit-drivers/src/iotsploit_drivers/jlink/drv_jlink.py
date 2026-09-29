@@ -174,21 +174,13 @@ class JLinkAbility(BaseDeviceDriver):
             if isinstance(product, bytes):
                 product = product.decode(errors="replace").rstrip("\x00")
             product = str(product).strip()
-            recommended_target = None
-            if "nRF5340" in product:
-                recommended_target = "NRF5340_XXAA_APP"
-            elif "nRF52840" in product:
-                recommended_target = "NRF52840_XXAA"
+            # The product names the probe's own MCU (an nRF52840-DK's on-board
+            # J-Link runs on an nRF5340), never the attached target.
             device = Device(
                 device_id=f"jlink_{sn}",
                 name=f"{product or 'J-Link'} ({sn})",
                 device_type=DeviceType.USB,
-                attributes={
-                    "emulator_sn": sn,
-                    "target_device": "STM32F407VG",
-                    "product": product,
-                    "recommended_target": recommended_target,
-                },
+                attributes={"emulator_sn": sn, "product": product},
             )
             devices.append(device)
             logger.info("Found J-Link emulator: SN=%s", sn)
@@ -205,19 +197,35 @@ class JLinkAbility(BaseDeviceDriver):
         emulator_sn = device.attributes.get("emulator_sn")
         if not emulator_sn:
             raise ValueError("Device is missing 'emulator_sn' attribute")
+        target_device = device.attributes.get("target_device")
+        if not target_device:
+            raise ValueError("J-Link needs an explicit target_device; a probe cannot identify its target")
 
-        self.jlink = pylink.JLink(lib=self._jlink_lib)
+        secured = []
+
+        def refuse_unsecure(title, msg, flags):
+            # Unsecuring mass-erases the target; record the request and decline.
+            secured.append(msg)
+            return pylink.enums.JLinkFlags.DLG_BUTTON_NO
+
+        self.jlink = pylink.JLink(lib=self._jlink_lib, unsecure_hook=refuse_unsecure)
         try:
             self.jlink.open(serial_no=int(emulator_sn))
         except Exception as exc:
             raise RuntimeError(f"Cannot open J-Link {emulator_sn}: {exc}") from exc
 
-        target_device = device.attributes.get("target_device", "STM32F407VG")
         try:
             if device.attributes.get("interface") == "swd":
                 self.jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
             self.jlink.connect(target_device)
         except Exception as exc:
+            self.jlink.close()
+            self.jlink = None
+            if secured:
+                raise RuntimeError(
+                    f"{target_device} is readback-protected (APPROTECT); debug access "
+                    "requires an unlock, which mass-erases its flash"
+                ) from exc
             raise RuntimeError(
                 f"Cannot connect J-Link {emulator_sn} to {target_device}: {exc}"
             ) from exc
@@ -314,13 +322,17 @@ class JLinkAbility(BaseDeviceDriver):
                                reset_observed=bool(dhcsr & (1 << 25)),
                                active_exception=exception,
                                fault_causes=fault_causes)
+            # An active fault handler outranks a halt: connecting to a locked-up
+            # core halts it inside its HardFault. Fault status bits with no
+            # active handler describe a fault firmware already handled; they
+            # stay in fault_causes as evidence.
             if dhcsr & (1 << 19):
                 state, cause, crashed = "lockup", "CPU lockup", True
-            elif dhcsr & (1 << 17):
-                state, cause, crashed = "halted", "Unexpected debug halt", False
-            elif cfsr or registers["hfsr"] or exception in (3, 4, 5, 6):
+            elif exception in _EXCEPTIONS:
                 details = ", ".join(fault_causes) or "unknown fault"
                 state, cause, crashed = "fault", f"Fault evidence observed: {details}", False
+            elif dhcsr & (1 << 17):
+                state, cause, crashed = "halted", "Unexpected debug halt", False
             elif dhcsr & (1 << 25):
                 state, cause, crashed = "reset", "Reset observed; cause and input attribution unconfirmed", False
             else:
@@ -346,9 +358,12 @@ class JLinkAbility(BaseDeviceDriver):
             self.jlink.halt()
             if not self.jlink.halted():
                 raise RuntimeError("Core did not halt")
-            names = [f"R{index}" for index in range(16)] + ["XPSR", "MSP", "PSP", "CONTROL"]
+            # J-Link register names; "R13 (SP)" and "R15 (PC)" are stored as r13/r15.
+            names = [f"R{index}" for index in range(13)] + [
+                "R13 (SP)", "R14", "R15 (PC)", "XPSR", "MSP", "PSP", "CONTROL"
+            ]
             values = self.jlink.register_read_multiple(names)
-            snapshot["registers"] = dict(zip((name.lower() for name in names), values))
+            snapshot["registers"] = dict(zip((name.split()[0].lower() for name in names), values))
 
             xpsr = snapshot["registers"]["xpsr"]
             exception = xpsr & 0x1FF
@@ -362,11 +377,13 @@ class JLinkAbility(BaseDeviceDriver):
                 snapshot["hfsr"] = hfsr
                 snapshot["fault_causes"] = _fault_causes(cfsr, hfsr, exception)
                 stacking_error = cfsr & ((1 << 3) | (1 << 4) | (1 << 11) | (1 << 12))
-                if not stacking_error:
+                if exc_return >> 24 != 0xFF:
+                    snapshot["stack_error"] = "LR no longer holds EXC_RETURN; exception frame unknown"
+                elif not stacking_error:
                     stack_name = "psp" if exc_return & (1 << 2) else "msp"
-                    stack_pointer = snapshot["registers"][stack_name]
-                    extended_frame = exc_return & (1 << 4) == 0
-                    basic_frame = stack_pointer + (18 * 4 if extended_frame else 0)
+                    # R0-xPSR sit at the bottom of both the basic and the
+                    # floating-point extended frame.
+                    basic_frame = snapshot["registers"][stack_name]
                     ram_start, ram_end = profile["ram"]
                     if ram_start <= basic_frame and basic_frame + 32 <= ram_end:
                         words = self.jlink.memory_read32(basic_frame, 8)

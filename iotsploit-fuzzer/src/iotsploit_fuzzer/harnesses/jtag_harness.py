@@ -65,14 +65,17 @@ class JtagHarness(ProtocolHarness):
         should_recover = expected_reset or self.recovery_policy == "reset_continue"
         if not should_recover or self.recover is None:
             return False
-        if self.recoveries >= self.max_recoveries:
-            observation["recovery"] = {
-                "recovered": False,
-                "error": f"Recovery limit of {self.max_recoveries} reached",
-            }
-            observation["stop_reason"] = observation["recovery"]["error"]
-            return False
-        self.recoveries += 1
+        # Expected resets are protocol behavior, not failures, so only
+        # failure recoveries count against the limit.
+        if not expected_reset:
+            if self.recoveries >= self.max_recoveries:
+                observation["recovery"] = {
+                    "recovered": False,
+                    "error": f"Recovery limit of {self.max_recoveries} reached",
+                }
+                observation["stop_reason"] = observation["recovery"]["error"]
+                return False
+            self.recoveries += 1
         try:
             recovery = self.recover(expected_reset)
         except Exception as exc:

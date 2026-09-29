@@ -179,6 +179,7 @@ def test_expected_reset_waits_for_readiness_without_failing_case():
         lambda: next(samples),
         settle_ms=0,
         recover=lambda expected: {"recovered": expected},
+        max_recoveries=0,  # expected resets must not consume the failure-recovery budget
         expected_reset_prefixes=(b"\x11\x01",),
     )
 
