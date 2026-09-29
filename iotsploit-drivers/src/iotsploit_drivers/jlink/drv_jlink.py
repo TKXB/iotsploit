@@ -170,13 +170,24 @@ class JLinkAbility(BaseDeviceDriver):
         devices: List[Device] = []
         for emu in self.connected_emulators:
             sn = str(emu.SerialNumber)
+            product = getattr(emu, "acProduct", b"")
+            if isinstance(product, bytes):
+                product = product.decode(errors="replace").rstrip("\x00")
+            product = str(product).strip()
+            recommended_target = None
+            if "nRF5340" in product:
+                recommended_target = "NRF5340_XXAA_APP"
+            elif "nRF52840" in product:
+                recommended_target = "NRF52840_XXAA"
             device = Device(
                 device_id=f"jlink_{sn}",
-                name=f"J-Link ({sn})",
+                name=f"{product or 'J-Link'} ({sn})",
                 device_type=DeviceType.USB,
                 attributes={
                     "emulator_sn": sn,
                     "target_device": "STM32F407VG",
+                    "product": product,
+                    "recommended_target": recommended_target,
                 },
             )
             devices.append(device)
@@ -196,12 +207,20 @@ class JLinkAbility(BaseDeviceDriver):
             raise ValueError("Device is missing 'emulator_sn' attribute")
 
         self.jlink = pylink.JLink(lib=self._jlink_lib)
-        self.jlink.open(serial_no=int(emulator_sn))
+        try:
+            self.jlink.open(serial_no=int(emulator_sn))
+        except Exception as exc:
+            raise RuntimeError(f"Cannot open J-Link {emulator_sn}: {exc}") from exc
 
         target_device = device.attributes.get("target_device", "STM32F407VG")
-        if device.attributes.get("interface") == "swd":
-            self.jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
-        self.jlink.connect(target_device)
+        try:
+            if device.attributes.get("interface") == "swd":
+                self.jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
+            self.jlink.connect(target_device)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Cannot connect J-Link {emulator_sn} to {target_device}: {exc}"
+            ) from exc
         logger.info("J-Link initialized: %s -> %s", device.name, target_device)
         return True
 

@@ -12,7 +12,10 @@ pytestmark = pytest.mark.unit
 
 def test_scan_classifies_jlink_probe_as_usb(monkeypatch):
     probe = SimpleNamespace(
-        connected_emulators=lambda: [SimpleNamespace(SerialNumber=1050298903)]
+        connected_emulators=lambda: [SimpleNamespace(
+            SerialNumber=1050298903,
+            acProduct=b"J-Link OB-nRF5340-NordicSemi",
+        )]
     )
     monkeypatch.setattr(drv_jlink.pylink, "JLink", lambda lib: probe, raising=False)
     driver = object.__new__(JLinkAbility)
@@ -23,7 +26,9 @@ def test_scan_classifies_jlink_probe_as_usb(monkeypatch):
     devices = driver._scan_impl()
 
     assert devices[0].device_type is DeviceType.USB
+    assert devices[0].name == "J-Link OB-nRF5340-NordicSemi (1050298903)"
     assert devices[0].attributes["emulator_sn"] == "1050298903"
+    assert devices[0].attributes["recommended_target"] == "NRF5340_XXAA_APP"
 
 
 @pytest.mark.parametrize("dhcsr,state", [(1 << 24, "running"), (1 << 18, "sleeping"),
