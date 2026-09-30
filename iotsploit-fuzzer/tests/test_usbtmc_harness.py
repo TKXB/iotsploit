@@ -1,9 +1,13 @@
 """Wire framing and failure evidence for the USBTMC execution owner."""
 import errno
 import struct
+from types import SimpleNamespace
 
 import pytest
 
+from iotsploit_fuzzer.analysis.logger import TestLogger
+from iotsploit_fuzzer.core.config import CampaignConfig, EventType
+from iotsploit_fuzzer.core.orchestrator import Orchestrator
 from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
 from iotsploit_fuzzer.interfaces.usbtmc_interface import resource_key
 
@@ -38,7 +42,12 @@ class Instrument:
 
     def control(self, request_type, request, value, index, size, timeout):
         self.controls.append((request, value))
-        return self.control_replies.pop(0)
+        if self.control_replies:
+            return self.control_replies.pop(0)
+        return {5: b'\x01', 6: b'\x01\x00'}[request]  # device clear completes at once
+
+    def clear_halt(self, endpoint):
+        pass
 
 
 def test_replay_preserves_wire_bytes_and_serial_identity():
@@ -82,6 +91,8 @@ def test_timed_out_read_is_aborted_before_the_canary():
     instrument = Instrument()
     harness = USBTMCHarness(instrument, {})
     harness.preflight()
+    assert instrument.controls == [(5, 0), (6, 0)]
+    instrument.controls = []
     instrument.timeouts = 1
     instrument.control_replies = [b'\x01\x00', b'\x01\x00\x00\x00\x00\x00\x00\x00']
     instrument.writes = []
@@ -98,6 +109,25 @@ def test_abort_with_nothing_pending_is_not_a_failure():
     result = harness.execute(b'*IDN?\n', sequence=[
         {'op': 'write_message'}, {'op': 'request_read'}, {'op': 'abort_in'}])
     assert result.ok and instrument.controls == [(3, harness.last_in_tag)]
+
+
+def test_operator_stop_mid_case_is_not_a_failure(tmp_path):
+    harness = USBTMCHarness(Instrument(), {})
+    harness.preflight()
+    events = []
+    generator = SimpleNamespace(seed_corpus=lambda: [], generate=lambda seeds, total: iter([b'*IDN?\n']))
+    runner = Orchestrator(generator, harness, logger_backend=TestLogger(str(tmp_path)),
+                          config=CampaignConfig(iterations=1, delay=0,
+                                                event_callback=lambda kind, data: events.append((kind, data))))
+    stops = iter([False, False, True])
+    def cancelled():
+        runner._should_stop = runner._should_stop or next(stops, True)
+        return runner._should_stop
+    harness.cancelled = cancelled
+    runner.run()
+    assert EventType.TEST_CASE_COMPLETED not in [kind for kind, _ in events]
+    kind, data = events[-1]
+    assert kind is EventType.CAMPAIGN_STOPPED and data['reason'] == 'Stopped by operator'
 
 
 @pytest.mark.parametrize('config', [

@@ -202,7 +202,9 @@ class USBTMCHarness(ProtocolHarness):
             time.sleep(0.01)
 
     def preflight(self) -> bytes:
-        result = self.execute(b"", sequence=[{"op": "canary"}])
+        # A session stopped mid-case can leave a reply queued on the device,
+        # which would otherwise become part of the baseline.
+        result = self.execute(b"", sequence=[{"op": "clear"}, {"op": "canary"}])
         if not result.ok:
             raise RuntimeError(result.error)
         return self.baseline

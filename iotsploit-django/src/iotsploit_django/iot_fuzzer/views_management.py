@@ -367,7 +367,10 @@ def create_test_case(request: HttpRequest):
         if protocol_type == 'usbtmc':
             from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
             settings = case_data.get('protocol_settings', {})
-            USBTMCHarness.validate(settings)
+            try:
+                USBTMCHarness.validate(settings)
+            except ValueError as exc:
+                return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
             protocol_config, created = ProtocolConfiguration.objects.get_or_create(
                 protocol_type=protocol_type, settings=settings)
         else:
@@ -469,7 +472,10 @@ def update_test_case(request: HttpRequest, case_id):
                 from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
                 settings = case_data.get('protocol_settings', test_case.protocol_config.settings
                                          if test_case.protocol_config.protocol_type == 'usbtmc' else {})
-                USBTMCHarness.validate(settings)
+                try:
+                    USBTMCHarness.validate(settings)
+                except ValueError as exc:
+                    return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
                 protocol_config, created = ProtocolConfiguration.objects.get_or_create(
                     protocol_type=protocol_type, settings=settings)
             else:

@@ -314,6 +314,9 @@ class Orchestrator:
                 self.logger_backend.record(idx, payload, result)
                 if result.monitor_verdicts is not None:
                     self._emit_event(EventType.MONITOR_STATUS, {"monitor_verdicts": result.monitor_verdicts})
+                if self._should_stop and not result.ok and not result.crashed:
+                    # The operator's stop cut the case short; that is not a finding.
+                    break
                 if not result.sent:
                     self.stop_reason = result.stop_reason
                     break
