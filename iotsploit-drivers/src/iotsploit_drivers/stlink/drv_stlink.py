@@ -56,6 +56,10 @@ class STLinkDriver(BaseDeviceDriver):
         serial = device.attributes.get("probe_sn")
         if not serial:
             raise ValueError("Device is missing 'probe_sn' attribute")
+        # Like a J-Link: opening a probe for nothing in particular (the startup
+        # sweep that initializes every device) would hold it from monitors.
+        if not device.attributes.get("target_device"):
+            raise ValueError("ST-LINK needs an explicit target_device; a probe cannot identify its target")
         probe = StlinkProbe.get_probe_with_id(serial)
         if probe is None:
             raise RuntimeError(f"ST-LINK {serial} is not connected")
@@ -94,7 +98,7 @@ class STLinkDriver(BaseDeviceDriver):
             device_id=f"stlink_{serial}",
             name=f"ST-LINK {serial}",
             device_type=DeviceType.USB,
-            attributes={"probe_sn": serial, "interface": interface},
+            attributes={"probe_sn": serial, "target_device": target, "interface": interface},
         )
         self.initialize(device)
         self.device = device

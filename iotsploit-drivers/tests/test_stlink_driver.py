@@ -40,6 +40,14 @@ def test_resource_key_matches_the_usb_serial_spelling():
     assert driver.resource_key(SimpleNamespace(attributes={})) is None
 
 
+def test_initialize_without_target_never_opens_the_probe(monkeypatch):
+    monkeypatch.setattr(drv_stlink.StlinkProbe, "get_probe_with_id", lambda serial: pytest.fail("probe opened"))
+    device = SimpleNamespace(name="ST-LINK", attributes={"probe_sn": SERIAL})
+
+    with pytest.raises(ValueError, match="explicit target_device"):
+        STLinkDriver()._initialize_impl(device)
+
+
 def test_attach_opens_a_generic_cortex_m_session_without_halting(monkeypatch):
     opened, closed = [], []
 
