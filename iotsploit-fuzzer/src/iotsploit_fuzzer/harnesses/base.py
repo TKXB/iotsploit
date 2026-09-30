@@ -21,6 +21,7 @@ class HarnessResult:
     monitor_verdicts: Optional[list] = None
     stop_reason: Optional[str] = None
     sent: bool = True
+    evidence: Optional[dict] = None
 
 
 class ProtocolHarness(abc.ABC):
@@ -28,4 +29,4 @@ class ProtocolHarness(abc.ABC):
 
     @abc.abstractmethod
     def execute(self, payload: bytes) -> HarnessResult:
-        """Encode, send and receive based on *payload*.""" 
+        """Encode, send and receive based on *payload*."""

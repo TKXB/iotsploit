@@ -13,6 +13,7 @@ from iotsploit_django.tools.iot_protocol_components import (
     ProtocolInterfaceAdapter,
     SPIInterfaceAdapter,
     UARTInterfaceAdapter,
+    USBTMCInterfaceAdapter,
 )
 
 from iotsploit_django.tools.iot_protocol_runtime import GeneratorAdapter, MonitorAdapter, OrchestratorAdapter
@@ -103,6 +104,17 @@ class IoTProtocolAdapter:
                         'parameters': protocol_info['parameters'],
                         'supported_features': protocol_info['features']
                     })
+                from iotsploit_fuzzer.interfaces.usbtmc_interface import USBTMCInterface
+                try:
+                    devices = USBTMCInterface.discover()
+                    for protocol in protocols:
+                        if protocol['type'] == 'usbtmc':
+                            protocol['devices'] = devices
+                except Exception as exc:
+                    for protocol in protocols:
+                        if protocol['type'] == 'usbtmc':
+                            protocol['devices'] = []
+                            protocol['discovery_error'] = str(exc)
                 
             except ImportError:
                 logger.warning("iotsploit_fuzzer not available, returning mock protocols")
@@ -246,7 +258,9 @@ class IoTProtocolAdapter:
         try:
             protocol_type = protocol_config.get('protocol_type', 'unknown')
             
-            if protocol_type == 'can':
+            if protocol_type == 'usbtmc':
+                return USBTMCInterfaceAdapter(protocol_config, self._fuzzer_available)
+            elif protocol_type == 'can':
                 return CANInterfaceAdapter(protocol_config, self._fuzzer_available)
             elif protocol_type == 'uart':
                 return UARTInterfaceAdapter(protocol_config, self._fuzzer_available)
@@ -322,7 +336,7 @@ class IoTProtocolAdapter:
                             'count_per_seed': {'type': 'integer', 'default': 1, 'range': [1, 100]},
                             'iterations': {'type': 'integer', 'default': 1000, 'range': [1, 10000]}
                         },
-                        'supported_protocols': ['can', 'uart', 'spi'],
+                        'supported_protocols': ['can', 'uart', 'spi', 'usbtmc'],
                         'status': 'available' if self._check_radamsa_availability() else 'needs_installation'
                     }
                 ])
@@ -429,6 +443,16 @@ class IoTProtocolAdapter:
         result = {'valid': True, 'errors': [], 'warnings': []}
         
         protocol_type = protocol_config.get('protocol_type')
+        if protocol_type == 'usbtmc':
+            from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+            try:
+                USBTMCHarness.validate(protocol_config)
+                if not isinstance(protocol_config.get('device'), dict) or not protocol_config['device']:
+                    raise ValueError('Select a USBTMC interface from rig discovery')
+            except ValueError as exc:
+                result['errors'].append(str(exc))
+                result['valid'] = False
+            return result
         if not protocol_type:
             result['errors'].append("Missing protocol_type")
             return result
@@ -527,6 +551,16 @@ class IoTProtocolAdapter:
     def _initialize_supported_protocols(self):
         """Initialize supported protocol configurations"""
         self.supported_protocols = {
+            'usbtmc': {
+                'name': 'USBTMC',
+                'description': 'SCPI payload and raw USBTMC sequence fuzzing on the rig',
+                'parameters': {
+                    'device': {'type': 'object', 'required': True},
+                    'mode': {'type': 'string', 'default': 'scpi'},
+                    'timeout': {'type': 'integer', 'default': 1000},
+                },
+                'features': ['fuzzing', 'monitoring', 'replay', 'raw_usb'],
+            },
             'can': {
                 'name': 'Controller Area Network',
                 'description': 'Automotive CAN protocol support',

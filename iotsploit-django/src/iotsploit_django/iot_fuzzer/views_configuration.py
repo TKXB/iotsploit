@@ -90,6 +90,16 @@ def save_protocol_config(request: HttpRequest):
             'baud_rate': config_data.get('baud_rate', '115200'),
             'timeout': config_data.get('timeout', 1000),
         }
+        if protocol_type == 'usbtmc':
+            from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+            protocol_settings = {key: config_data[key] for key in (
+                'device', 'mode', 'timeout', 'max_response_bytes', 'case_deadline_ms',
+                'baseline_query', 'sequence',
+            ) if key in config_data}
+            try:
+                USBTMCHarness.validate(protocol_settings)
+            except ValueError as exc:
+                return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
 
         generator_type = config_data.get('generator_type', 'radamsa')
         generator_settings = {

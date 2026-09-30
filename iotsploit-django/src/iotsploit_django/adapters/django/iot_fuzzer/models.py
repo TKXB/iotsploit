@@ -192,6 +192,7 @@ class ProtocolConfiguration(models.Model):
     """
 
     PROTOCOL_TYPE_CHOICES = [
+        ("usbtmc", "USBTMC"),
         ("can", "CAN Bus"),
         ("uart", "UART/Serial"),
         ("spi", "SPI"),
@@ -825,4 +826,3 @@ class LiveLogAdmin(admin.ModelAdmin):
     list_filter = ["level", "category", "source"]
     search_fields = ["message", "source"]
     readonly_fields = ["timestamp"]
-

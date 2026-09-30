@@ -110,17 +110,24 @@ def campaign_monitor_plan(campaign_config: Dict[str, Any]):
 
 class SelectedCaseGenerator:
     """Feed selected case mutations into the single protocol execution loop."""
-    def __init__(self, engine, cases):
+    def __init__(self, engine, cases, replay=None):
         from iotsploit_fuzzer.core.fuzzing_engine import FuzzTestCase
         from iotsploit_django.tools.frame_utils import frame_data_from_fields
         self.payloads = []
+        self.case_settings = []
+        self.on_case = None
+        if replay is not None:
+            self.payloads = [bytes.fromhex(replay["payload_hex"])]
+            self.case_settings = [replay.get("config", {})]
         for case in cases:
             source = FuzzTestCase(str(case["id"]), case["name"], case["protocol_type"],
                                  frame_data_from_fields(case.get("frame_fields", [])),
                                  case.get("frame_fields", []), case.get("fuzzing_rules", []),
                                  case.get("target_bits"))
             mutations = engine.generate_mutations([source], iterations=int(case.get("iterations", 100)))
-            self.payloads.extend(m.mutated_data for batch in mutations.values() for m in batch)
+            payloads = [m.mutated_data for batch in mutations.values() for m in batch]
+            self.payloads.extend(payloads)
+            self.case_settings.extend([case.get("protocol_config", {})] * len(payloads))
         if not self.payloads:
             raise ValueError("Selected cases generated no executable payloads")
         self.total = len(self.payloads)
@@ -129,7 +136,10 @@ class SelectedCaseGenerator:
         return self.payloads[:1]
 
     def generate(self, seeds, total):
-        yield from self.payloads[:total]
+        for payload, settings in zip(self.payloads[:total], self.case_settings[:total]):
+            if self.on_case is not None:
+                self.on_case(settings)
+            yield payload
 
 
 class OrchestratorAdapter:
@@ -181,7 +191,10 @@ class OrchestratorAdapter:
 
             logger.info("Initializing real fuzzer components")
 
-            if self.fuzzing_engine:
+            replay = self.campaign_config.get("replay")
+            if replay is not None:
+                generator = SelectedCaseGenerator(None, [], replay=replay)
+            elif self.fuzzing_engine:
                 generator = SelectedCaseGenerator(self.fuzzing_engine, self.campaign_config["test_cases"])
             else:
                 # Create generator
@@ -206,6 +219,8 @@ class OrchestratorAdapter:
                             b"\x22\xF1\x90",                       # UDS ReadDataByIdentifier
                             b"\x2E\xF1\x90\x00\x01\x02\x03",     # UDS WriteDataByIdentifier
                         ]
+                        if self.campaign_config.get("protocol_config", {}).get("protocol_type") == "usbtmc":
+                            default_seeds = [b"*IDN?\n", b"SYST:ERR?\n", b"LED:ALL?\n", b":DATA:WRITE #14test\n"]
                         generator.seed_corpus = lambda: default_seeds
                         logger.info(f"Using radamsa at: {radamsa_path} with {len(default_seeds)} seed templates")
                     else:
@@ -221,7 +236,19 @@ class OrchestratorAdapter:
             protocol_config = self.campaign_config.get('protocol_config', {})
             protocol_type = protocol_config.get('protocol_type', '').lower()
 
-            if protocol_type == 'can':
+            if protocol_type == 'usbtmc':
+                from iotsploit_django.composition_root.fuzzer_container import open_usbtmc
+                interface, harness = open_usbtmc(protocol_config, f"campaign {self.campaign_config.get('campaign_id', '')}")
+                if replay is not None:
+                    harness.tag = replay['tag_before']
+                    harness.last_out_tag = replay['out_tag_before']
+                    harness.last_in_tag = replay['in_tag_before']
+                    if replay.get('baseline_hex') != harness.baseline.hex():
+                        interface.close()
+                        raise ValueError('Replay device identity does not match the saved baseline')
+                if isinstance(generator, SelectedCaseGenerator):
+                    generator.on_case = harness.use_case
+            elif protocol_type == 'can':
                 from iotsploit_fuzzer.interfaces.can_interface import SocketCANInterface
                 # CAN interfaces are network interfaces (can0), not device files (/dev/can0)
                 channel = protocol_config.get('device_path', 'can0')
@@ -273,6 +300,14 @@ class OrchestratorAdapter:
             logger_backend = TestLogger()
             if self.campaign_config.get("campaign_id"):
                 logger_backend.campaign_id = self.campaign_config["campaign_id"]
+            if protocol_type == "usbtmc":
+                import json
+                manifest = {'protocol_config': protocol_config, 'device': interface.identity,
+                            'baseline_hex': getattr(harness, 'inner', harness).baseline.hex(),
+                            'monitors': campaign_monitor_plan(self.campaign_config),
+                            'generator_config': self.campaign_config.get('generator_config', {})}
+                path = logger_backend.workdir / f'campaign_{logger_backend.campaign_id}_manifest.json'
+                path.write_text(json.dumps(manifest, indent=2))
 
             # Create campaign config with event callback
             campaign_config = CampaignConfig(
@@ -290,23 +325,28 @@ class OrchestratorAdapter:
                 logger_backend=logger_backend,
                 config=campaign_config
             )
+            if protocol_type == "usbtmc":
+                # The hardware harness checks cancellation between bounded transfers.
+                getattr(harness, "inner", harness).cancelled = lambda: self.orchestrator._should_stop
 
             logger.info("Real fuzzer components initialized successfully")
 
         except ImportError as e:
             self._close_resources()
-            if self._monitored:
+            if self._monitored or self.campaign_config.get("protocol_config", {}).get("protocol_type") == "usbtmc":
                 raise
             logger.warning(f"Failed to import fuzzer module: {e}, using mock implementation")
             self._use_mock()
         except Exception as e:
             self._close_resources()
-            if self._monitored:
+            if self._monitored or self.campaign_config.get("protocol_config", {}).get("protocol_type") == "usbtmc":
                 raise
             logger.error(f"Error initializing fuzzer components: {e}, using mock implementation")
             self._use_mock()
 
     def _use_mock(self):
+        if self.campaign_config.get("protocol_config", {}).get("protocol_type") == "usbtmc":
+            raise RuntimeError("USBTMC campaigns require real USB hardware; mock fallback disabled")
         if self._monitored:
             raise RuntimeError("Monitored campaigns require real generator and protocol hardware; mock fallback disabled")
         self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)

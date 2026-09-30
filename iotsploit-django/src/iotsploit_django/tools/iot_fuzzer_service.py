@@ -604,7 +604,10 @@ class IoTFuzzerService:
             frame_data = frame_config.get('frame_data', {})
             
             # Build frame based on protocol type
-            if protocol_type == 'can':
+            if protocol_type == 'usbtmc':
+                value = frame_data.get('payload_hex', '2a49444e3f0a')
+                frame = {'data': list(bytes.fromhex(value)), 'payload_hex': value}
+            elif protocol_type == 'can':
                 frame = self._build_can_frame(frame_data)
             elif protocol_type == 'uart':
                 frame = self._build_uart_frame(frame_data)
@@ -732,6 +735,18 @@ class IoTFuzzerService:
                 }
             ]
             
+            for template_id, name, description, payload in (
+                ('usbtmc_idn', 'USBTMC identity query', 'SCPI query with valid USBTMC framing', '2a49444e3f0a'),
+                ('usbtmc_block', 'USBTMC binary block', 'DATA:WRITE #14ABCD followed by newline', '444154413a575249544520233134414243440a'),
+                ('usbtmc_raw', 'USBTMC raw header', 'Raw DEV_DEP_MSG_OUT frame; set case mode to raw',
+                 '0101fe0006000000010000002a49444e3f0a0000'),
+            ):
+                templates.append({
+                    'id': template_id, 'name': name, 'protocol_type': 'usbtmc', 'description': description,
+                    'template': {'payload_hex': payload},
+                    'fields': [{'name': 'payload_hex', 'type': 'hex', 'size': len(payload) // 2,
+                                'default_value': payload, 'required': True, 'description': description}],
+                })
             # Filter by protocol type if specified
             if protocol_type:
                 templates = [t for t in templates if t['protocol_type'] == protocol_type]

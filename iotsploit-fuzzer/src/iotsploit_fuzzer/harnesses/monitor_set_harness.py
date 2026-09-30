@@ -61,7 +61,7 @@ class MonitorSetHarness(ProtocolHarness):
             ok=result.ok and not reported,
             crashed=result.crashed or crashed,
             error=result.error or (reported[0] if reported else None),
-            stop_reason=stops[0] if stops else None,
+            stop_reason=stops[0] if stops else result.stop_reason,
             monitor_verdicts=[verdict.to_dict() for verdict in afters],
             info="; ".join(filter(None, (result.info, *notes))) or result.info,
         )

@@ -226,3 +226,13 @@ def test_default_policy_judges_any_kind_by_health(health, verdict, stops):
     assert result.verdict == verdict
     assert (result.stop_reason == "no heartbeat") is stops
     assert result.detected_reason == (reasons[0] if reasons else None)
+
+
+def test_healthy_monitor_preserves_transport_stop_and_evidence():
+    evidence = {"protocol": "usbtmc", "outcome": "protocol_failure"}
+    inner = UARTHarness(HarnessResult(ok=False, error="Bad USB header",
+                                    stop_reason="Bad USB header", evidence=evidence))
+    result = MonitorSetHarness(inner, [ScriptedMonitor("board")]).execute(b"bad")
+    assert result.stop_reason == "Bad USB header"
+    assert not result.ok and not result.crashed
+    assert result.evidence == evidence

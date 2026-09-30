@@ -44,7 +44,9 @@ class Orchestrator:
         """Detect the protocol type based on the harness"""
         harness_class = getattr(self.harness, "inner", self.harness).__class__.__name__
         
-        if 'CAN' in harness_class.upper():
+        if 'USBTMC' in harness_class.upper():
+            return 'USBTMC'
+        elif 'CAN' in harness_class.upper():
             return 'CAN'
         elif 'UART' in harness_class.upper():
             return 'UART'
@@ -323,7 +325,7 @@ class Orchestrator:
                     pass_count = 0
                     fail_count = 1
                     check_count = 0
-                elif result.timeout:
+                elif result.timeout and not result.error:
                     status = 'check'
                     pass_count = 0
                     fail_count = 0

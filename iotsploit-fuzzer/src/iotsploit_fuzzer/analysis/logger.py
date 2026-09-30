@@ -39,7 +39,7 @@ class TestLogger:
         self.campaign_id = uuid.uuid4().hex
 
     def record(self, idx: int, payload: bytes, result: HarnessResult) -> None:
-        if result.monitor_verdicts is not None:
+        if result.monitor_verdicts is not None or result.evidence is not None:
             record = asdict(result)
             record["response"] = result.response.hex() if result.response is not None else None
             record.update(case_index=idx, payload_hash=payload_id(payload),

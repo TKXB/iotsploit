@@ -505,6 +505,31 @@ class IoTFuzzerManager:
             if field not in config:
                 raise ValueError(f"Missing required field: {field}")
         
+        replay = config.get("replay")
+        if replay is not None:
+            from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+
+            if (config["protocol_type"].lower() != "usbtmc" or not isinstance(replay, dict)
+                    or replay.get("protocol") != "usbtmc"):
+                raise ValueError("Replay requires saved USBTMC evidence")
+            saved = replay.get("config")
+            if not isinstance(saved, dict) or not isinstance(saved.get("device"), dict):
+                raise ValueError("Replay has no saved USBTMC configuration")
+            saved = {**saved, "sequence": replay.get("sequence")}
+            USBTMCHarness.validate(saved)
+            try:
+                payload = bytes.fromhex(replay["payload_hex"])
+                baseline = bytes.fromhex(replay["baseline_hex"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("Replay requires saved payload and baseline bytes") from exc
+            if len(payload) > 65536 or not baseline:
+                raise ValueError("Invalid USBTMC replay payload or baseline")
+            for key in ("tag_before", "out_tag_before", "in_tag_before"):
+                if type(replay.get(key)) is not int or not 0 <= replay[key] <= 255:
+                    raise ValueError(f"Invalid replay {key}")
+            config["protocol_config"] = {**saved, "protocol_type": "usbtmc"}
+            config["test_group_ids"] = None
+
         # Validate test_group_ids if provided
         test_group_ids = config.get('test_group_ids', [])
         if test_group_ids:

@@ -76,6 +76,15 @@ class CANInterfaceAdapter(ProtocolInterfaceAdapter):
         logger.info("CAN interface unavailable; connection not checked")
         return None
 
+class USBTMCInterfaceAdapter(ProtocolInterfaceAdapter):
+    def test_connection(self) -> bool:
+        from iotsploit_django.composition_root.fuzzer_container import open_usbtmc
+
+        interface, _ = open_usbtmc(self.protocol_config, "USBTMC connection check")
+        interface.close()
+        return True
+
+
 class UARTInterfaceAdapter(ProtocolInterfaceAdapter):
     """UART protocol interface adapter"""
 
