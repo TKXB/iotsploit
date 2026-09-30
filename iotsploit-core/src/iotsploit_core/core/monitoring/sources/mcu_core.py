@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
-from typing import Callable, Mapping
+from typing import Mapping
 
 from iotsploit_core.core.monitoring.arch import arch_monitor
 from iotsploit_core.core.monitoring.catalog import TargetCatalog
-from iotsploit_core.core.monitoring.source import EntryValidator, MonitorPlanEntry, SourceFactory
+from iotsploit_core.core.monitoring.kind import MonitorContext, MonitorKind
+from iotsploit_core.core.monitoring.source import MonitorPlanEntry
 from iotsploit_core.domain.monitoring import MonitorObservation, mcu_core_health, parse_usb_resource
 from iotsploit_core.domain.target_profile import TargetProfile
 from iotsploit_core.ports.debug_access import DebugAccess, debug_usb_vendor_ids
+
+logger = logging.getLogger(__name__)
 
 KIND = "mcu_core"
 RECOVERY_POLICIES = ("stop", "reset_continue")
@@ -161,23 +165,70 @@ class McuCoreSource:
         }
 
 
-def mcu_core_kind(catalog: TargetCatalog,
-                  backend_classes: Callable[[], Mapping[str, type]]) -> tuple[SourceFactory, EntryValidator]:
-    """Factory and validator to register under ``mcu_core``."""
+class McuCoreKind(MonitorKind):
+    """The sampling side of ``mcu_core``; the campaign policy is added outside core."""
 
-    def resolve(entry: MonitorPlanEntry):
+    KIND = KIND
+    NAME = "MCU core"
+    DESCRIPTION = ("Reads a CPU core's debug registers over SWD or JTAG to catch "
+                   "faults, lockups, unexpected halts and resets.")
+    DISPLAY = {"registers": "hex"}
+
+    def __init__(self, context: MonitorContext, catalog: TargetCatalog | None = None):
+        super().__init__(context)
+        self.catalog = catalog or TargetCatalog.load_default()
+
+    def parameters(self) -> dict:
+        return {
+            "resource": {"type": "str", "required": True, "description": "Debug probe",
+                         "validation": {"choices": self._probes()}},
+            "target": {"type": "str", "required": True, "description": "Target MCU",
+                       "validation": {"choices": self.catalog.names()}},
+            "interface": {"type": "str", "default": "swd", "description": "Debug interface",
+                          "validation": {"choices": ["swd", "jtag"]}},
+            "recovery_policy": {"type": "str", "default": "stop",
+                                "description": "After a failure: stop the campaign, or reset the target and continue",
+                                "validation": {"choices": list(RECOVERY_POLICIES)}},
+            "max_recoveries": {"type": "int", "default": 3, "description": "Resets allowed per campaign",
+                               "validation": {"min": 0, "max": 100}},
+            "expected_reset_prefixes": {"type": "list", "default": [],
+                                        "description": "Hex payload prefixes that are meant to reset the target"},
+            "settle_ms": {"type": "int", "default": 20, "description": "Wait after a payload before sampling (ms)",
+                          "validation": {"min": 0, "max": 1000}},
+            "boot_timeout_ms": {"type": "int", "default": 5000, "description": "Time a recovery may take (ms)",
+                                "validation": {"min": 100, "max": 30000}},
+        }
+
+    def validate(self, entry: MonitorPlanEntry) -> None:
+        self._resolve(entry)
+
+    def create(self, entry: MonitorPlanEntry) -> McuCoreSource:
+        profile, options, backend = self._resolve(entry)
+        return McuCoreSource(entry, profile=profile, backend_class=backend, options=options)
+
+    def _resolve(self, entry: MonitorPlanEntry):
         vendor_id, _, function = parse_usb_resource(entry.resource)
         if function != "debug":
             raise ValueError("An mcu_core monitor needs a probe's debug function (…/debug)")
-        profile = catalog.get(entry.target)
+        profile = self.catalog.get(entry.target)
         options = McuCoreOptions.parse(entry.options, profile)
-        return profile, options, select_backend(vendor_id, backend_classes())
+        return profile, options, select_backend(vendor_id, self.context.driver_classes())
 
-    def validate(entry: MonitorPlanEntry) -> None:
-        resolve(entry)
-
-    def create(entry: MonitorPlanEntry) -> McuCoreSource:
-        profile, options, backend = resolve(entry)
-        return McuCoreSource(entry, profile=profile, backend_class=backend, options=options)
-
-    return create, validate
+    def _probes(self) -> list[dict]:
+        """Every connected probe a debug backend drives, as ``{value, label}`` choices."""
+        probes = []
+        for name, driver_class in self.context.driver_classes().items():
+            if not (isinstance(driver_class, type) and issubclass(driver_class, DebugAccess)):
+                continue
+            try:
+                driver = driver_class()
+                devices = driver.scan()
+            except Exception as exc:
+                # One absent SDK or unplugged probe must not hide the others.
+                logger.warning("Debug probe scan with %s failed: %s", name, exc)
+                continue
+            for device in devices:
+                resource = driver.resource_key(device)
+                if resource:
+                    probes.append({"value": resource, "label": device.name})
+        return probes

@@ -12,7 +12,7 @@ from iotsploit_fuzzer.harnesses.base import HarnessResult
 from iotsploit_fuzzer.harnesses.monitor_set_harness import MonitorSetHarness
 from iotsploit_fuzzer.monitoring.monitor import Monitor
 from iotsploit_fuzzer.monitoring.target_monitor import MonitorVerdict
-from iotsploit_fuzzer.monitors import McuCoreMonitor
+from iotsploit_fuzzer.monitors import HealthMonitor, McuCoreMonitor
 
 pytestmark = pytest.mark.unit
 
@@ -208,3 +208,21 @@ def test_monitor_names_must_be_unique_and_present():
 def test_unknown_verdict_is_rejected():
     with pytest.raises(ValueError, match="verdict"):
         MonitorVerdict("m", "uart", "exploded", {})
+
+
+@pytest.mark.parametrize("health, verdict, stops", [
+    ("ok", "ok", False),
+    ("degraded", "inconclusive", False),
+    ("fault", "crash", True),
+    ("reset", "inconclusive", True),
+    ("unavailable", "inconclusive", True),
+])
+def test_default_policy_judges_any_kind_by_health(health, verdict, stops):
+    reasons = [] if health == "ok" else ["no heartbeat"]
+    monitor = HealthMonitor("beat", "heartbeat", lambda: {"health": health, "reasons": reasons})
+
+    result = monitor.after(b"payload")
+
+    assert result.verdict == verdict
+    assert (result.stop_reason == "no heartbeat") is stops
+    assert result.detected_reason == (reasons[0] if reasons else None)

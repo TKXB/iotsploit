@@ -5,8 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from iotsploit_core.core.device_manager import DeviceDriverManager
-from iotsploit_core.core.monitoring import MonitorService, SourceRegistry, TargetCatalog
-from iotsploit_core.core.monitoring.sources.mcu_core import KIND as MCU_CORE, mcu_core_kind
+from iotsploit_core.core.monitoring import MonitorContext, MonitorService, SourceRegistry, load_monitor_kinds
 from iotsploit_core.ports.resource_lease import ResourceLeasePort
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
 from iotsploit_core.core.stream_manager import StreamManager
@@ -15,7 +14,7 @@ from iotsploit_django.ports_impl.driver_state_repo import DjangoDriverStateRepos
 from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository, DjangoPluginMetaRepository
 from iotsploit_django.ports_impl.stream_backend import DjangoStreamBackend
 from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverStateRepository
-from iotsploit_django.config import DEVICE_PLUGINS_DIR, EXPLOIT_PLUGINS_DIR
+from iotsploit_django.config import DEVICE_PLUGINS_DIR, EXPLOIT_PLUGINS_DIR, MONITOR_PLUGINS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -130,12 +129,12 @@ def build_monitor_service(
     driver_manager: DeviceDriverManager,
     lease: ResourceLeasePort,
     *,
-    catalog: TargetCatalog | None = None,
+    plugins_dir: str | Path | None = MONITOR_PLUGINS_DIR,
 ) -> MonitorService:
-    """Target monitors for campaigns and manual checks, one source per kind."""
+    """Target monitors for campaigns and manual checks: every installed monitor kind."""
     registry = SourceRegistry()
-    create, validate = mcu_core_kind(catalog or TargetCatalog.load_default(), driver_manager.driver_classes)
-    registry.register(MCU_CORE, create, validate)
+    for kind in load_monitor_kinds(MonitorContext(driver_manager.driver_classes), plugins_dir):
+        registry.register(kind)
     return MonitorService(registry, lease)
 
 

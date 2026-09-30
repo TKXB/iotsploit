@@ -29,7 +29,7 @@ if not apps.ready:
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
     django.setup()
 
-from iotsploit_core.core.monitoring import TargetCatalog, parse_plan  # noqa: E402
+from iotsploit_core.core.monitoring import parse_plan  # noqa: E402
 from iotsploit_core.core.monitoring.arch import cortex_m  # noqa: E402
 from iotsploit_core.core.device_manager import DeviceDriverManager  # noqa: E402
 from iotsploit_core.domain.observation import StartedScan  # noqa: E402
@@ -128,16 +128,18 @@ def lease(tmp_path):
 
 
 @pytest.fixture
-def campaign(monkeypatch, lease):
-    """Run a legacy ``core_monitor`` campaign over three payloads; return what it emitted."""
+def campaign(monkeypatch, lease, tmp_path):
+    """Run a campaign over three payloads; return what it emitted.
+
+    It uses the legacy ``core_monitor`` unless given a ``monitors`` plan, whose
+    kinds may come from plugin files a test writes to ``tmp_path``.
+    """
     from iotsploit_django.composition_root import wiring
     from iotsploit_django.adapters.django import observation_repository
     from iotsploit_django.tools import iot_fuzzer_bridge, iot_fuzzer_manager
     from iotsploit_fuzzer.interfaces import uart_interface
 
     events, states = [], []
-    service = core_container.build_monitor_service(DriverClasses(), lease, catalog=TargetCatalog.load_default())
-    monkeypatch.setattr(wiring, "get_monitor_service", lambda: service)
     monkeypatch.setattr(uart_interface, "UARTInterface", SilentUart)
     monkeypatch.setattr(observation_repository, "ObservationRepository", RecordingSink)
     monkeypatch.setattr(iot_fuzzer_bridge.IoTFuzzerBridge, "get_instance",
@@ -147,8 +149,13 @@ def campaign(monkeypatch, lease):
     ScriptedProbe.attached, ScriptedProbe.detached = [], []
     RecordingSink.instances = []
 
-    def run(script, **core_monitor):
+    def run(script, monitors=None, **core_monitor):
         ScriptedProbe.script = list(script)
+        service = core_container.build_monitor_service(DriverClasses(), lease, plugins_dir=tmp_path)
+        monkeypatch.setattr(wiring, "get_monitor_service", lambda: service)
+        plan = {"monitors": monitors} if monitors is not None else {"core_monitor": {
+            "probe_serial": "1050298903", "target_device": "NRF52840_XXAA",
+            "settle_ms": 0, "target_id": "target-1", **core_monitor}}
         engine = SimpleNamespace(generate_mutations=lambda sources, iterations: {
             "fixed": [SimpleNamespace(mutated_data=p) for p in (b"\x22\xf1\x90", b"hello\n", b"\x3e\x00")]})
         adapter = OrchestratorAdapter({
@@ -157,8 +164,7 @@ def campaign(monkeypatch, lease):
             "test_cases": [{"id": 1, "name": "fixed", "protocol_type": "uart", "frame_fields": [], "iterations": 1}],
             "protocol_config": {"protocol_type": "uart", "port": "/dev/ttyACM0", "timeout": 200},
             "delay": 0,
-            "core_monitor": {"probe_serial": "1050298903", "target_device": "NRF52840_XXAA",
-                             "settle_ms": 0, "target_id": "target-1", **core_monitor},
+            **plan,
         }, True)
         adapter.start()
         adapter.fuzzer_thread.join(timeout=10)
@@ -262,6 +268,83 @@ def test_legacy_config_names_a_non_segger_probe_by_vendor():
 
 
 # --- composition root -----------------------------------------------------------------
+
+# A monitor someone adds as a script: no Flutter, composition-root or harness edit.
+HEARTBEAT_PLUGIN = """
+from iotsploit_core.core.monitoring import MonitorKind
+
+
+class Heartbeat(MonitorKind):
+    KIND = "heartbeat"
+    NAME = "Heartbeat"
+    DESCRIPTION = "Health follows the scripted samples"
+
+    def parameters(self):
+        return {"resource": {"type": "str", "required": True, "description": "Anything"}}
+
+    def create(self, entry):
+        return Beats(entry)
+
+
+class Beats:
+    settle_ms = 0
+
+    def __init__(self, entry):
+        self.entry, self.samples = entry, list(entry.options.get("script", ["ok"]))
+
+    def open(self):
+        pass
+
+    def begin(self):
+        pass
+
+    def end(self):
+        health = self.samples.pop(0) if len(self.samples) > 1 else self.samples[0]
+        return {"monitor": self.entry.name, "kind": "heartbeat", "resource": self.entry.resource,
+                "target": "", "window": (0.0, 0.0), "observed_at": 0.0, "health": health,
+                "reasons": [] if health == "ok" else ["no heartbeat"], "detail": {"health": health}}
+
+    def recover(self, expected):
+        return {"recovered": False}
+
+    def close(self):
+        pass
+"""
+
+
+def test_a_script_monitor_is_described_checked_and_run_with_no_other_edit(campaign, lease, tmp_path):
+    (tmp_path / "heartbeat.py").write_text(HEARTBEAT_PLUGIN)
+    service = core_container.build_monitor_service(DriverClasses(), lease, plugins_dir=tmp_path)
+
+    described = {kind["kind"]: kind for kind in service.describe()}
+    assert described["heartbeat"]["parameters"]["resource"]["required"] is True
+    assert described["mcu_core"]["display"] == {"registers": "hex"}
+    [entry] = service.plan([{"kind": "heartbeat", "resource": "test:beat"}])
+    assert service.check(entry, owner="manual")["health"] == "ok"
+
+    adapter = campaign.run([RUNNING], monitors=[{"kind": "heartbeat", "name": "beat", "resource": "test:beat",
+                                                 "options": {"script": ["ok", "ok", "fault"]}}])
+
+    stopped = [data for kind, data in campaign.events if data.get("event_type") == "campaign_stopped"]
+    assert adapter.failure is None and stopped[-1]["reason"] == "no heartbeat"
+    verdicts = [v for kind, data in campaign.events for v in data.get("monitor_verdicts", [])]
+    assert {v["kind"] for v in verdicts} == {"heartbeat"} and verdicts[-1]["verdict"] == "crash"
+    assert not core_events(campaign.events)
+
+
+def test_the_shipped_mcu_core_kind_keeps_its_recovery_policy(lease):
+    from iotsploit_django.tools.iot_protocol_runtime import build_target_monitor
+    from iotsploit_fuzzer.monitors import McuCoreMonitor
+
+    service = core_container.build_monitor_service(DriverClasses(), lease)
+    [entry] = service.plan(monitor_compat.legacy_plan({"probe_serial": "1050298903",
+                                                      "target_device": "NRF52840_XXAA",
+                                                      "recovery_policy": "reset_continue"}))
+    with service.open([entry], owner="test") as session:
+        policy = build_target_monitor(service, session.sources[0])
+
+    assert isinstance(policy, McuCoreMonitor) and policy.recovery_policy == "reset_continue"
+
 
 def test_container_resolves_the_real_jlink_driver_for_segger_probes(lease):
     from iotsploit_drivers.jlink.drv_jlink import JLinkAbility

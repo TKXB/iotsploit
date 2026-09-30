@@ -7,11 +7,15 @@ never ``running``.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
-from iotsploit_core.core.monitoring import MonitorService, SourceRegistry, TargetCatalog, parse_plan
+from iotsploit_core.core.monitoring import (
+    MonitorContext, MonitorKind, MonitorService, SourceRegistry, TargetCatalog, load_monitor_kinds, parse_plan,
+)
 from iotsploit_core.core.monitoring.arch import cortex_m
-from iotsploit_core.core.monitoring.sources.mcu_core import McuCoreOptions, mcu_core_kind
+from iotsploit_core.core.monitoring.sources.mcu_core import McuCoreKind, McuCoreOptions
 from iotsploit_core.core.monitoring.source import MonitorPlanEntry
 from iotsploit_core.domain.monitoring import normalize_serial, parse_usb_resource, usb_resource
 from iotsploit_core.ports.debug_access import DebugAccess
@@ -214,9 +218,12 @@ def entry(**overrides):
     return parse_plan([values])[0]
 
 
+def mcu_core(*backends):
+    return McuCoreKind(MonitorContext(lambda: {f"drv_{i}": b for i, b in enumerate(backends)}), CATALOG)
+
+
 def open_source(access, **options):
-    create, _ = mcu_core_kind(CATALOG, lambda: {"drv_fake": type(access)})
-    source = create(entry(options=options))
+    source = mcu_core(type(access)).create(entry(options=options))
     source._backend_class = lambda: access
     source.open()
     return source
@@ -292,9 +299,8 @@ def test_recovery_gives_up_at_the_deadline():
     ({"options": {"core": "net"}}, "no core 'net'"),
 ])
 def test_invalid_entries_are_rejected_before_any_hardware(overrides, message):
-    _, validate = mcu_core_kind(CATALOG, lambda: {"drv_fake": FakeAccess})
     with pytest.raises(ValueError, match=message):
-        validate(entry(**overrides))
+        mcu_core(FakeAccess).validate(entry(**overrides))
 
 
 def test_options_default_to_the_first_core_and_legacy_limits():
@@ -308,11 +314,44 @@ def test_backend_without_the_target_architecture_is_refused():
             return frozenset({"riscv"})
 
     access = RiscvOnly()
-    create, _ = mcu_core_kind(CATALOG, lambda: {"drv": RiscvOnly})
-    source = create(entry())
+    source = mcu_core(RiscvOnly).create(entry())
     source._backend_class = lambda: access
     with pytest.raises(ValueError, match="cannot reach cortex_m"):
         source.open()
+
+
+def test_mcu_core_offers_probes_from_every_debug_backend_and_the_catalog_targets():
+    class StLink(FakeAccess):
+        def scan(self):
+            return [SimpleNamespace(name="STM32 STLink (57FF)")]
+
+        def resource_key(self, device):
+            return "usb:0483-57FF/debug"
+
+    class MissingSdk(FakeAccess):
+        def scan(self):
+            raise RuntimeError("SDK not installed")
+
+    kind = McuCoreKind(MonitorContext(lambda: {"drv_stlink": StLink, "drv_jlink": MissingSdk, "drv_can": object}),
+                       CATALOG)
+    described = kind.describe()
+
+    assert described["parameters"]["resource"]["validation"]["choices"] == [
+        {"value": "usb:0483-57FF/debug", "label": "STM32 STLink (57FF)"}]
+    assert described["parameters"]["target"]["validation"]["choices"] == CATALOG.names()
+    assert described["display"] == {"registers": "hex"}
+
+
+def test_kinds_load_from_plugin_files_and_a_broken_file_is_skipped(tmp_path):
+    (tmp_path / "beat.py").write_text(
+        "from iotsploit_core.core.monitoring import MonitorKind\n\n"
+        "class Beat(MonitorKind):\n    KIND = 'beat'\n")
+    (tmp_path / "broken.py").write_text("raise ImportError('vendor SDK missing')\n")
+
+    kinds = {kind.KIND: kind for kind in load_monitor_kinds(MonitorContext(dict), tmp_path)}
+
+    assert kinds["beat"].describe() == {"kind": "beat", "name": "beat", "description": "",
+                                        "parameters": {}, "display": {}}
 
 
 # --- plans, service, leases -----------------------------------------------------------
@@ -357,9 +396,20 @@ class StubSource:
         self.log.append(("close", self.entry.name))
 
 
+class StubKind(MonitorKind):
+    KIND = "stub"
+
+    def __init__(self, log, failing=()):
+        super().__init__(MonitorContext(dict))
+        self.log, self.failing = log, failing
+
+    def create(self, entry):
+        return StubSource(entry, self.log, fail_open=entry.name in self.failing)
+
+
 def stub_service(lease, log, failing=()):
     registry = SourceRegistry()
-    registry.register("stub", lambda e: StubSource(e, log, fail_open=e.name in failing))
+    registry.register(StubKind(log, failing))
     return MonitorService(registry, lease)
 
 

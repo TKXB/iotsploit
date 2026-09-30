@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 
 # Campaign Control Endpoints
 
+def list_monitors(request: HttpRequest):
+    """Every monitor kind with its settings schema; choices such as probes are live."""
+    if request.method != "GET":
+        return method_not_allowed("GET")
+    return JsonResponse({"status": "success", "monitors": wiring.get_monitor_service().describe()})
+
+
 @csrf_exempt
 def check_mcu_core(request: HttpRequest):
     """Read the configured MCU core once without starting a campaign."""

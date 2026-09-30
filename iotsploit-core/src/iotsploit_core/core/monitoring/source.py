@@ -14,7 +14,7 @@ it never needs to know which shape it holds.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Mapping, Protocol
+from typing import Mapping, Protocol
 
 from iotsploit_core.domain.monitoring import MonitorObservation
 
@@ -47,10 +47,6 @@ class MonitorSource(Protocol):
     def close(self) -> None:
         """Release the hardware. Safe to call on a source that never opened."""
         ...
-
-
-SourceFactory = Callable[[MonitorPlanEntry], MonitorSource]
-EntryValidator = Callable[[MonitorPlanEntry], None]
 
 
 def parse_plan(raw) -> list[MonitorPlanEntry]:
@@ -90,29 +86,29 @@ def parse_plan(raw) -> list[MonitorPlanEntry]:
 
 
 class SourceRegistry:
-    """Which source serves which kind. Filled by the composition root."""
+    """Which monitor kind serves which plan entry. Filled by the composition root."""
 
     def __init__(self):
-        self._factories: dict[str, SourceFactory] = {}
-        self._validators: dict[str, EntryValidator] = {}
+        self._kinds: dict = {}
 
-    def register(self, kind: str, factory: SourceFactory, validate: EntryValidator | None = None) -> None:
-        if kind in self._factories:
-            raise ValueError(f"Monitor kind {kind!r} is already registered")
-        self._factories[kind] = factory
-        if validate is not None:
-            self._validators[kind] = validate
+    def register(self, kind) -> None:
+        """Add a :class:`~iotsploit_core.core.monitoring.kind.MonitorKind` instance."""
+        if kind.KIND in self._kinds:
+            raise ValueError(f"Monitor kind {kind.KIND!r} is already registered")
+        self._kinds[kind.KIND] = kind
 
     def kinds(self) -> list[str]:
-        return sorted(self._factories)
+        return sorted(self._kinds)
+
+    def get(self, name: str):
+        kind = self._kinds.get(name)
+        if kind is None:
+            raise ValueError(f"Unknown monitor kind {name!r}")
+        return kind
 
     def validate(self, entry: MonitorPlanEntry) -> None:
-        if entry.kind not in self._factories:
-            raise ValueError(f"Unknown monitor kind {entry.kind!r}")
-        validator = self._validators.get(entry.kind)
-        if validator is not None:
-            validator(entry)
+        self.get(entry.kind).validate(entry)
 
     def create(self, entry: MonitorPlanEntry) -> MonitorSource:
         self.validate(entry)
-        return self._factories[entry.kind](entry)
+        return self.get(entry.kind).create(entry)

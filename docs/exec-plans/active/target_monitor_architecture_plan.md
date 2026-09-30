@@ -35,6 +35,14 @@ Every step below names its repo. Commits never span both.
    observations as plain dicts and receives sources as bound methods.
 7. **The JTAG core kind is named `mcu_core`**, the value already on the wire
    (`views_campaign.check_mcu_core` returns `"kind": "mcu_core"`).
+8. **Monitor kinds are plugins and the UI knows none of them** (decided 2026-09-30).
+   A kind is a `MonitorKind` (`core/monitoring/kind.py`) loaded from the
+   `iotsploit.monitors` entry-point group or a `.py` file in
+   `IOTSPLOIT_MONITOR_PLUGINS_DIR`. It describes its settings with the exploit
+   `Parameters` schema (choices may be live, e.g. connected probes) and may supply
+   its campaign policy; kinds without one get `HealthMonitor`. Flutter builds
+   forms and cards from `GET /api/iot-fuzzer/monitors/`, so adding a monitor
+   needs no UI change.
 
 ## 1. Current state (verified 2026-09-30)
 
@@ -283,7 +291,7 @@ Order by value/cost:
 | Slice | Contents | Notes |
 |---|---|---|
 | 3.1 UART | `UartDetail`; `SerialLink`; pyserial adapter; `UartSource` (reader thread, ring buffer across windows, `late` flag); `UartLogMonitor` (crash regex → crash, banner → reset, heartbeat silence → hang) | If the resource equals the fuzz transport's port, the adapter taps `UARTInterface` RX instead of opening the port (§6 R3). |
-| 3.2 Flutter | `test_controller.dart` sends `monitors`; `coreObservation` → `Map<String, MonitorObservation>`; `monitor_workspace.dart` renders one card per monitor by `kind`, generic JSON card for unknown kinds; target list from a catalog endpoint | Then remove the §3 legacy surfaces marked P3. |
+| 3.2 Flutter — **done** | Kind-agnostic workspace (decision 8): kinds, settings forms, probe and target choices all come from `GET /monitors/`; `test_controller.dart` sends `monitors` and reads `monitor_verdicts`; one generic card per monitor, `detail` rendered with the kind's `display` hints (`text`, `hex`, `json`) | `log` and `series` display hints come with the first kind that emits them (UART, voltage). |
 | 3.3 Voltage | `PowerDetail`; `PowerSense`; SCPI adapter; `PowerSource`; `PowerMonitor` (brown-out, over-current, current collapse to sleep floor) | Blocked on instrument choice (§7 Q4). |
 | 3.4 BLE | `BleDetail`; `BleObserver`; bleak adapter; `BleSource`; `BleLivenessMonitor` | Ubertooth driver stays for sniffing. |
 | 3.5 Concurrency | `MonitorSetHarness` runs point-source `end()` concurrently across distinct resources | Only when a campaign has ≥ 2 point sources. |
@@ -388,6 +396,21 @@ Order by value/cost:
     completed the remaining cases.
   - Manual check (legacy body and plan-entry body): 200. From a second process during a
     campaign: 409 "…in use by campaign … (iotsploit-python, pid …)". After it: 200.
+
+### 10.2a Monitor plugins (2026-09-30)
+
+- `SourceRegistry` holds `MonitorKind` objects; the composition root registers
+  whatever `load_monitor_kinds` finds. `mcu_core` ships as
+  `iotsploit_django.iot_fuzzer.monitor_kinds:McuCore` (core `McuCoreKind` +
+  fuzzer `McuCoreMonitor`), registered by entry point like any third-party kind.
+- `build_target_monitor(service, source)` asks the kind for its policy;
+  `HealthMonitor` stops on `fault`/`reset`/`unavailable` and reports `degraded`.
+- Acceptance test: a script kind written to a plugins directory is described,
+  checked and run in a campaign with no other edit
+  (`test_a_script_monitor_is_described_checked_and_run_with_no_other_edit`).
+- Rig 10.8.0.14 through Django's URL routing: `GET /monitors/` listed the shipped
+  `mcu_core` (live ST-LINK probe, catalog targets) and a dropped-in script kind;
+  `mcu_core` check on the STM32F4-Discovery returned `ok / running`.
 
 ### 10.3 Not yet verified
 
