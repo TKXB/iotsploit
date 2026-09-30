@@ -28,6 +28,27 @@ def list_monitors(request: HttpRequest):
 
 
 @csrf_exempt
+def describe_monitor(request: HttpRequest, kind: str):
+    """One kind's settings given the values chosen so far, e.g. the targets on a probe."""
+    if request.method != "POST":
+        return method_not_allowed("POST")
+    try:
+        data = parse_json_body(request)
+        values = data.get("values", {}) if isinstance(data, dict) else None
+        if not isinstance(values, dict):
+            raise ValueError("values must be an object")
+        described = wiring.get_monitor_service().describe_kind(
+            kind, values, owner=f"monitor settings {uuid.uuid4()}")
+    except json.JSONDecodeError:
+        return JsonResponse({"status": "error", "message": "Invalid JSON format"}, status=400)
+    except ResourceBusyError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=409)
+    except ValueError as exc:
+        return JsonResponse({"status": "error", "message": str(exc)}, status=400)
+    return JsonResponse({"status": "success", "monitor": described})
+
+
+@csrf_exempt
 def check_mcu_core(request: HttpRequest):
     """Read the configured MCU core once without starting a campaign."""
     return check_monitor(request, "mcu_core")

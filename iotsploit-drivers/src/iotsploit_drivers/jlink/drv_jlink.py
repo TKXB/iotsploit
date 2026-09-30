@@ -238,7 +238,8 @@ class JLinkAbility(BaseDeviceDriver):
     def debug_architectures(self) -> frozenset[str]:
         return frozenset({"cortex_m"})
 
-    def attach(self, serial: str, target: str, *, interface: str = "swd") -> None:
+    def attach(self, serial: str, target: str | None, *, interface: str = "swd") -> None:
+        # No target: initialize refuses before opening, as a J-Link must be told its device.
         device = Device(
             device_id=f"jlink_{serial}",
             name=f"J-Link {serial}",

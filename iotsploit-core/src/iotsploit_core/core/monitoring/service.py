@@ -53,6 +53,18 @@ class MonitorService:
         """Every kind with its settings schema, for clients that build forms from it."""
         return [self._registry.get(kind).describe() for kind in self._registry.kinds()]
 
+    def describe_kind(self, kind: str, values: dict, *, owner: str) -> dict:
+        """One kind's schema given chosen values; the chosen resource is leased meanwhile."""
+        described = self._registry.get(kind)
+        resource = values.get("resource")
+        if not resource:
+            return described.describe(values)
+        self._lease.acquire(resource, owner)
+        try:
+            return described.describe(values)
+        finally:
+            self._lease.release(resource, owner)
+
     def policy(self, source: MonitorSource):
         """The campaign policy the source's kind asks for; None means the default."""
         return self._registry.get(source.entry.kind).policy(source)

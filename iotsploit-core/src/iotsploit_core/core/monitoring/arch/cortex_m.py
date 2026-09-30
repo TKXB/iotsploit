@@ -10,7 +10,7 @@ import time
 from typing import Optional
 
 from iotsploit_core.domain.monitoring import McuCoreDetail
-from iotsploit_core.domain.target_profile import TargetProfile
+from iotsploit_core.domain.target_profile import ChipId, TargetProfile
 from iotsploit_core.ports.debug_access import DebugAccess
 
 ARCH = "cortex_m"
@@ -22,6 +22,8 @@ HFSR = 0xE000ED2C
 MMFAR = 0xE000ED34
 BFAR = 0xE000ED38
 DHCSR = 0xE000EDF0
+ROM_TABLE_PIDR4 = 0xE00FFFD0
+ROM_TABLE_PIDR0 = 0xE00FFFE0
 
 _CFSR_BITS = {
     0: "instruction access violation",
@@ -68,6 +70,18 @@ def _read_one(access: DebugAccess, name: str, address: int) -> int:
     if len(words) != 1:
         raise RuntimeError(f"Incomplete {name} read")
     return words[0]
+
+
+def chip_id(access: DebugAccess) -> ChipId:
+    """Who made the chip and which part it is, from the ROM table every Cortex-M has."""
+    pidr4 = _read_one(access, "PIDR4", ROM_TABLE_PIDR4)
+    pidr0, pidr1, pidr2 = (_read_one(access, f"PIDR{i}", ROM_TABLE_PIDR0 + 4 * i) for i in range(3))
+    if not pidr2 & 0x8:
+        raise RuntimeError("The ROM table names no JEP106 designer")
+    return ChipId(
+        designer=((pidr4 & 0xF) << 8) | ((pidr2 & 0x7) << 4) | ((pidr1 >> 4) & 0xF),
+        part=((pidr1 & 0xF) << 8) | (pidr0 & 0xFF),
+    )
 
 
 def sample(access: DebugAccess, profile: TargetProfile, *, core: str) -> McuCoreDetail:

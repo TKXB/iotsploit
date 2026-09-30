@@ -60,19 +60,21 @@ class STLinkDriver(BaseDeviceDriver):
         # sweep that initializes every device) would hold it from monitors.
         if not device.attributes.get("target_device"):
             raise ValueError("ST-LINK needs an explicit target_device; a probe cannot identify its target")
+        self._open(serial, device.attributes.get("interface", "swd"))
+        logger.info("ST-LINK initialized: %s", device.name)
+        return True
+
+    def _open(self, serial: str, interface: str) -> None:
         probe = StlinkProbe.get_probe_with_id(serial)
         if probe is None:
             raise RuntimeError(f"ST-LINK {serial} is not connected")
-        session = Session(probe, target_override="cortex_m", connect_mode="attach",
-                          dap_protocol=device.attributes.get("interface", "swd"))
+        session = Session(probe, target_override="cortex_m", connect_mode="attach", dap_protocol=interface)
         try:
             session.open()
         except Exception as exc:
             session.close()
             raise RuntimeError(f"Cannot open ST-LINK {serial}: {exc}") from exc
         self.session = session
-        logger.info("ST-LINK initialized: %s", device.name)
-        return True
 
     def _connect_impl(self, device: Device) -> bool:
         if self.session is None:
@@ -93,15 +95,9 @@ class STLinkDriver(BaseDeviceDriver):
     def debug_architectures(self) -> frozenset[str]:
         return frozenset({"cortex_m"})
 
-    def attach(self, serial: str, target: str, *, interface: str = "swd") -> None:
-        device = Device(
-            device_id=f"stlink_{serial}",
-            name=f"ST-LINK {serial}",
-            device_type=DeviceType.USB,
-            attributes={"probe_sn": serial, "target_device": target, "interface": interface},
-        )
-        self.initialize(device)
-        self.device = device
+    def attach(self, serial: str, target: str | None, *, interface: str = "swd") -> None:
+        # The generic cortex_m session reaches any Cortex-M, so no target is needed.
+        self._open(serial, interface)
 
     def detach(self) -> None:
         session, self.session = self.session, None

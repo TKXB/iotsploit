@@ -27,8 +27,12 @@ class DebugAccess(Protocol):
         """Architectures whose cores this backend can reach, e.g. ``{"cortex_m"}``."""
         ...
 
-    def attach(self, serial: str, target: str, *, interface: str = "swd") -> None:
-        """Open probe ``serial`` and connect to ``target`` without halting it."""
+    def attach(self, serial: str, target: str | None, *, interface: str = "swd") -> None:
+        """Open probe ``serial`` and connect to ``target`` without halting it.
+
+        ``target`` None asks for whatever core is there, so the chip can be
+        identified; a backend that must be told its target raises instead.
+        """
         ...
 
     def detach(self) -> None:

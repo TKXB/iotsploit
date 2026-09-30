@@ -412,6 +412,24 @@ Order by value/cost:
   `mcu_core` (live ST-LINK probe, catalog targets) and a dropped-in script kind;
   `mcu_core` check on the STM32F4-Discovery returned `ok / running`.
 
+### 10.2b Targets come from the probe (2026-09-30)
+
+- A parameter may declare `depends_on`; `POST /monitors/<kind>/describe/` returns a
+  kind's schema given chosen values, holding the lease on the chosen resource.
+  Flutter asks for the depended-on values first, then the rest (`settingSteps`).
+- `mcu_core`'s `target` depends on `resource`: the kind attaches with no target,
+  reads the CoreSight ROM table (`cortex_m.chip_id`: JEP106 designer + part) and
+  offers the catalog targets whose `identify` rule matches; a vendor ID register in
+  a rule is read only after the designer matched (on an STM32F4, the nRF52 part
+  register is RAM). Unreadable or unknown chips get the whole catalog with the
+  reason. Opening a monitor refuses a target the probe positively contradicts.
+- Rig STM32F4-Discovery: designer 0x020, part 0x411 (early STM32F40x silicon;
+  0x413 documented) → only `STM32F407VG` offered and preselected; checking it as
+  `NRF52840_XXAA` is refused with "The probe reports STM32F407VG".
+- Unverified: Nordic's ROM-table designer (0x244 assumed) and the nRF52840 rule;
+  the nRF5340 has no rule yet. A J-Link must be told its device, so it falls back
+  to the whole catalog until it can identify through low-level (CoreSight) reads.
+
 ### 10.3 Not yet verified
 
 - Windows lock interop (R8): Python `msvcrt.locking` byte 0 vs Rust `File::try_lock`.

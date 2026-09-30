@@ -4,13 +4,25 @@ from __future__ import annotations
 
 import json
 from importlib import resources
-from typing import Iterable
+from typing import Callable, Iterable
 
-from iotsploit_core.domain.target_profile import CoreRef, TargetProfile
+from iotsploit_core.domain.target_profile import ChipId, CoreRef, IdentifyRule, TargetProfile
 
 
 def _int(value) -> int:
     return value if isinstance(value, int) else int(str(value), 0)
+
+
+def _rule(data: dict | None) -> IdentifyRule | None:
+    if not data:
+        return None
+    register = data.get("register")
+    return IdentifyRule(
+        designer=_int(data["designer"]),
+        parts=tuple(_int(part) for part in data.get("parts", [])),
+        register=None if register is None else _int(register),
+        value=None if register is None else _int(data["value"]),
+    )
 
 
 def profile_from_dict(data: dict) -> TargetProfile:
@@ -23,6 +35,7 @@ def profile_from_dict(data: dict) -> TargetProfile:
         cpuid_part=_int(data["cpuid_part"]),
         ram=(start, end),
         vendor_registers={name: _int(address) for name, address in data.get("vendor_registers", {}).items()},
+        identify=_rule(data.get("identify")),
     )
 
 
@@ -52,3 +65,8 @@ class TargetCatalog:
 
     def names(self) -> list[str]:
         return sorted(self._profiles)
+
+    def identify(self, chip: ChipId, read32: Callable[[int], int]) -> list[TargetProfile]:
+        """Every target that recognises ``chip``; one per core for a multi-core part."""
+        return [profile for name, profile in sorted(self._profiles.items())
+                if profile.identify is not None and profile.identify.matches(chip, read32)]
