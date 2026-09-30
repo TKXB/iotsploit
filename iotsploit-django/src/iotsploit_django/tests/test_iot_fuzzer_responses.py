@@ -236,7 +236,7 @@ class TestIoTFuzzerCampaignResponses(SimpleTestCase):
             wrong_kind = self.post(views.check_monitor, {"monitor": {"kind": "uart", "resource": "serial:x"}},
                                    "mcu_core")
         self.assertEqual(no_serial.status_code, 400)
-        self.assertEqual(self.payload(no_serial)["message"], "A J-Link probe serial is required")
+        self.assertEqual(self.payload(no_serial)["message"], "A debug probe serial is required")
         self.assertEqual(wrong_kind.status_code, 400)
         service.check.assert_not_called()
 

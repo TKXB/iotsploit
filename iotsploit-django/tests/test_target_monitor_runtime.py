@@ -254,6 +254,13 @@ def test_legacy_config_becomes_a_one_entry_plan():
     assert entry.options["settle_ms"] == 30 and entry.options["expected_reset_prefixes"] == ["1101"]
 
 
+def test_legacy_config_names_a_non_segger_probe_by_vendor():
+    [entry] = monitor_compat.legacy_plan({"probe_serial": "57FF6C064967485623601087",
+                                          "probe_vendor_id": 0x0483, "target_device": "STM32F407VG"})
+
+    assert entry["resource"] == "usb:0483-57FF6C064967485623601087/debug"
+
+
 # --- composition root -----------------------------------------------------------------
 
 def test_container_resolves_the_real_jlink_driver_for_segger_probes(lease):
@@ -268,6 +275,19 @@ def test_container_resolves_the_real_jlink_driver_for_segger_probes(lease):
     assert entry.resource == "usb:1366-1050298903/debug"
     assert DeviceDriverManager.driver_capabilities(JLinkAbility) == ["debug_access"]
     assert isinstance(core_container.build_resource_lease(), FileResourceLease)
+
+
+def test_container_resolves_the_real_stlink_driver_for_st_probes(lease):
+    from iotsploit_drivers.stlink.drv_stlink import STLinkDriver
+
+    manager = SimpleNamespace(driver_classes=lambda: {"drv_jlink": object, "drv_stlink": STLinkDriver})
+    service = core_container.build_monitor_service(manager, lease)
+    [entry] = service.plan(monitor_compat.legacy_plan({"probe_serial": "57FF6C064967485623601087",
+                                                      "probe_vendor_id": 0x0483,
+                                                      "target_device": "STM32F407VG"}))
+
+    assert entry.resource == "usb:0483-57FF6C064967485623601087/debug"
+    assert DeviceDriverManager.driver_capabilities(STLinkDriver) == ["debug_access"]
 
 
 # --- file lease -----------------------------------------------------------------------

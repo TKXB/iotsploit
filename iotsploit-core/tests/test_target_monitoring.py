@@ -97,12 +97,13 @@ def test_malformed_resource_keys_are_rejected(bad):
 
 # --- target catalog -------------------------------------------------------------------
 
-def test_catalog_holds_the_nordic_targets_as_data():
-    assert CATALOG.names() == ["NRF52840_XXAA", "NRF5340_XXAA_APP"]
+def test_catalog_holds_the_targets_as_data():
+    assert CATALOG.names() == ["NRF52840_XXAA", "NRF5340_XXAA_APP", "STM32F407VG"]
     assert NRF52840.vendor_registers == {"resetreas": 0x40000400}
     assert CATALOG.get("NRF5340_XXAA_APP").cores[0].name == "app"
+    assert CATALOG.get("STM32F407VG").vendor_registers == {"rcc_csr": 0x40023874}
     with pytest.raises(ValueError, match="not supported"):
-        CATALOG.get("STM32F407VG")
+        CATALOG.get("STM32H743ZI")
 
 
 # --- Cortex-M decoding ----------------------------------------------------------------
@@ -281,7 +282,7 @@ def test_recovery_gives_up_at_the_deadline():
 @pytest.mark.parametrize("overrides, message", [
     ({"resource": "usb:1366-1050298903/vcom"}, "debug function"),
     ({"resource": "usb:0483-0670FF/debug"}, "No debug backend drives USB vendor 0x0483"),
-    ({"target": "STM32F407VG"}, "not supported"),
+    ({"target": "STM32H743ZI"}, "not supported"),
     ({"options": {"recovery_policy": "pray"}}, "recovery_policy is invalid"),
     ({"options": {"expected_reset_prefixes": ["zz"]}}, "hexadecimal"),
     ({"options": {"expected_reset_prefixes": [""]}}, "empty prefix"),
