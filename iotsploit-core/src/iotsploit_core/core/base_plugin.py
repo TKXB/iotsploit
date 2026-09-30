@@ -81,6 +81,16 @@ class BaseDeviceDriver(BasePlugin):
         return str(declaration)
 
     # Base implementations of device lifecycle methods
+    def resource_key(self, device: Device) -> Optional[str]:
+        """The exclusive-use key of the hardware behind ``device``, if it has one.
+
+        A driver that returns a key here is leased by the device manager while
+        the device is initialized, so it cannot be opened by a target monitor or
+        the boundary-scan bridge at the same time. See
+        ``iotsploit_core.domain.monitoring.usb_resource``.
+        """
+        return None
+
     def scan(self) -> List[Device]:
         """Scan for available devices"""
         try:

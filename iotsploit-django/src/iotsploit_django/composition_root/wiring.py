@@ -12,12 +12,16 @@ from typing import Optional
 from iotsploit_core.core.device_manager import DeviceDriverManager
 from iotsploit_core.core.device_registry import DeviceRegistry
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
+from iotsploit_core.core.monitoring import MonitorService
+from iotsploit_core.ports.resource_lease import ResourceLeasePort
 
 from iotsploit_django.composition_root import core_container, fuzzer_container
 
 
 _exploit_mgr: Optional[ExploitPluginManager] = None
 _device_mgr: Optional[DeviceDriverManager] = None
+_resource_lease: Optional[ResourceLeasePort] = None
+_monitor_service: Optional[MonitorService] = None
 _stream_configured: bool = False
 
 
@@ -45,8 +49,26 @@ def get_device_driver_manager(
             plugins_dir=plugins_dir,
             usb_config_file=usb_config_file,
             use_persistence=use_persistence,
+            resource_lease=get_resource_lease(),
         )
     return _device_mgr
+
+
+def get_resource_lease() -> ResourceLeasePort:
+    """One lease per process: in-process holders must see each other too."""
+    global _resource_lease
+    if _resource_lease is None:
+        _resource_lease = core_container.build_resource_lease()
+    return _resource_lease
+
+
+def get_monitor_service() -> MonitorService:
+    global _monitor_service
+    if _monitor_service is None:
+        _monitor_service = core_container.build_monitor_service(
+            get_device_driver_manager(), get_resource_lease()
+        )
+    return _monitor_service
 
 
 def get_device_registry(*, use_persistence: bool = True) -> DeviceRegistry:

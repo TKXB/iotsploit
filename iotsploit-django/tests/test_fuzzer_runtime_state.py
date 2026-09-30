@@ -12,6 +12,10 @@ if not apps.ready:
 
 from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingCampaign  # noqa: E402
 from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager  # noqa: E402
+from iotsploit_django.tools.iot_protocol_runtime import MonitorObservationRecorder  # noqa: E402
+from iotsploit_django.tools.monitor_compat import legacy_plan  # noqa: E402
+from iotsploit_core.core.monitoring import parse_plan  # noqa: E402
+from iotsploit_core.domain.observation import StartedScan  # noqa: E402
 
 pytestmark = [pytest.mark.django, pytest.mark.integration]
 
@@ -43,3 +47,70 @@ def test_campaign_runs_keep_distinct_uuid_owned_state(db):
     assert manager.get_campaign_state("run-one")["execs_done"] == 0
     assert manager.get_campaign_state("run-two")["execs_done"] == 12
     assert set(manager.get_active_campaigns()) == {"run-one", "run-two"}
+
+
+class RecordingObservationSink:
+    def __init__(self):
+        self.started = None
+        self.completed = []
+        self.failed = []
+
+    def start_scans(self, **kwargs):
+        self.started = kwargs
+        return [StartedScan(scan_id="scan-1", scope=kwargs["scopes"][0])]
+
+    def complete_scan(self, scan_id, facts, *, is_complete=True):
+        self.completed.append((scan_id, facts, is_complete))
+
+    def fail_scan(self, scan_id, error):
+        self.failed.append((scan_id, error))
+
+
+def _core_entry(target="NRF5340_XXAA_APP"):
+    return parse_plan(legacy_plan({"probe_serial": "1050298903", "target_device": target,
+                                   "target_id": "target-1"}))[0]
+
+
+def _lockup_verdict():
+    return {
+        "monitor": "mcu_core", "kind": "mcu_core", "verdict": "crash",
+        "stop_reason": "CPU lockup", "detected_reason": "CPU lockup", "decisive": True,
+        "before": None, "evidence": {},
+        "observation": {
+            "monitor": "mcu_core", "kind": "mcu_core", "resource": "usb:1366-1050298903/debug",
+            "target": "NRF5340_XXAA_APP", "window": (1.0, 1.0), "observed_at": 1.0,
+            "health": "fault", "reasons": ["CPU lockup"],
+            "detail": {"core": "app", "state": "lockup", "cause": "CPU lockup", "fault_causes": [],
+                       "active_exception": 0, "registers": {}},
+        },
+    }
+
+
+def test_core_failure_is_recorded_in_target_history():
+    sink = RecordingObservationSink()
+    recorder = MonitorObservationRecorder(sink, campaign_id="campaign-1", entry=_core_entry())
+
+    recorder.observe(_lockup_verdict())
+
+    # Same source, scope and fact as before monitors were generalised, so this
+    # scan compares against earlier ones.
+    assert sink.started["target_id"] == "target-1"
+    assert sink.started["source"] == "iot-fuzzer-jtag-core-monitor"
+    assert sink.started["scopes"][0].scope_key == "jtag-core:NRF5340_XXAA_APP:1050298903"
+    fact = sink.completed[0][1][0]
+    assert (fact.protocol, fact.observed_property) == ("jtag", "core_state")
+    assert fact.value["state"] == "lockup" and fact.value["crashed"] is True
+    assert fact.value["stop_reason"] == "CPU lockup"
+    assert sink.completed[0][2] is False
+    assert sink.failed == []
+
+
+def test_expected_reset_does_not_close_the_scan():
+    sink = RecordingObservationSink()
+    recorder = MonitorObservationRecorder(sink, campaign_id="campaign-1", entry=_core_entry())
+    verdict = {**_lockup_verdict(), "verdict": "expected_reset", "stop_reason": None,
+               "detected_reason": "Reset observed"}
+
+    recorder.observe(verdict)
+
+    assert sink.completed == []

@@ -32,6 +32,7 @@ class Orchestrator:
         self._is_running = False
         self._is_paused = False
         self._should_stop = False
+        self.stop_reason = None
         self._current_iteration = 0
         
         # Protocol information for enhanced events
@@ -41,7 +42,7 @@ class Orchestrator:
 
     def _detect_protocol_type(self) -> str:
         """Detect the protocol type based on the harness"""
-        harness_class = self.harness.__class__.__name__
+        harness_class = getattr(self.harness, "inner", self.harness).__class__.__name__
         
         if 'CAN' in harness_class.upper():
             return 'CAN'
@@ -246,6 +247,7 @@ class Orchestrator:
         logger.info("Starting fuzzing campaign: %s iterations", self.config.iterations)
         self._is_running = True
         self._should_stop = False
+        self.stop_reason = None
         
         # Get base seeds for reference
         self._base_seeds = list(self.generator.seed_corpus())
@@ -308,6 +310,11 @@ class Orchestrator:
 
                 result: HarnessResult = self.harness.execute(payload)
                 self.logger_backend.record(idx, payload, result)
+                if result.monitor_verdicts is not None:
+                    self._emit_event(EventType.MONITOR_STATUS, {"monitor_verdicts": result.monitor_verdicts})
+                if not result.sent:
+                    self.stop_reason = result.stop_reason
+                    break
                 self.monitor.process_case(idx, payload, result)
 
                 # Determine result status
@@ -356,11 +363,12 @@ class Orchestrator:
                         'timeout': result.timeout,
                         'error': result.error,
                         'response': result.response.hex().upper() if result.response else None,
-                        'info': result.info if hasattr(result, 'info') else None
+                        'info': result.info if hasattr(result, 'info') else None,
+                        'monitor_verdicts': result.monitor_verdicts
                     }
                 })
 
-                if result.crashed and self.config.save_crashes:
+                if result.crashed:
                     # Emit crash detected event with enhanced information
                     self._emit_event(EventType.CRASH_DETECTED, {
                         'test_case_id': idx,
@@ -381,6 +389,10 @@ class Orchestrator:
                     'protocol_type': self._protocol_type,
                 })
 
+                if result.stop_reason:
+                    self.stop_reason = result.stop_reason
+                    break
+
                 if self.config.delay:
                     time.sleep(self.config.delay)
 
@@ -394,6 +406,14 @@ class Orchestrator:
             raise
         finally:
             self._is_running = False
+
+        if self.stop_reason or self._should_stop:
+            self._emit_event(EventType.CAMPAIGN_STOPPED, {
+                "reason": self.stop_reason or "Stopped by operator",
+                "completed_iterations": self.monitor.get_stats().get("total_cases", 0),
+                "is_running": False,
+            })
+            return
 
         # Post-campaign summary
         final_stats = self.monitor.get_stats()
@@ -423,12 +443,8 @@ class Orchestrator:
         })
 
     def stop(self) -> None:
-        """Stop the fuzzing campaign"""
+        """Stop the fuzzing campaign; run() emits CAMPAIGN_STOPPED once it exits."""
         self._should_stop = True
-        self._emit_event(EventType.CAMPAIGN_STOPPED, {
-            'completed_iterations': self._current_iteration,
-            'protocol_type': self._protocol_type,
-        })
 
     def is_running(self) -> bool:
         """Check if the campaign is running"""

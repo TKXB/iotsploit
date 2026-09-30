@@ -1,4 +1,7 @@
+import json
 import logging
+import uuid
+from dataclasses import asdict
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -33,9 +36,18 @@ class TestLogger:
         self.keep = keep
         self.total = 0
         self.crashes = 0
+        self.campaign_id = uuid.uuid4().hex
 
     def record(self, idx: int, payload: bytes, result: HarnessResult) -> None:
-        self.total += 1
+        if result.monitor_verdicts is not None:
+            record = asdict(result)
+            record["response"] = result.response.hex() if result.response is not None else None
+            record.update(case_index=idx, payload_hash=payload_id(payload),
+                          attribution="observation interval; causation unconfirmed")
+            with (self.workdir / f"campaign_{self.campaign_id}.jsonl").open("a") as stream:
+                stream.write(json.dumps(record) + "\n")
+            self._write(f"case_{payload_id(payload)}.bin", payload)
+        self.total += int(result.sent)
         if result.crashed:
             self.crashes += 1
         if self.keep is not None and not self.keep(payload, result):

@@ -17,6 +17,10 @@ class HarnessResult:
     #: an escaped exception. Reported, never compared -- a line number moves
     #: under any edit.
     site: Optional[str] = None
+    #: One ``MonitorVerdict.to_dict()`` per target monitor, when monitors watch the case.
+    monitor_verdicts: Optional[list] = None
+    stop_reason: Optional[str] = None
+    sent: bool = True
 
 
 class ProtocolHarness(abc.ABC):

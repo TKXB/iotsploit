@@ -1,0 +1,22 @@
+{
+  "targets": [
+    {
+      "name": "NRF52840_XXAA",
+      "arch": "cortex_m",
+      "vendor": "nordic",
+      "cores": ["main"],
+      "cpuid_part": "0xC24",
+      "ram": ["0x20000000", "0x20040000"],
+      "vendor_registers": {"resetreas": "0x40000400"}
+    },
+    {
+      "name": "NRF5340_XXAA_APP",
+      "arch": "cortex_m",
+      "vendor": "nordic",
+      "cores": ["app"],
+      "cpuid_part": "0xD21",
+      "ram": ["0x20000000", "0x20080000"],
+      "vendor_registers": {"resetreas": "0x40005400"}
+    }
+  ]
+}

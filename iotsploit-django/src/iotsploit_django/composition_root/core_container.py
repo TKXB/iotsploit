@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 from iotsploit_core.core.device_manager import DeviceDriverManager
+from iotsploit_core.core.monitoring import MonitorService, SourceRegistry, TargetCatalog
+from iotsploit_core.core.monitoring.sources.mcu_core import KIND as MCU_CORE, mcu_core_kind
+from iotsploit_core.ports.resource_lease import ResourceLeasePort
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
 from iotsploit_core.core.stream_manager import StreamManager
 
@@ -116,11 +119,32 @@ def _build_capability_resolver():
         return None
 
 
+def build_resource_lease() -> ResourceLeasePort:
+    """Exclusive use of probes and ports, shared with the Flutter app's Rust bridge."""
+    from iotsploit_django.adapters.filelock.resource_lease import FileResourceLease
+
+    return FileResourceLease()
+
+
+def build_monitor_service(
+    driver_manager: DeviceDriverManager,
+    lease: ResourceLeasePort,
+    *,
+    catalog: TargetCatalog | None = None,
+) -> MonitorService:
+    """Target monitors for campaigns and manual checks, one source per kind."""
+    registry = SourceRegistry()
+    create, validate = mcu_core_kind(catalog or TargetCatalog.load_default(), driver_manager.driver_classes)
+    registry.register(MCU_CORE, create, validate)
+    return MonitorService(registry, lease)
+
+
 def build_device_driver_manager(
     *,
     plugins_dir: str | Path | None = None,
     usb_config_file: str | Path | None = None,
     use_persistence: bool = True,
+    resource_lease: ResourceLeasePort | None = None,
 ) -> DeviceDriverManager:
     """Build `iotsploit_core` device driver manager with Django adapters."""
 
@@ -137,6 +161,7 @@ def build_device_driver_manager(
         plugins_dir=plugins_dir,
         usb_config_file=usb_config_file,
         capability_resolver=_build_capability_resolver(),
+        resource_lease=resource_lease,
     )
 
 

@@ -9,8 +9,18 @@ import pylink
 
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.domain.device import Device, DeviceType
+from iotsploit_core.domain.monitoring import usb_resource
 
 logger = logging.getLogger(__name__)
+
+# Canonical register names (see iotsploit_core.ports.debug_access) as the J-Link
+# DLL lists them for a Cortex-M; it rejects any name it does not list.
+_REGISTER_NAMES = {
+    **{f"r{index}": f"R{index}" for index in range(13)},
+    "sp": "R13 (SP)", "lr": "R14", "pc": "R15 (PC)",
+    "xpsr": "XPSR", "msp": "MSP", "psp": "PSP", "control": "CONTROL",
+}
+SEGGER_USB_VENDOR_ID = 0x1366
 
 
 def _resolve_jlink_lib_path() -> Optional[str]:
@@ -50,8 +60,14 @@ def _load_jlink_library() -> tuple[Optional[pylink.library.Library], Optional[st
 
 
 class JLinkAbility(BaseDeviceDriver):
+    """Device driver for SEGGER J-Link debug probes.
+
+    Also a ``DebugAccess`` backend: target monitors use it as a plain transport
+    and do all decoding in ``iotsploit_core.core.monitoring.arch``.
+    """
+
     REQUIRES = ("module:pylink",)
-    """Device driver for SEGGER J-Link debug probes."""
+    DEBUG_USB_VENDOR_IDS = (SEGGER_USB_VENDOR_ID,)
 
     def __init__(self):
         super().__init__()
@@ -118,14 +134,17 @@ class JLinkAbility(BaseDeviceDriver):
         devices: List[Device] = []
         for emu in self.connected_emulators:
             sn = str(emu.SerialNumber)
+            product = getattr(emu, "acProduct", b"")
+            if isinstance(product, bytes):
+                product = product.decode(errors="replace").rstrip("\x00")
+            product = str(product).strip()
+            # The product names the probe's own MCU (an nRF52840-DK's on-board
+            # J-Link runs on an nRF5340), never the attached target.
             device = Device(
                 device_id=f"jlink_{sn}",
-                name=f"J-Link ({sn})",
-                device_type=DeviceType.JTAG,
-                attributes={
-                    "emulator_sn": sn,
-                    "target_device": "STM32F407VG",
-                },
+                name=f"{product or 'J-Link'} ({sn})",
+                device_type=DeviceType.USB,
+                attributes={"emulator_sn": sn, "product": product},
             )
             devices.append(device)
             logger.info("Found J-Link emulator: SN=%s", sn)
@@ -142,12 +161,38 @@ class JLinkAbility(BaseDeviceDriver):
         emulator_sn = device.attributes.get("emulator_sn")
         if not emulator_sn:
             raise ValueError("Device is missing 'emulator_sn' attribute")
+        target_device = device.attributes.get("target_device")
+        if not target_device:
+            raise ValueError("J-Link needs an explicit target_device; a probe cannot identify its target")
 
-        self.jlink = pylink.JLink(lib=self._jlink_lib)
-        self.jlink.open(serial_no=int(emulator_sn))
+        secured = []
 
-        target_device = device.attributes.get("target_device", "STM32F407VG")
-        self.jlink.connect(target_device)
+        def refuse_unsecure(title, msg, flags):
+            # Unsecuring mass-erases the target; record the request and decline.
+            secured.append(msg)
+            return pylink.enums.JLinkFlags.DLG_BUTTON_NO
+
+        self.jlink = pylink.JLink(lib=self._jlink_lib, unsecure_hook=refuse_unsecure)
+        try:
+            self.jlink.open(serial_no=int(emulator_sn))
+        except Exception as exc:
+            raise RuntimeError(f"Cannot open J-Link {emulator_sn}: {exc}") from exc
+
+        try:
+            if device.attributes.get("interface") == "swd":
+                self.jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
+            self.jlink.connect(target_device)
+        except Exception as exc:
+            self.jlink.close()
+            self.jlink = None
+            if secured:
+                raise RuntimeError(
+                    f"{target_device} is readback-protected (APPROTECT); debug access "
+                    "requires an unlock, which mass-erases its flash"
+                ) from exc
+            raise RuntimeError(
+                f"Cannot connect J-Link {emulator_sn} to {target_device}: {exc}"
+            ) from exc
         logger.info("J-Link initialized: %s -> %s", device.name, target_device)
         return True
 
@@ -177,14 +222,67 @@ class JLinkAbility(BaseDeviceDriver):
             return {"address": hex(address), "written": len(data)}
 
         if command == "reset":
-            self.jlink.reset()
+            self.jlink.reset(halt=False)
             return {"status": "success", "message": f"Reset {device.name}"}
 
         raise ValueError(f"Unsupported command: {command}")
 
+    def resource_key(self, device: Device) -> Optional[str]:
+        serial = device.attributes.get("emulator_sn")
+        return usb_resource(SEGGER_USB_VENDOR_ID, serial, "debug") if serial else None
+
+    # ------------------------------------------------------------------
+    # DebugAccess (iotsploit_core.ports.debug_access)
+    # ------------------------------------------------------------------
+
+    def debug_architectures(self) -> frozenset[str]:
+        return frozenset({"cortex_m"})
+
+    def attach(self, serial: str, target: str, *, interface: str = "swd") -> None:
+        device = Device(
+            device_id=f"jlink_{serial}",
+            name=f"J-Link {serial}",
+            device_type=DeviceType.USB,
+            attributes={"emulator_sn": str(serial), "target_device": target, "interface": interface},
+        )
+        self.initialize(device)
+        self.device = device
+
+    def detach(self) -> None:
+        if self.jlink is not None:
+            self.jlink.close()
+            self.jlink = None
+
+    def read_mem32(self, address: int, count: int = 1) -> list[int]:
+        return list(self._attached().memory_read32(address, count))
+
+    def read_registers(self, names) -> list[int]:
+        try:
+            dll_names = [_REGISTER_NAMES[name] for name in names]
+        except KeyError as exc:
+            raise ValueError(f"Unknown core register {exc.args[0]!r}") from None
+        return list(self._attached().register_read_multiple(dll_names))
+
+    def halt(self) -> None:
+        self._attached().halt()
+
+    def is_halted(self) -> bool:
+        return bool(self._attached().halted())
+
+    def resume(self) -> None:
+        self._attached().restart()
+
+    def reset_core(self, *, halt: bool = False) -> None:
+        self._attached().reset(halt=halt)
+
+    def _attached(self) -> pylink.JLink:
+        if self.jlink is None:
+            raise RuntimeError("J-Link is not initialized")
+        return self.jlink
+
     def _reset_impl(self, device: Device) -> bool:
         if self.jlink:
-            self.jlink.reset()
+            self.jlink.reset(halt=False)
             logger.info("Reset J-Link device: %s", device.name)
             return True
         return False

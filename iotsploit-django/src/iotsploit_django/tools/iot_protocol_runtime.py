@@ -13,6 +13,134 @@ from iotsploit_django.tools.iot_protocol_components import (
 logger = logging.getLogger(__name__)
 
 
+class MonitorObservationRecorder:
+    """Own one optional target-history scan for one monitor of a campaign.
+
+    ``mcu_core`` keeps the source, scope and fact names it had before monitors
+    were generalised, and stores the flat legacy observation as the value, so
+    new scans still compare against earlier ones.
+    """
+
+    def __init__(self, sink, *, campaign_id: str, entry):
+        from iotsploit_core.domain.monitoring import parse_usb_resource
+        from iotsploit_core.domain.observation import ObservationScope
+
+        self.sink = sink
+        self.kind = entry.kind
+        self.latest = None
+        self.finished = False
+        if entry.kind == "mcu_core":
+            _, serial, _ = parse_usb_resource(entry.resource)
+            source, scope = "iot-fuzzer-jtag-core-monitor", f"jtag-core:{entry.target}:{serial}"
+        else:
+            source, scope = "iot-fuzzer-monitor", f"{entry.kind}:{entry.target}:{entry.resource}"
+        started = sink.start_scans(
+            run_id=campaign_id,
+            target_id=entry.target_id,
+            source=source,
+            scopes=[ObservationScope(scope_key=scope)],
+        )
+        self.scan_id = started[0].scan_id
+
+    def observe(self, verdict: dict) -> None:
+        """Keep the latest verdict; close the scan at the first failure."""
+        self.latest = self._value(verdict)
+        detected_failure = verdict.get("stop_reason") or (
+            verdict.get("detected_reason") and verdict.get("verdict") != "expected_reset"
+        )
+        if detected_failure and not self.finished:
+            self.finish()
+
+    def observe_sample(self, observation: dict) -> None:
+        """A manual check: one observation with no campaign verdict."""
+        from iotsploit_django.tools.monitor_compat import flatten_mcu_core
+
+        self.latest = flatten_mcu_core(observation) if self.kind == "mcu_core" else observation
+
+    def finish(self, error: str | None = None) -> None:
+        if self.finished:
+            return
+        self.finished = True
+        if error:
+            self.sink.fail_scan(self.scan_id, error)
+            return
+        from iotsploit_core.domain.observation import Fact
+
+        facts = []
+        if self.latest is not None:
+            if self.kind == "mcu_core":
+                fact = Fact(protocol="jtag", subject_kind="self", observed_property="core_state",
+                            value=self.latest)
+            else:
+                fact = Fact(protocol=self.kind, subject_kind="self", observed_property="health",
+                            value=self.latest)
+            facts.append(fact)
+        self.sink.complete_scan(self.scan_id, facts, is_complete=False)
+
+    def _value(self, verdict: dict):
+        if self.kind == "mcu_core":
+            from iotsploit_django.tools.monitor_compat import legacy_core_observation
+
+            return legacy_core_observation(verdict)
+        return verdict
+
+
+def build_target_monitor(source):
+    """The campaign policy for one open monitor source."""
+    if source.entry.kind == "mcu_core":
+        from iotsploit_fuzzer.monitors import McuCoreMonitor
+
+        options = source.options
+        return McuCoreMonitor(
+            source.entry.name,
+            source.end,
+            source.settle_ms,
+            snapshot=source.snapshot,
+            recover=source.recover,
+            recovery_policy=options.recovery_policy,
+            max_recoveries=options.max_recoveries,
+            expected_reset_prefixes=options.expected_reset_prefixes,
+        )
+    raise ValueError(f"No campaign policy for monitor kind {source.entry.kind!r}")
+
+
+def campaign_monitor_plan(campaign_config: Dict[str, Any]):
+    """The raw ``monitors`` plan of a campaign, translating ``core_monitor``; None if unmonitored."""
+    plan = campaign_config.get("monitors")
+    if plan is not None:
+        return plan
+    core_monitor = campaign_config.get("core_monitor")
+    if core_monitor is not None:
+        from iotsploit_django.tools.monitor_compat import legacy_plan
+
+        return legacy_plan(core_monitor)
+    return None
+
+
+class SelectedCaseGenerator:
+    """Feed selected case mutations into the single protocol execution loop."""
+    def __init__(self, engine, cases):
+        from iotsploit_fuzzer.core.fuzzing_engine import FuzzTestCase
+        from iotsploit_django.tools.frame_utils import frame_data_from_fields
+        self.payloads = []
+        for case in cases:
+            source = FuzzTestCase(str(case["id"]), case["name"], case["protocol_type"],
+                                 frame_data_from_fields(case.get("frame_fields", [])),
+                                 case.get("frame_fields", []), case.get("fuzzing_rules", []),
+                                 case.get("target_bits"))
+            mutations = engine.generate_mutations([source], iterations=int(case.get("iterations", 100)))
+            self.payloads.extend(m.mutated_data for batch in mutations.values() for m in batch)
+        if not self.payloads:
+            raise ValueError("Selected cases generated no executable payloads")
+        self.total = len(self.payloads)
+
+    def seed_corpus(self):
+        return self.payloads[:1]
+
+    def generate(self, seeds, total):
+        yield from self.payloads[:total]
+
+
 class OrchestratorAdapter:
     """
     Adapter for iotsploit_fuzzer orchestrator component
@@ -26,6 +154,15 @@ class OrchestratorAdapter:
         self.orchestrator = None
         self.is_running = False
 
+        self.protocol_interface = None
+        self.monitor_session = None
+        self.monitor_recorders = {}
+        self.failure = None
+        # A monitored campaign must never silently fall back to the mock.
+        self._monitored = (
+            campaign_config.get("monitors") is not None or campaign_config.get("core_monitor") is not None
+        )
+
         # Store fuzzing engine if provided
         self.fuzzing_engine = campaign_config.get('fuzzing_engine')
         if self.fuzzing_engine:
@@ -38,7 +175,7 @@ class OrchestratorAdapter:
         """Initialize fuzzer components"""
         if not self.fuzzer_available:
             logger.warning("iotsploit_fuzzer not available, using mock implementation")
-            self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+            self._use_mock()
             return
 
         try:
@@ -53,38 +190,41 @@ class OrchestratorAdapter:
 
             logger.info("Initializing real fuzzer components")
 
-            # Create generator
-            generator_config = self.campaign_config.get('generator_config', {})
-            generator_type = generator_config.get('generator_type', 'radamsa')
-
-            if generator_type == 'radamsa':
-                radamsa_path = PathResolver().resolve_tool_path("radamsa")
-
-                if radamsa_path:
-                    generator = RadamsaGenerator(radamsa_path=radamsa_path)
-                    # Set up default seed corpus for CAN fuzzing
-                    default_seeds = [
-                        b"\x00\x01\x02\x03\x04\x05\x06\x07",  # Basic CAN frame
-                        b"\x02\x01\x00",                       # UDS DiagnosticSessionControl
-                        b"\x10\x01",                           # UDS DiagnosticSessionControl (default)
-                        b"\x10\x02",                           # UDS DiagnosticSessionControl (programming)
-                        b"\x10\x03",                           # UDS DiagnosticSessionControl (extended)
-                        b"\x11\x01",                           # UDS ECU Reset (hard reset)
-                        b"\x27\x01",                           # UDS SecurityAccess (request seed)
-                        b"\x3E\x00",                           # UDS TesterPresent
-                        b"\x22\xF1\x90",                       # UDS ReadDataByIdentifier
-                        b"\x2E\xF1\x90\x00\x01\x02\x03",     # UDS WriteDataByIdentifier
-                    ]
-                    generator.seed_corpus = lambda: default_seeds
-                    logger.info(f"Using radamsa at: {radamsa_path} with {len(default_seeds)} seed templates")
-                else:
-                    logger.warning("Radamsa not found, falling back to mock")
-                    self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
-                    return
+            if self.fuzzing_engine:
+                generator = SelectedCaseGenerator(self.fuzzing_engine, self.campaign_config["test_cases"])
             else:
-                logger.warning(f"Unsupported generator type: {generator_type}, using mock")
-                self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
-                return
+                # Create generator
+                generator_config = self.campaign_config.get('generator_config', {})
+                generator_type = generator_config.get('generator_type', 'radamsa')
+
+                if generator_type == 'radamsa':
+                    radamsa_path = PathResolver().resolve_tool_path("radamsa")
+
+                    if radamsa_path:
+                        generator = RadamsaGenerator(radamsa_path=radamsa_path)
+                        # Set up default seed corpus for CAN fuzzing
+                        default_seeds = [
+                            b"\x00\x01\x02\x03\x04\x05\x06\x07",  # Basic CAN frame
+                            b"\x02\x01\x00",                       # UDS DiagnosticSessionControl
+                            b"\x10\x01",                           # UDS DiagnosticSessionControl (default)
+                            b"\x10\x02",                           # UDS DiagnosticSessionControl (programming)
+                            b"\x10\x03",                           # UDS DiagnosticSessionControl (extended)
+                            b"\x11\x01",                           # UDS ECU Reset (hard reset)
+                            b"\x27\x01",                           # UDS SecurityAccess (request seed)
+                            b"\x3E\x00",                           # UDS TesterPresent
+                            b"\x22\xF1\x90",                       # UDS ReadDataByIdentifier
+                            b"\x2E\xF1\x90\x00\x01\x02\x03",     # UDS WriteDataByIdentifier
+                        ]
+                        generator.seed_corpus = lambda: default_seeds
+                        logger.info(f"Using radamsa at: {radamsa_path} with {len(default_seeds)} seed templates")
+                    else:
+                        logger.warning("Radamsa not found, falling back to mock")
+                        self._use_mock()
+                        return
+                else:
+                    logger.warning(f"Unsupported generator type: {generator_type}, using mock")
+                    self._use_mock()
+                    return
 
             # Create harness based on protocol type
             protocol_config = self.campaign_config.get('protocol_config', {})
@@ -130,16 +270,22 @@ class OrchestratorAdapter:
                 harness = SPIHarness(interface)
             else:
                 logger.warning(f"Unsupported protocol type: {protocol_type}, using mock")
-                self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+                self._use_mock()
                 return
+
+            self.protocol_interface = interface
+            if self._monitored:
+                harness = self._open_target_monitors(harness)
 
             # Create monitor and logger (pluggable by protocol)
             self.monitor = create_monitor(protocol_type, self.campaign_config.get('monitoring'))
             logger_backend = TestLogger()
+            if self.campaign_config.get("campaign_id"):
+                logger_backend.campaign_id = self.campaign_config["campaign_id"]
 
             # Create campaign config with event callback
             campaign_config = CampaignConfig(
-                iterations=self.campaign_config.get('iterations_total', 1000),
+                iterations=generator.total if isinstance(generator, SelectedCaseGenerator) else self.campaign_config.get('iterations_total', 1000),
                 delay=self.campaign_config.get('delay', 0.1),
                 save_crashes=True,
                 event_callback=self._handle_fuzzer_event
@@ -157,11 +303,68 @@ class OrchestratorAdapter:
             logger.info("Real fuzzer components initialized successfully")
 
         except ImportError as e:
+            self._close_resources()
+            if self._monitored:
+                raise
             logger.warning(f"Failed to import fuzzer module: {e}, using mock implementation")
-            self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+            self._use_mock()
         except Exception as e:
+            self._close_resources()
+            if self._monitored:
+                raise
             logger.error(f"Error initializing fuzzer components: {e}, using mock implementation")
-            self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+            self._use_mock()
+
+    def _use_mock(self):
+        if self._monitored:
+            raise RuntimeError("Monitored campaigns require real generator and protocol hardware; mock fallback disabled")
+        self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
+
+    def _open_target_monitors(self, harness):
+        """Open the campaign's monitor plan and wrap ``harness`` with its policies."""
+        from iotsploit_django.composition_root.wiring import get_monitor_service
+        from iotsploit_fuzzer.harnesses.monitor_set_harness import MonitorSetHarness
+
+        service = get_monitor_service()
+        entries = service.plan(campaign_monitor_plan(self.campaign_config))
+        campaign_id = self.campaign_config["campaign_id"]
+        self.monitor_session = service.open(entries, owner=f"campaign {campaign_id}")
+        harness = MonitorSetHarness(harness, [build_target_monitor(source)
+                                              for source in self.monitor_session.sources])
+        for entry in entries:
+            if not entry.target_id:
+                continue
+            try:
+                from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+                self.monitor_recorders[entry.name] = MonitorObservationRecorder(
+                    ObservationRepository(), campaign_id=campaign_id, entry=entry,
+                )
+            except Exception as exc:
+                logger.warning("Target-history recording unavailable for %s: %s", entry.name, exc)
+        verdicts = harness.preflight()
+        self._handle_fuzzer_event("monitor_status", {"monitor_verdicts": [v.to_dict() for v in verdicts]})
+        blocked = next((verdict for verdict in verdicts if verdict.decisive and verdict.stop_reason), None)
+        if blocked is not None:
+            prefix = "MCU preflight failed" if blocked.kind == "mcu_core" else f"{blocked.monitor} preflight failed"
+            raise RuntimeError(f"{prefix}: {blocked.stop_reason}")
+        return harness
+
+    def _close_resources(self):
+        try:
+            if self.monitor_session is not None:
+                self.monitor_session.close()
+                self.monitor_session = None
+        finally:
+            for name, recorder in self.monitor_recorders.items():
+                try:
+                    recorder.finish(self.failure)
+                except Exception as exc:
+                    logger.warning("Could not finish observation scan for %s: %s", name, exc)
+            self.monitor_recorders = {}
+            if self.protocol_interface is not None:
+                self.protocol_interface.close()
+                self.protocol_interface = None
 
     def start(self):
         """Start fuzzing campaign"""
@@ -181,90 +384,23 @@ class OrchestratorAdapter:
     def _run_campaign(self):
         """Run the actual fuzzing campaign"""
         try:
-            if self.fuzzing_engine:
-                # Use fuzzing engine if available
-                logger.info("Running campaign with fuzzing engine")
-                self._run_with_fuzzing_engine()
-            elif self.orchestrator:
-                # Use traditional orchestrator
+            if self.orchestrator:
                 self.orchestrator.run()
-            else:
-                logger.warning("No fuzzing engine or orchestrator available")
         except Exception as e:
+            self.failure = str(e)
             logger.error(f"Error during fuzzing campaign: {e}")
         finally:
-            self.is_running = False
-
-    def _run_with_fuzzing_engine(self):
-        """Run campaign using the fuzzing engine"""
-        try:
-            if not self.fuzzing_engine:
-                logger.error("No fuzzing engine available")
-                return
-
-            # Get test cases from campaign config
-            test_cases = self.campaign_config.get('test_cases', [])
-            if not test_cases:
-                logger.warning("No test cases provided for fuzzing engine")
-                return
-
-            logger.info(f"Starting fuzzing engine with {len(test_cases)} test cases")
-
-            # Execute mutations using fuzzing engine
-            for test_case in test_cases:
-                try:
-                    # Generate mutations for this test case
-                    mutations = self.fuzzing_engine.generate_mutations(
-                        test_case,
-                        iterations=test_case.get('iterations', 100)
-                    )
-
-                    # Execute each mutation
-                    for mutation in mutations:
-                        self._execute_mutation(mutation, test_case)
-
-                except Exception as e:
-                    logger.error(f"Error processing test case {test_case.get('id', 'unknown')}: {e}")
-                    continue
-
-            logger.info("Fuzzing engine campaign completed")
-
-        except Exception as e:
-            logger.error(f"Error in fuzzing engine campaign: {e}")
-
-    def _execute_mutation(self, mutation: Dict[str, Any], test_case: Dict[str, Any]):
-        """Execute a single mutation"""
-        try:
-            # Extract mutation data
-            original_payload = mutation.get('original', '')
-            mutated_payload = mutation.get('mutated', '')
-            strategy_used = mutation.get('strategy', 'unknown')
-            target_bits = mutation.get('target_bits', '')
-
-            # Log mutation execution
-            logger.debug(f"Executing mutation: {strategy_used} -> {target_bits}")
-
-            # Here you would send the mutated payload to the target
-            # For now, we'll just log the execution
-            logger.info(f"Mutation executed for test case {test_case.get('id')}: {strategy_used}")
-
-            # Emit event for mutation execution
-            self._handle_fuzzer_event('mutation_executed', {
-                'test_case_id': test_case.get('id'),
-                'mutation_type': strategy_used,
-                'target_bits': target_bits,
-                'original_payload': original_payload,
-                'mutated_payload': mutated_payload
-            })
-
-        except Exception as e:
-            logger.error(f"Error executing mutation: {e}")
+            try:
+                self._close_resources()
+            finally:
+                self.is_running = False
 
     def stop(self):
         """Stop fuzzing campaign"""
         if self.orchestrator:
             self.orchestrator.stop()
-            self.is_running = False
+            if hasattr(self, "fuzzer_thread"):
+                self.fuzzer_thread.join(timeout=5)
             logger.info("Real orchestrator stopped")
         elif self.fuzzer_instance:
             self.fuzzer_instance.stop()
@@ -345,6 +481,7 @@ class OrchestratorAdapter:
                 'test_case_started': 'test_case_update',
                 'test_case_completed': 'test_case_update',
                 'crash_detected': 'crash_alert',
+                'monitor_status': 'monitor_status',
                 'statistics_update': 'statistics_update',
                 'progress_update': 'progress_update',
             }
@@ -367,11 +504,36 @@ class OrchestratorAdapter:
                     'status': self._get_campaign_status()
                 })
 
+            if enhanced_data["event_type"] in ("campaign_stopped", "campaign_completed"):
+                enhanced_data["is_running"] = False
+
+            verdicts = enhanced_data.get("monitor_verdicts")
+            if verdicts:
+                self._record_verdicts(campaign_id, verdicts, enhanced_data)
+
             # Emit event to Django WebSocket system
             bridge.emit_event(django_event_type, enhanced_data)
 
         except Exception as e:
             logger.error(f"Error handling fuzzer event: {e}")
+
+    def _record_verdicts(self, campaign_id, verdicts, enhanced_data):
+        from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager
+        from iotsploit_django.tools.monitor_compat import first_mcu_core, legacy_core_observation
+
+        for verdict in verdicts:
+            recorder = self.monitor_recorders.get(verdict.get("monitor"))
+            if recorder is not None:
+                try:
+                    recorder.observe(verdict)
+                except Exception as exc:
+                    logger.warning("Could not record %s observation: %s", verdict.get("monitor"), exc)
+        update = {"monitor_verdicts": verdicts}
+        core = first_mcu_core(verdicts)
+        if core is not None:
+            # Clients built before monitor plans read this flat dict.
+            enhanced_data["core_observation"] = update["core_observation"] = legacy_core_observation(core)
+        IoTFuzzerManager.get_instance().update_campaign_state(campaign_id, update)
 
     def _get_campaign_status(self):
         """Get current campaign status string"""
@@ -438,7 +600,7 @@ class MonitorAdapter:
             return {
                 'cycles_done': stats.get('current_iteration', 0) or 0,
                 'execs_done': stats.get('total_cases', 0) or 0,
-                'saved_crashes': stats.get('crash_count', 0) or 0,
+                'saved_crashes': stats.get('crashes', 0) or 0,
                 'is_running': getattr(self.orchestrator_adapter, 'is_running', False)
             }
         elif self.monitor_instance:
@@ -470,9 +632,9 @@ class MonitorAdapter:
                 'pending_total': stats.get('pending_total', 0),
                 'pending_favs': stats.get('pending_favs', 0),
                 'bitmap_cvg': stats.get('bitmap_cvg', 0.0),
-                'saved_crashes': stats.get('crash_count', 0),
+                'saved_crashes': stats.get('crashes', 0),
                 'saved_hangs': stats.get('hang_count', 0),
-                'total_tmout': stats.get('timeout_count', 0),
+                'total_tmout': stats.get('timeouts', 0),
                 'run_time': stats.get('run_time', 0),
             }
         elif self.monitor_instance:
