@@ -85,23 +85,14 @@ class MonitorObservationRecorder:
         return verdict
 
 
-def build_target_monitor(source):
-    """The campaign policy for one open monitor source."""
-    if source.entry.kind == "mcu_core":
-        from iotsploit_fuzzer.monitors import McuCoreMonitor
+def build_target_monitor(service, source):
+    """The campaign policy for one open source: its kind's own, else judged by health."""
+    policy = service.policy(source)
+    if policy is not None:
+        return policy
+    from iotsploit_fuzzer.monitors import HealthMonitor
 
-        options = source.options
-        return McuCoreMonitor(
-            source.entry.name,
-            source.end,
-            source.settle_ms,
-            snapshot=source.snapshot,
-            recover=source.recover,
-            recovery_policy=options.recovery_policy,
-            max_recoveries=options.max_recoveries,
-            expected_reset_prefixes=options.expected_reset_prefixes,
-        )
-    raise ValueError(f"No campaign policy for monitor kind {source.entry.kind!r}")
+    return HealthMonitor(source.entry.name, source.entry.kind, source.end, source.settle_ms)
 
 
 def campaign_monitor_plan(campaign_config: Dict[str, Any]):
@@ -329,7 +320,7 @@ class OrchestratorAdapter:
         entries = service.plan(campaign_monitor_plan(self.campaign_config))
         campaign_id = self.campaign_config["campaign_id"]
         self.monitor_session = service.open(entries, owner=f"campaign {campaign_id}")
-        harness = MonitorSetHarness(harness, [build_target_monitor(source)
+        harness = MonitorSetHarness(harness, [build_target_monitor(service, source)
                                               for source in self.monitor_session.sources])
         for entry in entries:
             if not entry.target_id:

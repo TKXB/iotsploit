@@ -29,12 +29,17 @@ def _legacy_int(config: dict, key: str, default: int) -> int:
 
 
 def legacy_plan(core_monitor) -> list[dict]:
-    """``core_monitor`` (one J-Link core) as a one-entry ``monitors`` plan."""
+    """``core_monitor`` (one probe's core) as a one-entry ``monitors`` plan.
+
+    ``probe_vendor_id`` selects the probe's backend; clients that predate it
+    only had J-Links.
+    """
     if not isinstance(core_monitor, dict):
         raise ValueError("core_monitor must be an object")
     serial = str(core_monitor.get("probe_serial", "")).strip()
-    if not serial.isdigit() or int(serial) <= 0:
-        raise ValueError("A J-Link probe serial is required")
+    if not serial.isalnum() or not serial.strip("0"):
+        raise ValueError("A debug probe serial is required")
+    vendor_id = _legacy_int(core_monitor, "probe_vendor_id", SEGGER_USB_VENDOR_ID)
     options = {
         "settle_ms": _legacy_int(core_monitor, "settle_ms", 20),
         "boot_timeout_ms": _legacy_int(core_monitor, "boot_timeout_ms", 5000),
@@ -45,7 +50,7 @@ def legacy_plan(core_monitor) -> list[dict]:
     return [{
         "kind": "mcu_core",
         "name": LEGACY_MONITOR_NAME,
-        "resource": usb_resource(SEGGER_USB_VENDOR_ID, serial, "debug"),
+        "resource": usb_resource(vendor_id, serial, "debug"),
         "target": str(core_monitor.get("target_device") or ""),
         "target_id": str(core_monitor.get("target_id", "") or "").strip(),
         "options": options,

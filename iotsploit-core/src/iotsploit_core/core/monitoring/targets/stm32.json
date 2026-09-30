@@ -1,0 +1,13 @@
+{
+  "targets": [
+    {
+      "name": "STM32F407VG",
+      "arch": "cortex_m",
+      "vendor": "st",
+      "cores": ["main"],
+      "cpuid_part": "0xC24",
+      "ram": ["0x20000000", "0x20020000"],
+      "vendor_registers": {"rcc_csr": "0x40023874"}
+    }
+  ]
+}

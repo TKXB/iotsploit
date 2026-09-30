@@ -49,6 +49,14 @@ class MonitorService:
     def kinds(self) -> list[str]:
         return self._registry.kinds()
 
+    def describe(self) -> list[dict]:
+        """Every kind with its settings schema, for clients that build forms from it."""
+        return [self._registry.get(kind).describe() for kind in self._registry.kinds()]
+
+    def policy(self, source: MonitorSource):
+        """The campaign policy the source's kind asks for; None means the default."""
+        return self._registry.get(source.entry.kind).policy(source)
+
     def plan(self, raw) -> list[MonitorPlanEntry]:
         """Parse and validate a plan without touching hardware."""
         entries = parse_plan(raw)
