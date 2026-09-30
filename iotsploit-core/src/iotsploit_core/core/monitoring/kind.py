@@ -6,6 +6,11 @@ client builds the form from :meth:`MonitorKind.describe` and never needs to know
 the kind. ``resource`` and ``target`` are plan-entry fields; every other
 parameter is an entry option.
 
+A parameter may declare ``"depends_on": ["resource"]``: its choices come from
+what the kind finds once those values are chosen (the chip on a probe). A
+client collects the depended-on values first, then asks for the rest with
+:meth:`MonitorKind.describe` given those values.
+
 Kinds come from the ``iotsploit.monitors`` entry-point group and, optionally,
 from ``.py`` files in a monitor plugins directory.
 """
@@ -46,8 +51,12 @@ class MonitorKind:
     def __init__(self, context: MonitorContext):
         self.context = context
 
-    def parameters(self) -> dict:
-        """The settings schema. Called per request, so choices may be live."""
+    def parameters(self, values: Mapping) -> dict:
+        """The settings schema, given the values chosen so far (empty at first).
+
+        Called per request, so choices may be live. The composition root holds
+        the lease on ``values["resource"]`` while this runs, so a kind may open it.
+        """
         return {}
 
     def validate(self, entry: MonitorPlanEntry) -> None:
@@ -60,12 +69,12 @@ class MonitorKind:
         """The campaign policy for an open source; None selects the default health policy."""
         return None
 
-    def describe(self) -> dict:
+    def describe(self, values: Mapping | None = None) -> dict:
         return {
             "kind": self.KIND,
             "name": self.NAME or self.KIND,
             "description": self.DESCRIPTION,
-            "parameters": self.parameters(),
+            "parameters": self.parameters(values or {}),
             "display": dict(self.DISPLAY),
         }
 

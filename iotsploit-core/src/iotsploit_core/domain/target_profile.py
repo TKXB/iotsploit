@@ -8,7 +8,39 @@ of a known architecture needs no code: see ``core/monitoring/targets``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import Callable, Mapping, Optional
+
+
+@dataclass(frozen=True)
+class ChipId:
+    """What a chip's CoreSight ROM table says about it."""
+
+    designer: int
+    """JEP106 code as ``continuation << 8 | id``: 0x020 is ST, 0x244 Nordic."""
+    part: int
+
+
+@dataclass(frozen=True)
+class IdentifyRule:
+    """How to recognise a target from its :class:`ChipId`."""
+
+    designer: int
+    parts: tuple[int, ...] = ()
+    """ROM-table part numbers this target reports; empty accepts any."""
+    register: Optional[int] = None
+    value: Optional[int] = None
+    """A vendor ID register and what it reads, checked only once the designer matched:
+    another vendor's ID address can be plain RAM."""
+
+    def matches(self, chip: ChipId, read32: Callable[[int], int]) -> bool:
+        if chip.designer != self.designer or (self.parts and chip.part not in self.parts):
+            return False
+        if self.register is None:
+            return True
+        try:
+            return read32(self.register) == self.value
+        except Exception:
+            return False
 
 
 @dataclass(frozen=True)
@@ -30,6 +62,8 @@ class TargetProfile:
     """[start, end) of RAM, bounding where a stacked exception frame may be."""
     vendor_registers: Mapping[str, int] = field(default_factory=dict)
     """Extra registers sampled with every observation, by name and address."""
+    identify: Optional[IdentifyRule] = None
+    """None: the target cannot be recognised on a probe and is only chosen by hand."""
 
     def core(self, name: str) -> CoreRef:
         for core in self.cores:

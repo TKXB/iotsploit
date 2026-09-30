@@ -7,12 +7,12 @@ import time
 from dataclasses import dataclass
 from typing import Mapping
 
-from iotsploit_core.core.monitoring.arch import arch_monitor
+from iotsploit_core.core.monitoring.arch import arch_monitor, cortex_m
 from iotsploit_core.core.monitoring.catalog import TargetCatalog
 from iotsploit_core.core.monitoring.kind import MonitorContext, MonitorKind
 from iotsploit_core.core.monitoring.source import MonitorPlanEntry
 from iotsploit_core.domain.monitoring import MonitorObservation, mcu_core_health, parse_usb_resource
-from iotsploit_core.domain.target_profile import TargetProfile
+from iotsploit_core.domain.target_profile import ChipId, TargetProfile
 from iotsploit_core.ports.debug_access import DebugAccess, debug_usb_vendor_ids
 
 logger = logging.getLogger(__name__)
@@ -69,6 +69,12 @@ def _int(value, name: str) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
+def identify(access: DebugAccess, catalog: TargetCatalog) -> tuple[ChipId, list[TargetProfile]]:
+    """The chip on an attached probe and the catalog targets that recognise it."""
+    chip = cortex_m.chip_id(access)
+    return chip, catalog.identify(chip, lambda address: access.read_mem32(address, 1)[0])
+
+
 def select_backend(vendor_id: int, backend_classes: Mapping[str, type]) -> type:
     for backend in backend_classes.values():
         if (isinstance(backend, type) and issubclass(backend, DebugAccess)
@@ -81,10 +87,11 @@ class McuCoreSource:
     """A point source: each ``end()`` is one fresh sample of the core."""
 
     def __init__(self, entry: MonitorPlanEntry, *, profile: TargetProfile,
-                 backend_class: type, options: McuCoreOptions):
+                 backend_class: type, options: McuCoreOptions, catalog: TargetCatalog):
         _, self.serial, _ = parse_usb_resource(entry.resource)
         self.entry = entry
         self.profile = profile
+        self.catalog = catalog
         self.options = options
         self.settle_ms = options.settle_ms
         self._backend_class = backend_class
@@ -97,6 +104,16 @@ class McuCoreSource:
         access.attach(self.serial, self.profile.name, interface=self.options.interface)
         if self.profile.arch not in access.debug_architectures():
             raise ValueError(f"{self._backend_class.__name__} cannot reach {self.profile.arch} cores")
+        # The board may have changed since the target was chosen. Only a chip
+        # recognised as another target is refused: one that cannot be
+        # recognised was chosen by hand.
+        try:
+            _, detected = identify(access, self.catalog)
+        except Exception:
+            return
+        if detected and self.profile not in detected:
+            names = ", ".join(profile.name for profile in detected)
+            raise ValueError(f"The probe reports {names}, not {self.profile.name}")
 
     def begin(self) -> None:
         """Nothing to mark: a core is read when asked."""
@@ -178,12 +195,14 @@ class McuCoreKind(MonitorKind):
         super().__init__(context)
         self.catalog = catalog or TargetCatalog.load_default()
 
-    def parameters(self) -> dict:
+    def parameters(self, values: Mapping) -> dict:
+        resource = values.get("resource")
         return {
             "resource": {"type": "str", "required": True, "description": "Debug probe",
                          "validation": {"choices": self._probes()}},
-            "target": {"type": "str", "required": True, "description": "Target MCU",
-                       "validation": {"choices": self.catalog.names()}},
+            "target": {"type": "str", "required": True, "depends_on": ["resource"],
+                       **(self._targets_on(resource, values.get("interface") or "swd") if resource else
+                          {"description": "Target MCU"})},
             "interface": {"type": "str", "default": "swd", "description": "Debug interface",
                           "validation": {"choices": ["swd", "jtag"]}},
             "recovery_policy": {"type": "str", "default": "stop",
@@ -204,7 +223,29 @@ class McuCoreKind(MonitorKind):
 
     def create(self, entry: MonitorPlanEntry) -> McuCoreSource:
         profile, options, backend = self._resolve(entry)
-        return McuCoreSource(entry, profile=profile, backend_class=backend, options=options)
+        return McuCoreSource(entry, profile=profile, backend_class=backend, options=options, catalog=self.catalog)
+
+    def _targets_on(self, resource: str, interface: str) -> dict:
+        """The target choices for the chip on ``resource``: what it is, else every target."""
+        try:
+            vendor_id, serial, _ = parse_usb_resource(resource)
+            access = select_backend(vendor_id, self.context.driver_classes())()
+            try:
+                access.attach(serial, None, interface=interface)
+                chip, detected = identify(access, self.catalog)
+            finally:
+                access.detach()
+        except Exception as exc:
+            reason = str(exc)
+        else:
+            if detected:
+                return {"description": f"Detected on the probe (designer 0x{chip.designer:03X}, "
+                                       f"part 0x{chip.part:03X})",
+                        "default": detected[0].name if len(detected) == 1 else None,
+                        "validation": {"choices": [profile.name for profile in detected]}}
+            reason = f"designer 0x{chip.designer:03X}, part 0x{chip.part:03X} is not in the target catalog"
+        return {"description": f"Could not identify the chip ({reason}); choose it",
+                "validation": {"choices": self.catalog.names()}}
 
     def _resolve(self, entry: MonitorPlanEntry):
         vendor_id, _, function = parse_usb_resource(entry.resource)

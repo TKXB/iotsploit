@@ -320,7 +320,7 @@ def test_backend_without_the_target_architecture_is_refused():
         source.open()
 
 
-def test_mcu_core_offers_probes_from_every_debug_backend_and_the_catalog_targets():
+def test_mcu_core_offers_probes_from_every_debug_backend_and_the_target_after_one():
     class StLink(FakeAccess):
         def scan(self):
             return [SimpleNamespace(name="STM32 STLink (57FF)")]
@@ -338,7 +338,9 @@ def test_mcu_core_offers_probes_from_every_debug_backend_and_the_catalog_targets
 
     assert described["parameters"]["resource"]["validation"]["choices"] == [
         {"value": "usb:0483-57FF/debug", "label": "STM32 STLink (57FF)"}]
-    assert described["parameters"]["target"]["validation"]["choices"] == CATALOG.names()
+    # Which targets fit depends on the chip on the chosen probe.
+    assert described["parameters"]["target"]["depends_on"] == ["resource"]
+    assert "validation" not in described["parameters"]["target"]
     assert described["display"] == {"registers": "hex"}
 
 
@@ -352,6 +354,71 @@ def test_kinds_load_from_plugin_files_and_a_broken_file_is_skipped(tmp_path):
 
     assert kinds["beat"].describe() == {"kind": "beat", "name": "beat", "description": "",
                                         "parameters": {}, "display": {}}
+
+
+# The ROM table of the rig's STM32F4-Discovery: ST (0x020), part 0x411, which
+# early STM32F40x silicon reports instead of the documented 0x413.
+STM32F4_ROM = {0xE00FFFD0: 0x00, 0xE00FFFE0: 0x11, 0xE00FFFE4: 0x04, 0xE00FFFE8: 0x0A,
+               0xE000ED00: 0x410FC241}
+NRF52840_ROM = {0xE00FFFD0: 0x02, 0xE00FFFE0: 0x08, 0xE00FFFE4: 0x40, 0xE00FFFE8: 0x0C,
+                0x10000100: 0x52840}
+
+
+def test_the_rom_table_names_the_chip_vendor_and_part():
+    chip = cortex_m.chip_id(FakeAccess(STM32F4_ROM))
+    assert (chip.designer, chip.part) == (0x020, 0x411)
+
+
+def test_a_vendor_id_register_is_read_only_after_the_vendor_matched():
+    chip = cortex_m.chip_id(FakeAccess(STM32F4_ROM))
+    # 0x10000100 is the nRF52 part register, and RAM on an STM32F4.
+    detected = CATALOG.identify(chip, lambda address: pytest.fail(f"read 0x{address:08X}"))
+    assert [profile.name for profile in detected] == ["STM32F407VG"]
+
+    nordic = FakeAccess(NRF52840_ROM)
+    assert CATALOG.identify(cortex_m.chip_id(nordic), lambda a: nordic.read_mem32(a)[0]) == [NRF52840]
+
+
+class ProbeOn(FakeAccess):
+    """A probe whose chip is fixed by the ROM table in ``memory``."""
+
+    CHIP: dict = {}
+
+    def __init__(self):
+        super().__init__(dict(self.CHIP))
+
+
+def test_choosing_a_probe_offers_only_the_targets_found_on_it():
+    class StLink(ProbeOn):
+        CHIP = STM32F4_ROM
+
+    target = mcu_core(StLink).describe({"resource": "usb:1366-1/debug"})["parameters"]["target"]
+
+    assert target["depends_on"] == ["resource"]
+    assert target["validation"]["choices"] == ["STM32F407VG"]
+    assert "part 0x411" in target["description"]
+
+
+def test_a_chip_that_cannot_be_read_falls_back_to_every_target():
+    class MustBeTold(FakeAccess):
+        def attach(self, serial, target, *, interface="swd"):
+            if target is None:
+                raise ValueError("J-Link needs an explicit target_device")
+
+    target = mcu_core(MustBeTold).describe({"resource": "usb:1366-1/debug"})["parameters"]["target"]
+
+    assert target["validation"]["choices"] == CATALOG.names()
+    assert target["description"].startswith("Could not identify the chip (J-Link needs an explicit")
+
+
+def test_opening_refuses_a_target_the_probe_contradicts_but_not_an_unknown_chip():
+    class StLink(ProbeOn):
+        CHIP = STM32F4_ROM
+
+    wrong = mcu_core(StLink).create(entry(target="NRF52840_XXAA"))
+    with pytest.raises(ValueError, match="reports STM32F407VG, not NRF52840_XXAA"):
+        wrong.open()
+    mcu_core(FakeAccess).create(entry()).open()  # blank ROM table: chosen by hand
 
 
 # --- plans, service, leases -----------------------------------------------------------
@@ -415,6 +482,17 @@ def stub_service(lease, log, failing=()):
 
 def stub_plan(*names):
     return [MonitorPlanEntry(kind="stub", name=name, resource=f"stub:{name}") for name in names]
+
+
+def test_describing_a_chosen_resource_leases_it_meanwhile():
+    lease, log = MemoryLease(), []
+    service = stub_service(lease, log)
+
+    service.describe_kind("stub", {"resource": "stub:a"}, owner="settings")
+    lease.acquire("stub:a", "campaign 1")
+
+    with pytest.raises(ResourceBusyError):
+        service.describe_kind("stub", {"resource": "stub:a"}, owner="settings")
 
 
 def test_a_failed_open_releases_everything_already_held():

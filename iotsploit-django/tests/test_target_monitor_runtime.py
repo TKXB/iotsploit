@@ -279,7 +279,7 @@ class Heartbeat(MonitorKind):
     NAME = "Heartbeat"
     DESCRIPTION = "Health follows the scripted samples"
 
-    def parameters(self):
+    def parameters(self, values):
         return {"resource": {"type": "str", "required": True, "description": "Anything"}}
 
     def create(self, entry):
