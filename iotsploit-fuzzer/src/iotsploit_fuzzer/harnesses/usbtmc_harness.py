@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import struct
 import time
 
@@ -180,9 +181,10 @@ class USBTMCHarness(ProtocolHarness):
         tag = self.last_in_tag if incoming else self.last_out_tag
         request = 3 if incoming else 1
         status = self._control(0xA2, request, tag, endpoint, 2)
-        if len(status) != 2 or status[0] not in (1, 0x81):
+        if len(status) != 2 or status[0] not in (1, 0x80, 0x81):
             raise ValueError("USBTMC abort initiation failed")
-        if status[0] == 0x81:
+        # STATUS_FAILED here means no transfer is in progress: nothing to abort.
+        if status[0] in (0x80, 0x81):
             return
         while True:
             status = self._control(0xA2, request + 1, 0, endpoint, 8)
@@ -239,10 +241,13 @@ class USBTMCHarness(ProtocolHarness):
                     try:
                         response = self._response(step.get("max_bytes", self.max_response))
                     except Exception as exc:
-                        if not (getattr(exc, "errno", None) == 110 and step.get("allow_timeout", False)):
+                        if not (getattr(exc, "errno", None) == errno.ETIMEDOUT and step.get("allow_timeout", False)):
                             raise
                         self._event("expected_timeout", error=str(exc))
                         timed_out = True
+                        # The device still holds the request and would answer it
+                        # before any later one, under the old bTag.
+                        self._abort("in")
                 elif op == "canary":
                     self._message(self.baseline_query)
                     check = self._response(self.max_response)
@@ -267,6 +272,6 @@ class USBTMCHarness(ProtocolHarness):
             self._event("failure", error=str(exc))
             evidence["outcome"] = "cancelled" if isinstance(exc, InterruptedError) else "protocol_failure"
             return HarnessResult(ok=False, response=response,
-                                 timeout=isinstance(exc, TimeoutError) or getattr(exc, "errno", None) == 110,
+                                 timeout=isinstance(exc, TimeoutError) or getattr(exc, "errno", None) == errno.ETIMEDOUT,
                                  error=str(exc), stop_reason=str(exc), evidence=evidence,
                                  sent=any(item["op"] in ("bulk_out", "control") for item in self.transcript))
