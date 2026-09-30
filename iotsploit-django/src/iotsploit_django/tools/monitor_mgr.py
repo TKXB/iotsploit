@@ -101,38 +101,6 @@ class Pi_Mgr(LinuxMonitor):
         # For now, we'll use the Linux implementation
         return super().get_battery_status()
 
-class MCUMonitor(DeviceMonitor):
-    def __init__(self, connection):
-        self.connection = connection  # This could be a serial connection or other interface to the MCU
-
-    def get_system_info(self):
-        # Implement MCU-specific system info retrieval
-        # This is just a placeholder and should be implemented based on your MCU's capabilities
-        return {
-            "device_type": "MCU",
-            "firmware_version": self._get_firmware_version(),
-        }
-
-    def get_cpu_temperature(self):
-        # Implement MCU-specific temperature reading
-        # This is just a placeholder
-        return self._send_command("GET_TEMP")
-
-    def get_battery_status(self):
-        # Implement MCU-specific battery status reading
-        # This is just a placeholder
-        return self._send_command("GET_BATTERY")
-
-    def _get_firmware_version(self):
-        # Implement firmware version retrieval
-        return self._send_command("GET_VERSION")
-
-    def _send_command(self, command):
-        # Implement the logic to send a command to the MCU and receive the response
-        # This is just a placeholder
-        self.connection.write(command.encode())
-        return self.connection.readline().decode().strip()
-
 class SystemMonitor:
     @staticmethod
     def create_monitor(device_type, **kwargs):
@@ -140,10 +108,6 @@ class SystemMonitor:
             return LinuxMonitor()
         elif device_type == "raspberry_pi":
             return Pi_Mgr()
-        elif device_type == "mcu":
-            if 'connection' not in kwargs:
-                raise ValueError("MCU monitor requires a connection object")
-            return MCUMonitor(kwargs['connection'])
         else:
             raise ValueError(f"Unsupported device type: {device_type}")
 
@@ -165,9 +129,3 @@ if __name__ == "__main__":
     pi_monitor = SystemMonitor.create_monitor("raspberry_pi")
     pi_info = SystemMonitor.monitor_device(pi_monitor)
     print(f"Raspberry Pi Info: {pi_info}")
-
-    # Monitor an MCU (assuming you have a connection object)
-    # mcu_connection = create_mcu_connection()  # You'd need to implement this
-    # mcu_monitor = SystemMonitor.create_monitor("mcu", connection=mcu_connection)
-    # mcu_info = SystemMonitor.monitor_device(mcu_monitor)
-    # print(f"MCU Info: {mcu_info}")

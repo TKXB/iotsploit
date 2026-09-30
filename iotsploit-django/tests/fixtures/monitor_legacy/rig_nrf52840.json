@@ -1,0 +1,208 @@
+{
+  "_source": "Captured 2026-09-30 from the J-Link rig (nRF52840-DK, probe 1050298903) before target monitors were generalised; see docs/exec-plans/active/target_monitor_architecture_plan.md Phase 0.",
+  "check_response": {
+    "status": "success",
+    "monitor": {
+      "id": "mcu-core",
+      "kind": "mcu_core",
+      "observation": {
+        "target": "NRF52840_XXAA",
+        "probe_serial": "1050298903",
+        "observed_at": 1790734241.926859,
+        "sample_started": 144377.862042165,
+        "registers": {
+          "cpuid": 1091551809,
+          "dhcsr": 16842753,
+          "icsr": 0,
+          "cfsr": 0,
+          "hfsr": 0,
+          "resetreas": 1
+        },
+        "state": "running",
+        "crashed": false,
+        "stop_reason": null,
+        "retired": true,
+        "reset_observed": false,
+        "active_exception": 0,
+        "fault_causes": [],
+        "sample_ended": 144377.868613646
+      }
+    }
+  },
+  "preflight_event": {
+    "campaign_id": "rig-1790734341",
+    "timestamp": 1790734342.3435585,
+    "event_type": "core_status",
+    "core_observation": {
+      "target": "NRF52840_XXAA",
+      "probe_serial": "1050298903",
+      "observed_at": 1790734342.3371499,
+      "sample_started": 144478.27233143,
+      "registers": {
+        "cpuid": 1091551809,
+        "dhcsr": 16842753,
+        "icsr": 0,
+        "cfsr": 0,
+        "hfsr": 0,
+        "resetreas": 1
+      },
+      "state": "running",
+      "crashed": false,
+      "stop_reason": null,
+      "retired": true,
+      "reset_observed": false,
+      "active_exception": 0,
+      "fault_causes": [],
+      "sample_ended": 144478.278682555
+    }
+  },
+  "case_event": {
+    "campaign_id": "rig-1790734341",
+    "timestamp": 1790734342.4794729,
+    "event_type": "core_status",
+    "core_observation": {
+      "target": "NRF52840_XXAA",
+      "probe_serial": "1050298903",
+      "observed_at": 1790734342.4720607,
+      "sample_started": 144478.407243411,
+      "registers": {
+        "cpuid": 1091551809,
+        "dhcsr": 16842753,
+        "icsr": 0,
+        "cfsr": 0,
+        "hfsr": 0,
+        "resetreas": 1
+      },
+      "state": "running",
+      "crashed": false,
+      "stop_reason": null,
+      "retired": true,
+      "reset_observed": false,
+      "active_exception": 0,
+      "fault_causes": [],
+      "sample_ended": 144478.413870436,
+      "before": {
+        "target": "NRF52840_XXAA",
+        "probe_serial": "1050298903",
+        "observed_at": 1790734342.3455713,
+        "sample_started": 144478.280754411,
+        "registers": {
+          "cpuid": 1091551809,
+          "dhcsr": 16842753,
+          "icsr": 0,
+          "cfsr": 0,
+          "hfsr": 0,
+          "resetreas": 1
+        },
+        "state": "running",
+        "crashed": false,
+        "stop_reason": null,
+        "retired": true,
+        "reset_observed": false,
+        "active_exception": 0,
+        "fault_causes": [],
+        "sample_ended": 144478.28634853
+      }
+    },
+    "current_iteration": 1,
+    "total_iterations": 3
+  },
+  "case_completed_result": {
+    "ok": true,
+    "crashed": false,
+    "timeout": true,
+    "error": null,
+    "response": null,
+    "info": null,
+    "core_observation": {
+      "target": "NRF52840_XXAA",
+      "probe_serial": "1050298903",
+      "observed_at": 1790734342.4720607,
+      "sample_started": 144478.407243411,
+      "registers": {
+        "cpuid": 1091551809,
+        "dhcsr": 16842753,
+        "icsr": 0,
+        "cfsr": 0,
+        "hfsr": 0,
+        "resetreas": 1
+      },
+      "state": "running",
+      "crashed": false,
+      "stop_reason": null,
+      "retired": true,
+      "reset_observed": false,
+      "active_exception": 0,
+      "fault_causes": [],
+      "sample_ended": 144478.413870436,
+      "before": {
+        "target": "NRF52840_XXAA",
+        "probe_serial": "1050298903",
+        "observed_at": 1790734342.3455713,
+        "sample_started": 144478.280754411,
+        "registers": {
+          "cpuid": 1091551809,
+          "dhcsr": 16842753,
+          "icsr": 0,
+          "cfsr": 0,
+          "hfsr": 0,
+          "resetreas": 1
+        },
+        "state": "running",
+        "crashed": false,
+        "stop_reason": null,
+        "retired": true,
+        "reset_observed": false,
+        "active_exception": 0,
+        "fault_causes": [],
+        "sample_ended": 144478.28634853
+      }
+    }
+  },
+  "campaign_state_update": {
+    "core_observation": {
+      "target": "NRF52840_XXAA",
+      "probe_serial": "1050298903",
+      "observed_at": 1790734342.4720607,
+      "sample_started": 144478.407243411,
+      "registers": {
+        "cpuid": 1091551809,
+        "dhcsr": 16842753,
+        "icsr": 0,
+        "cfsr": 0,
+        "hfsr": 0,
+        "resetreas": 1
+      },
+      "state": "running",
+      "crashed": false,
+      "stop_reason": null,
+      "retired": true,
+      "reset_observed": false,
+      "active_exception": 0,
+      "fault_causes": [],
+      "sample_ended": 144478.413870436,
+      "before": {
+        "target": "NRF52840_XXAA",
+        "probe_serial": "1050298903",
+        "observed_at": 1790734342.3455713,
+        "sample_started": 144478.280754411,
+        "registers": {
+          "cpuid": 1091551809,
+          "dhcsr": 16842753,
+          "icsr": 0,
+          "cfsr": 0,
+          "hfsr": 0,
+          "resetreas": 1
+        },
+        "state": "running",
+        "crashed": false,
+        "stop_reason": null,
+        "retired": true,
+        "reset_observed": false,
+        "active_exception": 0,
+        "fault_causes": [],
+        "sample_ended": 144478.28634853
+      }
+    }
+  }
+}

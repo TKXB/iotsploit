@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
 
 import django
 import pytest
@@ -13,11 +12,9 @@ if not apps.ready:
 
 from iotsploit_django.adapters.django.iot_fuzzer.models import FuzzingCampaign  # noqa: E402
 from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager  # noqa: E402
-from iotsploit_django.tools.iot_protocol_runtime import (  # noqa: E402
-    CoreMonitorSession,
-    CoreObservationRecorder,
-    CoreProbeBusyError,
-)
+from iotsploit_django.tools.iot_protocol_runtime import MonitorObservationRecorder  # noqa: E402
+from iotsploit_django.tools.monitor_compat import legacy_plan  # noqa: E402
+from iotsploit_core.core.monitoring import parse_plan  # noqa: E402
 from iotsploit_core.domain.observation import StartedScan  # noqa: E402
 
 pytestmark = [pytest.mark.django, pytest.mark.integration]
@@ -69,35 +66,51 @@ class RecordingObservationSink:
         self.failed.append((scan_id, error))
 
 
+def _core_entry(target="NRF5340_XXAA_APP"):
+    return parse_plan(legacy_plan({"probe_serial": "1050298903", "target_device": target,
+                                   "target_id": "target-1"}))[0]
+
+
+def _lockup_verdict():
+    return {
+        "monitor": "mcu_core", "kind": "mcu_core", "verdict": "crash",
+        "stop_reason": "CPU lockup", "detected_reason": "CPU lockup", "decisive": True,
+        "before": None, "evidence": {},
+        "observation": {
+            "monitor": "mcu_core", "kind": "mcu_core", "resource": "usb:1366-1050298903/debug",
+            "target": "NRF5340_XXAA_APP", "window": (1.0, 1.0), "observed_at": 1.0,
+            "health": "fault", "reasons": ["CPU lockup"],
+            "detail": {"core": "app", "state": "lockup", "cause": "CPU lockup", "fault_causes": [],
+                       "active_exception": 0, "registers": {}},
+        },
+    }
+
+
 def test_core_failure_is_recorded_in_target_history():
     sink = RecordingObservationSink()
-    recorder = CoreObservationRecorder(
-        sink,
-        campaign_id="campaign-1",
-        target_id="target-1",
-        target="NRF5340_XXAA_APP",
-        probe_serial="1050298903",
-    )
-    observation = {"state": "lockup", "stop_reason": "CPU lockup", "crashed": True}
+    recorder = MonitorObservationRecorder(sink, campaign_id="campaign-1", entry=_core_entry())
 
-    recorder.observe(observation)
+    recorder.observe(_lockup_verdict())
 
+    # Same source, scope and fact as before monitors were generalised, so this
+    # scan compares against earlier ones.
     assert sink.started["target_id"] == "target-1"
+    assert sink.started["source"] == "iot-fuzzer-jtag-core-monitor"
     assert sink.started["scopes"][0].scope_key == "jtag-core:NRF5340_XXAA_APP:1050298903"
-    assert sink.completed[0][0] == "scan-1"
-    assert sink.completed[0][1][0].value == observation
+    fact = sink.completed[0][1][0]
+    assert (fact.protocol, fact.observed_property) == ("jtag", "core_state")
+    assert fact.value["state"] == "lockup" and fact.value["crashed"] is True
+    assert fact.value["stop_reason"] == "CPU lockup"
     assert sink.completed[0][2] is False
     assert sink.failed == []
 
 
-def test_core_monitor_session_exclusively_owns_probe_serial():
-    config = {"probe_serial": "1050298903", "target_device": "NRF52840_XXAA"}
-    first = CoreMonitorSession(config, owner="campaign one")
-    second = CoreMonitorSession(config, owner="manual check")
-    with patch("iotsploit_drivers.jlink.drv_jlink.JLinkAbility"):
-        first.open()
-        with pytest.raises(CoreProbeBusyError, match="campaign one"):
-            second.open()
-        first.close()
-        second.open()
-        second.close()
+def test_expected_reset_does_not_close_the_scan():
+    sink = RecordingObservationSink()
+    recorder = MonitorObservationRecorder(sink, campaign_id="campaign-1", entry=_core_entry())
+    verdict = {**_lockup_verdict(), "verdict": "expected_reset", "stop_reason": None,
+               "detected_reason": "Reset observed"}
+
+    recorder.observe(verdict)
+
+    assert sink.completed == []

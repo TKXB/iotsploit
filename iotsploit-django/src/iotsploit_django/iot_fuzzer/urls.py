@@ -3,6 +3,7 @@ from django.urls import path
 from iotsploit_django.iot_fuzzer.views import (
     # Testing Page Endpoints
     check_mcu_core,
+    check_monitor,
     get_campaign_statistics,
     get_campaign_status,
     get_test_groups,
@@ -55,6 +56,7 @@ from iotsploit_django.iot_fuzzer.views import (
 urlpatterns = [
     # IoT Fuzzer endpoints
     path("iot-fuzzer/monitors/mcu-core/check/", check_mcu_core, name="iot_fuzzer_check_mcu_core"),
+    path("iot-fuzzer/monitors/<str:kind>/check/", check_monitor, name="iot_fuzzer_check_monitor"),
     # Testing Page Endpoints - Campaign Control
     path("iot-fuzzer/testing/campaign/start/", start_campaign, name="iot_fuzzer_start_campaign"),
     path("iot-fuzzer/testing/campaign/stop/", stop_campaign, name="iot_fuzzer_stop_campaign"),

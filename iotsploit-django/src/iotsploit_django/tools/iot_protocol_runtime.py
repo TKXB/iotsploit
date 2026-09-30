@@ -1,5 +1,4 @@
 import logging
-import threading
 
 from typing import Dict, Any
 import time
@@ -14,126 +13,49 @@ from iotsploit_django.tools.iot_protocol_components import (
 logger = logging.getLogger(__name__)
 
 
-class CoreProbeBusyError(RuntimeError):
-    """Raised when another monitor session owns the requested probe."""
+class MonitorObservationRecorder:
+    """Own one optional target-history scan for one monitor of a campaign.
 
+    ``mcu_core`` keeps the source, scope and fact names it had before monitors
+    were generalised, and stores the flat legacy observation as the value, so
+    new scans still compare against earlier ones.
+    """
 
-_core_probe_owners: dict[str, str] = {}
-_core_probe_owners_lock = threading.Lock()
-
-
-class CoreMonitorSession:
-    """Own validation, probe access, and J-Link core-monitor operations."""
-
-    def __init__(self, config: dict, *, owner: str):
-        if not isinstance(config, dict):
-            raise ValueError("core_monitor must be an object")
-        self.serial = str(config.get("probe_serial", "")).strip()
-        if not self.serial.isdigit() or int(self.serial) <= 0:
-            raise ValueError("A J-Link probe serial is required")
-        self.target_device = config.get("target_device")
-        if self.target_device not in ("NRF52840_XXAA", "NRF5340_XXAA_APP"):
-            raise ValueError("Core monitor target is not supported")
-        self.recovery_policy = config.get("recovery_policy", "stop")
-        if self.recovery_policy not in ("stop", "reset_continue"):
-            raise ValueError("Core monitor recovery_policy is invalid")
-        prefixes = config.get("expected_reset_prefixes", [])
-        if not isinstance(prefixes, list):
-            raise ValueError("expected_reset_prefixes must be a list of hexadecimal strings")
-        try:
-            self.expected_reset_prefixes = tuple(bytes.fromhex(value) for value in prefixes)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("expected_reset_prefixes must contain hexadecimal strings") from exc
-        if any(not value for value in self.expected_reset_prefixes):
-            raise ValueError("expected_reset_prefixes cannot contain an empty prefix")
-        self.boot_timeout_ms = int(config.get("boot_timeout_ms", 5000))
-        if not 100 <= self.boot_timeout_ms <= 30000:
-            raise ValueError("boot_timeout_ms must be between 100 and 30000")
-        self.settle_ms = int(config.get("settle_ms", 20))
-        self.max_recoveries = int(config.get("max_recoveries", 3))
-        self.target_id = str(config.get("target_id", "")).strip()
-        self.owner = owner
-        self.driver = None
-        self.device = None
-        self._owns_probe = False
-
-    def open(self) -> None:
-        with _core_probe_owners_lock:
-            current_owner = _core_probe_owners.get(self.serial)
-            if current_owner is not None:
-                raise CoreProbeBusyError(f"J-Link probe {self.serial} is in use by {current_owner}")
-            _core_probe_owners[self.serial] = self.owner
-            self._owns_probe = True
-        try:
-            from iotsploit_core.domain.device import Device, DeviceType
-            from iotsploit_drivers.jlink.drv_jlink import JLinkAbility
-            self.device = Device(
-                device_id=f"jlink_{self.serial}",
-                name="J-Link Core Monitor",
-                device_type=DeviceType.USB,
-                attributes={
-                    "emulator_sn": self.serial,
-                    "target_device": self.target_device,
-                    "interface": "swd",
-                },
-            )
-            self.driver = JLinkAbility()
-            self.driver.initialize(self.device)
-        except Exception:
-            self.close()
-            raise
-
-    def observe(self) -> dict:
-        return self.driver.core_status(self.device)
-
-    def snapshot(self) -> dict:
-        return self.driver.fault_snapshot(self.device)
-
-    def recover(self, expected: bool) -> dict:
-        return self.driver.recover_target(
-            self.device,
-            reset=not expected,
-            timeout_ms=self.boot_timeout_ms,
-        )
-
-    def close(self) -> None:
-        try:
-            if self.driver is not None:
-                self.driver.close(self.device)
-        finally:
-            self.driver = None
-            self.device = None
-            if self._owns_probe:
-                with _core_probe_owners_lock:
-                    if _core_probe_owners.get(self.serial) == self.owner:
-                        del _core_probe_owners[self.serial]
-                self._owns_probe = False
-
-
-class CoreObservationRecorder:
-    """Own one optional target-history scan for a monitored campaign."""
-
-    def __init__(self, sink, *, campaign_id: str, target_id: str, target: str, probe_serial: str):
+    def __init__(self, sink, *, campaign_id: str, entry):
+        from iotsploit_core.domain.monitoring import parse_usb_resource
         from iotsploit_core.domain.observation import ObservationScope
 
         self.sink = sink
+        self.kind = entry.kind
         self.latest = None
         self.finished = False
+        if entry.kind == "mcu_core":
+            _, serial, _ = parse_usb_resource(entry.resource)
+            source, scope = "iot-fuzzer-jtag-core-monitor", f"jtag-core:{entry.target}:{serial}"
+        else:
+            source, scope = "iot-fuzzer-monitor", f"{entry.kind}:{entry.target}:{entry.resource}"
         started = sink.start_scans(
             run_id=campaign_id,
-            target_id=target_id,
-            source="iot-fuzzer-jtag-core-monitor",
-            scopes=[ObservationScope(scope_key=f"jtag-core:{target}:{probe_serial}")],
+            target_id=entry.target_id,
+            source=source,
+            scopes=[ObservationScope(scope_key=scope)],
         )
         self.scan_id = started[0].scan_id
 
-    def observe(self, observation: dict) -> None:
-        self.latest = observation
-        detected_failure = observation.get("stop_reason") or (
-            observation.get("detected_reason") and not observation.get("expected_reset")
+    def observe(self, verdict: dict) -> None:
+        """Keep the latest verdict; close the scan at the first failure."""
+        self.latest = self._value(verdict)
+        detected_failure = verdict.get("stop_reason") or (
+            verdict.get("detected_reason") and verdict.get("verdict") != "expected_reset"
         )
         if detected_failure and not self.finished:
             self.finish()
+
+    def observe_sample(self, observation: dict) -> None:
+        """A manual check: one observation with no campaign verdict."""
+        from iotsploit_django.tools.monitor_compat import flatten_mcu_core
+
+        self.latest = flatten_mcu_core(observation) if self.kind == "mcu_core" else observation
 
     def finish(self, error: str | None = None) -> None:
         if self.finished:
@@ -146,15 +68,53 @@ class CoreObservationRecorder:
 
         facts = []
         if self.latest is not None:
-            facts.append(
-                Fact(
-                    protocol="jtag",
-                    subject_kind="self",
-                    observed_property="core_state",
-                    value=self.latest,
-                )
-            )
+            if self.kind == "mcu_core":
+                fact = Fact(protocol="jtag", subject_kind="self", observed_property="core_state",
+                            value=self.latest)
+            else:
+                fact = Fact(protocol=self.kind, subject_kind="self", observed_property="health",
+                            value=self.latest)
+            facts.append(fact)
         self.sink.complete_scan(self.scan_id, facts, is_complete=False)
+
+    def _value(self, verdict: dict):
+        if self.kind == "mcu_core":
+            from iotsploit_django.tools.monitor_compat import legacy_core_observation
+
+            return legacy_core_observation(verdict)
+        return verdict
+
+
+def build_target_monitor(source):
+    """The campaign policy for one open monitor source."""
+    if source.entry.kind == "mcu_core":
+        from iotsploit_fuzzer.monitors import McuCoreMonitor
+
+        options = source.options
+        return McuCoreMonitor(
+            source.entry.name,
+            source.end,
+            source.settle_ms,
+            snapshot=source.snapshot,
+            recover=source.recover,
+            recovery_policy=options.recovery_policy,
+            max_recoveries=options.max_recoveries,
+            expected_reset_prefixes=options.expected_reset_prefixes,
+        )
+    raise ValueError(f"No campaign policy for monitor kind {source.entry.kind!r}")
+
+
+def campaign_monitor_plan(campaign_config: Dict[str, Any]):
+    """The raw ``monitors`` plan of a campaign, translating ``core_monitor``; None if unmonitored."""
+    plan = campaign_config.get("monitors")
+    if plan is not None:
+        return plan
+    core_monitor = campaign_config.get("core_monitor")
+    if core_monitor is not None:
+        from iotsploit_django.tools.monitor_compat import legacy_plan
+
+        return legacy_plan(core_monitor)
+    return None
 
 
 class SelectedCaseGenerator:
@@ -195,9 +155,13 @@ class OrchestratorAdapter:
         self.is_running = False
 
         self.protocol_interface = None
-        self.core_session = None
-        self.core_observation_recorder = None
+        self.monitor_session = None
+        self.monitor_recorders = {}
         self.failure = None
+        # A monitored campaign must never silently fall back to the mock.
+        self._monitored = (
+            campaign_config.get("monitors") is not None or campaign_config.get("core_monitor") is not None
+        )
 
         # Store fuzzing engine if provided
         self.fuzzing_engine = campaign_config.get('fuzzing_engine')
@@ -310,46 +274,8 @@ class OrchestratorAdapter:
                 return
 
             self.protocol_interface = interface
-            core_config = self.campaign_config.get("core_monitor")
-            if core_config is not None:
-                from iotsploit_fuzzer.harnesses.jtag_harness import JtagHarness
-                self.core_session = CoreMonitorSession(
-                    core_config,
-                    owner=f"campaign {self.campaign_config['campaign_id']}",
-                )
-                self.core_session.open()
-                harness = JtagHarness(
-                    harness,
-                    self.core_session.observe,
-                    self.core_session.settle_ms,
-                    snapshot=self.core_session.snapshot,
-                    recover=self.core_session.recover,
-                    recovery_policy=self.core_session.recovery_policy,
-                    max_recoveries=self.core_session.max_recoveries,
-                    expected_reset_prefixes=self.core_session.expected_reset_prefixes,
-                )
-                target_id = self.core_session.target_id
-                if target_id:
-                    try:
-                        from iotsploit_django.adapters.django.observation_repository import ObservationRepository
-
-                        self.core_observation_recorder = CoreObservationRecorder(
-                            ObservationRepository(),
-                            campaign_id=self.campaign_config["campaign_id"],
-                            target_id=target_id,
-                            target=self.core_session.target_device,
-                            probe_serial=self.core_session.serial,
-                        )
-                    except Exception as exc:
-                        logger.warning("Core target-history recording unavailable: %s", exc)
-                baseline = harness.check()
-                # The first reset indication describes time before this campaign.
-                # Consume it here, before any case, and require a usable second sample.
-                if baseline["state"] == "reset":
-                    baseline = harness.check()
-                self._handle_fuzzer_event("core_status", {"core_observation": baseline})
-                if baseline["stop_reason"]:
-                    raise RuntimeError(f"MCU preflight failed: {baseline['stop_reason']}")
+            if self._monitored:
+                harness = self._open_target_monitors(harness)
 
             # Create monitor and logger (pluggable by protocol)
             self.monitor = create_monitor(protocol_type, self.campaign_config.get('monitoring'))
@@ -378,34 +304,64 @@ class OrchestratorAdapter:
 
         except ImportError as e:
             self._close_resources()
-            if self.campaign_config.get("core_monitor") is not None:
+            if self._monitored:
                 raise
             logger.warning(f"Failed to import fuzzer module: {e}, using mock implementation")
             self._use_mock()
         except Exception as e:
             self._close_resources()
-            if self.campaign_config.get("core_monitor") is not None:
+            if self._monitored:
                 raise
             logger.error(f"Error initializing fuzzer components: {e}, using mock implementation")
             self._use_mock()
 
     def _use_mock(self):
-        if self.campaign_config.get("core_monitor") is not None:
+        if self._monitored:
             raise RuntimeError("Monitored campaigns require real generator and protocol hardware; mock fallback disabled")
         self.fuzzer_instance = MockOrchestratorInstance(self.campaign_config)
 
+    def _open_target_monitors(self, harness):
+        """Open the campaign's monitor plan and wrap ``harness`` with its policies."""
+        from iotsploit_django.composition_root.wiring import get_monitor_service
+        from iotsploit_fuzzer.harnesses.monitor_set_harness import MonitorSetHarness
+
+        service = get_monitor_service()
+        entries = service.plan(campaign_monitor_plan(self.campaign_config))
+        campaign_id = self.campaign_config["campaign_id"]
+        self.monitor_session = service.open(entries, owner=f"campaign {campaign_id}")
+        harness = MonitorSetHarness(harness, [build_target_monitor(source)
+                                              for source in self.monitor_session.sources])
+        for entry in entries:
+            if not entry.target_id:
+                continue
+            try:
+                from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+                self.monitor_recorders[entry.name] = MonitorObservationRecorder(
+                    ObservationRepository(), campaign_id=campaign_id, entry=entry,
+                )
+            except Exception as exc:
+                logger.warning("Target-history recording unavailable for %s: %s", entry.name, exc)
+        verdicts = harness.preflight()
+        self._handle_fuzzer_event("monitor_status", {"monitor_verdicts": [v.to_dict() for v in verdicts]})
+        blocked = next((verdict for verdict in verdicts if verdict.decisive and verdict.stop_reason), None)
+        if blocked is not None:
+            prefix = "MCU preflight failed" if blocked.kind == "mcu_core" else f"{blocked.monitor} preflight failed"
+            raise RuntimeError(f"{prefix}: {blocked.stop_reason}")
+        return harness
+
     def _close_resources(self):
         try:
-            if self.core_session is not None:
-                self.core_session.close()
-                self.core_session = None
+            if self.monitor_session is not None:
+                self.monitor_session.close()
+                self.monitor_session = None
         finally:
-            if self.core_observation_recorder is not None:
+            for name, recorder in self.monitor_recorders.items():
                 try:
-                    self.core_observation_recorder.finish(self.failure)
+                    recorder.finish(self.failure)
                 except Exception as exc:
-                    logger.warning("Could not finish core observation scan: %s", exc)
-                self.core_observation_recorder = None
+                    logger.warning("Could not finish observation scan for %s: %s", name, exc)
+            self.monitor_recorders = {}
             if self.protocol_interface is not None:
                 self.protocol_interface.close()
                 self.protocol_interface = None
@@ -525,7 +481,7 @@ class OrchestratorAdapter:
                 'test_case_started': 'test_case_update',
                 'test_case_completed': 'test_case_update',
                 'crash_detected': 'crash_alert',
-                'core_status': 'core_status',
+                'monitor_status': 'monitor_status',
                 'statistics_update': 'statistics_update',
                 'progress_update': 'progress_update',
             }
@@ -551,22 +507,33 @@ class OrchestratorAdapter:
             if enhanced_data["event_type"] in ("campaign_stopped", "campaign_completed"):
                 enhanced_data["is_running"] = False
 
-            if enhanced_data.get("core_observation") is not None:
-                if self.core_observation_recorder is not None:
-                    try:
-                        self.core_observation_recorder.observe(enhanced_data["core_observation"])
-                    except Exception as exc:
-                        logger.warning("Could not record core observation: %s", exc)
-                from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager
-                IoTFuzzerManager.get_instance().update_campaign_state(campaign_id, {
-                    "core_observation": enhanced_data["core_observation"],
-                })
+            verdicts = enhanced_data.get("monitor_verdicts")
+            if verdicts:
+                self._record_verdicts(campaign_id, verdicts, enhanced_data)
 
             # Emit event to Django WebSocket system
             bridge.emit_event(django_event_type, enhanced_data)
 
         except Exception as e:
             logger.error(f"Error handling fuzzer event: {e}")
+
+    def _record_verdicts(self, campaign_id, verdicts, enhanced_data):
+        from iotsploit_django.tools.iot_fuzzer_manager import IoTFuzzerManager
+        from iotsploit_django.tools.monitor_compat import first_mcu_core, legacy_core_observation
+
+        for verdict in verdicts:
+            recorder = self.monitor_recorders.get(verdict.get("monitor"))
+            if recorder is not None:
+                try:
+                    recorder.observe(verdict)
+                except Exception as exc:
+                    logger.warning("Could not record %s observation: %s", verdict.get("monitor"), exc)
+        update = {"monitor_verdicts": verdicts}
+        core = first_mcu_core(verdicts)
+        if core is not None:
+            # Clients built before monitor plans read this flat dict.
+            enhanced_data["core_observation"] = update["core_observation"] = legacy_core_observation(core)
+        IoTFuzzerManager.get_instance().update_campaign_state(campaign_id, update)
 
     def _get_campaign_status(self):
         """Get current campaign status string"""

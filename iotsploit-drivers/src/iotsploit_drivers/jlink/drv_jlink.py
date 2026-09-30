@@ -3,63 +3,24 @@ from __future__ import annotations
 import glob
 import logging
 import os
-import time
 from typing import Any, Dict, List, Optional
 
 import pylink
 
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.domain.device import Device, DeviceType
+from iotsploit_core.domain.monitoring import usb_resource
 
 logger = logging.getLogger(__name__)
 
-_TARGETS = {
-    "NRF52840_XXAA": {
-        "cpuid_part": 0xC24,
-        "resetreas": 0x40000400,
-        "ram": (0x20000000, 0x20040000),
-    },
-    "NRF5340_XXAA_APP": {
-        "cpuid_part": 0xD21,
-        "resetreas": 0x40005400,
-        "ram": (0x20000000, 0x20080000),
-    },
+# Canonical register names (see iotsploit_core.ports.debug_access) as the J-Link
+# DLL lists them for a Cortex-M; it rejects any name it does not list.
+_REGISTER_NAMES = {
+    **{f"r{index}": f"R{index}" for index in range(13)},
+    "sp": "R13 (SP)", "lr": "R14", "pc": "R15 (PC)",
+    "xpsr": "XPSR", "msp": "MSP", "psp": "PSP", "control": "CONTROL",
 }
-
-_CFSR_BITS = {
-    0: "instruction access violation",
-    1: "data access violation",
-    3: "exception return unstacking fault",
-    4: "exception entry stacking fault",
-    5: "lazy floating-point state fault",
-    8: "instruction bus error",
-    9: "precise data bus error",
-    10: "imprecise data bus error",
-    11: "bus fault on exception return",
-    12: "bus fault on exception entry",
-    13: "lazy floating-point bus fault",
-    16: "undefined instruction",
-    17: "invalid execution state",
-    18: "invalid exception return",
-    19: "coprocessor access fault",
-    20: "stack limit violation",
-    24: "unaligned access",
-    25: "divide by zero",
-}
-_HFSR_BITS = {
-    1: "vector-table hard fault",
-    30: "escalated configurable fault",
-    31: "debug event hard fault",
-}
-_EXCEPTIONS = {3: "HardFault", 4: "MemManage", 5: "BusFault", 6: "UsageFault"}
-
-
-def _fault_causes(cfsr: int, hfsr: int, exception: int) -> list[str]:
-    causes = [name for bit, name in _CFSR_BITS.items() if cfsr & (1 << bit)]
-    causes.extend(name for bit, name in _HFSR_BITS.items() if hfsr & (1 << bit))
-    if not causes and exception in _EXCEPTIONS:
-        causes.append(f"active {_EXCEPTIONS[exception]}")
-    return causes
+SEGGER_USB_VENDOR_ID = 0x1366
 
 
 def _resolve_jlink_lib_path() -> Optional[str]:
@@ -99,8 +60,14 @@ def _load_jlink_library() -> tuple[Optional[pylink.library.Library], Optional[st
 
 
 class JLinkAbility(BaseDeviceDriver):
+    """Device driver for SEGGER J-Link debug probes.
+
+    Also a ``DebugAccess`` backend: target monitors use it as a plain transport
+    and do all decoding in ``iotsploit_core.core.monitoring.arch``.
+    """
+
     REQUIRES = ("module:pylink",)
-    """Device driver for SEGGER J-Link debug probes."""
+    DEBUG_USB_VENDOR_IDS = (SEGGER_USB_VENDOR_ID,)
 
     def __init__(self):
         super().__init__()
@@ -139,9 +106,6 @@ class JLinkAbility(BaseDeviceDriver):
                 },
             },
             "reset": "Reset the target MCU",
-            "core_status": "Observe a supported Nordic MCU without halting",
-            "fault_snapshot": "Halt after a fault and capture core registers",
-            "recover_target": "Reset, run, and wait for a usable core",
         }
 
     # ------------------------------------------------------------------
@@ -245,19 +209,6 @@ class JLinkAbility(BaseDeviceDriver):
         if args is None:
             args = {}
 
-        if command == "core_status":
-            return self.core_status(device)
-
-        if command == "fault_snapshot":
-            return self.fault_snapshot(device)
-
-        if command == "recover_target":
-            return self.recover_target(
-                device,
-                reset=bool(args.get("reset", True)),
-                timeout_ms=int(args.get("timeout_ms", 5000)),
-            )
-
         if command == "read_memory":
             address = int(args.get("address", 0x08000000))
             count = int(args.get("count", 10))
@@ -276,165 +227,58 @@ class JLinkAbility(BaseDeviceDriver):
 
         raise ValueError(f"Unsupported command: {command}")
 
-    def core_status(self, device: Device) -> dict:
-        """Read-to-clear DHCSR is consumed exactly once per observation."""
-        target = device.attributes.get("target_device")
-        profile = _TARGETS.get(target)
-        if profile is None:
-            raise ValueError(f"Core monitoring does not support {target!r}")
-        if self.jlink is None:
-            raise RuntimeError("J-Link is not initialized")
-        started = time.monotonic()
-        registers = {}
-        observation = {
-            "target": target, "probe_serial": device.attributes["emulator_sn"],
-            "observed_at": time.time(), "sample_started": started,
-            "registers": registers, "state": "unavailable", "crashed": False,
-            "stop_reason": None,
-        }
+    def resource_key(self, device: Device) -> Optional[str]:
+        serial = device.attributes.get("emulator_sn")
+        return usb_resource(SEGGER_USB_VENDOR_ID, serial, "debug") if serial else None
+
+    # ------------------------------------------------------------------
+    # DebugAccess (iotsploit_core.ports.debug_access)
+    # ------------------------------------------------------------------
+
+    def debug_architectures(self) -> frozenset[str]:
+        return frozenset({"cortex_m"})
+
+    def attach(self, serial: str, target: str, *, interface: str = "swd") -> None:
+        device = Device(
+            device_id=f"jlink_{serial}",
+            name=f"J-Link {serial}",
+            device_type=DeviceType.USB,
+            attributes={"emulator_sn": str(serial), "target_device": target, "interface": interface},
+        )
+        self.initialize(device)
+        self.device = device
+
+    def detach(self) -> None:
+        if self.jlink is not None:
+            self.jlink.close()
+            self.jlink = None
+
+    def read_mem32(self, address: int, count: int = 1) -> list[int]:
+        return list(self._attached().memory_read32(address, count))
+
+    def read_registers(self, names) -> list[int]:
         try:
-            for name, address in (
-                ("cpuid", 0xE000ED00), ("dhcsr", 0xE000EDF0), ("icsr", 0xE000ED04),
-                ("cfsr", 0xE000ED28), ("hfsr", 0xE000ED2C),
-                ("resetreas", profile["resetreas"]),
-            ):
-                words = self.jlink.memory_read32(address, 1)
-                if len(words) != 1:
-                    raise RuntimeError(f"Incomplete {name} read")
-                registers[name] = words[0]
-            part = (registers["cpuid"] >> 4) & 0xFFF
-            if part != profile["cpuid_part"]:
-                raise RuntimeError(
-                    f"Expected CPUID part 0x{profile['cpuid_part']:03X}, "
-                    f"read 0x{registers['cpuid']:08X}; verify target and debug access"
-                )
-            cfsr = registers["cfsr"]
-            for name, address, valid in (
-                ("mmfar", 0xE000ED34, cfsr & (1 << 7)),
-                ("bfar", 0xE000ED38, cfsr & (1 << 15)),
-            ):
-                if valid:
-                    registers[name] = self.jlink.memory_read32(address, 1)[0]
-            dhcsr = registers["dhcsr"]
-            exception = registers["icsr"] & 0x1FF
-            fault_causes = _fault_causes(cfsr, registers["hfsr"], exception)
-            observation.update(retired=bool(dhcsr & (1 << 24)),
-                               reset_observed=bool(dhcsr & (1 << 25)),
-                               active_exception=exception,
-                               fault_causes=fault_causes)
-            # An active fault handler outranks a halt: connecting to a locked-up
-            # core halts it inside its HardFault. Fault status bits with no
-            # active handler describe a fault firmware already handled; they
-            # stay in fault_causes as evidence.
-            if dhcsr & (1 << 19):
-                state, cause, crashed = "lockup", "CPU lockup", True
-            elif exception in _EXCEPTIONS:
-                details = ", ".join(fault_causes) or "unknown fault"
-                state, cause, crashed = "fault", f"Fault evidence observed: {details}", False
-            elif dhcsr & (1 << 17):
-                state, cause, crashed = "halted", "Unexpected debug halt", False
-            elif dhcsr & (1 << 25):
-                state, cause, crashed = "reset", "Reset observed; cause and input attribution unconfirmed", False
-            else:
-                state = "sleeping" if dhcsr & (1 << 18) else "running"
-                cause, crashed = None, False
-            observation.update(state=state, stop_reason=cause, crashed=crashed)
-        except Exception as exc:
-            observation["stop_reason"] = f"Core monitoring unavailable: {exc}"
-        observation["sample_ended"] = time.monotonic()
-        return observation
+            dll_names = [_REGISTER_NAMES[name] for name in names]
+        except KeyError as exc:
+            raise ValueError(f"Unknown core register {exc.args[0]!r}") from None
+        return list(self._attached().register_read_multiple(dll_names))
 
-    def fault_snapshot(self, device: Device) -> dict:
-        """Halt a failed core and preserve live and stacked exception context."""
-        target = device.attributes.get("target_device")
-        profile = _TARGETS.get(target)
-        if profile is None:
-            raise ValueError(f"Core monitoring does not support {target!r}")
+    def halt(self) -> None:
+        self._attached().halt()
+
+    def is_halted(self) -> bool:
+        return bool(self._attached().halted())
+
+    def resume(self) -> None:
+        self._attached().restart()
+
+    def reset_core(self, *, halt: bool = False) -> None:
+        self._attached().reset(halt=halt)
+
+    def _attached(self) -> pylink.JLink:
         if self.jlink is None:
             raise RuntimeError("J-Link is not initialized")
-
-        snapshot = {"captured_at": time.time(), "target": target, "registers": {}}
-        try:
-            self.jlink.halt()
-            if not self.jlink.halted():
-                raise RuntimeError("Core did not halt")
-            # J-Link register names; "R13 (SP)" and "R15 (PC)" are stored as r13/r15.
-            names = [f"R{index}" for index in range(13)] + [
-                "R13 (SP)", "R14", "R15 (PC)", "XPSR", "MSP", "PSP", "CONTROL"
-            ]
-            values = self.jlink.register_read_multiple(names)
-            snapshot["registers"] = dict(zip((name.split()[0].lower() for name in names), values))
-
-            xpsr = snapshot["registers"]["xpsr"]
-            exception = xpsr & 0x1FF
-            exc_return = snapshot["registers"]["r14"]
-            snapshot["active_exception"] = exception
-            snapshot["exc_return"] = exc_return
-            if exception:
-                cfsr = self.jlink.memory_read32(0xE000ED28, 1)[0]
-                hfsr = self.jlink.memory_read32(0xE000ED2C, 1)[0]
-                snapshot["cfsr"] = cfsr
-                snapshot["hfsr"] = hfsr
-                snapshot["fault_causes"] = _fault_causes(cfsr, hfsr, exception)
-                stacking_error = cfsr & ((1 << 3) | (1 << 4) | (1 << 11) | (1 << 12))
-                if exc_return >> 24 != 0xFF:
-                    snapshot["stack_error"] = "LR no longer holds EXC_RETURN; exception frame unknown"
-                elif not stacking_error:
-                    stack_name = "psp" if exc_return & (1 << 2) else "msp"
-                    # R0-xPSR sit at the bottom of both the basic and the
-                    # floating-point extended frame.
-                    basic_frame = snapshot["registers"][stack_name]
-                    ram_start, ram_end = profile["ram"]
-                    if ram_start <= basic_frame and basic_frame + 32 <= ram_end:
-                        words = self.jlink.memory_read32(basic_frame, 8)
-                        if len(words) == 8:
-                            snapshot["stack"] = {
-                                "pointer": basic_frame,
-                                **dict(zip(("r0", "r1", "r2", "r3", "r12", "lr", "pc", "xpsr"), words)),
-                            }
-                        else:
-                            snapshot["stack_error"] = "Incomplete exception frame"
-                    else:
-                        snapshot["stack_error"] = f"Stack pointer 0x{basic_frame:08X} is outside target RAM"
-                else:
-                    snapshot["stack_error"] = "Fault status reports a stacking or unstacking error"
-        except Exception as exc:
-            snapshot["error"] = str(exc)
-        return snapshot
-
-    def recover_target(self, device: Device, *, reset: bool = True, timeout_ms: int = 5000) -> dict:
-        """Run the target and establish a fresh read-to-clear observation baseline."""
-        if not 100 <= timeout_ms <= 30000:
-            raise ValueError("timeout_ms must be between 100 and 30000")
-        if self.jlink is None:
-            raise RuntimeError("J-Link is not initialized")
-        started = time.monotonic()
-        if reset:
-            self.jlink.reset(halt=False)
-        elif self.jlink.halted():
-            self.jlink.restart()
-
-        deadline = started + timeout_ms / 1000
-        last = None
-        while time.monotonic() < deadline:
-            last = self.core_status(device)
-            if last["state"] in ("running", "sleeping") and not last["stop_reason"]:
-                baseline = self.core_status(device)
-                if baseline["state"] in ("running", "sleeping") and not baseline["stop_reason"]:
-                    return {
-                        "recovered": True,
-                        "reset": reset,
-                        "elapsed_ms": round((time.monotonic() - started) * 1000),
-                        "baseline": baseline,
-                    }
-            time.sleep(0.05)
-        return {
-            "recovered": False,
-            "reset": reset,
-            "elapsed_ms": round((time.monotonic() - started) * 1000),
-            "last_observation": last,
-            "error": "Target did not become ready before the recovery deadline",
-        }
+        return self.jlink
 
     def _reset_impl(self, device: Device) -> bool:
         if self.jlink:

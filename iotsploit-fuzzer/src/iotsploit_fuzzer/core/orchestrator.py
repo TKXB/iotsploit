@@ -310,8 +310,8 @@ class Orchestrator:
 
                 result: HarnessResult = self.harness.execute(payload)
                 self.logger_backend.record(idx, payload, result)
-                if result.core_observation is not None:
-                    self._emit_event(EventType.CORE_STATUS, {"core_observation": result.core_observation})
+                if result.monitor_verdicts is not None:
+                    self._emit_event(EventType.MONITOR_STATUS, {"monitor_verdicts": result.monitor_verdicts})
                 if not result.sent:
                     self.stop_reason = result.stop_reason
                     break
@@ -364,7 +364,7 @@ class Orchestrator:
                         'error': result.error,
                         'response': result.response.hex().upper() if result.response else None,
                         'info': result.info if hasattr(result, 'info') else None,
-                        'core_observation': result.core_observation
+                        'monitor_verdicts': result.monitor_verdicts
                     }
                 })
 

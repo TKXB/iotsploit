@@ -9,11 +9,10 @@ from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerManager,
 )
 from iotsploit_django.iot_fuzzer.http import method_not_allowed, parse_json_body
-from iotsploit_django.tools.iot_protocol_runtime import (
-    CoreMonitorSession,
-    CoreObservationRecorder,
-    CoreProbeBusyError,
-)
+from iotsploit_core.ports.resource_lease import ResourceBusyError
+from iotsploit_django.composition_root import wiring
+from iotsploit_django.tools.iot_protocol_runtime import MonitorObservationRecorder
+from iotsploit_django.tools.monitor_compat import LEGACY_MONITOR_ID, flatten_mcu_core, legacy_plan
 
 # Import Django models
 
@@ -24,6 +23,17 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 def check_mcu_core(request: HttpRequest):
     """Read the configured MCU core once without starting a campaign."""
+    return check_monitor(request, "mcu_core")
+
+
+@csrf_exempt
+def check_monitor(request: HttpRequest, kind: str):
+    """Take one observation from one monitor without starting a campaign.
+
+    The body is a plan entry (``{"monitor": {"kind", "resource", ...}}``). For
+    ``mcu_core`` the pre-plan shape (``probe_serial``, ``target_device``) is
+    still accepted and answered with the flat observation it used to get.
+    """
     if request.method != "POST":
         return method_not_allowed("POST")
     try:
@@ -33,46 +43,55 @@ def check_mcu_core(request: HttpRequest):
                 {"status": "error", "message": "Invalid JSON format: expected object"},
                 status=400,
             )
-        session = CoreMonitorSession(
-            data.get("monitor", data),
-            owner=f"manual check {uuid.uuid4()}",
-        )
+        raw = data.get("monitor", data)
+        legacy = kind == "mcu_core" and isinstance(raw, dict) and "resource" not in raw
+        if legacy:
+            raw = legacy_plan(raw)[0]
+        if not isinstance(raw, dict):
+            raise ValueError("monitor must be an object")
+        raw = {**raw, "kind": raw.get("kind", kind)}
+        if raw["kind"] != kind:
+            raise ValueError(f"This endpoint checks {kind} monitors, not {raw['kind']}")
+        service = wiring.get_monitor_service()
+        [entry] = service.plan([raw])
     except json.JSONDecodeError:
         return JsonResponse({"status": "error", "message": "Invalid JSON format"}, status=400)
     except (TypeError, ValueError) as exc:
         return JsonResponse({"status": "error", "message": str(exc)}, status=400)
 
     try:
-        session.open()
-        observation = session.observe()
-        if session.target_id:
-            try:
-                from iotsploit_django.adapters.django.observation_repository import ObservationRepository
-                recorder = CoreObservationRecorder(
-                    ObservationRepository(),
-                    campaign_id=f"manual-{uuid.uuid4()}",
-                    target_id=session.target_id,
-                    target=session.target_device,
-                    probe_serial=session.serial,
-                )
-                recorder.observe(observation)
-                recorder.finish()
-            except Exception as exc:
-                logger.warning("Core target-history recording unavailable: %s", exc)
-        return JsonResponse({
-            "status": "success",
-            "monitor": {"id": "mcu-core", "kind": "mcu_core", "observation": observation},
-        })
-    except CoreProbeBusyError as exc:
+        observation = service.check(entry, owner=f"manual check {uuid.uuid4()}")
+    except ResourceBusyError as exc:
         return JsonResponse({"status": "error", "message": str(exc)}, status=409)
     except Exception as exc:
-        logger.error("MCU core check failed: %s", exc)
+        logger.error("%s check failed: %s", kind, exc)
         return JsonResponse(
-            {"status": "error", "message": f"MCU core check failed: {exc}"},
+            {"status": "error", "message": f"{_check_label(kind)} check failed: {exc}"},
             status=503,
         )
-    finally:
-        session.close()
+    if entry.target_id:
+        try:
+            from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+            recorder = MonitorObservationRecorder(
+                ObservationRepository(), campaign_id=f"manual-{uuid.uuid4()}", entry=entry,
+            )
+            recorder.observe_sample(observation)
+            recorder.finish()
+        except Exception as exc:
+            logger.warning("Target-history recording unavailable: %s", exc)
+    return JsonResponse({
+        "status": "success",
+        "monitor": {
+            "id": LEGACY_MONITOR_ID if legacy else entry.name,
+            "kind": kind,
+            "observation": flatten_mcu_core(observation) if legacy else observation,
+        },
+    })
+
+
+def _check_label(kind: str) -> str:
+    return "MCU core" if kind == "mcu_core" else f"{kind} monitor"
 
 @csrf_exempt
 def start_campaign(request: HttpRequest):

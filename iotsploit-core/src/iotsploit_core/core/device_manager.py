@@ -12,7 +12,9 @@ from typing import Dict, List, Optional
 from iotsploit_core.core.base_plugin import BaseDeviceDriver
 from iotsploit_core.core.device_spec import DeviceState
 from iotsploit_core.domain.device import Device
+from iotsploit_core.ports.debug_access import DebugAccess
 from iotsploit_core.ports.driver_state_repo import DriverStateRepository
+from iotsploit_core.ports.resource_lease import ResourceLeasePort
 from iotsploit_core.platforms.capability import Availability, CapabilityResolver, static_compatibility
 
 logger = logging.getLogger(__name__)
@@ -36,11 +38,16 @@ class DeviceDriverManager:
         plugins_dir: str | Path | None = None,
         usb_config_file: str | Path | None = None,
         capability_resolver: CapabilityResolver | None = None,
+        resource_lease: ResourceLeasePort | None = None,
     ):
         if not self._initialized:
             logger.info("Initializing DeviceDriverManager")
             self._driver_state_repo = driver_state_repo
             self._capability_resolver = capability_resolver
+            # Devices a driver names a resource for (see BaseDeviceDriver.resource_key)
+            # are leased for as long as they are initialized, so a running monitor
+            # and this manager never open the same probe or port at once.
+            self._resource_lease = resource_lease
 
             self.plugins_dir = Path(plugins_dir) if plugins_dir is not None else self._default_plugins_dir()
             self.usb_config_file = str(
@@ -600,7 +607,14 @@ class DeviceDriverManager:
             if not device:
                 return {"status": "error", "message": "Device not specified"}
 
-            success = driver.initialize(device)
+            resource = self._lease_device(driver, driver_name, device)
+            try:
+                success = driver.initialize(device)
+            except BaseException:
+                self._release_device(resource, driver_name)
+                raise
+            if not success:
+                self._release_device(resource, driver_name)
             device_key = self._get_device_key(driver_name, device)
             if success:
                 self._update_device_state(device_key, DeviceState.INITIALIZED)
@@ -614,6 +628,25 @@ class DeviceDriverManager:
             }
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
+    def _device_resource(self, driver: BaseDeviceDriver, device: Device) -> Optional[str]:
+        if self._resource_lease is None:
+            return None
+        return driver.resource_key(device)
+
+    def _lease_device(self, driver: BaseDeviceDriver, driver_name: str, device: Device) -> Optional[str]:
+        resource = self._device_resource(driver, device)
+        if resource is not None:
+            self._resource_lease.acquire(resource, self._lease_owner(driver_name))
+        return resource
+
+    def _release_device(self, resource: Optional[str], driver_name: str) -> None:
+        if resource is not None:
+            self._resource_lease.release(resource, self._lease_owner(driver_name))
+
+    @staticmethod
+    def _lease_owner(driver_name: str) -> str:
+        return f"device manager ({driver_name})"
 
     def _handle_connect(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
         """Handle connection operation"""
@@ -699,7 +732,10 @@ class DeviceDriverManager:
             if not device:
                 return {"status": "error", "message": "Device not specified"}
             
-            success = driver.close(device)
+            try:
+                success = driver.close(device)
+            finally:
+                self._release_device(self._device_resource(driver, device), driver_name)
             return {
                 "status": "success" if success else "error",
                 "message": "Device closed" if success else "Close failed"
@@ -710,6 +746,23 @@ class DeviceDriverManager:
     def get_driver_instance(self, plugin_name: str) -> Optional[BaseDeviceDriver]:
         """Get driver instance"""
         return self.drivers.get(plugin_name)
+
+    def get_driver_class(self, plugin_name: str) -> Optional[type]:
+        """The driver's class, for callers that need a private instance.
+
+        The instance from :meth:`get_driver_instance` is shared by every caller
+        and keeps per-device connection state on itself, so a monitor that holds
+        a probe for a whole campaign builds its own.
+        """
+        driver = self.drivers.get(plugin_name)
+        return type(driver) if driver is not None else None
+
+    def driver_classes(self) -> Dict[str, type]:
+        return {name: type(driver) for name, driver in self.drivers.items()}
+
+    @staticmethod
+    def driver_capabilities(driver_class: type) -> List[str]:
+        return ["debug_access"] if issubclass(driver_class, DebugAccess) else []
 
     def list_drivers(self) -> List[str]:
         """Get list of all loaded drivers
@@ -1028,6 +1081,7 @@ class DeviceDriverManager:
                     "enabled": bool(enabled),
                     "description": None,
                     "last_updated": None,
+                    "capabilities": self.driver_capabilities(type(self.drivers[driver_name])),
                 }
             return result
         except Exception as e:
