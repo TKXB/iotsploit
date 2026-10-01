@@ -530,6 +530,22 @@ class IoTFuzzerManager:
             config["protocol_config"] = {**saved, "protocol_type": "usbtmc"}
             config["test_group_ids"] = None
 
+        # Batches saved in Management: case id -> payloads as hex
+        case_payloads = config.get("case_payloads")
+        if case_payloads is not None:
+            if not isinstance(case_payloads, dict) or not all(
+                isinstance(payloads, list) and payloads for payloads in case_payloads.values()
+            ):
+                raise ValueError("case_payloads must map case ids to non-empty payload lists")
+            for payloads in case_payloads.values():
+                for payload in payloads:
+                    try:
+                        size = len(bytes.fromhex(payload))
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("Saved payloads must be hexadecimal") from exc
+                    if size > 65536:
+                        raise ValueError("A saved payload exceeds 65536 bytes")
+
         # Validate test_group_ids if provided
         test_group_ids = config.get('test_group_ids', [])
         if test_group_ids:

@@ -109,8 +109,12 @@ def campaign_monitor_plan(campaign_config: Dict[str, Any]):
 
 
 class SelectedCaseGenerator:
-    """Feed selected case mutations into the single protocol execution loop."""
-    def __init__(self, engine, cases, replay=None):
+    """Feed selected case mutations into the single protocol execution loop.
+
+    A case with a batch saved in Management runs exactly those payloads;
+    the engine generates only for cases without one.
+    """
+    def __init__(self, engine, cases, replay=None, saved=None):
         from iotsploit_fuzzer.core.fuzzing_engine import FuzzTestCase
         from iotsploit_django.tools.frame_utils import frame_data_from_fields
         self.payloads = []
@@ -119,13 +123,17 @@ class SelectedCaseGenerator:
         if replay is not None:
             self.payloads = [bytes.fromhex(replay["payload_hex"])]
             self.case_settings = [replay.get("config", {})]
+        saved = saved or {}
         for case in cases:
-            source = FuzzTestCase(str(case["id"]), case["name"], case["protocol_type"],
-                                 frame_data_from_fields(case.get("frame_fields", [])),
-                                 case.get("frame_fields", []), case.get("fuzzing_rules", []),
-                                 case.get("target_bits"))
-            mutations = engine.generate_mutations([source], iterations=int(case.get("iterations", 100)))
-            payloads = [m.mutated_data for batch in mutations.values() for m in batch]
+            if str(case["id"]) in saved:
+                payloads = [bytes.fromhex(p) for p in saved[str(case["id"])]]
+            else:
+                source = FuzzTestCase(str(case["id"]), case["name"], case["protocol_type"],
+                                     frame_data_from_fields(case.get("frame_fields", [])),
+                                     case.get("frame_fields", []), case.get("fuzzing_rules", []),
+                                     case.get("target_bits"))
+                mutations = engine.generate_mutations([source], iterations=int(case.get("iterations", 100)))
+                payloads = [m.mutated_data for batch in mutations.values() for m in batch]
             self.payloads.extend(payloads)
             self.case_settings.extend([case.get("protocol_config", {})] * len(payloads))
         if not self.payloads:
@@ -195,7 +203,10 @@ class OrchestratorAdapter:
             if replay is not None:
                 generator = SelectedCaseGenerator(None, [], replay=replay)
             elif self.fuzzing_engine:
-                generator = SelectedCaseGenerator(self.fuzzing_engine, self.campaign_config["test_cases"])
+                generator = SelectedCaseGenerator(
+                    self.fuzzing_engine, self.campaign_config["test_cases"],
+                    saved=self.campaign_config.get("case_payloads"),
+                )
             else:
                 # Create generator
                 generator_config = self.campaign_config.get('generator_config', {})
