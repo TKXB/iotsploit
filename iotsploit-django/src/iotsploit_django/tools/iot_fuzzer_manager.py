@@ -518,11 +518,11 @@ class IoTFuzzerManager:
             saved = {**saved, "sequence": replay.get("sequence")}
             USBTMCHarness.validate(saved)
             try:
-                payload = bytes.fromhex(replay["payload_hex"])
+                bytes.fromhex(replay["payload_hex"])
                 baseline = bytes.fromhex(replay["baseline_hex"])
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError("Replay requires saved payload and baseline bytes") from exc
-            if len(payload) > 65536 or not baseline:
+            if not baseline:
                 raise ValueError("Invalid USBTMC replay payload or baseline")
             for key in ("tag_before", "out_tag_before", "in_tag_before"):
                 if type(replay.get(key)) is not int or not 0 <= replay[key] <= 255:
@@ -540,11 +540,9 @@ class IoTFuzzerManager:
             for payloads in case_payloads.values():
                 for payload in payloads:
                     try:
-                        size = len(bytes.fromhex(payload))
+                        bytes.fromhex(payload)
                     except (TypeError, ValueError) as exc:
                         raise ValueError("Saved payloads must be hexadecimal") from exc
-                    if size > 65536:
-                        raise ValueError("A saved payload exceeds 65536 bytes")
 
         # Validate test_group_ids if provided
         test_group_ids = config.get('test_group_ids', [])

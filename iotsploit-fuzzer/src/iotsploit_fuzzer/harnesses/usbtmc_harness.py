@@ -47,8 +47,7 @@ class USBTMCHarness(ProtocolHarness):
                 if not isinstance(value, str):
                     raise ValueError("Write data must be $payload or hexadecimal bytes")
                 if value != "$payload":
-                    if len(bytes.fromhex(value)) > 65536:
-                        raise ValueError("Write exceeds 65536 bytes")
+                    bytes.fromhex(value)
                 if type(step.get("eom", True)) is not bool:
                     raise ValueError("eom must be boolean")
             if op == "request_read":
@@ -222,8 +221,6 @@ class USBTMCHarness(ProtocolHarness):
         response = None
         timed_out = False
         try:
-            if len(payload) > 65536:
-                raise ValueError("USBTMC payload exceeds 65536 bytes")
             for index, step in enumerate(steps):
                 self._remaining()
                 self._event("step", index=index, operation=step["op"])
