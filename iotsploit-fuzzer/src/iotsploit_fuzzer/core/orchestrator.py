@@ -69,7 +69,7 @@ class Orchestrator:
                     'sid': 'CAN',
                     'name': 'CAN Bus Testing',
                     'icon': '🚗',
-                    'protocol': 'CAN',
+                    'protocol_type': 'can',
                     'description': 'Controller Area Network fuzzing tests'
                 }
             },
@@ -78,8 +78,17 @@ class Orchestrator:
                     'sid': 'UART',
                     'name': 'UART/Serial Testing',
                     'icon': '📡',
-                    'protocol': 'UART',
+                    'protocol_type': 'uart',
                     'description': 'Universal Asynchronous Receiver/Transmitter fuzzing tests'
+                }
+            },
+            'USBTMC': {
+                'group-usbtmc-general': {
+                    'sid': 'USBTMC',
+                    'name': 'USBTMC Testing',
+                    'icon': '🔬',
+                    'protocol_type': 'usbtmc',
+                    'description': 'USB Test & Measurement Class fuzzing tests'
                 }
             },
             'UDS': {
@@ -87,28 +96,28 @@ class Orchestrator:
                     'sid': '0x10',
                     'name': 'Diagnostic Session Control',
                     'icon': '📋',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS Diagnostic Session Control service'
                 },
                 'group-0x11': {
                     'sid': '0x11',
                     'name': 'ECU Reset',
                     'icon': '🔄',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS ECU Reset service'
                 },
                 'group-0x22': {
                     'sid': '0x22',
                     'name': 'Read Data By Identifier',
                     'icon': '📖',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS Read Data By Identifier service'
                 },
                 'group-0x27': {
                     'sid': '0x27',
                     'name': 'Security Access',
                     'icon': '🔒',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS Security Access service'
                 }
             },
@@ -117,7 +126,7 @@ class Orchestrator:
                     'sid': 'GEN',
                     'name': 'General Protocol Testing',
                     'icon': '🔧',
-                    'protocol': 'Generic',
+                    'protocol_type': 'generic',
                     'description': 'General protocol fuzzing tests'
                 }
             }
@@ -188,6 +197,19 @@ class Orchestrator:
                 'protocol_frame': f'Data: {payload_hex}'
             }
         
+        elif self._protocol_type == 'USBTMC':
+            # USBTMC messages are mostly SCPI text: show them as text, with
+            # anything unprintable escaped, rather than splitting off a fake
+            # sub-function.
+            text = ''.join(chr(b) if 32 <= b < 127 else f'\\x{b:02X}' for b in payload)
+            return {
+                'name': f'USBTMC Test {test_case_id}',
+                'subFunction': '',
+                'payload': text,
+                'description': f'USBTMC message ({len(payload)} bytes)',
+                'protocol_frame': f'Data: {text}'
+            }
+
         elif self._protocol_type == 'UDS' and len(payload) > 0:
             # For UDS, extract service ID and sub-function
             service_id = f"0x{payload[0]:02X}"
