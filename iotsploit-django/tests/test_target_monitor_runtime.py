@@ -354,7 +354,7 @@ def test_container_resolves_the_real_jlink_driver_for_segger_probes(lease):
     [entry] = service.plan(monitor_compat.legacy_plan({"probe_serial": "1050298903",
                                                       "target_device": "NRF52840_XXAA"}))
 
-    assert service.kinds() == ["mcu_core"]
+    assert service.kinds() == ["mcu_core", "usb_status"]
     assert entry.resource == "usb:1366-1050298903/debug"
     assert DeviceDriverManager.driver_capabilities(JLinkAbility) == ["debug_access"]
     assert isinstance(core_container.build_resource_lease(), FileResourceLease)

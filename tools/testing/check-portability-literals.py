@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ALLOWED = {
+    "iotsploit-django/src/iotsploit_django/iot_fuzzer/monitor_kinds.py": ("/sys/bus/usb/devices",),
     "iotsploit-django/src/iotsploit_django/tools/adb_mgr.py": ("/data/local/tmp/",),
     "iotsploit-exploits/src/iotsploit_exploits/adb_check/adb_check.py": (
         "/dev/",

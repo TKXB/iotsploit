@@ -59,6 +59,7 @@ pytest = "^7.4.0"
 
 [tool.poetry.plugins."iotsploit.monitors"]
 mcu_core = "iotsploit_django.iot_fuzzer.monitor_kinds:McuCore"
+usb_status = "iotsploit_django.iot_fuzzer.monitor_kinds:UsbStatus"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]
