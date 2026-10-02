@@ -1047,7 +1047,13 @@ def cleanup_plugins(request):
 
     try:
         plugin_manager = get_exploit_plugin_manager()
-        plugin_manager.cleanup_all_plugins()
+        failed_plugins = plugin_manager.cleanup_all_plugins()
+        if failed_plugins:
+            return JsonResponse({
+                "status": "error",
+                "message": "Failed to clean up plugins: " + ", ".join(failed_plugins),
+                "failed_plugins": failed_plugins,
+            }, status=500)
 
         return JsonResponse({
             "status": "success",

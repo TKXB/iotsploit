@@ -31,6 +31,25 @@ from iotsploit_django.adapters.django.interaction.runtime import execution_queue
 pytestmark = pytest.mark.contract
 
 
+@pytest.mark.parametrize("failed", [[], ["WiFi Scan", "Serial Reader"]])
+def test_cleanup_endpoint_reports_plugin_failures(monkeypatch, failed):
+    class CleanupManager:
+        def cleanup_all_plugins(self):
+            return failed
+
+    monkeypatch.setattr(views, "get_exploit_plugin_manager", lambda: CleanupManager())
+    request = RequestFactory().post("/api/cleanup_plugins/")
+
+    response = views.cleanup_plugins(request)
+
+    body = json.loads(response.content)
+    assert response.status_code == (500 if failed else 200)
+    assert body["status"] == ("error" if failed else "success")
+    if failed:
+        assert body["failed_plugins"] == failed
+        assert all(name in body["message"] for name in failed)
+
+
 class FakeTargetManager:
     """Records every touch of the current target, because the point of the
     explicit path is that it performs none."""
