@@ -34,6 +34,7 @@ class USBTMCInterface:
                         found.append({
                             "vid": device.idVendor, "pid": device.idProduct, "serial": serial or "",
                             "bus": device.bus, "address": device.address,
+                            "ports": list(device.port_numbers or ()),
                             "configuration": config.bConfigurationValue,
                             "interface": interface.bInterfaceNumber,
                             "alternate_setting": interface.bAlternateSetting,
@@ -45,10 +46,8 @@ class USBTMCInterface:
                 usb.util.dispose_resources(device)
         return found
 
-    def __init__(self, selector: dict, *, lease=None, owner: str = "USBTMC"):
-        import usb.core
-        import usb.util
-
+    @staticmethod
+    def select(selector: dict) -> dict:
         if not isinstance(selector, dict) or not selector:
             raise ValueError("Select a USBTMC interface from rig discovery")
         for key, maximum in (("vid", 65535), ("pid", 65535), ("interface", 255),
@@ -58,13 +57,26 @@ class USBTMCInterface:
                 raise ValueError(f"Invalid USB device {key}")
         if "serial" in selector and not isinstance(selector["serial"], str):
             raise ValueError("USB device serial must be a string")
-        ignored = {"label", "bus", "address"} if selector.get("serial") else {"label"}
-        matches = [item for item in self.discover() if all(
+        ignored = {"label", "bus", "address", "ports"} if selector.get("serial") else {"label"}
+        if not selector.get("serial") and selector.get("ports"):
+            ignored.add("address")
+        matches = [item for item in USBTMCInterface.discover() if all(
             item.get(key) == value for key, value in selector.items() if key not in ignored
         )]
+        if len(matches) > 1 and selector.get("serial"):
+            location = ("bus", "ports") if selector.get("ports") else ("bus", "address")
+            matches = [item for item in matches if all(
+                item.get(key) == selector[key] for key in location if key in selector
+            )]
         if len(matches) != 1:
             raise ValueError(f"USB selection matched {len(matches)} interfaces; rescan and select one")
-        self.identity = matches[0]
+        return matches[0]
+
+    def __init__(self, selector: dict, *, lease=None, owner: str = "USBTMC"):
+        import usb.core
+        import usb.util
+
+        self.identity = self.select(selector)
         self.resource = resource_key(self.identity)
         self.lease, self.owner = lease, owner
         self.device = None

@@ -30,17 +30,19 @@ class TestLogger:
         self,
         workdir: str = "artifacts",
         keep: Optional[Callable[[bytes, HarnessResult], bool]] = None,
+        metadata: Optional[dict] = None,
     ):
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.keep = keep
+        self.metadata = metadata or {}
         self.total = 0
         self.crashes = 0
         self.campaign_id = uuid.uuid4().hex
 
     def record(self, idx: int, payload: bytes, result: HarnessResult) -> None:
         if result.monitor_verdicts is not None or result.evidence is not None:
-            record = asdict(result)
+            record = {**self.metadata, **asdict(result)}
             record["response"] = result.response.hex() if result.response is not None else None
             record.update(case_index=idx, payload_hash=payload_id(payload),
                           attribution="observation interval; causation unconfirmed")

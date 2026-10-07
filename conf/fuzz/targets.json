@@ -1,0 +1,16 @@
+{
+  "esp32s3": {
+    "product": "ESP32S3",
+    "firmware_entry": "esp32s3_iotsploit_usb",
+    "suites": [
+      "scpi-core"
+    ]
+  },
+  "stm32f4disco": {
+    "product": "STM32F4-Disco",
+    "firmware_entry": "stm32f4disco_iotsploit_usb",
+    "suites": [
+      "scpi-core"
+    ]
+  }
+}

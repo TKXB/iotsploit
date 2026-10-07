@@ -294,3 +294,64 @@ the target instead of being skipped. Once it has a corpus, the gate replays it.
 - **Novelty by outcome is a weak fitness signal** next to coverage guidance. It
   plateaus. Real coverage feedback needs `sys.monitoring` (3.12+); on 3.10 it
   would cost a 10-30x slowdown.
+
+## Own-engine firmware gate
+
+`tools/hardware/firmware_fuzz_gate.py` is an explicit hardware application. It
+uses `FuzzingEngine`, the shared `SelectedCaseGenerator`, `Orchestrator`, the
+USBTMC harness and existing monitor composition. It invokes no external fuzzer.
+Default Python, Flutter and C commit hooks remain hardware-free.
+
+From the workspace root:
+
+```bash
+poetry run python tools/hardware/firmware_fuzz_gate.py --discover
+poetry run python tools/hardware/firmware_fuzz_gate.py \
+  --rig /path/to/rigs.json --manifest /path/to/candidate-manifest.json \
+  --ui-root /path/to/ui --firmware-root /path/to/ui/third_party/iotsploit-usb \
+  --flasher /path/to/ui/firmware/target/debug/firmware-flasher \
+  --flash --iterations 128 --seed 47 --output artifacts/firmware-fuzz
+```
+
+`conf/fuzz/targets.json` declares products, firmware manifest entries and suites;
+`conf/fuzz/features/*.json` declares seeds, semantic baseline queries and mutation
+rules. The initial acceptance matrix covers STM32F4 Discovery and ESP32-S3.
+A board using the same contracts only needs a target entry and rig binding.
+The initial transport is USBTMC; new transports must use their own existing
+harness/interface rather than pretending to be USBTMC.
+
+A local rig binding maps target names to `usb` selectors (`vid`, `pid`, `bus`,
+`ports`, `interface`), the existing flasher's `programmer` selector, its shared
+`programmer_resource` lease key, and optional `settle_seconds`. `ports` is the
+physical USB port chain from discovery and survives device address changes.
+Duplicate USB serials are refused unless the selector identifies one device.
+Machine paths and credentials belong in local inventory, not tracked suites.
+
+Candidate manifests use the existing flash manifest shape with absolute image
+paths and mandatory SHA-256 values. Every selected image is verified before
+programming; board product and firmware version are checked after flashing.
+`SYST:BOOT?` must return a per-boot 64-bit token. The observer checks it before
+and after every case, so a recovered reboot still fails. A failed query reports
+unavailable health, not proof of a CPU crash. Independent UART/probe observation
+and leak telemetry are not implemented by this initial boot-token gate.
+
+The headless application's shared file lease imports `iotsploit-django` and
+`iotsploit-core`, but starts no Django settings, server, database or Redis.
+Retain the Python/Rust resource-key and lock-path contract when supplying rig
+keys. The package's mutation core does not import Django.
+
+Exit codes: `0` all required targets passed; `1` a campaign failed; `2` required
+setup or target validation was incomplete. The aggregate does not silently skip
+an absent rig. Results include source commit/content fingerprints, image hashes,
+seed, per-phase counts, exact payloads, wire transcripts and boot observations.
+`--replay campaign_<id>.jsonl` replays the complete ordered retained campaign for
+that target before discovery; it is not truncated by the mutation budget.
+SCPI envelopes are reframed on replay; raw payload bytes are preserved. Retain
+full prefixes when investigating a state-dependent failure.
+
+The trusted `firmware-fuzz` workflow accepts explicit UI repo/SHA and optional
+firmware SHA; firmware remote and default revision come from the UI submodule.
+Its preprovisioned build script receives both checkout paths and must build the
+candidate images, debug symbols, flash CLI and manifest. This job is dispatchable;
+origin-repository dispatch/result propagation and required branch-protection
+configuration must be installed separately before claiming enforced merge gates.

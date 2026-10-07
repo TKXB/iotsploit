@@ -108,48 +108,6 @@ def campaign_monitor_plan(campaign_config: Dict[str, Any]):
     return None
 
 
-class SelectedCaseGenerator:
-    """Feed selected case mutations into the single protocol execution loop.
-
-    A case with a batch saved in Management runs exactly those payloads;
-    the engine generates only for cases without one.
-    """
-    def __init__(self, engine, cases, replay=None, saved=None):
-        from iotsploit_fuzzer.core.fuzzing_engine import FuzzTestCase
-        from iotsploit_django.tools.frame_utils import frame_data_from_fields
-        self.payloads = []
-        self.case_settings = []
-        self.on_case = None
-        if replay is not None:
-            self.payloads = [bytes.fromhex(replay["payload_hex"])]
-            self.case_settings = [replay.get("config", {})]
-        saved = saved or {}
-        for case in cases:
-            if str(case["id"]) in saved:
-                payloads = [bytes.fromhex(p) for p in saved[str(case["id"])]]
-            else:
-                source = FuzzTestCase(str(case["id"]), case["name"], case["protocol_type"],
-                                     frame_data_from_fields(case.get("frame_fields", [])),
-                                     case.get("frame_fields", []), case.get("fuzzing_rules", []),
-                                     case.get("target_bits"))
-                mutations = engine.generate_mutations([source], iterations=int(case.get("iterations", 100)))
-                payloads = [m.mutated_data for batch in mutations.values() for m in batch]
-            self.payloads.extend(payloads)
-            self.case_settings.extend([case.get("protocol_config", {})] * len(payloads))
-        if not self.payloads:
-            raise ValueError("Selected cases generated no executable payloads")
-        self.total = len(self.payloads)
-
-    def seed_corpus(self):
-        return self.payloads[:1]
-
-    def generate(self, seeds, total):
-        for payload, settings in zip(self.payloads[:total], self.case_settings[:total]):
-            if self.on_case is not None:
-                self.on_case(settings)
-            yield payload
-
-
 class OrchestratorAdapter:
     """
     Adapter for iotsploit_fuzzer orchestrator component
@@ -199,12 +157,20 @@ class OrchestratorAdapter:
 
             logger.info("Initializing real fuzzer components")
 
+            from iotsploit_fuzzer.generators.strategy_generator import SelectedCaseGenerator
+            from iotsploit_django.tools.frame_utils import frame_data_from_fields
+
             replay = self.campaign_config.get("replay")
             if replay is not None:
                 generator = SelectedCaseGenerator(None, [], replay=replay)
             elif self.fuzzing_engine:
                 generator = SelectedCaseGenerator(
-                    self.fuzzing_engine, self.campaign_config["test_cases"],
+                    self.fuzzing_engine, [
+                        {**case, "frame_data": frame_data_from_fields(case.get("frame_fields", []))}
+                        if str(case["id"]) not in (self.campaign_config.get("case_payloads") or {})
+                        else case
+                        for case in self.campaign_config["test_cases"]
+                    ],
                     saved=self.campaign_config.get("case_payloads"),
                 )
             else:
