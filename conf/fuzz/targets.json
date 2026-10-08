@@ -12,5 +12,13 @@
     "suites": [
       "scpi-core"
     ]
+  },
+  "esp32s3-hid": {
+    "transport": "tcp",
+    "product": "ESP32S3-HID",
+    "firmware_entry": "esp32s3_hid",
+    "suites": [
+      "duck-tcp"
+    ]
   }
 }

@@ -1,0 +1,194 @@
+{
+  "baseline": [
+    {
+      "query": "DUCK:STATE?",
+      "response_regex": "^[0234]$"
+    },
+    {
+      "query": "SYST:BOOT?",
+      "response_regex": "^[0-9a-fA-F]{16}$"
+    }
+  ],
+  "cases": [
+    {
+      "id": "state",
+      "name": "state",
+      "payload_hex": "4455434b3a53544154453f0a",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "boundary",
+          "offset": 5,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "delay",
+            "ms": 20
+          },
+          {
+            "op": "reconnect"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "upload-length",
+      "name": "upload-length",
+      "payload_hex": "4455434b3a55504c4f41443a535441525420340a444154413a57524954452023313452454d0a0a",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "boundary",
+          "offset": 33,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "delay",
+            "ms": 20
+          },
+          {
+            "op": "reconnect"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "run-stop",
+      "name": "run-stop",
+      "payload_hex": "4455434b3a52554e0a4455434b3a53544f500a",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "boundary",
+          "offset": 5,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message",
+            "data": "4455434b3a55504c4f41443a535441525420340a444154413a57524954452023313452454d0a0a"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "delay",
+            "ms": 20
+          },
+          {
+            "op": "reconnect"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "partial-upload",
+      "name": "partial-upload",
+      "payload_hex": "4455434b3a55504c4f41443a53544152542031300a444154413a5752495445202332313052454d",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "boundary",
+          "offset": 34,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "delay",
+            "ms": 20
+          },
+          {
+            "op": "reconnect"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    }
+  ]
+}
