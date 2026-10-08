@@ -1,4 +1,4 @@
-"""Own-engine USBTMC firmware gate. Run explicitly on a rig, never from default hooks."""
+"""Own-engine USBTMC/TCP firmware gate. Run explicitly on a rig, never from default hooks."""
 from __future__ import annotations
 
 import argparse
@@ -20,6 +20,7 @@ from iotsploit_fuzzer.core.orchestrator import Orchestrator
 from iotsploit_fuzzer.generators.strategy_generator import SelectedCaseGenerator
 from iotsploit_fuzzer.harnesses.monitor_set_harness import MonitorSetHarness
 from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+from iotsploit_fuzzer.harnesses.scpi_tcp_harness import SCPITCPHarness
 from iotsploit_fuzzer.interfaces.usbtmc_interface import USBTMCInterface, resource_key
 from iotsploit_fuzzer.monitors.health import HealthMonitor
 
@@ -93,8 +94,16 @@ def run_target(name, target, rig, suites, args):
         report["images"] = images
         report["sources"] = {"python": revision(ROOT), "ui": revision(args.ui_root),
                              "firmware": revision(args.firmware_root)}
-        selected = USBTMCInterface.select(rig["usb"])
-        for resource in [resource_key(selected), *([rig["programmer_resource"]] if args.flash else [])]:
+        transport = target.get("transport", "usbtmc")
+        if transport == "tcp":
+            interface = SCPITCPHarness(rig["tcp"], {"timeout": 3000, "case_deadline_ms": 10000,
+                                                  "max_response_bytes": 8192})
+            selected_resource = f"tcp:{interface.identity['host']}:{interface.identity['port']}"
+        elif transport == "usbtmc":
+            selected_resource = resource_key(USBTMCInterface.select(rig["usb"]))
+        else:
+            raise ValueError(f"Unsupported transport: {transport}")
+        for resource in [selected_resource, *([rig["programmer_resource"]] if args.flash else [])]:
             lease.acquire(resource, owner)
             resources.append(resource)
         report["flashed_by_run"] = args.flash
@@ -106,14 +115,19 @@ def run_target(name, target, rig, suites, args):
             with (out / "flash.log").open("w") as stream:
                 subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, check=True, timeout=180)
             time.sleep(rig.get("settle_seconds", 4))
-        interface = USBTMCInterface(rig["usb"])
-        harness = USBTMCHarness(interface, {"timeout": 1000, "case_deadline_ms": 5000,
-                                           "max_response_bytes": 8192})
+        if transport == "usbtmc":
+            interface = USBTMCInterface(rig["usb"])
+            harness = USBTMCHarness(interface, {"timeout": 1000, "case_deadline_ms": 5000,
+                                               "max_response_bytes": 8192})
+        else:
+            harness = interface
         report["device"] = interface.identity
         idn = harness.preflight().decode().strip()
         report["idn"] = idn
         parts = idn.split(",")
         if len(parts) != 4 or parts[1] != target["product"] or parts[3] != image["version"]:
+            raise ValueError(f"Candidate identity mismatch: {idn}")
+        if rig.get("serial") and parts[2] != rig["serial"]:
             raise ValueError(f"Candidate identity mismatch: {idn}")
         observer = BootObservation(harness)
         monitored = MonitorSetHarness(harness, [HealthMonitor("boot", "firmware_boot", observer.observe)])
@@ -127,7 +141,7 @@ def run_target(name, target, rig, suites, args):
                 if not re.search(baseline["response_regex"], response):
                     raise ValueError(f"Baseline {baseline['query']}: unexpected response {response!r}")
             for case in suite["cases"]:
-                cases.append({**case, "id": f"{suite_name}:{case['id']}", "protocol_type": "usbtmc",
+                cases.append({**case, "id": f"{suite_name}:{case['id']}", "protocol_type": transport,
                               "frame_data": bytes.fromhex(case["payload_hex"]), "iterations": args.iterations})
         if not cases:
             raise ValueError("Target suites contain no executable cases")
@@ -138,6 +152,8 @@ def run_target(name, target, rig, suites, args):
             replay = [json.loads(line) for line in args.replay.read_text().splitlines() if line]
             replay = [record for record in replay if record["target"] == name]
         for record in replay:
+            if record["evidence"].get("protocol", "usbtmc") != transport:
+                raise ValueError("Replay transport does not match target")
             harness.use_case(record["evidence"]["config"])
             result = monitored.execute(bytes.fromhex(record["evidence"]["payload_hex"]))
             log.record(log.total + 1, bytes.fromhex(record["evidence"]["payload_hex"]), result)
