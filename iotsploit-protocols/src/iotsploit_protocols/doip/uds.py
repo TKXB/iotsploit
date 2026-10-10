@@ -89,7 +89,10 @@ def _nrc_name(nrc: int) -> str:
     try:
         from scapy.contrib.automotive.uds import UDS_NR
 
-        name = UDS_NR.fields_desc[1].i2s.get(nrc)
+        # By name: scapy 2.8 put a ConditionalField ahead of the service
+        # id, so the position of the NRC field is not stable.
+        field = next(f for f in UDS_NR.fields_desc if f.name == "negativeResponseCode")
+        name = field.i2s.get(nrc)
         if name:
             return str(name)
     except Exception:  # pragma: no cover - scapy layout changed
