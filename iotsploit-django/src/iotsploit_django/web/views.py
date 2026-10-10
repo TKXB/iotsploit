@@ -33,9 +33,6 @@ from iotsploit_django.view_handlers.misc_legacy_views import (
     list_urls,
     set_log_level,
 )
-from iotsploit_django.view_handlers.firmware_legacy_views import (
-    file_download,
-)
 from iotsploit_django.view_handlers.tool_views import (
     get_tools_status,
     refresh_tools,
@@ -79,7 +76,6 @@ __all__ = [
     "health",
     "list_urls",
     "set_log_level",
-    "file_download",
     "get_tools_status",
     "refresh_tools",
     "get_tool_details",

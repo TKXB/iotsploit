@@ -100,14 +100,6 @@
     "pattern": "download_file/<path:file_path>"
   },
   {
-    "name": "list_firmware_files",
-    "pattern": "download_firmware/"
-  },
-  {
-    "name": "download_firmware",
-    "pattern": "download_firmware/<path:file_path>"
-  },
-  {
     "name": "edit_target",
     "pattern": "edit_target/"
   },
@@ -132,28 +124,8 @@
     "pattern": "firmware/<str:name>/"
   },
   {
-    "name": "firmware_add",
-    "pattern": "firmware/add/"
-  },
-  {
-    "name": "firmware_download_url",
-    "pattern": "firmware/download/"
-  },
-  {
-    "name": "firmware_erase",
-    "pattern": "firmware/erase/"
-  },
-  {
-    "name": "firmware_flash",
-    "pattern": "firmware/flash/"
-  },
-  {
     "name": "firmware_list",
     "pattern": "firmware/list/"
-  },
-  {
-    "name": "firmware_remove",
-    "pattern": "firmware/remove/<str:name>/"
   },
   {
     "name": "get_all_devices",

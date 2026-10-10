@@ -740,6 +740,20 @@ class FirmwareToolService(ToolService):
         """Get information about specific firmware"""
         return self.manifests.get(name)
     
+    def file_sizes(self, name: str) -> List[Optional[int]]:
+        """Size in bytes of each file entry ``name`` flashes; ``None`` marks a missing file.
+
+        Package resources are resolved first, so built-in and user-added
+        entries are checked the same way. An empty list means the entry
+        names no file. Raises like :meth:`resolve_firmware`.
+        """
+        from pathlib import Path
+
+        with self.resolve_firmware(name) as resolved:
+            paths = [resolved.get("path")]
+            paths += [entry.get("path") for entry in resolved["flash_options"].get("files", [])]
+            return [Path(p).stat().st_size if Path(p).exists() else None for p in paths if p]
+
     def list_firmware(self) -> List[Dict]:
         """List all available firmware"""
         return [{"name": name, **info} for name, info in self.manifests.items()]
@@ -749,6 +763,11 @@ class FirmwareToolService(ToolService):
         try:
             if name not in self.manifests:
                 self.logger.error(f"Firmware not found: {name}")
+                return False
+            # A built-in entry would come back from the package manifest on
+            # the next start, so removing it would only look successful.
+            if name in self._load_builtin_manifest():
+                self.logger.error(f"Firmware {name} is built in and cannot be removed")
                 return False
 
             del self.manifests[name]
@@ -787,103 +806,86 @@ class FirmwareToolService(ToolService):
             self.logger.error(f"Error downloading firmware: {str(e)}")
             return None
     
-    def flash_registered_firmware(self, name: str, options: Optional[Dict[str, Any]] = None) -> bool:
+    def flash(self, name: str, overrides: Optional[Dict[str, Any]] = None) -> ExecutionResult:
+        """Flash registered firmware with the programmer its ``device_type`` names.
+
+        This is the only place that merges flash options and picks defaults:
+        the manifest's ``flash_options`` first, then ``overrides`` (what the
+        caller knows about the attached device, such as ``port``, ``serial``
+        or ``cable``) on top.
+
+        Raises:
+            KeyError: ``name`` is not in the manifest.
+            ValueError: the device type is unsupported, or a required option
+                such as an ESP32 ``port`` is missing.
+            RuntimeError: the programmer's tool is not installed.
         """
-        Flash firmware from registry using appropriate programmer based on device type.
-        
-        Args:
-            name: Name of registered firmware
-            options: Additional options to override defaults
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            if name not in self.manifests:
-                self.logger.error(f"Firmware not found: {name}")
-                return False
+        with self.resolve_firmware(name) as firmware_info:
+            device_type = firmware_info.get('device_type', '').lower()
+            firmware_path = firmware_info.get('path')
+            opts = {**firmware_info['flash_options'], **(overrides or {})}
 
-            with self.resolve_firmware(name) as firmware_info:
-                device_type = firmware_info.get('device_type', '').lower()
-                firmware_path = firmware_info.get('path')
-
-                # Merge options from manifest and provided options
-                flash_options = dict(firmware_info.get('flash_options', {}))
-                if options:
-                    flash_options.update(options)
-
-                # Route to appropriate programmer based on device type
-                if device_type.startswith('esp32'):
-                    if 'files' in flash_options:
-                        # Multi-file ESP32 flash
-                        result = self.esp32.flash_multi(
-                            port=flash_options.get('port'),
-                            files=flash_options['files'],
-                            chip=flash_options.get('chip', 'esp32s3'),
-                            baud=flash_options.get('baud', '460800')
-                        )
-                    else:
-                        # Single file ESP32 flash
-                        result = self.esp32.flash_single(
-                            port=flash_options.get('port'),
-                            firmware_path=firmware_path,
-                            address=flash_options.get('address', '0x10000'),
-                            chip=flash_options.get('chip', 'esp32'),
-                            baud=flash_options.get('baud', '460800')
-                        )
-                    return result.success
-
-                elif device_type.startswith('stm32'):
-                    result = self.stm32.flash_firmware(
-                        firmware_path=firmware_path,
-                        interface=flash_options.get('interface', 'stlink'),
-                        target=flash_options.get('target', 'stm32f4x')
+            if device_type.startswith('esp32'):
+                if not opts.get('port'):
+                    raise ValueError(f"Flashing {name!r} needs a serial port")
+                common = {
+                    'port': opts['port'],
+                    'chip': opts.get('chip', 'esp32s3'),
+                    'baud': opts.get('baud', '460800'),
+                }
+                if 'files' in opts:
+                    return self.esp32.flash_multi(
+                        files=opts['files'],
+                        flash_mode=opts.get('flash_mode', 'dio'),
+                        flash_freq=opts.get('flash_freq', '80m'),
+                        flash_size=opts.get('flash_size', '2MB'),
+                        **common,
                     )
-                    return result.success
+                return self.esp32.flash_single(
+                    firmware_path=firmware_path,
+                    address=opts.get('address', '0x10000'),
+                    **common,
+                )
 
-                elif device_type == 'dfu':
-                    result = self.dfu.flash_firmware(
-                        firmware_path=firmware_path,
-                        vid=flash_options.get('vid'),
-                        pid=flash_options.get('pid'),
-                        alt=flash_options.get('alt')
+            if device_type.startswith('stm32'):
+                return self.stm32.flash_firmware(
+                    firmware_path=firmware_path,
+                    interface=opts.get('interface', 'stlink'),
+                    target=opts.get('target', 'stm32f4x'),
+                )
+
+            if device_type == 'dfu':
+                return self.dfu.flash_firmware(
+                    firmware_path=firmware_path,
+                    vid=opts.get('vid'),
+                    pid=opts.get('pid'),
+                    alt=opts.get('alt'),
+                )
+
+            if device_type.startswith('fpga'):
+                if opts.get('target', 'flash').lower() == 'sram':
+                    return self.fpga.load_sram(
+                        bitstream_path=firmware_path,
+                        board=opts.get('board'),
+                        cable=opts.get('cable'),
                     )
-                    return result.success
+                return self.fpga.flash_bitstream(
+                    bitstream_path=firmware_path,
+                    board=opts.get('board'),
+                    cable=opts.get('cable'),
+                    external_flash=opts.get('external_flash', False),
+                )
 
-                elif device_type.startswith('fpga'):
-                    target = flash_options.get('target', 'sram').lower()
-                    if target == 'sram':
-                        result = self.fpga.load_sram(
-                            bitstream_path=firmware_path,
-                            board=flash_options.get('board'),
-                            cable=flash_options.get('cable')
-                        )
-                    else:
-                        result = self.fpga.flash_bitstream(
-                            bitstream_path=firmware_path,
-                            board=flash_options.get('board'),
-                            cable=flash_options.get('cable'),
-                            external_flash=flash_options.get('external_flash', False)
-                        )
-                    return result.success
+            if device_type.startswith('greatfet'):
+                return self.greatfet.flash_firmware(
+                    firmware_path=firmware_path,
+                    target=opts.get('target', 'spi'),
+                    serial=opts.get('serial'),
+                    board=opts.get('board'),
+                )
 
-                elif device_type.startswith('greatfet'):
-                    result = self.greatfet.flash_firmware(
-                        firmware_path=firmware_path,
-                        target=flash_options.get('target', 'spi'),
-                        serial=flash_options.get('serial'),
-                        board=flash_options.get('board')
-                    )
-                    return result.success
+            raise ValueError(f"Unsupported device type: {device_type!r}")
 
-                else:
-                    self.logger.error(f"Unsupported device type: {device_type}")
-                    return False
-
-        except Exception as e:
-            self.logger.error(f"Error flashing firmware: {str(e)}")
-            return False
-    
     def _save_manifests(self):
         """Persist user-facing manifest entries to ``~/.iotsploit/firmware_manifest.json``.
 
@@ -891,17 +893,14 @@ class FirmwareToolService(ToolService):
         that the user override file stays minimal and keeps working even when
         the bundled defaults change in a future iotsploit-drivers release.
         """
-        try:
-            builtin = self._load_builtin_manifest()
-            user_entries = {
-                name: info
-                for name, info in self.manifests.items()
-                if builtin.get(name) != info
-            }
-            with open(self.user_manifest_file, 'w') as f:
-                json.dump(user_entries, f, indent=2)
-        except Exception as e:
-            self.logger.error(f"Error saving firmware manifest: {str(e)}")
+        builtin = self._load_builtin_manifest()
+        user_entries = {
+            name: info
+            for name, info in self.manifests.items()
+            if builtin.get(name) != info
+        }
+        with open(self.user_manifest_file, 'w') as f:
+            json.dump(user_entries, f, indent=2)
 
 class NetworkToolService(ToolService):
     """Tool service specialized for network operations"""

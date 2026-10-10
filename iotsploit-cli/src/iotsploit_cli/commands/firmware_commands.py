@@ -32,11 +32,13 @@ class FirmwareCommands(BaseCommands):
                 name = firmware['name']
                 device_type = firmware.get('device_type', 'unknown')
                 version = firmware.get('version', 'unknown')
-                path = firmware.get('path', 'unknown')
-                
-                # Check if file exists
-                from pathlib import Path
-                file_exists = Path(path).exists() if path != 'unknown' else False
+                path = firmware.get('path') or firmware.get('resource', 'unknown')
+
+                try:
+                    sizes = firmware_service.file_sizes(name)
+                except Exception:
+                    sizes = []
+                file_exists = bool(sizes) and None not in sizes
                 status_color = ansi.Fg.GREEN if file_exists else ansi.Fg.RED
                 status_text = "✓" if file_exists else "✗"
                 
@@ -133,13 +135,14 @@ class FirmwareCommands(BaseCommands):
             
             self.poutput(ansi.style(f"Flashing firmware '{firmware_name}' to device '{device_name}'...", fg=ansi.Fg.YELLOW))
             
-            # Flash the firmware
-            success = firmware_service.flash_registered_firmware(firmware_name, options)
-            
-            if success:
+            result = firmware_service.flash(firmware_name, options)
+
+            if result.success:
                 self.poutput(ansi.style(f"Successfully flashed firmware: {firmware_name}", fg=ansi.Fg.GREEN))
             else:
                 self.poutput(ansi.style(f"Failed to flash firmware: {firmware_name}", fg=ansi.Fg.RED))
+                if result.stderr:
+                    self.poutput(result.stderr)
                 
         except Exception as e:
             logger.error(f"Error flashing firmware: {str(e)}")
