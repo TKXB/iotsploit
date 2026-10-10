@@ -133,13 +133,14 @@ class FirmwareCommands(BaseCommands):
             
             self.poutput(ansi.style(f"Flashing firmware '{firmware_name}' to device '{device_name}'...", fg=ansi.Fg.YELLOW))
             
-            # Flash the firmware
-            success = firmware_service.flash_registered_firmware(firmware_name, options)
-            
-            if success:
+            result = firmware_service.flash(firmware_name, options)
+
+            if result.success:
                 self.poutput(ansi.style(f"Successfully flashed firmware: {firmware_name}", fg=ansi.Fg.GREEN))
             else:
                 self.poutput(ansi.style(f"Failed to flash firmware: {firmware_name}", fg=ansi.Fg.RED))
+                if result.stderr:
+                    self.poutput(result.stderr)
                 
         except Exception as e:
             logger.error(f"Error flashing firmware: {str(e)}")

@@ -104,158 +104,55 @@ class ECP5FPGADriver(BaseDeviceDriver):
         
         # Command dispatch
         if command == "flash_firmware":
-            return self._handle_flash_firmware(device, args)
+            return self._flash_bitstream(device, args)
         elif command == "load_bitstream":
-            return self._handle_load_bitstream(device, args)
+            return self._flash_bitstream(device, args, target='sram')
         elif command == "flash_bitstream":
-            return self._handle_flash_bitstream(device, args)
+            return self._flash_bitstream(device, args, target='flash')
         elif command == "get_device_info":
             return self._handle_get_device_info(device, args)
         else:
             logger.error(f"Unknown command: {command}")
             return f"Unknown command: {command}"
 
-    def _handle_flash_firmware(self, device: Device, args: Dict) -> Dict:
-        """Handle flash_firmware command"""
-        firmware_name = args.get('firmware_name', 'iotsploit_func')  # Default to iotsploit_func
-        options = args.get('options', {})
-        
-        # Get device attributes to use as default options
+    def _flash_bitstream(self, device: Device, args: Dict, target: Optional[str] = None) -> Dict:
+        """Write a registered bitstream to SRAM or configuration flash.
+
+        ``target`` pins the destination ('sram' or 'flash'); without it the
+        caller's options, then the manifest entry, decide.
+        """
+        firmware_name = args.get('firmware_name', 'iotsploit_func')
+        info = self.firmware_service.get_firmware_info(firmware_name)
+        if not info:
+            return {"status": "error", "message": f"Firmware {firmware_name} not found"}
+
         device_attrs = self.device_info.get(device.device_id, {})
-        
-        # Merge device attributes with provided options
-        flash_options = {
-            'cable': device_attrs.get('cable', 'ft2232_b'),  # Updated default
-        }
-        flash_options.update(options)
-        
-        # Determine if we're loading to SRAM or flashing to configuration memory
-        target = options.get('target', 'flash').lower()  # Default to flash
-        
+        overrides = {'cable': device_attrs.get('cable', 'ft2232_b'), **args.get('options', {})}
+        if target:
+            overrides['target'] = target
+        effective = (overrides.get('target') or info.get('flash_options', {}).get('target', 'flash')).lower()
+        verb, done, place = (
+            ("load", "loaded", "SRAM") if effective == 'sram'
+            else ("flash", "flashed", "configuration memory")
+        )
+
         try:
-            if not self.firmware_service.get_firmware_info(firmware_name):
-                return {"status": "error", "message": f"Firmware {firmware_name} not found"}
-
-            # resolve_firmware() materializes any package-resource references
-            # into real filesystem paths. Temp files (when resources live in
-            # a zipped wheel) are kept alive for the duration of the with block.
-            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
-                if target == 'sram':
-                    # Load to SRAM (temporary)
-                    result = self.firmware_service.fpga.load_sram(
-                        bitstream_path=firmware_info['path'],
-                        cable=flash_options.get('cable'),
-                        board=flash_options.get('board')
-                    )
-                    action = "loaded to SRAM"
-                else:
-                    # Flash to configuration memory (permanent)
-                    result = self.firmware_service.fpga.flash_bitstream(
-                        bitstream_path=firmware_info['path'],
-                        cable=flash_options.get('cable'),
-                        board=flash_options.get('board'),
-                        external_flash=flash_options.get('external_flash', False)
-                    )
-                    action = "flashed to configuration memory"
-
-            if result.success:
-                return {
-                    "status": "success", 
-                    "message": f"Firmware {firmware_name} successfully {action}",
-                    "execution_time": result.execution_time
-                }
-            else:
-                return {
-                    "status": "error", 
-                    "message": f"Failed to {action.split()[0]} firmware {firmware_name}: {result.stderr or 'Unknown error'}",
-                    "return_code": result.return_code
-                }
+            result = self.firmware_service.flash(firmware_name, overrides)
         except Exception as e:
-            logger.error(f"Error flashing firmware: {str(e)}")
+            logger.error(f"Error writing bitstream: {str(e)}")
             return {"status": "error", "message": str(e)}
 
-    def _handle_load_bitstream(self, device: Device, args: Dict) -> Dict:
-        """Handle load_bitstream command (to SRAM)"""
-        firmware_name = args.get('firmware_name', 'iotsploit_func')  # Default to iotsploit_func
-        options = args.get('options', {})
-        
-        # Get device attributes to use as default options
-        device_attrs = self.device_info.get(device.device_id, {})
-        
-        # Merge device attributes with provided options
-        load_options = {
-            'cable': device_attrs.get('cable', 'ft2232_b'),  # Updated default
+        if result.success:
+            return {
+                "status": "success",
+                "message": f"Bitstream {firmware_name} successfully {done} to {place}",
+                "execution_time": result.execution_time
+            }
+        return {
+            "status": "error",
+            "message": f"Failed to {verb} bitstream {firmware_name} to {place}: {result.stderr or 'Unknown error'}",
+            "return_code": result.return_code
         }
-        load_options.update(options)
-        
-        try:
-            if not self.firmware_service.get_firmware_info(firmware_name):
-                return {"status": "error", "message": f"Firmware {firmware_name} not found"}
-
-            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
-                result = self.firmware_service.fpga.load_sram(
-                    bitstream_path=firmware_info['path'],
-                    cable=load_options.get('cable'),
-                    board=load_options.get('board')
-                )
-
-            if result.success:
-                return {
-                    "status": "success", 
-                    "message": f"Bitstream {firmware_name} successfully loaded to SRAM",
-                    "execution_time": result.execution_time
-                }
-            else:
-                return {
-                    "status": "error", 
-                    "message": f"Failed to load bitstream {firmware_name} to SRAM: {result.stderr or 'Unknown error'}",
-                    "return_code": result.return_code
-                }
-        except Exception as e:
-            logger.error(f"Error loading bitstream: {str(e)}")
-            return {"status": "error", "message": str(e)}
-
-    def _handle_flash_bitstream(self, device: Device, args: Dict) -> Dict:
-        """Handle flash_bitstream command (to configuration flash)"""
-        firmware_name = args.get('firmware_name', 'iotsploit_func')  # Default to iotsploit_func
-        options = args.get('options', {})
-        
-        # Get device attributes to use as default options
-        device_attrs = self.device_info.get(device.device_id, {})
-        
-        # Merge device attributes with provided options
-        flash_options = {
-            'cable': device_attrs.get('cable', 'ft2232_b'),  # Updated default
-        }
-        flash_options.update(options)
-        
-        try:
-            if not self.firmware_service.get_firmware_info(firmware_name):
-                return {"status": "error", "message": f"Firmware {firmware_name} not found"}
-
-            with self.firmware_service.resolve_firmware(firmware_name) as firmware_info:
-                result = self.firmware_service.fpga.flash_bitstream(
-                    bitstream_path=firmware_info['path'],
-                    cable=flash_options.get('cable'),
-                    board=flash_options.get('board'),
-                    external_flash=flash_options.get('external_flash', False)
-                )
-
-            if result.success:
-                return {
-                    "status": "success", 
-                    "message": f"Bitstream {firmware_name} successfully flashed to configuration memory",
-                    "execution_time": result.execution_time
-                }
-            else:
-                return {
-                    "status": "error", 
-                    "message": f"Failed to flash bitstream {firmware_name} to configuration memory: {result.stderr or 'Unknown error'}",
-                    "return_code": result.return_code
-                }
-        except Exception as e:
-            logger.error(f"Error flashing bitstream: {str(e)}")
-            return {"status": "error", "message": str(e)}
 
     def _handle_get_device_info(self, device: Device, args: Dict) -> Dict:
         """Handle get_device_info command"""
@@ -325,10 +222,10 @@ class ECP5FPGADriver(BaseDeviceDriver):
         
         try:
             if recovery_type == "flash_bitstream":
-                result = self._handle_flash_bitstream(device, kwargs)
+                result = self._flash_bitstream(device, kwargs, target='flash')
                 
             elif recovery_type == "load_sram":
-                result = self._handle_load_bitstream(device, kwargs)
+                result = self._flash_bitstream(device, kwargs, target='sram')
                 
             elif recovery_type == "openocd_attach":
                 # Future implementation for OpenOCD debugging
