@@ -1,10 +1,9 @@
 import logging
-from typing import Dict, Any
+from typing import Dict
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from iotsploit_core.core.tool_service import get_firmware_service
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -17,55 +16,25 @@ def _format_file_size(size: int) -> str:
     return f"{size / (1024 * 1024):.1f} MB"
 
 
-def _resolved_firmware_paths(resolved: Dict[str, Any]) -> list[Path]:
-    """Return all concrete filesystem paths for a resolved firmware entry."""
-    paths: list[Path] = []
-
-    top_level_path = resolved.get("path")
-    if top_level_path:
-        paths.append(Path(top_level_path))
-
-    flash_options = resolved.get("flash_options") or {}
-    for entry in flash_options.get("files", []):
-        entry_path = entry.get("path")
-        if entry_path:
-            paths.append(Path(entry_path))
-
-    return paths
-
-
 def _annotate_file_stats(firmware_service, name: str, info: Dict) -> None:
-    """Populate file_exists / file_size / file_size_formatted on ``info``.
-
-    Uses ``resolve_firmware`` so both legacy ``path``-based entries and new
-    package-``resource``-based entries produce real filesystem locations.
-    """
+    """Populate file_exists / file_size / file_size_formatted on ``info``."""
     try:
-        with firmware_service.resolve_firmware(name) as resolved:
-            paths = _resolved_firmware_paths(resolved)
-            if not paths:
-                info['file_exists'] = False
-                info['file_size'] = 0
-                info['file_size_formatted'] = "No path"
-                return
-
-            all_exist = all(path.exists() for path in paths)
-            info['file_exists'] = all_exist
-            if all_exist:
-                try:
-                    size = sum(path.stat().st_size for path in paths)
-                    info['file_size'] = size
-                    info['file_size_formatted'] = _format_file_size(size)
-                except Exception:
-                    info['file_size'] = 0
-                    info['file_size_formatted'] = "Unknown"
-            else:
-                info['file_size'] = 0
-                info['file_size_formatted'] = "File missing"
+        sizes = firmware_service.file_sizes(name)
     except Exception:
         info['file_exists'] = False
         info['file_size'] = 0
         info['file_size_formatted'] = "Unresolvable"
+        return
+
+    info['file_exists'] = bool(sizes) and None not in sizes
+    info['file_size'] = sum(sizes) if info['file_exists'] else 0
+    if not sizes:
+        info['file_size_formatted'] = "No path"
+    elif info['file_exists']:
+        info['file_size_formatted'] = _format_file_size(info['file_size'])
+    else:
+        info['file_size_formatted'] = "File missing"
+
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -117,7 +86,9 @@ def firmware_info(request: HttpRequest, name: str) -> JsonResponse:
     """
     try:
         firmware_service = get_firmware_service()
-        firmware_info = firmware_service.get_firmware_info(name)
+        # Copy: the annotations below must not leak into the cached manifest,
+        # which _save_manifests writes back to disk.
+        firmware_info = dict(firmware_service.get_firmware_info(name) or {})
         
         if not firmware_info:
             return JsonResponse({

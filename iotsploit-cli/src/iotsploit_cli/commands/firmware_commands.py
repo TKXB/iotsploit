@@ -32,11 +32,13 @@ class FirmwareCommands(BaseCommands):
                 name = firmware['name']
                 device_type = firmware.get('device_type', 'unknown')
                 version = firmware.get('version', 'unknown')
-                path = firmware.get('path', 'unknown')
-                
-                # Check if file exists
-                from pathlib import Path
-                file_exists = Path(path).exists() if path != 'unknown' else False
+                path = firmware.get('path') or firmware.get('resource', 'unknown')
+
+                try:
+                    sizes = firmware_service.file_sizes(name)
+                except Exception:
+                    sizes = []
+                file_exists = bool(sizes) and None not in sizes
                 status_color = ansi.Fg.GREEN if file_exists else ansi.Fg.RED
                 status_text = "✓" if file_exists else "✗"
                 

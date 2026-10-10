@@ -740,6 +740,20 @@ class FirmwareToolService(ToolService):
         """Get information about specific firmware"""
         return self.manifests.get(name)
     
+    def file_sizes(self, name: str) -> List[Optional[int]]:
+        """Size in bytes of each file entry ``name`` flashes; ``None`` marks a missing file.
+
+        Package resources are resolved first, so built-in and user-added
+        entries are checked the same way. An empty list means the entry
+        names no file. Raises like :meth:`resolve_firmware`.
+        """
+        from pathlib import Path
+
+        with self.resolve_firmware(name) as resolved:
+            paths = [resolved.get("path")]
+            paths += [entry.get("path") for entry in resolved["flash_options"].get("files", [])]
+            return [Path(p).stat().st_size if Path(p).exists() else None for p in paths if p]
+
     def list_firmware(self) -> List[Dict]:
         """List all available firmware"""
         return [{"name": name, **info} for name, info in self.manifests.items()]
@@ -749,6 +763,11 @@ class FirmwareToolService(ToolService):
         try:
             if name not in self.manifests:
                 self.logger.error(f"Firmware not found: {name}")
+                return False
+            # A built-in entry would come back from the package manifest on
+            # the next start, so removing it would only look successful.
+            if name in self._load_builtin_manifest():
+                self.logger.error(f"Firmware {name} is built in and cannot be removed")
                 return False
 
             del self.manifests[name]
@@ -874,17 +893,14 @@ class FirmwareToolService(ToolService):
         that the user override file stays minimal and keeps working even when
         the bundled defaults change in a future iotsploit-drivers release.
         """
-        try:
-            builtin = self._load_builtin_manifest()
-            user_entries = {
-                name: info
-                for name, info in self.manifests.items()
-                if builtin.get(name) != info
-            }
-            with open(self.user_manifest_file, 'w') as f:
-                json.dump(user_entries, f, indent=2)
-        except Exception as e:
-            self.logger.error(f"Error saving firmware manifest: {str(e)}")
+        builtin = self._load_builtin_manifest()
+        user_entries = {
+            name: info
+            for name, info in self.manifests.items()
+            if builtin.get(name) != info
+        }
+        with open(self.user_manifest_file, 'w') as f:
+            json.dump(user_entries, f, indent=2)
 
 class NetworkToolService(ToolService):
     """Tool service specialized for network operations"""
