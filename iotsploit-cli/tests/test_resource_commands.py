@@ -1,5 +1,6 @@
 """Contract tests for the canonical resource/action command surface."""
 
+import json
 import shlex
 
 import cmd2
@@ -83,15 +84,26 @@ def test_device_actions_dispatch_to_existing_handlers():
     ]
 
 
-def test_device_run_keeps_a_quoted_argument_in_one_piece():
-    """The handler splits the line again, so quotes around a value with spaces must survive."""
+@pytest.mark.parametrize("command", (
+    """device run ecp5_001 flash options='{"target": "sram"}'""",
+    """device run ecp5_001 flash 'options={"target": "sram"}'""",
+    "flash_board",
+    """device run ecp5_001 flash options='{"target": "sram"}' > {output}""",
+))
+def test_device_run_keeps_quoted_json_with_aliases_and_redirection(command, tmp_path):
+    """cmd2 handles aliases and redirection before the device handler reads its arguments."""
     shell = ResourceShell()
+    shell.aliases["flash_board"] = """device run ecp5_001 flash options='{"target": "sram"}'"""
 
-    shell.onecmd_plus_hooks("""device run ecp5_001 flash options='{"target": "sram"}'""")
+    shell.onecmd_plus_hooks(command.replace("{output}", str(tmp_path / "output.txt")))
 
     [(name, argument)] = shell.calls
     assert name == "execute_device_command"
-    assert shlex.split(argument) == ["ecp5_001", "flash", 'options={"target": "sram"}']
+    device, action, option = shlex.split(argument)
+    assert (device, action) == ("ecp5_001", "flash")
+    key, value = option.split("=", 1)
+    assert key == "options"
+    assert json.loads(value) == {"target": "sram"}
 
 
 def test_firmware_adapter_preserves_paths_with_spaces():
