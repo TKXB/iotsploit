@@ -59,9 +59,10 @@ host_sub.add_parser("show", help="show host system information").set_defaults(ha
 device_parser = _parser("List devices and run device commands")
 device_sub = _subcommands(device_parser)
 device_sub.add_parser("list", help="scan with every driver and list the devices found").set_defaults(handler="do_list_devices")
+device_sub.add_parser("initialize", help="close and reopen every device in the backend").set_defaults(handler="do_initialize_devices")
 device_run = device_sub.add_parser("run", help="run a command on a device")
 device_run.add_argument("command", nargs=argparse.REMAINDER, help="<device_id> <command> [key=value ...]")
-device_run.set_defaults(handler="do_execute_device_command", argument="command", join=True)
+device_run.set_defaults(handler="do_execute_device_command", raw=True)
 
 driver_parser = _parser("Inspect and manage device drivers")
 driver_sub = _subcommands(driver_parser)
@@ -159,6 +160,12 @@ class ResourceCommands(BaseCommands):
             return getattr(self, f"_{local_handler}")(args)
 
         argument = ""
+        if getattr(args, "raw", False):
+            # cmd2 splits a quoted value inside a token (options='{"a": 1}') at
+            # its spaces and rebuilds the line from the pieces, so the handler
+            # gets the line as typed, after "<resource> <action>", and splits it.
+            words = args.cmd2_statement.get().raw.split(None, 2)
+            return getattr(self, args.handler)(words[2] if len(words) == 3 else "")
         argument_name = getattr(args, "argument", None)
         if argument_name:
             value = getattr(args, argument_name, None)

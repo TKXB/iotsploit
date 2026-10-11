@@ -55,6 +55,16 @@ class Shell(DeviceCommands):
     pass
 
 
+class Confirm:
+    """Input_Mgr's yes/no prompt, answered in advance."""
+
+    def __init__(self, answer):
+        self.answer = answer
+
+    def yes_no_input(self, _question, default=False):
+        return self.answer
+
+
 @pytest.fixture
 def said(monkeypatch):
     lines = []
@@ -88,6 +98,47 @@ def test_run_sends_the_command_to_the_driver_that_owns_the_device(monkeypatch, s
         ),
     ]
     assert any("Added VLAN enp42s0.67" in line for line in said)
+
+
+def test_a_json_value_is_sent_as_json(monkeypatch, said):
+    backend = _use(monkeypatch, Backend({
+        "/api/execute_device_command/drv_eth_vlan/": {"status": "success", "result": "ok"},
+    }))
+
+    Shell().do_execute_device_command("""eth_vlan_enp42s0 flash 'options={"target": "sram"}' verify=true""")
+
+    assert backend.calls[-1][2]["args"] == {"options": {"target": "sram"}, "verify": True}
+
+
+def test_initialize_asks_the_backend_to_reopen_every_device(monkeypatch, said):
+    backend = _use(monkeypatch, Backend({
+        "/api/initialize_devices/": {
+            "status": "success",
+            "results": {
+                "drv_iotsploit_fpga": {
+                    "status": "success",
+                    "devices": [{"device": "Lattice ECP5", "status": "success", "message": "Successfully connected"}],
+                },
+                "drv_esp32": {"status": "error", "message": "Failed to scan: port busy"},
+            },
+        },
+    }))
+    monkeypatch.setattr(device_commands.Input_Mgr, "Instance", lambda: Confirm(True))
+
+    Shell().do_initialize_devices("")
+
+    assert backend.calls == [("POST", "/api/initialize_devices/", None)]
+    assert any("Lattice ECP5" in line and "Successfully connected" in line for line in said)
+    assert any("drv_esp32" in line and "port busy" in line for line in said)
+
+
+def test_initialize_does_nothing_unless_confirmed(monkeypatch, said):
+    backend = _use(monkeypatch, Backend())
+    monkeypatch.setattr(device_commands.Input_Mgr, "Instance", lambda: Confirm(False))
+
+    Shell().do_initialize_devices("")
+
+    assert backend.calls == []
 
 
 def test_the_drivers_refusal_reaches_the_operator_as_written(monkeypatch, said):

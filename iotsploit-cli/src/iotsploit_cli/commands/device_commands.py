@@ -178,6 +178,34 @@ class DeviceCommands(BaseCommands):
     do_dc = do_execute_device_command
 
     @cmd2.with_category('Device Commands')
+    def do_initialize_devices(self, arg):
+        'Close and reopen every device in the backend, including ones plugged in since it started'
+        # Some drivers (ESP32, the FPGA) refuse commands until their device is
+        # initialized and connected. runserver does that for what is plugged in
+        # at start; this is the same request, for anything plugged in since.
+        if not Input_Mgr.Instance().yes_no_input(
+            "This closes and reopens every device, in the UI too. Continue?", default=False
+        ):
+            logger.info("Cancelled.")
+            return
+        response = _backend("POST", "/api/initialize_devices/")
+        if response is None:
+            return
+        for driver, result in (response.get("results") or {}).items():
+            if not isinstance(result, dict):
+                continue
+            for device in result.get("devices") or []:
+                ok = device.get("status") == "success"
+                logger.info(
+                    ansi.style(f"  {driver}  {device.get('device')}: ", fg=ansi.Fg.GREEN if ok else ansi.Fg.RED)
+                    + str(device.get("message", ""))
+                )
+            if result.get("status") == "error":
+                logger.error(ansi.style(f"  {driver}: {result.get('message', '')}", fg=ansi.Fg.RED))
+
+    do_initdev = do_initialize_devices
+
+    @cmd2.with_category('Device Commands')
     def do_list_device_commands(self, arg):
         'List the commands a driver supports. Usage: driver commands <driver>'
         driver = (arg or "").strip()

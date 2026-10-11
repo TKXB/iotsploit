@@ -36,6 +36,7 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
     )),
     ResourceSpec("device", "List devices and run device commands", (
         _action("list", "Scan with every driver and list the devices found", "list_devices", "lsdev", "scan_devices", "scan"),
+        _action("initialize", "Close and reopen every device in the backend", "initialize_devices", "initdev"),
         _action("run", "Run a command on a device", "execute_device_command", "dc"),
     )),
     ResourceSpec("driver", "Inspect and manage device drivers", (
