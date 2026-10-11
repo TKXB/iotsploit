@@ -52,7 +52,15 @@ class Backend:
 
 
 class Shell(DeviceCommands):
-    pass
+    """A bare command mixin that records what it would print to the shell."""
+
+    _lines: list[str] = []
+
+    def poutput(self, message="", *, end="\n"):
+        Shell._lines.append(str(message))
+
+    def perror(self, message="", *, end="\n", apply_style=True):
+        Shell._lines.append(str(message))
 
 
 class Confirm:
@@ -66,11 +74,9 @@ class Confirm:
 
 
 @pytest.fixture
-def said(monkeypatch):
-    lines = []
-    monkeypatch.setattr(device_commands.logger, "info", lambda message, *a: lines.append(str(message)))
-    monkeypatch.setattr(device_commands.logger, "error", lambda message, *a: lines.append(str(message)))
-    return lines
+def said():
+    Shell._lines = []
+    return Shell._lines
 
 
 def _use(monkeypatch, backend):
@@ -179,6 +185,29 @@ def test_a_stopped_backend_says_to_start_it(monkeypatch, said):
     Shell().do_list_devices("")
 
     assert any("Run runserver first" in line for line in said)
+
+
+def test_driver_list_shows_state_and_availability_in_one_table(monkeypatch, said):
+    _use(monkeypatch, Backend({
+        "/api/list_device_drivers/": {
+            "status": "success",
+            "driver_info": [
+                {"name": "drv_eth_vlan", "availability": {"available": False, "reason": "'nmcli' not on PATH"}},
+                {"name": "drv_ft2232", "availability": {"available": True}},
+            ],
+        },
+        "/api/get_driver_states/": {
+            "status": "success",
+            "drivers": {"drv_eth_vlan": {"enabled": True}, "drv_ft2232": {"enabled": False}},
+        },
+    }))
+
+    Shell().do_list_device_drivers("")
+
+    table = "\n".join(said)
+    assert "drv_eth_vlan" in table and "'nmcli' not on PATH" in table
+    assert "disabled" in table  # drv_ft2232
+    assert "2 drivers · 1 enabled" in said
 
 
 def test_the_device_list_is_the_backends(monkeypatch, said):
