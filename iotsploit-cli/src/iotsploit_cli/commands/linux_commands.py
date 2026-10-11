@@ -20,7 +20,7 @@ class LinuxCommands(BaseCommands):
             if result.stderr:
                 self.poutput(result.stderr)
         except Exception as e:
-            logger.error(f"Error executing ls: {str(e)}")
+            self.perror(f"Error executing ls: {str(e)}")
 
     @cmd2.with_category('Linux Commands')
     def do_lsusb(self, arg):
@@ -31,4 +31,4 @@ class LinuxCommands(BaseCommands):
             if result.stderr:
                 self.poutput(result.stderr)
         except Exception as e:
-            logger.error(f"Error executing lsusb: {str(e)}")
+            self.perror(f"Error executing lsusb: {str(e)}")

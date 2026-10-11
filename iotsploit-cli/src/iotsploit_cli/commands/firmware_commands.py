@@ -56,7 +56,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput("")
 
         except Exception as e:
-            logger.error(f"Error listing firmware: {str(e)}")
+            self.perror(f"Error listing firmware: {str(e)}")
             self.poutput(ansi.style(f"Error listing firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_lsfw = do_list_firmware
@@ -96,7 +96,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput(ansi.style(f"Failed to add firmware: {name}", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(f"Error adding firmware: {str(e)}")
+            self.perror(f"Error adding firmware: {str(e)}")
             self.poutput(ansi.style(f"Error adding firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_addfw = do_add_firmware
@@ -145,7 +145,7 @@ class FirmwareCommands(BaseCommands):
                     self.poutput(result.stderr)
                 
         except Exception as e:
-            logger.error(f"Error flashing firmware: {str(e)}")
+            self.perror(f"Error flashing firmware: {str(e)}")
             self.poutput(ansi.style(f"Error flashing firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_flashfw = do_flash_firmware
@@ -182,7 +182,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput(ansi.style(f"Failed to remove firmware: {firmware_name}", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(f"Error removing firmware: {str(e)}")
+            self.perror(f"Error removing firmware: {str(e)}")
             self.poutput(ansi.style(f"Error removing firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_rmfw = do_remove_firmware
@@ -211,7 +211,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput(ansi.style("Failed to download firmware", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(f"Error downloading firmware: {str(e)}")
+            self.perror(f"Error downloading firmware: {str(e)}")
             self.poutput(ansi.style(f"Error downloading firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_dlfw = do_download_firmware
