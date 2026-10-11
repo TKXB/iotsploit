@@ -28,9 +28,7 @@ class DjangoCommands(BaseCommands):
 
     def _services_log_to_console(self) -> bool:
         override = os.getenv("IOTSPLOIT_SERVICE_LOG_TO_CONSOLE", "").strip().lower()
-        if override:
-            return override in ("1", "true", "yes", "y", "on")
-        return os.getenv("IOTSPLOIT_LOG_FORMAT", "standard").strip().lower() == "standard"
+        return override in ("1", "true", "yes", "y", "on")
 
     def _open_service_log(self, service_name: str):
         if not hasattr(self, "_service_log_files"):
@@ -213,7 +211,6 @@ class DjangoCommands(BaseCommands):
             if not self._services_log_to_console():
                 logger.info("Service logs are redirected to %s", log_dir())
             
-            # Start the processes with direct output to stdout/stderr
             if distributed:
                 django_stdout, django_stderr, _ = self._service_stdio("django")
                 self.django_server_process = subprocess.Popen(

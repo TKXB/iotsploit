@@ -16,7 +16,7 @@ def runtime_dir() -> Path:
 
 def log_dir() -> Path:
     """Return the configured service log directory."""
-    return Path(os.getenv("IOTSPLOIT_SERVICE_LOG_DIR", runtime_dir() / "sat_logs"))
+    return Path(os.getenv("IOTSPLOIT_SERVICE_LOG_DIR", runtime_dir() / "iotsploit_logs"))
 
 
 def process_group_kwargs() -> dict[str, bool]:

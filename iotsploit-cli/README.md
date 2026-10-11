@@ -45,6 +45,25 @@ The same options are available inside the shell:
 default because it does not authenticate incoming requests; expose it only on
 a protected network. All ports must be distinct.
 
+Background service stdout and stderr are appended to per-service files in
+`IOTSPLOIT_SERVICE_LOG_DIR`, including `mcp.log` and `daphne.log`. When unset,
+the directory is `iotsploit_logs` under `IOTSPLOIT_RUNTIME_DIR`, or under Python's
+`tempfile.gettempdir()` when neither override is set:
+
+| Platform | Typical default log directory |
+|----------|-------------------------------|
+| Linux | `/tmp/iotsploit_logs` |
+| macOS | `$TMPDIR/iotsploit_logs`, usually under `/var/folders/.../T/` |
+| Windows | `%TEMP%\iotsploit_logs`, usually under `%LOCALAPPDATA%\Temp` |
+
+Temporary-directory settings can change these paths. Service startup prints
+the resolved log directory. Set `IOTSPLOIT_SERVICE_LOG_DIR` to a persistent
+directory if logs must survive temporary-file cleanup.
+
+Set `IOTSPLOIT_SERVICE_LOG_TO_CONSOLE=1` before launching the CLI
+to send service logs to the terminal instead. Restart services to apply a
+routing change; terminal log format does not control service output routing.
+
 ### Custom plugins
 
 `IOTSPLOIT_EXPLOIT_PLUGINS_DIR` can be used for user custom exploit plugins.

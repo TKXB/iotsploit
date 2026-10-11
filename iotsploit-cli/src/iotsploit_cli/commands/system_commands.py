@@ -8,7 +8,6 @@ from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog
 from iotsploit_core.utils import iots_logger
-from iotsploit_core.utils.helpers import log_dir
 
 logger = iots_logger.get_logger(__name__)
 
@@ -100,21 +99,6 @@ class SystemCommands(BaseCommands):
             iots_logger.set_format(selected_format)
             xlog.set_format(selected_format)
             logger.info(ansi.style(f"Log format set to {selected_format}", fg=ansi.Fg.GREEN))
-            running_services = any(
-                getattr(self, attr, None)
-                for attr in (
-                    "django_server_process",
-                    "daphne_server_process",
-                    "mcp_bridge_process",
-                    "celery_worker_process",
-                    "interactive_worker_process",
-                )
-            )
-            if running_services and selected_format != "standard":
-                logger.warning(
-                    "Already-running service processes keep their current terminal output. "
-                    f"Run stop_server then runserver to redirect service logs to {log_dir()}."
-                )
         except Exception as e:
             logger.error(ansi.style(f"Error setting log format: {str(e)}", fg=ansi.Fg.RED))
             logger.debug("Detailed error:", exc_info=True)
