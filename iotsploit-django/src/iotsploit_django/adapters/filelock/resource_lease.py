@@ -6,8 +6,10 @@ file name, so a boundary scan and a campaign monitor on the same host refuse
 each other instead of interleaving traffic on one probe.
 
 The operating system drops a lock when its process dies, so a crashed holder
-never leaves a stale lease behind. The file's content -- who holds it -- is
-only ever read to explain a refusal.
+never leaves a stale lease behind. Who holds it goes in a separate ``.owner``
+note beside the lock file, read only to explain a refusal. It cannot live in
+the lock file itself: Windows locks are mandatory, so a second process could
+not read a note under the lock it is being refused.
 """
 
 from __future__ import annotations
@@ -59,6 +61,11 @@ def default_lock_dir() -> Path:
     return Path("/tmp") / f"iotsploit-{os.getuid()}" / "locks"
 
 
+def owner_note_name(resource: str) -> str:
+    """``usb:1366-1050298903/debug`` -> ``usb_1366-1050298903_debug.owner``."""
+    return lock_file_name(resource)[:-len(".lock")] + ".owner"
+
+
 def lock_file_name(resource: str) -> str:
     """``usb:1366-1050298903/debug`` -> ``usb_1366-1050298903_debug.lock``."""
     safe = "".join(char if char.isalnum() or char in "-." else "_" for char in resource)
@@ -84,19 +91,16 @@ class FileResourceLease:
             self._lock_dir.mkdir(parents=True, exist_ok=True)
             if sys.platform != "win32":
                 os.chmod(self._lock_dir, 0o700)
+            note = self._lock_dir / owner_note_name(resource)
             handle = open(self._lock_dir / lock_file_name(resource), "a+")
             if not _try_lock(handle):
-                holder = self._read_holder(handle)
                 handle.close()
-                raise ResourceBusyError(resource, holder)
+                raise ResourceBusyError(resource, self._read_holder(note))
             try:
-                handle.seek(0)
-                handle.truncate()
-                handle.write(json.dumps({
+                note.write_text(json.dumps({
                     "resource": resource, "owner": owner, "pid": os.getpid(),
                     "process": self._process, "since": time.time(),
                 }))
-                handle.flush()
             except OSError:
                 pass  # The lock is what matters; the note only explains refusals.
             self._held[resource] = (owner, handle)
@@ -108,22 +112,20 @@ class FileResourceLease:
                 return
             del self._held[resource]
             handle = held[1]
+            # Before unlocking: once unlocked, the note may be the next holder's.
             try:
-                handle.seek(0)
-                handle.truncate()
-                handle.flush()
+                (self._lock_dir / owner_note_name(resource)).unlink(missing_ok=True)
             except OSError:
-                pass
+                pass  # A stale note is overwritten by the next holder.
             try:
                 _unlock(handle)
             finally:
                 handle.close()
 
     @staticmethod
-    def _read_holder(handle: IO) -> str:
+    def _read_holder(note_path: Path) -> str:
         try:
-            handle.seek(0)
-            note = json.loads(handle.read() or "{}")
+            note = json.loads(note_path.read_text() or "{}")
         except (OSError, ValueError):
             note = {}
         owner = note.get("owner")
