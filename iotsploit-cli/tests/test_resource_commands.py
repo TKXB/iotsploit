@@ -1,5 +1,8 @@
 """Contract tests for the canonical resource/action command surface."""
 
+import json
+import shlex
+
 import cmd2
 import pytest
 from prompt_toolkit.completion import CompleteEvent
@@ -81,6 +84,28 @@ def test_device_actions_dispatch_to_existing_handlers():
     ]
 
 
+@pytest.mark.parametrize("command", (
+    """device run ecp5_001 flash options='{"target": "sram"}'""",
+    """device run ecp5_001 flash 'options={"target": "sram"}'""",
+    "flash_board",
+    """device run ecp5_001 flash options='{"target": "sram"}' > {output}""",
+))
+def test_device_run_keeps_quoted_json_with_aliases_and_redirection(command, tmp_path):
+    """cmd2 handles aliases and redirection before the device handler reads its arguments."""
+    shell = ResourceShell()
+    shell.aliases["flash_board"] = """device run ecp5_001 flash options='{"target": "sram"}'"""
+
+    shell.onecmd_plus_hooks(command.replace("{output}", str(tmp_path / "output.txt")))
+
+    [(name, argument)] = shell.calls
+    assert name == "execute_device_command"
+    device, action, option = shlex.split(argument)
+    assert (device, action) == ("ecp5_001", "flash")
+    key, value = option.split("=", 1)
+    assert key == "options"
+    assert json.loads(value) == {"target": "sram"}
+
+
 def test_firmware_adapter_preserves_paths_with_spaces():
     shell = ResourceShell()
     shell.onecmd_plus_hooks("firmware add demo '/tmp/a b.bin' esp32 1.0")
@@ -159,10 +184,10 @@ def test_palette_completes_resource_actions_while_typing():
     shell = ResourceShell()
     catalog = CommandCatalog(shell)
     completer = CommandPaletteCompleter(shell, catalog, Cmd2CompletionAdapter(shell))
-    document = Document(text="device s", cursor_position=8)
+    document = Document(text="target e", cursor_position=8)
     event = CompleteEvent(text_inserted=True, completion_requested=False)
     completions = list(completer.get_completions(document, event))
-    assert [completion.text for completion in completions] == ["scan", "select"]
+    assert [completion.text for completion in completions] == ["edit", "export"]
     assert all(completion.start_position == -1 for completion in completions)
 
 

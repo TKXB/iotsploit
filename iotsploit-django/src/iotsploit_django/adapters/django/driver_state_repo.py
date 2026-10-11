@@ -14,9 +14,10 @@ class DjangoDriverStateRepository:
 
     def __init__(self) -> None:
         self._db = get_default_sqlalchemy_db()
-        # Ensure the table exists; previously this was implicitly created via other model managers.
+        # Each get_default_sqlalchemy_db() call builds its own Base, so the
+        # table is created from the one the model is declared on.
         try:
-            self._db.Base.metadata.create_all(self._db.engine)
+            DeviceDriverState.metadata.create_all(self._db.engine)
         except Exception:
             # Keep repository resilient; callers will treat missing persistence as "no saved states".
             pass

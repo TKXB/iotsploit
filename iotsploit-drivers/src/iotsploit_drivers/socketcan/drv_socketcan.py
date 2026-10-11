@@ -47,8 +47,8 @@ ERROR_REPORT_INTERVAL_S = 1.0
 class SocketCANDriver(BaseDeviceDriver):
     REQUIRES = ("platform:linux", "module:can")
 
-    #: Device ids are namespaced per driver: DeviceStore keys by device_id
-    #: alone, so two drivers that both find can0 must not name it the same.
+    #: Device ids are namespaced per driver: `device run` finds a device by
+    #: its id alone, so two drivers that both find can0 must not name it the same.
     DEVICE_ID_PREFIX = 'can_'
 
     def __init__(self):

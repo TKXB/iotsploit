@@ -128,10 +128,6 @@
     "pattern": "firmware/list/"
   },
   {
-    "name": "get_all_devices",
-    "pattern": "get_all_devices/"
-  },
-  {
     "name": "get_component_types",
     "pattern": "get_component_types/"
   },

@@ -5,9 +5,8 @@ from django.http import HttpRequest, HttpResponse
 import json
 import logging
 
-from iotsploit_django.adapters.django.device_models import DeviceManager
 from iotsploit_django.tools.monitor_mgr import Pi_Mgr
-from iotsploit_django.composition_root.wiring import get_device_driver_manager, get_device_registry
+from iotsploit_django.composition_root.wiring import get_device_driver_manager
 logger = logging.getLogger(__name__)
 
 def device_info(request: HttpRequest):
@@ -24,24 +23,6 @@ def device_info(request: HttpRequest):
     }
     
     return HttpResponse(json.dumps(info_dict))
-
-def get_all_devices(request):
-    """Get all registered devices from the device manager."""
-    try:
-        device_manager = DeviceManager.get_instance()
-        devices = device_manager.get_all_devices()
-        
-        return JsonResponse({
-            "status": "success",
-            "devices": devices
-        })
-        
-    except Exception as e:
-        logger.error(f"Error retrieving devices: {str(e)}")
-        return JsonResponse({
-            "status": "error",
-            "message": f"Failed to retrieve devices: {str(e)}"
-        }, status=500)
 
 @csrf_exempt
 @require_POST
@@ -145,76 +126,40 @@ def scan_specific_device(request, driver_name):
 @csrf_exempt
 @require_POST
 def list_devices(request):
-    """
-    Scan for devices and show detailed information.
-    Returns all device properties in a single list.
+    """Scan with every enabled driver and return the devices found, one flat list.
+
+    Each device names its ``driver``, the route its commands go to. The list
+    comes from the driver manager that owns the hardware, so the UI and the
+    shell see the same devices.
     """
     try:
-        # Get device registry instance
-        device_registry = get_device_registry()
-        device_registry.initialize()
-        
-        # Perform device scan
-        logger.info("Scanning for devices...")
-        device_registry.scan_devices()
-        
-        # Get all devices and their sources
-        all_devices = device_registry.device_store.devices
-        device_sources = device_registry.device_store.device_sources
-        
-        # Format response with all device properties
-        response = {
-            "status": "success",
-            "devices": []
-        }
-        
-        # Add all devices with their complete properties
-        for device_id, device in all_devices.items():
-            try:
-                # Convert device to dictionary using dataclasses-json
+        device_manager = get_device_driver_manager()
+        devices = []
+        for driver_name in device_manager.list_drivers():
+            # A disabled or unavailable driver reports an error and lists nothing.
+            for device in device_manager.scan_devices(driver_name).get("devices", []):
                 device_dict = device.to_dict(encode_json=True)
-                
-                # Convert DeviceType enum to string
-                device_dict["device_type"] = device.device_type.value
-                
-                # Add source at the top level (not in attributes)
-                source = device_sources.get(device_id, "unknown")
-                
-                # Create new device dictionary with source at the top level
                 formatted_device = {
                     "device_id": device_dict["device_id"],
                     "name": device_dict["name"],
-                    "device_type": device_dict["device_type"],
-                    "source": source
+                    "device_type": device.device_type.value,
+                    "driver": driver_name,
+                    # Every device here was found by a scan; the UI's CAN screen
+                    # selects on this.
+                    "source": "dynamic",
                 }
-                
-                # Add other device-specific fields
-                if "port" in device_dict:
-                    formatted_device["port"] = device_dict["port"]
-                if "baud_rate" in device_dict:
-                    formatted_device["baud_rate"] = device_dict["baud_rate"]
-                if "vendor_id" in device_dict:
-                    formatted_device["vendor_id"] = device_dict["vendor_id"]
-                if "product_id" in device_dict:
-                    formatted_device["product_id"] = device_dict["product_id"]
-                if "interface" in device_dict:
-                    formatted_device["interface"] = device_dict["interface"]
-                
-                # Add attributes last
+                for field in ("port", "baud_rate", "vendor_id", "product_id", "interface"):
+                    if field in device_dict:
+                        formatted_device[field] = device_dict[field]
                 if "attributes" in device_dict:
                     formatted_device["attributes"] = device_dict["attributes"]
-                
-                response["devices"].append(formatted_device)
-                
-            except Exception as e:
-                logger.error(f"Error converting device {device_id} to dict: {str(e)}")
-                continue
-        
-        if not all_devices:
+                devices.append(formatted_device)
+
+        response = {"status": "success", "devices": devices}
+        if not devices:
             response["message"] = "No devices found"
-            
         return JsonResponse(response)
-        
+
     except Exception as e:
         logger.error(f"Error scanning devices: {str(e)}")
         return JsonResponse({
