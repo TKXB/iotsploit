@@ -6,6 +6,7 @@ import sys
 import subprocess
 import time
 from .base_commands import BaseCommands
+from iotsploit_cli import output
 from iotsploit_core.utils import iots_logger
 import os
 import socket
@@ -113,7 +114,7 @@ class DjangoCommands(BaseCommands):
 
         try:
             distributed = settings.IOTSPLOIT_RUNTIME == "distributed"
-            logger.info("Starting the %s backend runtime", settings.IOTSPLOIT_RUNTIME)
+            logger.debug("Starting the %s backend runtime", settings.IOTSPLOIT_RUNTIME)
 
             api_client_host = "127.0.0.1" if host == "0.0.0.0" else host
             mcp_client_host = "127.0.0.1" if mcp_host == "0.0.0.0" else mcp_host
@@ -201,13 +202,13 @@ class DjangoCommands(BaseCommands):
             service_env = os.environ.copy()
             
             if distributed:
-                logger.info(f"Running Django command: {' '.join(django_cmd)}")
-            logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
-            logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
+                logger.debug("Running Django command: %s", ' '.join(django_cmd))
+            logger.debug("Running Daphne command: %s", ' '.join(daphne_cmd))
+            logger.debug("Running MCP HTTP server command: %s", ' '.join(mcp_bridge_cmd))
             if distributed:
-                logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
-                logger.info(f"Running interactive Celery command: {' '.join(interactive_celery_cmd)}")
-                logger.info(f"Running streaming Celery command: {' '.join(streaming_celery_cmd)}")
+                logger.debug("Running Celery command: %s", ' '.join(celery_cmd))
+                logger.debug("Running interactive Celery command: %s", ' '.join(interactive_celery_cmd))
+                logger.debug("Running streaming Celery command: %s", ' '.join(streaming_celery_cmd))
             if not self._services_log_to_console():
                 logger.info("Service logs are redirected to %s", log_dir())
             
@@ -262,30 +263,31 @@ class DjangoCommands(BaseCommands):
                     universal_newlines=True, env=service_env,
                 )
             
-            logger.info("All servers started successfully in the background.")
-            logger.info("Services running on:")
-            logger.info("  - Django HTTP API listens on: http://%s:%s", host, api_port)
-            logger.info("  - Daphne WebSocket listens on: ws://%s:%s", host, ws_port)
-            logger.info("  - MCP HTTP listens on: http://%s:%s/mcp", mcp_host, mcp_port)
+            rows = [
+                ["HTTP API", f"http://{host}:{api_port}"],
+                ["WebSocket", f"ws://{host}:{ws_port}"],
+                ["MCP", f"http://{mcp_host}:{mcp_port}/mcp"],
+            ]
+            rows.append(["Workers", "standard, interactive, streaming" if distributed else "in-process thread pools"])
+            self.poutput(ansi.style("Services started:", fg=ansi.Fg.GREEN))
+            self.poutput(output.table(["SERVICE", "ADDRESS"], rows))
+            if not self._services_log_to_console():
+                self.poutput(f"Logs: {log_dir()}")
             if mcp_host != "127.0.0.1":
-                logger.warning("MCP is exposed beyond loopback and does not authenticate incoming requests")
-            if distributed:
-                logger.info("  - Celery workers: standard, interactive, and streaming queues")
-            else:
-                logger.info("  - Background work: in-process thread pools")
+                self.pwarning("MCP is exposed beyond loopback and does not authenticate incoming requests")
             
             # Wait for HTTP server to be available and initialize devices
             import requests
             max_retries = 30
             retry_interval = 1
             
-            logger.info("Waiting for HTTP server to be available...")
+            logger.debug("Waiting for HTTP server to be available...")
             for i in range(max_retries):
                 try:
                     response = requests.post(
                         f'{api_base_url}/api/initialize_devices/')
                     if response.status_code == 200:
-                        logger.info("Devices initialized successfully via HTTP API")
+                        logger.debug("Devices initialized successfully via HTTP API")
                         break
                     else:
                         logger.error(f"Failed to initialize devices: {response.text}")
@@ -320,7 +322,7 @@ class DjangoCommands(BaseCommands):
                     api_base_url = getattr(self, "_service_api_base_url", "http://127.0.0.1:8888")
                     response = requests.post(f'{api_base_url}/api/cleanup_devices/')
                     if response.status_code == 200:
-                        logger.info("Devices cleaned up successfully via HTTP API")
+                        logger.debug("Devices cleaned up successfully via HTTP API")
                     else:
                         logger.error(f"Failed to cleanup devices: {response.text}")
                 except requests.exceptions.ConnectionError:
@@ -371,7 +373,7 @@ class DjangoCommands(BaseCommands):
                         getattr(self, 'celery_worker_process', None),
                         getattr(self, 'interactive_worker_process', None),
                         getattr(self, 'streaming_worker_process', None)]):
-                logger.info("All servers stopped.")
+                self.poutput("Services stopped.")
             else:
                 logger.error("No servers were running.")
                 
