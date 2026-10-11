@@ -34,7 +34,11 @@ from iotsploit_core.core.monitoring.arch import cortex_m  # noqa: E402
 from iotsploit_core.core.device_manager import DeviceDriverManager  # noqa: E402
 from iotsploit_core.domain.observation import StartedScan  # noqa: E402
 from iotsploit_core.ports.resource_lease import ResourceBusyError  # noqa: E402
-from iotsploit_django.adapters.filelock.resource_lease import FileResourceLease, lock_file_name  # noqa: E402
+from iotsploit_django.adapters.filelock.resource_lease import (  # noqa: E402
+    FileResourceLease,
+    lock_file_name,
+    owner_note_name,
+)
 from iotsploit_django.composition_root import core_container  # noqa: E402
 from iotsploit_django.tools import monitor_compat  # noqa: E402
 from iotsploit_django.tools.iot_protocol_runtime import OrchestratorAdapter  # noqa: E402
@@ -377,6 +381,7 @@ def test_container_resolves_the_real_stlink_driver_for_st_probes(lease):
 
 def test_lock_file_names_are_flat_and_stable():
     assert lock_file_name("usb:1366-1050298903/debug") == "usb_1366-1050298903_debug.lock"
+    assert owner_note_name("usb:1366-1050298903/debug") == "usb_1366-1050298903_debug.owner"
 
 
 def test_lease_is_exclusive_within_a_process_and_ignores_foreign_releases(lease):
