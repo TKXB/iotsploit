@@ -257,7 +257,9 @@ def test_unhealthy_sample_carries_its_cause_as_a_reason():
 
 def test_recovery_resets_without_halting_and_needs_two_healthy_samples():
     access = FakeAccess({cortex_m.DHCSR: 1 << 24})
-    source = open_source(access, boot_timeout_ms=100)
+    # The default deadline, not 100ms: one 50ms poll sleep that a loaded CI
+    # runner oversleeps would otherwise miss it. Success returns at once.
+    source = open_source(access)
     samples = iter([{"health": "reset"}, {"health": "ok", "n": 1}, {"health": "ok", "n": 2}])
     source.end = lambda: next(samples)
 
