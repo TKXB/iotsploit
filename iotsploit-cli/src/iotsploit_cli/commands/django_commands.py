@@ -138,7 +138,7 @@ class DjangoCommands(BaseCommands):
                 ]
             else:
                 daphne_cmd = [
-                    sys.executable, '-m', 'daphne',
+                    sys.executable, '-m', 'daphne', '--verbosity', '0',
                     '-e', f'tcp:{api_port}:interface={host}',
                     '-e', f'tcp:{ws_port}:interface={host}',
                     'iotsploit_django.asgi:application',
