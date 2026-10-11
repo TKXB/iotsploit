@@ -135,7 +135,7 @@ def test_scan_reports_the_peak_adapter_and_nothing_else(driver):
 
 
 def test_a_peak_adapter_and_a_generic_can_interface_are_not_the_same_device(driver):
-    """DeviceStore keys by device_id alone, so the two drivers must not clash."""
+    """`device run` finds a device by its id alone, so the two drivers must not clash."""
     generic = SocketCANDriver()
     generic.stream_wrapper = RecordingStream()
 

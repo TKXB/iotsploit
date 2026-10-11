@@ -17,10 +17,10 @@ looked like success from the outside:
   `data['result']` on a 200 and shows the raw body otherwise, so a stack trace
   behind a 500 reaches an operator as noise.
 
-The last tests cover the two payloads that route feeds off: the driver list
-carries each driver's commands, and one scan request covers every driver. The
-drivers page used to ask per driver, which put a hardware scan behind every
-render.
+The last tests cover the payloads that route feeds off: the driver list
+carries each driver's commands, one scan request covers every driver, and the
+device list names the driver each device's commands go to. The drivers page
+used to ask per driver, which put a hardware scan behind every render.
 
 The manager is real here; only the driver is a stub. Testing this against a
 mocked manager would assert nothing about the lifecycle, which is where the
@@ -302,4 +302,28 @@ def test_a_disabled_driver_is_not_scanned(driver, manager):
     body = Client().post("/api/scan_all_devices/").json()
 
     assert body["results"][DRIVER]["devices"] == []
+    assert driver.calls == []
+
+
+def test_the_device_list_names_the_driver_a_command_goes_to(driver):
+    """The shell's `device run <device_id>` finds the route from this list.
+
+    It is the same list the UI reads, scanned by the manager that owns the
+    hardware, so a device listed here is one a command can reach.
+    """
+    body = Client().post("/api/list_devices/").json()
+
+    assert [(d["device_id"], d["driver"], d["source"]) for d in body["devices"]] == [
+        ("stub_001", DRIVER, "dynamic"),
+        ("stub_002", DRIVER, "dynamic"),
+    ]
+    assert _command("stub_002").json()["result"] == "identify on stub_002"
+
+
+def test_a_disabled_driver_lists_no_devices(driver, manager):
+    manager.disable_driver(DRIVER)
+
+    body = Client().post("/api/list_devices/").json()
+
+    assert body == {"status": "success", "devices": [], "message": "No devices found"}
     assert driver.calls == []

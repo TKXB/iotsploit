@@ -45,7 +45,6 @@ class SystemCommands(BaseCommands):
         'Exit Console'
         if self.django_server_process:
             self.do_stop_server(arg)
-        self._cleanup_devices()
         logger.info("IotSploit Shell Quit. ByeBye~")
         return True
 

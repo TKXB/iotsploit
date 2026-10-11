@@ -34,13 +34,9 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
     ResourceSpec("host", "Show information about the IoTSploit host", (
         _action("show", "Show host system information", "device_info"),
     )),
-    ResourceSpec("device", "Discover, select, import, and use devices", (
-        _action("list", "List configured devices", "list_devices", "lsdev"),
-        _action("scan", "Scan for available devices", "scan_devices", "scan"),
-        _action("initialize", "Initialize available devices", "initialize_devices", "initdev"),
-        _action("select", "Select the active device", "select_device", "sd", "switch_device"),
-        _action("run", "Run a command on the active device", "execute_device_command", "dc"),
-        _action("import", "Import devices from JSON", "device_import", "dimport"),
+    ResourceSpec("device", "List devices and run device commands", (
+        _action("list", "Scan with every driver and list the devices found", "list_devices", "lsdev", "scan_devices", "scan"),
+        _action("run", "Run a command on a device", "execute_device_command", "dc"),
     )),
     ResourceSpec("driver", "Inspect and manage device drivers", (
         _action("list", "List available device drivers", "list_device_drivers", "lsdrv"),
@@ -105,7 +101,7 @@ LEGACY_REPLACEMENTS: Dict[str, str] = {
 }
 LEGACY_REPLACEMENTS.update({
     "ls": "shell ls (or !ls)",
-    "lsusb": "device scan",
+    "lsusb": "device list",
     "quit": "exit",
 })
 

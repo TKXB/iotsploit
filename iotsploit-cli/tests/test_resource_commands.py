@@ -159,10 +159,10 @@ def test_palette_completes_resource_actions_while_typing():
     shell = ResourceShell()
     catalog = CommandCatalog(shell)
     completer = CommandPaletteCompleter(shell, catalog, Cmd2CompletionAdapter(shell))
-    document = Document(text="device s", cursor_position=8)
+    document = Document(text="target e", cursor_position=8)
     event = CompleteEvent(text_inserted=True, completion_requested=False)
     completions = list(completer.get_completions(document, event))
-    assert [completion.text for completion in completions] == ["scan", "select"]
+    assert [completion.text for completion in completions] == ["edit", "export"]
     assert all(completion.start_position == -1 for completion in completions)
 
 

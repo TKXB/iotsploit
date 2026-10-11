@@ -56,20 +56,12 @@ host_parser = _parser("Show information about the IoTSploit host")
 host_sub = _subcommands(host_parser)
 host_sub.add_parser("show", help="show host system information").set_defaults(handler="do_device_info")
 
-device_parser = _parser("Discover, select, import, and use devices")
+device_parser = _parser("List devices and run device commands")
 device_sub = _subcommands(device_parser)
-device_sub.add_parser("list", help="list configured devices").set_defaults(handler="do_list_devices")
-device_sub.add_parser("scan", help="scan for available devices").set_defaults(handler="do_scan_devices")
-device_sub.add_parser("initialize", help="initialize available devices").set_defaults(handler="do_initialize_devices")
-device_select = device_sub.add_parser("select", help="select the active device")
-device_select.add_argument("device", nargs="?")
-device_select.set_defaults(handler="do_select_device", argument="device")
-device_run = device_sub.add_parser("run", help="run a command on the active device")
-device_run.add_argument("command", nargs=argparse.REMAINDER)
+device_sub.add_parser("list", help="scan with every driver and list the devices found").set_defaults(handler="do_list_devices")
+device_run = device_sub.add_parser("run", help="run a command on a device")
+device_run.add_argument("command", nargs=argparse.REMAINDER, help="<device_id> <command> [key=value ...]")
 device_run.set_defaults(handler="do_execute_device_command", argument="command", join=True)
-device_import = device_sub.add_parser("import", help="import devices from JSON")
-device_import.add_argument("file")
-device_import.set_defaults(handler="do_device_import", argument="file")
 
 driver_parser = _parser("Inspect and manage device drivers")
 driver_sub = _subcommands(driver_parser)
@@ -232,7 +224,7 @@ class ResourceCommands(BaseCommands):
     @cmd2.with_category("IoTSploit Commands")
     @cmd2.with_argparser(device_parser)
     def do_device(self, args):
-        """Discover, select, import, and use devices."""
+        """List devices and run device commands."""
         return self._dispatch_resource_command(args)
 
     @cmd2.with_category("IoTSploit Commands")
