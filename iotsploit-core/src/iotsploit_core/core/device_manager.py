@@ -62,20 +62,22 @@ class DeviceDriverManager:
             self.driver_load_failures: dict[str, Availability] = {}
             self.device_states = {}  # Store device states, format: 'driver_name::device_id': DeviceState
             self._connection_locks = {}  # Device operation locks, format: 'driver_name::device_id': Lock
+            self._connection_locks_guard = threading.Lock()
             self.driver_states = {}  # Store driver enablement states
             
             # 添加USB设备配置
             self.usb_device_configs = self._load_usb_config()
             
-            # Define valid state transitions
+            # The only transitions a device may make. Close is allowed from every
+            # state a device reaches after a scan, and is the way out of ERROR.
             self._state_transitions = {
                 DeviceState.UNKNOWN: [DeviceState.DISCOVERED],
-                DeviceState.DISCOVERED: [DeviceState.INITIALIZED],
-                DeviceState.INITIALIZED: [DeviceState.CONNECTED, DeviceState.DISCONNECTED],
-                DeviceState.CONNECTED: [DeviceState.ACTIVE, DeviceState.DISCONNECTED],
+                DeviceState.DISCOVERED: [DeviceState.INITIALIZED, DeviceState.DISCONNECTED],
+                DeviceState.INITIALIZED: [DeviceState.CONNECTED, DeviceState.DISCONNECTED, DeviceState.ERROR],
+                DeviceState.CONNECTED: [DeviceState.ACTIVE, DeviceState.DISCONNECTED, DeviceState.ERROR],
                 DeviceState.ACTIVE: [DeviceState.CONNECTED, DeviceState.ERROR],
                 DeviceState.ERROR: [DeviceState.DISCONNECTED],
-                DeviceState.DISCONNECTED: [DeviceState.INITIALIZED]
+                DeviceState.DISCONNECTED: [DeviceState.INITIALIZED],
             }
             
             self.load_plugins()
@@ -455,10 +457,10 @@ class DeviceDriverManager:
                 if action != 'scan':
                     if action == 'initialize':
                         # For initialization operations, only execute in uninitialized state
-                        if current_state not in [DeviceState.UNKNOWN, DeviceState.DISCOVERED]:
+                        if current_state not in [DeviceState.UNKNOWN, DeviceState.DISCOVERED, DeviceState.DISCONNECTED]:
                             return {
                                 "status": "error",
-                                "message": f"Cannot perform initialize in current state {current_state}. Expected states: [unknown, discovered]"
+                                "message": f"Cannot perform initialize in current state {current_state}. Expected states: [unknown, discovered, disconnected]"
                             }
                     elif action == 'connect':
                         # For connection operations, ensure the device is initialized
@@ -469,8 +471,7 @@ class DeviceDriverManager:
                                 return scan_result
                             current_state = self.device_states.get(device_key, DeviceState.UNKNOWN)
                         
-                        if current_state == DeviceState.DISCOVERED:
-                            # Only initialize in discovered state
+                        if current_state in (DeviceState.DISCOVERED, DeviceState.DISCONNECTED):
                             init_result = self._handle_initialize(driver, driver_name, **kwargs)
                             if init_result["status"] != "success":
                                 return init_result
@@ -494,9 +495,8 @@ class DeviceDriverManager:
 
     def _get_device_lock(self, device_key: str) -> threading.Lock:
         """Get device operation lock"""
-        if device_key not in self._connection_locks:
-            self._connection_locks[device_key] = threading.Lock()
-        return self._connection_locks[device_key]
+        with self._connection_locks_guard:
+            return self._connection_locks.setdefault(device_key, threading.Lock())
 
     def _update_device_state(self, device_key: str, new_state: DeviceState):
         """Update device state"""
@@ -509,21 +509,7 @@ class DeviceDriverManager:
             self.device_states[device_key] = new_state
             logger.info(f"Device {device_key} state changed: {current_state} -> {new_state}")
         else:
-            # Special handling: don't downgrade if device is in a higher state
-            state_hierarchy = {
-                DeviceState.UNKNOWN: 0,
-                DeviceState.DISCOVERED: 1,
-                DeviceState.INITIALIZED: 2,
-                DeviceState.CONNECTED: 3,
-                DeviceState.ACTIVE: 4,
-            }
-            
-            # Only update when new state's level is higher than current state
-            if state_hierarchy.get(new_state, 0) > state_hierarchy.get(current_state, 0):
-                self.device_states[device_key] = new_state
-                logger.info(f"Device {device_key} state upgraded: {current_state} -> {new_state}")
-            else:
-                logger.info(f"Ignoring state transition: {current_state} -> {new_state}")
+            logger.warning(f"Refused state transition for {device_key}: {current_state} -> {new_state}")
 
     def _execute_action(self, 
                         driver: BaseDeviceDriver, 
@@ -592,7 +578,9 @@ class DeviceDriverManager:
             devices = driver.scan()
             for device in devices:
                 device_key = self._get_device_key(driver_name, device)
-                self._update_device_state(device_key, DeviceState.DISCOVERED)
+                # A rescan must not knock an open device back to discovered.
+                if device_key not in self.device_states:
+                    self._update_device_state(device_key, DeviceState.DISCOVERED)
             return {
                 "status": "success",
                 "devices": devices
@@ -685,29 +673,31 @@ class DeviceDriverManager:
             if not device:
                 return {"status": "error", "message": f"Device {device_id} not found"}
 
-            # Move to ACTIVE
-            self._update_device_state(device_key, DeviceState.ACTIVE)
-
+            # Commands also run on devices that were only scanned (the UI never
+            # connects first), so only a connected device is tracked as busy.
+            # Its state is left alone otherwise rather than claimed connected.
+            tracked = self.device_states.get(device_key) == DeviceState.CONNECTED
+            if tracked:
+                self._update_device_state(device_key, DeviceState.ACTIVE)
             try:
-                # Execute command using device instance
                 result = driver.command(device, command, args)
-
-                # Transition back to CONNECTED
+            except OSError:
+                # The device itself failed (unplugged, I/O error): say so.
+                if tracked:
+                    self._update_device_state(device_key, DeviceState.ERROR)
+                raise
+            except Exception:
+                if tracked:
+                    self._update_device_state(device_key, DeviceState.CONNECTED)
+                raise
+            if tracked:
                 self._update_device_state(device_key, DeviceState.CONNECTED)
-
-                return {
-                    "status": "success",
-                    "result": result
-                }
-            except Exception as cmd_error:
-                # On command execution failure, still return to CONNECTED state, not ERROR
-                self._update_device_state(device_key, DeviceState.CONNECTED)
-                raise cmd_error
+            return {
+                "status": "success",
+                "result": result
+            }
 
         except Exception as e:
-            # Only set ERROR state when there's an issue with the device itself
-            if isinstance(e, (IOError, ConnectionError)):
-                self._update_device_state(device_key, DeviceState.ERROR)
             return {"status": "error", "message": str(e)}
 
     def _handle_reset(self, driver: BaseDeviceDriver, driver_name: str, **kwargs) -> Dict:
@@ -732,16 +722,26 @@ class DeviceDriverManager:
             if not device:
                 return {"status": "error", "message": "Device not specified"}
             
+            device_key = self._get_device_key(driver_name, device)
             try:
                 success = driver.close(device)
+            except Exception:
+                self._mark_closed(device_key, DeviceState.ERROR)
+                raise
             finally:
                 self._release_device(self._device_resource(driver, device), driver_name)
+            self._mark_closed(device_key, DeviceState.DISCONNECTED if success else DeviceState.ERROR)
             return {
                 "status": "success" if success else "error",
                 "message": "Device closed" if success else "Close failed"
             }
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
+    def _mark_closed(self, device_key: str, new_state: DeviceState) -> None:
+        # A device the manager never saw has no state to update.
+        if device_key in self.device_states:
+            self._update_device_state(device_key, new_state)
 
     def get_driver_instance(self, plugin_name: str) -> Optional[BaseDeviceDriver]:
         """Get driver instance"""
@@ -843,12 +843,9 @@ class DeviceDriverManager:
                     "message": str(e)
                 }
 
-        # Reset all internal state
+        # Reset all internal state. The per-device locks stay: a caller may be
+        # holding one, and a fresh lock would let a second caller in beside it.
         self.device_states.clear()
-        self._connection_locks.clear()
-        
-        # Note: Drivers don't have a global reset method - only individual devices can be reset
-        # The device reset is handled above in the device closing loop
 
         return results
 
@@ -856,9 +853,9 @@ class DeviceDriverManager:
         """Initialize and connect all available devices"""
         logger.info("Starting device initialization")
         
-        # Reset internal state
-        self.device_states.clear()
-        self._connection_locks.clear()
+        # Close what is open and give back its leases before starting over;
+        # wiping state alone left devices open and their probes leased.
+        self.cleanup_all_devices()
         
         # Get all available drivers
         available_drivers = list(self.drivers.keys())
