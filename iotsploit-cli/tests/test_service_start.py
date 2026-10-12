@@ -43,6 +43,9 @@ class ServiceHarness(DjangoCommands):
     def perror(self, message):
         self.errors.append(message)
 
+    def pwarning(self, _message):
+        return None
+
     def _check_redis_available(self):
         return True, "Redis is available"
 

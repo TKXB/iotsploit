@@ -149,13 +149,13 @@ def discover_command_modules():
             except Exception as e:
                 logger.error(f"Error loading {module_name}: {e}")
     
-    logger.info(f"Auto-discovered {len(command_classes)} command modules")
+    logger.debug(f"Auto-discovered {len(command_classes)} command modules")
     return command_classes
 
 # Auto-discover command modules
 try:
     CommandMixins = discover_command_modules()
-    logger.info(f"Successfully loaded command modules: {[cls.__name__ for cls in CommandMixins]}")
+    logger.debug(f"Successfully loaded command modules: {[cls.__name__ for cls in CommandMixins]}")
 except Exception as e:
     logger.error(f"Failed to discover command modules: {e}")
     CommandMixins = []
@@ -193,15 +193,12 @@ class SAT_Shell(SAT_Shell_Base):
         self.target_manager = TargetManager.get_instance()
         self.target_manager.register_target("vehicle", Vehicle)
         
-        # Check if database has any targets, if not, optionally load from JSON as initial setup
+        # Check if database has any targets, if not, hint how to add one.
         existing_targets = self.target_manager.get_all_targets()
         if not existing_targets:
-            logger.info("No targets found in database. You can:")
-            logger.info("1. Use Flutter UI to create targets")
-            logger.info("2. Use 'target_import' command to import from JSON file")
-            logger.info("3. Use target management commands to create targets manually")
+            logger.debug("No targets in database; use 'target import' or the UI to add one.")
         else:
-            logger.info(f"Found {len(existing_targets)} targets in database")
+            logger.debug("Found %d targets in database", len(existing_targets))
         
         # Note: Removed automatic JSON loading to prevent overwriting user changes
         # Use 'target_import conf/target.json' command if you need to import from JSON

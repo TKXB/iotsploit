@@ -133,7 +133,7 @@ class TargetCommands(BaseCommands):
             else:
                 selected = [t for t in targets if wanted in (t.get('target_id'), t.get('name'))]
                 if not selected:
-                    logger.error(
+                    self.perror(
                         ansi.style(f"Target '{wanted}' not found. Use 'target list' to view targets.", fg=ansi.Fg.RED)
                     )
                     return
@@ -142,7 +142,7 @@ class TargetCommands(BaseCommands):
                 self._print_target_detail(target, current_id)
 
         except Exception as e:
-            logger.error(ansi.style(f"Error listing targets: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(ansi.style(f"Error listing targets: {str(e)}", fg=ansi.Fg.RED))
 
     do_lst = do_list_targets
 
@@ -166,7 +166,7 @@ class TargetCommands(BaseCommands):
                     None,
                 )
                 if target is None:
-                    logger.error(
+                    self.perror(
                         ansi.style(f"Target '{wanted}' not found. Use 'target list' to view targets.", fg=ansi.Fg.RED)
                     )
                     return
@@ -174,7 +174,7 @@ class TargetCommands(BaseCommands):
             else:
                 current = self.target_manager.get_current_target()
                 if current is None:
-                    logger.error(
+                    self.perror(
                         ansi.style("No target selected. Use 'target select' or pass a target id.", fg=ansi.Fg.RED)
                     )
                     return
@@ -184,7 +184,7 @@ class TargetCommands(BaseCommands):
             self._print_observations(target_id, target_name, records)
 
         except Exception as e:
-            logger.error(ansi.style(f"Error reading observations: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(ansi.style(f"Error reading observations: {str(e)}", fg=ansi.Fg.RED))
 
     do_obs = do_target_observations
 
@@ -387,7 +387,7 @@ class TargetCommands(BaseCommands):
             targets = self.target_manager.get_all_targets()
             
             if not targets:
-                logger.info(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
+                self.poutput(ansi.style("No targets found in the database.", fg=ansi.Fg.YELLOW))
                 return
 
             requested_target = arg.strip() if arg else None
@@ -409,7 +409,7 @@ class TargetCommands(BaseCommands):
                     None,
                 )
                 if selected_index is None:
-                    logger.error(
+                    self.perror(
                         ansi.style(
                             f"Target '{requested_target}' not found. Use 'target list' to view targets.",
                             fg=ansi.Fg.RED,
@@ -430,10 +430,10 @@ class TargetCommands(BaseCommands):
             # Set the selected target as current
             self.target_manager.set_current_target(selected_target)
             
-            logger.info(ansi.style(f"Selected target: {selected_target.name}", fg=ansi.Fg.GREEN))
+            self.poutput(ansi.style(f"Selected target: {selected_target.name}", fg=ansi.Fg.GREEN))
 
         except Exception as e:
-            logger.error(ansi.style(f"Error selecting target: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(ansi.style(f"Error selecting target: {str(e)}", fg=ansi.Fg.RED))
 
     @cmd2.with_category('Target Commands')
     def do_edit_target(self, arg):
@@ -442,7 +442,7 @@ class TargetCommands(BaseCommands):
             # Get all targets
             targets = self.target_manager.get_all_targets()
             if not targets:
-                logger.warning(ansi.style("No targets available to edit.", fg=ansi.Fg.YELLOW))
+                self.pwarning(ansi.style("No targets available to edit.", fg=ansi.Fg.YELLOW))
                 return
 
             requested_target = arg.strip() if arg else None
@@ -455,7 +455,7 @@ class TargetCommands(BaseCommands):
                     None,
                 )
                 if target is None:
-                    logger.error(
+                    self.perror(
                         ansi.style(
                             f"Target '{requested_target}' not found. Use 'target list' to view targets.",
                             fg=ansi.Fg.RED,
@@ -505,7 +505,7 @@ class TargetCommands(BaseCommands):
                 
                 elif action == 'Edit property':
                     if not target['properties']:
-                        logger.warning(ansi.style("No properties to edit.", fg=ansi.Fg.YELLOW))
+                        self.pwarning(ansi.style("No properties to edit.", fg=ansi.Fg.YELLOW))
                         return
                     prop_key = Input_Mgr.Instance().single_choice(
                         "Select property to edit",
@@ -518,7 +518,7 @@ class TargetCommands(BaseCommands):
                 
                 elif action == 'Delete property':
                     if not target['properties']:
-                        logger.warning(ansi.style("No properties to delete.", fg=ansi.Fg.YELLOW))
+                        self.pwarning(ansi.style("No properties to delete.", fg=ansi.Fg.YELLOW))
                         return
                     prop_key = Input_Mgr.Instance().single_choice(
                         "Select property to delete",
@@ -537,12 +537,12 @@ class TargetCommands(BaseCommands):
             success = self.target_manager.update_target(target)
             
             if success:
-                logger.info(ansi.style(f"Successfully updated target {target_id}", fg=ansi.Fg.GREEN))
+                self.poutput(ansi.style(f"Successfully updated target {target_id}", fg=ansi.Fg.GREEN))
             else:
-                logger.error(ansi.style(f"Failed to update target {target_id}", fg=ansi.Fg.RED))
+                self.perror(ansi.style(f"Failed to update target {target_id}", fg=ansi.Fg.RED))
 
         except Exception as e:
-            logger.error(ansi.style(f"Error editing target: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(ansi.style(f"Error editing target: {str(e)}", fg=ansi.Fg.RED))
             logger.debug("Detailed error:", exc_info=True)
 
     do_et = do_edit_target
@@ -561,15 +561,15 @@ class TargetCommands(BaseCommands):
             # Check if file exists
             import os
             if not os.path.exists(json_file):
-                logger.error(ansi.style(f"File not found: {json_file}", fg=ansi.Fg.RED))
+                self.perror(ansi.style(f"File not found: {json_file}", fg=ansi.Fg.RED))
                 return
             
             # Check existing targets
             existing_targets = self.target_manager.get_all_targets()
             if existing_targets:
-                logger.warning(ansi.style(f"Database already contains {len(existing_targets)} targets:", fg=ansi.Fg.YELLOW))
+                self.pwarning(ansi.style(f"Database already contains {len(existing_targets)} targets:", fg=ansi.Fg.YELLOW))
                 for target in existing_targets:
-                    logger.info(f"  - {target['name']} ({target['target_id']})")
+                    self.poutput(f"  - {target['name']} ({target['target_id']})")
                 
                 overwrite = Input_Mgr.Instance().single_choice(
                     "How to handle existing targets?",
@@ -577,7 +577,7 @@ class TargetCommands(BaseCommands):
                 )
                 
                 if overwrite == "Cancel import":
-                    logger.info("Import cancelled")
+                    self.poutput("Import cancelled")
                     return
                 
                 force_overwrite = (overwrite == "Overwrite existing")
@@ -586,10 +586,10 @@ class TargetCommands(BaseCommands):
             
             # Import targets
             self.target_manager.parse_and_set_target_from_json(json_file, force_overwrite)
-            logger.info(ansi.style(f"Import completed from {json_file}", fg=ansi.Fg.GREEN))
+            self.poutput(ansi.style(f"Import completed from {json_file}", fg=ansi.Fg.GREEN))
             
         except Exception as e:
-            logger.error(ansi.style(f"Error importing targets: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(ansi.style(f"Error importing targets: {str(e)}", fg=ansi.Fg.RED))
 
     @cmd2.with_category('Target Commands')
     def do_target_export(self, arg):
@@ -606,9 +606,9 @@ class TargetCommands(BaseCommands):
             success = self.target_manager.export_targets_to_json(json_file, backup_original=True)
             
             if success:
-                logger.info(ansi.style(f"Successfully exported targets to {json_file}", fg=ansi.Fg.GREEN))
+                self.poutput(ansi.style(f"Successfully exported targets to {json_file}", fg=ansi.Fg.GREEN))
             else:
-                logger.error(ansi.style("Failed to export targets", fg=ansi.Fg.RED))
+                self.perror(ansi.style("Failed to export targets", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(ansi.style(f"Error exporting targets: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(ansi.style(f"Error exporting targets: {str(e)}", fg=ansi.Fg.RED))

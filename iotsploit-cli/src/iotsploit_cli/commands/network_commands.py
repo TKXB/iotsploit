@@ -17,7 +17,7 @@ class NetworkCommands(BaseCommands):
     @cmd2.with_category('Network Commands')
     def do_connect_wifi(self, arg):
         'Connect to WiFi network by providing SSID and password'
-        logger.info(ansi.style("WiFi Connection Setup", fg=ansi.Fg.CYAN))
+        self.poutput(ansi.style("WiFi Connection Setup", fg=ansi.Fg.CYAN))
         
         # Get SSID from user
         ssid = Input_Mgr.Instance().string_input("Enter WiFi SSID")
@@ -26,12 +26,12 @@ class NetworkCommands(BaseCommands):
         password = Input_Mgr.Instance().string_input("Enter WiFi password")
         
         # Attempt to connect
-        logger.info(ansi.style(f"Attempting to connect to {ssid}...", fg=ansi.Fg.CYAN))
+        self.poutput(f"Attempting to connect to {ssid}...")
         wifi_backend = get_shared_wifi_backend()
         try:
             wifi_backend.sta_connect(str(ssid), str(password))
         except Exception as e:
-            logger.error(ansi.style(f"WiFi connection failed: {e}", fg=ansi.Fg.RED))
+            self.perror(f"WiFi connection failed: {e}")
 
         # Wait for connection to establish
         time.sleep(2)
