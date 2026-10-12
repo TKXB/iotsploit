@@ -198,7 +198,7 @@ class SAT_Shell(SAT_Shell_Base):
         if not existing_targets:
             logger.debug("No targets in database; use 'target import' or the UI to add one.")
         else:
-            logger.debug("Found %d targets in database", len(existing_targets))
+            logger.debug(f"Found {len(existing_targets)} targets in database")
         
         # Note: Removed automatic JSON loading to prevent overwriting user changes
         # Use 'target_import conf/target.json' command if you need to import from JSON
