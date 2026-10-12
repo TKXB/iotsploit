@@ -39,10 +39,7 @@ class PluginCommands(BaseCommands):
         for plugin in plugins:
             availability = self.plugin_manager.plugin_availability(plugin)
             available_count += bool(availability.available)
-            description = ""
-            instance = self.plugin_manager.get_plugin(plugin)
-            if instance:
-                description = (instance.get_info() or {}).get("Description", "")
+            description = self.plugin_manager.plugin_registry[plugin].get("description", "")
             rows.append([
                 plugin,
                 output.available_mark(availability.available, availability.reason),
@@ -198,6 +195,7 @@ class PluginCommands(BaseCommands):
                     try:
                         import time
                         from iotsploit_django.adapters.django.interaction.models import (
+                            ExecutionStatus,
                             PluginExecution,
                         )
 
@@ -214,7 +212,7 @@ class PluginCommands(BaseCommands):
                             time.sleep(0.5)
                             if time.time() - start_time > 300:  # 5 minutes
                                 self.pwarning("Timeout waiting for task to complete")
-                                break
+                                return
 
                         final_result = (
                             execution.result or execution.error
@@ -224,12 +222,19 @@ class PluginCommands(BaseCommands):
                         if isinstance(final_result, dict):
                             self._show_plugin_result(
                                 choice,
-                                final_result.get("status") != "error",
+                                execution is not None
+                                and execution.status == ExecutionStatus.COMPLETED
+                                and final_result.get("status") != "error"
+                                and final_result.get("success", True),
                                 final_result.get("message", ""),
                                 {k: v for k, v in final_result.items() if k not in ("status", "message")},
                             )
                         else:
-                            self._show_plugin_result(choice, True, str(final_result))
+                            self._show_plugin_result(
+                                choice,
+                                execution.status == ExecutionStatus.COMPLETED,
+                                str(final_result),
+                            )
 
                     except Exception as e:
                         self.perror(f"Error getting async result: {str(e)}")

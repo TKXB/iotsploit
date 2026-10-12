@@ -242,13 +242,13 @@ class DeviceCommands(BaseCommands):
         rows = []
         has_required = False
         for name, description in commands.items():
-            params = []
+            rows.append([name, "", description])
             for key, spec in (parameters.get(name) or {}).items():
                 required = spec.get("required")
                 has_required = has_required or required
-                params.append(f"{key}*" if required else key)
-            rows.append([name, ", ".join(params), description])
-        self.poutput(output.table(["COMMAND", "PARAMETERS", "DESCRIPTION"], rows))
+                parameter = f"{key}{'*' if required else ''}={spec.get('type', 'str')}"
+                rows.append(["", parameter, spec.get("description", "")])
+        self.poutput(output.table(["COMMAND", "PARAMETERS", "DESCRIPTION"], rows, maximums=[None, None, 60]))
         if has_required:
             self.poutput("* required")
 
