@@ -29,15 +29,15 @@ reached `dev` or `main` and is no longer on the remote. Until 2026-10-13
 believed a control existed that does not.
 
 **Why it stands** The rig and the MCP endpoint default to loopback, which is
-currently the only control. Anything that reaches either can run any enabled
-exploit plugin, and the device-command route can flash, erase, or reset
-attached hardware.
+currently the only control, and auth is out of the current phase by the
+owner's decision (2026-10-13). Anything that reaches either can run any
+enabled exploit plugin, and through `execute_plugin` or the MCP
+`execute_device_command` tool can flash, erase, or reset attached hardware.
 
 **Closing it** Land A1 on `dev`: one middleware that fails closed on unsafe
 `/api/` methods using `secrets.compare_digest`, the GET-to-POST moves its
 audit lists, and the token-sending `DjangoHttpClient` from `main`. Then
-restore the README's statement, and unblock Phase 1b of the device-commands
-proposal.
+restore the README's statement. The MCP tools need no change.
 
 ### The Python backend is not installable as a complete native Windows application
 

@@ -48,13 +48,14 @@ def call(client: FakeClient, tool: str, **kwargs) -> Any:
     return asyncio.run(mcp.call_tool(tool, kwargs))
 
 
-def test_the_write_surface_is_exactly_these_five(monkeypatch):
+def test_the_write_surface_is_exactly_these_six(monkeypatch):
     """Deletion is absent on purpose. It is the one that is not recoverable."""
     assert set(tools(FakeClient())) == {
         "create_target",
         "edit_target",
         "select_target",
         "execute_plugin",
+        "execute_device_command",
         "record_observations",
     }
 
@@ -225,6 +226,28 @@ def test_record_observations_passes_an_empty_result_through(monkeypatch):
          scope_key="tcp:1-1024", facts=[])
 
     assert client.calls[0][1]["facts"] == []
+
+
+def test_execute_device_command_names_the_device_it_acts_on(monkeypatch):
+    """Without device_id the backend cannot find the device and refuses."""
+    client = FakeClient()
+
+    call(client, "execute_device_command", driver_name="drv_esp32",
+         device_id="esp32_0", command="get_version", args={"verbose": True})
+
+    assert client.calls[0] == (
+        "/api/execute_device_command/drv_esp32/",
+        {"command": "get_version", "device_id": "esp32_0", "args": {"verbose": True}},
+    )
+
+
+def test_execute_device_command_defaults_args_to_empty(monkeypatch):
+    client = FakeClient()
+
+    call(client, "execute_device_command", driver_name="drv_esp32",
+         device_id="esp32_0", command="reset")
+
+    assert client.calls[0][1]["args"] == {}
 
 
 def test_a_refusal_comes_back_as_a_payload_the_agent_can_read(monkeypatch):

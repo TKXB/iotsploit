@@ -2,27 +2,27 @@
 
 ## Status
 
-- **State:** Proposal, not started. Revised 2026-10-13 after review: the first
-  draft relied on a Django bearer-token gate that does not exist (section 1.6),
-  omitted the required `device_id`, and called a generic hardware-command tool
-  "curated SCPI". Phase 1a turned out to be already shipped as
-  `describe_driver`.
+- **State:** Phase 1 complete, 2026-10-13. Phase 1a was already shipped as
+  `describe_driver`. Phase 1b (`execute_device_command`) shipped ahead of
+  Django API auth by the decision owner's call (section 3.1). Phase 2 not
+  started. The first draft relied on a Django bearer-token gate that does not
+  exist (section 1.6), omitted the required `device_id`, and called a generic
+  hardware-command tool "curated SCPI".
 - **Draft date:** 2026-10-13
 - **Basis:** Driver commands, including the ESP32's SCPI commands, already run
   end-to-end on the rig (`ScpiClient` → `drv_esp32._command_impl` →
   `DeviceDriverManager.execute_command` → Django `execute_device_command`).
   `iotsploit-mcp` already exposes command discovery (`describe_driver`) but not
   execution, so an agent can list a driver's commands but cannot run one.
-- **Estimated effort:** Phase 1a none (already shipped). Phase 1b ~2 hours
-  once its prerequisite lands. Phase 2 is a separate decision, not estimated here.
+- **Estimated effort:** Phase 2 is a separate decision, not estimated here.
 - **Decision owner:** User
-- **Blocked on:** Phase 1b — Django API authentication
-  (`docs/exec-plans/active/privileged_execution_plan.md`, A1; see the
-  tech-debt tracker entry "Mutating `/api/` requests are unauthenticated").
+- **Blocked on:** nothing. Closing the auth gap Phase 1b ships with is owned by
+  `docs/exec-plans/active/privileged_execution_plan.md` (A1) and tracked as
+  "Mutating `/api/` requests are unauthenticated" in the tech-debt tracker.
 
 **Goal.** Let an external AI agent discover and run the device commands the
 rig's drivers already publish, through MCP, without adding a parallel command
-path and without opening an unauthenticated route to hardware.
+path.
 
 **What this does not deliver.** Control of real SCPI lab instruments (bench
 PSU, scope, SMU). The only SCPI-speaking driver is the ESP32, which speaks
@@ -90,28 +90,27 @@ exists as `describe_driver(device_name)`, which returns the endpoint's
 so nothing is added. An agent discovers commands today with
 `list_device_drivers` → `describe_driver`.
 
-## 3. Phase 1b — `execute_device_command` (mutating, after auth lands)
+## 3. Phase 1b — `execute_device_command` (mutating, shipped)
 
-### 3.1 Why it waits
+### 3.1 Shipped ahead of auth
 
 This tool can flash or erase an ESP32, reset any device, drive a debugger
-(J-Link, ST-Link), and transmit on a CAN bus. Today the route behind it is
-unauthenticated, so adding an MCP tool for it would give unauthenticated
-access to physically consequential, partly irreversible hardware actions
-through one more door.
-
-`execute_plugin` already has the same hole, which is an argument for closing
-the hole, not for copying it. Three options were weighed:
+(J-Link, ST-Link), and transmit on a CAN bus, and the route behind it is
+unauthenticated. Three options were weighed:
 
 | Option | Verdict |
 | --- | --- |
-| Ship now; rely on loopback binding | Rejected. Loopback is the only control, and the README already tells operators how to bind beyond it. |
+| Wait for Django API auth (privileged-execution plan A1) | Recommended in review: fixes the owner and covers `execute_plugin` too. |
 | Ship now with an MCP-side denylist (`flash_firmware`, `erase_flash`, …) | Rejected. Guards a symptom in the wrong owner; Django's route stays open to direct callers; the list rots as drivers add commands. |
-| Wait for Django API auth (privileged-execution plan A1) | **Selected.** Fixes the owner, covers `execute_plugin` too, and the MCP tool becomes a plain wrapper. |
+| Ship now; rely on loopback binding | **Selected** by the decision owner on 2026-10-13: auth is out of the current phase. This is the same exposure `execute_plugin` already has. |
 
-### 3.2 The tool, once A1 is merged
+Consequence: until A1 lands, loopback binding of both Django and the MCP
+endpoint is the only thing standing between the network and these commands.
+A1 needs no change to this tool; it is a plain wrapper either way.
 
-Add to `tools/write.py`, in `register_write_tools`:
+### 3.2 The tool
+
+In `tools/write.py`, in `register_write_tools`:
 
 ```python
 @mcp.tool()
@@ -137,9 +136,8 @@ def execute_device_command(
     return _call("execute_device_command", run)
 ```
 
-`write.py` must import `quote`. Add the tool to the README's mutating list and
-add one fake-client case to `tests/test_write_tools.py` asserting the URL and
-body.
+It is in the README's mutating list, and `tests/test_write_tools.py` asserts
+the URL and body, including `device_id`.
 
 ## 4. Phase 2 — raw SCPI to arbitrary instruments (deferred)
 
@@ -171,8 +169,10 @@ Write it as its own plan when someone needs it.
 
 ## 6. Risk notes
 
-- Phase 1b adds an agent-facing path to every driver command on the rig. It is
-  safe only behind enforced Django auth; do not merge it ahead of A1.
+- Phase 1b adds an agent-facing path to every driver command on the rig, with
+  no authentication until A1 lands. Keep Django and the MCP endpoint on
+  loopback; exposing either beyond it exposes flash, erase, debugger, and CAN
+  commands to whoever can reach it.
 - The MCP endpoint stays unauthenticated by design in this MVP. A1
   authenticates MCP→Django, not agent→MCP, so the loopback guidance in the
   MCP README still governs who can reach the tools at all.

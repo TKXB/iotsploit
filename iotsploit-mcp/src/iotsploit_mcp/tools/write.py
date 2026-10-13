@@ -10,7 +10,7 @@ Deletion is deliberately absent. Creating and editing a target is recoverable
 deleting one is not. Add it here when something needs it, with whatever
 confirmation that need implies.
 
-``record_observations`` is a different kind of write from the other three. Those
+``record_observations`` is a different kind of write from the others. Those
 change configuration, which is a human's claim about what a device is; that one
 records evidence, which is a claim that something was actually seen. The backend
 keeps the two kinds of claim apart by assigning the source itself, so an agent's
@@ -18,6 +18,7 @@ finding is durable without being able to pass for a plugin's measurement.
 """
 
 from typing import Any, Callable, Optional
+from urllib.parse import quote
 
 from mcp.server.fastmcp import FastMCP
 
@@ -141,6 +142,30 @@ def register_write_tools(
             return client().post("/api/execute_plugin/", json=payload)
 
         return _call("execute_plugin", run)
+
+    @mcp.tool()
+    def execute_device_command(
+        driver_name: str,
+        device_id: str,
+        command: str,
+        args: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Run one command a device driver publishes, on one device.
+
+        Get `command` and its `args` schema from describe_driver, and
+        `device_id` from scan_devices or list_devices. The device must have
+        been scanned; it need not be connected. Commands act on real hardware
+        and some are irreversible (flash_firmware, erase_flash), so state what
+        a command will do before running it.
+        """
+
+        def run() -> dict[str, Any]:
+            return client().post(
+                f"/api/execute_device_command/{quote(driver_name, safe='')}/",
+                json={"command": command, "device_id": device_id, "args": args or {}},
+            )
+
+        return _call("execute_device_command", run)
 
     @mcp.tool()
     def record_observations(

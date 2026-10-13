@@ -70,9 +70,12 @@ This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 - Local rig helper: `list_serial_ports`
 
 The mutating tools are `create_target`, `edit_target`, `select_target`,
-`execute_plugin` and `record_observations`. `execute_plugin` runs an enabled
-exploit plugin against the current target and can interact with attached
-hardware or the target. Django does not yet authenticate these requests (see
+`execute_plugin`, `execute_device_command` and `record_observations`.
+`execute_plugin` runs an enabled exploit plugin against the current target and
+can interact with attached hardware or the target. `execute_device_command`
+runs one command a driver publishes (see `describe_driver`) on one scanned
+device, such as an ESP32 SCPI command; some commands, like `flash_firmware`
+and `erase_flash`, are irreversible. Django does not yet authenticate these requests (see
 "Mutating `/api/` requests are unauthenticated" in
 `docs/exec-plans/tech-debt-tracker.md`), and the MCP endpoint itself is
 unauthenticated too, so loopback binding is currently the only control: keep
