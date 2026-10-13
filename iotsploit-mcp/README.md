@@ -72,9 +72,11 @@ This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 The mutating tools are `create_target`, `edit_target`, `select_target`,
 `execute_plugin` and `record_observations`. `execute_plugin` runs an enabled
 exploit plugin against the current target and can interact with attached
-hardware or the target. Django requires the configured bearer token for these
-requests. The MCP endpoint itself remains unauthenticated, so keep it bound to
-loopback or otherwise protected.
+hardware or the target. Django does not yet authenticate these requests (see
+"Mutating `/api/` requests are unauthenticated" in
+`docs/exec-plans/tech-debt-tracker.md`), and the MCP endpoint itself is
+unauthenticated too, so loopback binding is currently the only control: keep
+both bound to loopback or otherwise protected.
 
 All other mutating or destructive tools remain prohibited until backend auth
 hardening and the two-key safety gate described in the implementation proposal

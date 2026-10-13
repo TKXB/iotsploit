@@ -9,6 +9,36 @@ UI-side debt lives in the `ui/` repository's own tracker.
 
 ## Open
 
+### Mutating `/api/` requests are unauthenticated
+
+**Found** 2026-10-13, while reviewing
+`docs/exec-plans/pending/scpi_over_mcp_proposal.md`.
+
+**Where** `iotsploit-django/src/iotsploit_django/settings/base.py`
+(`MIDDLEWARE`) and every `@csrf_exempt` mutating view, including
+`execute_plugin` and `execute_device_command` in
+`view_handlers/plugin_views.py`.
+
+No middleware or view checks a token on any `/api/` request, on `dev` or
+`main`. `dev`'s `DjangoHttpClient` sends none; `main`'s sends
+`IOTSPLOIT_DJANGO_API_TOKEN`, which nothing verifies. The middleware was built
+as A1 of `docs/exec-plans/active/privileged_execution_plan.md`, recorded as
+complete on `security/privileged-execution-boundary`, but that branch never
+reached `dev` or `main` and is no longer on the remote. Until 2026-10-13
+`iotsploit-mcp/README.md` said Django required the token, so readers
+believed a control existed that does not.
+
+**Why it stands** The rig and the MCP endpoint default to loopback, which is
+currently the only control. Anything that reaches either can run any enabled
+exploit plugin, and the device-command route can flash, erase, or reset
+attached hardware.
+
+**Closing it** Land A1 on `dev`: one middleware that fails closed on unsafe
+`/api/` methods using `secrets.compare_digest`, the GET-to-POST moves its
+audit lists, and the token-sending `DjangoHttpClient` from `main`. Then
+restore the README's statement, and unblock Phase 1b of the device-commands
+proposal.
+
 ### The Python backend is not installable as a complete native Windows application
 
 **Found** 2026-08-30, during a repository-wide Windows compatibility audit.
