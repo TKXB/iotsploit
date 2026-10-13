@@ -48,7 +48,7 @@ def call(client: FakeClient, tool: str, **kwargs) -> Any:
     return asyncio.run(mcp.call_tool(tool, kwargs))
 
 
-def test_the_write_surface_is_exactly_these_six(monkeypatch):
+def test_the_write_surface_is_exactly_these_seven(monkeypatch):
     """Deletion is absent on purpose. It is the one that is not recoverable."""
     assert set(tools(FakeClient())) == {
         "create_target",
@@ -56,6 +56,7 @@ def test_the_write_surface_is_exactly_these_six(monkeypatch):
         "select_target",
         "execute_plugin",
         "execute_device_command",
+        "set_driver_enabled",
         "record_observations",
     }
 
@@ -248,6 +249,27 @@ def test_execute_device_command_defaults_args_to_empty(monkeypatch):
          device_id="esp32_0", command="reset")
 
     assert client.calls[0][1]["args"] == {}
+
+
+@pytest.mark.parametrize(("enabled", "path"), [
+    (True, "/api/enable_driver/"),
+    (False, "/api/disable_driver/"),
+])
+def test_set_driver_enabled_posts_to_the_matching_route(monkeypatch, enabled, path):
+    client = FakeClient()
+
+    call(client, "set_driver_enabled", driver_name="drv_esp32", enabled=enabled,
+         description="bench test")
+
+    assert client.calls[0] == (path, {"driver_name": "drv_esp32", "description": "bench test"})
+
+
+def test_set_driver_enabled_omits_an_unset_description(monkeypatch):
+    client = FakeClient()
+
+    call(client, "set_driver_enabled", driver_name="drv_esp32", enabled=True)
+
+    assert client.calls[0][1] == {"driver_name": "drv_esp32"}
 
 
 def test_a_refusal_comes_back_as_a_payload_the_agent_can_read(monkeypatch):

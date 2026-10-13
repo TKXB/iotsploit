@@ -154,7 +154,8 @@ def register_write_tools(
 
         Get `command` and its `args` schema from describe_driver, and
         `device_id` from scan_devices or list_devices. The device must have
-        been scanned; it need not be connected. Commands act on real hardware
+        been scanned; it need not be connected, but its driver must be enabled
+        (get_driver_states, set_driver_enabled). Commands act on real hardware
         and some are irreversible (flash_firmware, erase_flash), so state what
         a command will do before running it.
         """
@@ -166,6 +167,28 @@ def register_write_tools(
             )
 
         return _call("execute_device_command", run)
+
+    @mcp.tool()
+    def set_driver_enabled(
+        driver_name: str,
+        enabled: bool,
+        description: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Enable or disable a device driver.
+
+        A disabled driver refuses scans and commands. The setting persists and
+        applies to every client, the UI included, so give a `description` of
+        why you changed it.
+        """
+
+        def run() -> dict[str, Any]:
+            payload: dict[str, Any] = {"driver_name": driver_name}
+            if description is not None:
+                payload["description"] = description
+            endpoint = "/api/enable_driver/" if enabled else "/api/disable_driver/"
+            return client().post(endpoint, json=payload)
+
+        return _call("set_driver_enabled", run)
 
     @mcp.tool()
     def record_observations(
