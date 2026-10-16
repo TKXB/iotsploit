@@ -51,3 +51,31 @@ print("Shell startup succeeded")
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Shell startup succeeded" in result.stdout
+
+
+def test_shell_startup_applies_pending_migrations_to_an_existing_database(tmp_path):
+    """An existing database is migrated, not only a fresh one."""
+    database = tmp_path / "existing.sqlite3"
+    env = {**os.environ, "IOTSPLOIT_DATABASE_PATH": str(database), "IOTSPLOIT_RUNTIME": "local"}
+    roll_back = """
+import django, os
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
+django.setup()
+from django.core.management import call_command
+call_command("migrate", interactive=False, verbosity=0)
+call_command("migrate", "iotsploit_django", "0006", interactive=False, verbosity=0)
+"""
+    subprocess.run([sys.executable, "-c", roll_back], cwd=tmp_path, env=env, check=True, timeout=60)
+
+    result = subprocess.run(
+        [sys.executable, "-c", "from iotsploit_cli import console"],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "iotsploit_django.0007_assistantsession_assistantevent_and_more" in result.stdout
+    assert list(tmp_path.glob("existing.sqlite3.bak-*"))
+    import sqlite3
+
+    with sqlite3.connect(database) as db:
+        assert db.execute("SELECT name FROM django_migrations WHERE name LIKE '0007_%'").fetchone()

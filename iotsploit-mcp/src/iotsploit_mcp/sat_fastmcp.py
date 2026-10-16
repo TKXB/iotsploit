@@ -27,8 +27,10 @@ mcp = FastMCP(
     port=int(os.getenv("IOTSPLOIT_MCP_PORT", "9900")),
     streamable_http_path="/mcp",
 )
-register_read_only_tools(mcp)
-register_write_tools(mcp)
+read_only = os.getenv("IOTSPLOIT_MCP_READONLY", "0") == "1"
+register_read_only_tools(mcp, read_only=read_only)
+if not read_only:
+    register_write_tools(mcp)
 
 
 @mcp.tool()
