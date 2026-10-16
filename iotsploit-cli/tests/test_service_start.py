@@ -119,10 +119,13 @@ def test_local_runtime_applies_custom_listener_and_client_endpoints(monkeypatch,
             "--port",
             "9901",
         ],
+        [django_commands.sys.executable, "-m", "iotsploit_mcp.cli", "http", "--host", "127.0.0.1", "--port", "9902"],
     ]
     assert posts == ["http://127.0.0.1:8080/api/initialize_devices/"]
     assert processes[0].kwargs["env"]["IOTSPLOIT_MCP_URL"] == "http://127.0.0.1:9901/mcp"
     assert processes[1].kwargs["env"]["IOTSPLOIT_DJANGO_API_BASE_URL"] == "http://127.0.0.1:8080"
+    assert processes[2].kwargs["env"]["IOTSPLOIT_MCP_READONLY"] == "1"
+    assert processes[0].kwargs["env"]["IOTSPLOIT_MCP_READONLY_URL"] == "http://127.0.0.1:9902/mcp"
 
 
 def test_distributed_runtime_applies_custom_api_and_websocket_endpoints(monkeypatch, launched):

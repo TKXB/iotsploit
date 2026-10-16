@@ -43,7 +43,10 @@ def _call(name: str, func: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         return _error(exc)
 
 
-def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHttpClient] = DjangoHttpClient.from_env) -> None:
+def register_read_only_tools(
+    mcp: FastMCP, client_factory: Callable[[], DjangoHttpClient] = DjangoHttpClient.from_env,
+    *, read_only: bool = False,
+) -> None:
     """Register the v1 read-only HTTP-backed tool surface."""
 
     def client() -> DjangoHttpClient:
@@ -57,7 +60,7 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
             health = client().get("/api/system_health/")
             return {
                 "status": health.get("status", "success"),
-                "mcp": {"transport": "streamable-http", "mode": "read-write"},
+                "mcp": {"transport": "streamable-http", "mode": "read-only" if read_only else "read-write"},
                 "django": health,
             }
 
@@ -117,7 +120,6 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
         path = f"/api/list_device_commands/{quote(device_name, safe='')}/"
         return _call("describe_driver", lambda: client().get(path))
 
-    @mcp.tool()
     def scan_devices(driver_name: str = "all") -> dict[str, Any]:
         """Scan devices through the Django HTTP execution plane."""
 
@@ -127,6 +129,11 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
             return client().post(f"/api/scan_device/{quote(driver_name, safe='')}/")
 
         return _call("scan_devices", run)
+
+    # Legacy full servers keep their tool surface. Inspection-only servers
+    # never register active discovery, so tools/call cannot bypass tools/list.
+    if not read_only:
+        mcp.tool()(scan_devices)
 
     @mcp.tool()
     def list_devices() -> dict[str, Any]:

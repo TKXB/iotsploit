@@ -18,6 +18,20 @@ iotsploit-mcp http --host 127.0.0.1 --port 9900
 
 The MCP endpoint is `http://<rig-host>:9900/mcp`.
 
+The AI Assistant uses a separate inspection instance. The normal service
+launcher starts it automatically on loopback at port 9901 (or full MCP port +
+1). When supervising services separately, run:
+
+```bash
+IOTSPLOIT_MCP_READONLY=1 iotsploit-mcp http --host 127.0.0.1 --port 9901
+```
+
+This omits active device scanning and all write tools from both listing and
+dispatch. API-mode and CLI-mode assistants use this endpoint; only an explicit,
+confirmed Scan devices quick action uses full MCP. See
+[`ai_assistant_runtime.md`](../docs/exec-plans/active/ai_assistant_runtime.md)
+for setup, migration, deployment limits, and the client protocol.
+
 Bind to `127.0.0.1` for local use (the default). The HTTP endpoint does not
 require authentication in this MVP. If you expose the service beyond loopback
 (`0.0.0.0` or a LAN address), protect it with a firewall, TLS/reverse proxy, or

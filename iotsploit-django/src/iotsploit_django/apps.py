@@ -32,3 +32,4 @@ class IoTSploitDjangoConfig(AppConfig):
         # Django's automatic <app>.models import registers nothing. ORM models
         # that need migrations are imported here instead.
         from iotsploit_django.adapters.django.interaction import models as interaction_models  # noqa: F401
+        from iotsploit_django.adapters.django import assistant  # noqa: F401
