@@ -74,7 +74,7 @@ def append(session_id, turn_id, kind, payload):
 
 @database_sync_to_async
 def save_context(session):
-    session.save(update_fields=["history", "native_session_id", "title"])
+    session.save(update_fields=["history", "native_session_id", "title", "config_id"])
 
 
 @database_sync_to_async
@@ -90,9 +90,9 @@ def record_usage(config_id):
 
 
 @database_sync_to_async
-def config(config_id):
+def config(config_id, *, required=True):
     query = AIModelConfig.objects.filter(is_active=True)
     result = query.filter(id=config_id).first() if config_id else query.filter(is_default=True).first()
-    if result is None:
+    if result is None and required:
         raise ValueError("Choose an active API configuration in Model settings.")
     return result

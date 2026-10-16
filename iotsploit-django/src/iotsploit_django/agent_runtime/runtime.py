@@ -60,9 +60,15 @@ class AssistantRuntime:
                 raise ValueError("Select a detected, supported agent. Refresh detection if it moved.")
             fields.update(engine=candidate["engine"], binary_path=candidate["path"])
         else:
-            if data.get("config_id"):
-                config = await store.config(data["config_id"])
-                if config.provider not in {"openai", "custom", "azure_openai", "ollama", "anthropic"}:
+            config = await store.config(data.get("config_id"), required=bool(data.get("config_id")))
+            if config:
+                if data.get("config_id") and config.provider not in {
+                    "openai",
+                    "custom",
+                    "azure_openai",
+                    "ollama",
+                    "anthropic",
+                }:
                     raise ValueError("This provider does not support assistant tools yet.")
                 fields["config_id"] = config.id
         return await store.create(client_key, **fields)
@@ -125,6 +131,7 @@ class AssistantRuntime:
                 session.history.append({"role": "user", "content": prompt})
                 async with McpTools(self.read_url) as tools:
                     config = await store.config(session.config_id)
+                    session.config_id = config.id
                     await api_turn(session, config, tools, emit)
                     await store.record_usage(config.id)
             else:

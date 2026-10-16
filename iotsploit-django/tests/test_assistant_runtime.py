@@ -424,3 +424,23 @@ def test_cancelling_a_queued_turn_releases_the_session(monkeypatch):
         assert append.await_args.args[2] == "turn.cancelled"
 
     asyncio.run(scenario())
+
+
+def test_api_conversations_pin_the_default_configuration(monkeypatch):
+    monkeypatch.setattr(store, "config", AsyncMock(return_value=SimpleNamespace(id=7, provider="openai")))
+    create = AsyncMock(return_value={"id": "conversation"})
+    monkeypatch.setattr(store, "create", create)
+
+    asyncio.run(runtime_module.AssistantRuntime().create("private-client", {"mode": "api"}))
+
+    create.assert_awaited_once_with("private-client", mode="api", config_id=7)
+
+
+def test_api_conversation_can_be_created_for_tools_without_a_model_key(monkeypatch):
+    monkeypatch.setattr(store, "config", AsyncMock(return_value=None))
+    create = AsyncMock(return_value={"id": "conversation"})
+    monkeypatch.setattr(store, "create", create)
+
+    asyncio.run(runtime_module.AssistantRuntime().create("private-client", {"mode": "api"}))
+
+    create.assert_awaited_once_with("private-client", mode="api")
