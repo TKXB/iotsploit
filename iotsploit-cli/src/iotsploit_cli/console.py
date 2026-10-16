@@ -56,31 +56,33 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 import django
 django.setup()
 
-def ensure_database_initialized():
-    """Automatically initialize database tables if they don't exist"""
-    try:
-        from iotsploit_django.adapters.django.plugins.models import Plugin
-        Plugin.objects.exists()
-    except Exception as e:
-        if "no such table" in str(e) or "no such column" in str(e):
-            print("🔧 Database not initialized. Setting up database...")
-            try:
-                print("📋 Running Django migrations...")
-                from django.core.management import execute_from_command_line
-                execute_from_command_line(["manage.py", "migrate", "--noinput"])
-                print("✅ Django migrations completed!")
-                
-                print("🎉 Database initialization completed successfully!")
-                
-            except Exception as init_error:
-                print(f"❌ Error initializing database: {init_error}")
-                print("💡 You may need to run: python manage.py migrate")
-                raise init_error
-        else:
-            raise e
+def ensure_database_migrated():
+    """Apply pending migrations so an existing database follows the code.
 
-# Initialize database before proceeding
-ensure_database_initialized()
+    An existing database is copied first, so a failed migration can be undone
+    by restoring the copy.
+    """
+    from django.core.management import call_command
+    from django.db import connection
+    from django.db.migrations.executor import MigrationExecutor
+    import shutil
+
+    executor = MigrationExecutor(connection)
+    plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+    if not plan:
+        return
+    names = ", ".join(f"{migration.app_label}.{migration.name}" for migration, _ in plan)
+    print(f"📋 Applying database migrations: {names}")
+    database = connection.settings_dict["NAME"]
+    if executor.loader.applied_migrations and os.path.isfile(database):
+        backup = f"{database}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+        shutil.copy2(database, backup)
+        print(f"💾 Database backed up to {backup}")
+    call_command("migrate", interactive=False, verbosity=0)
+    print("✅ Database migrations applied")
+
+
+ensure_database_migrated()
 
 # Now it's safe to import Django and other modules
 import cmd2

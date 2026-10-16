@@ -7,11 +7,17 @@ WebSocket protocol has changed. Other WebSocket routes are unaffected.
 
 ## Run
 
-Apply migrations with the project's Poetry environment:
+`iotsploit` applies pending migrations on startup, backing up an existing
+SQLite database first, so this is enough:
+
+```bash
+poetry run iotsploit --runserver
+```
+
+Hosts that start Daphne/Uvicorn directly bypass the CLI and must migrate first:
 
 ```bash
 poetry run python -m django migrate --settings=iotsploit_django.settings.dev
-poetry run iotsploit --runserver
 ```
 
 The existing service launcher now starts full MCP on the configured MCP port
