@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sat-toolkit"
-version = "0.0.9"
+version = "0.0.10"
 description = "Iotsploit Toolkit"
 authors = ["tk"]
 package-mode = false
