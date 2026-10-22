@@ -16,7 +16,7 @@ FT2232_VENDOR_ID = 0x0403
 FT2232_PRODUCT_ID = 0x6010
 
 class FT2232Driver(BaseDeviceDriver):
-    REQUIRES = ("module:usb", "module:pyftdi")
+    REQUIRES = ("module:usb", "module:pyftdi", "backend:pyusb")
     def __init__(self):
         super().__init__()
         self.uart_channels = {

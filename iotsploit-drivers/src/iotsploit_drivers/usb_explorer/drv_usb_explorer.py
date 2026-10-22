@@ -76,7 +76,7 @@ def _devices() -> list[usb.core.Device]:
 
 
 class UsbExplorerDriver(BaseDeviceDriver):
-    REQUIRES = ("module:usb",)
+    REQUIRES = ("module:usb", "backend:pyusb")
 
     def __init__(self):
         super().__init__({

@@ -20,7 +20,7 @@ or CAN access.
 | --- | --- | --- |
 | `No time zone found with key Asia/Shanghai` | Missing environment dependency | Install `tzdata`. Django uses this timezone and fails again while rendering other exceptions, producing the repeated traceback. |
 | PyUSB `No backend available` | Backend unavailable; confirmed USB filesystem access failure on this phone | Python finds and loads libusb, but libusb initialization reports `could not find usbfs`. Installing more packages does not resolve this confirmed failure. See the ADB findings below. |
-| Driver-list API crashes in USB Explorer parameter discovery | Code issue exposed by the unavailable USB backend | Optional capability failure should be reported by the owning driver without crashing the driver-list API. This remains unresolved in the inspected source. |
+| Driver-list API crashes in USB Explorer parameter discovery | Code issue exposed by the unavailable USB backend | The fix checks PyUSB backend availability and returns static parameter declarations for unavailable drivers. See implementation and validation below. |
 | BusyBox `ip` prints usage during CAN scans | Tool incompatibility | Install `iproute2`. CAN discovery requires `ip -details link show`. |
 | `TargetManager` has no attribute `Session` | Application initialization bug | The checkout contains fix `ac383553` (`fix(targets): never hand out a half-built TargetManager`). Update the deployed Django package; do not hide the bug by catching `AttributeError`. |
 | Repeated `/api/health/` HTTP 404 | Deployment/version or URL configuration mismatch | The checkout exposes this route, added in `7d29c191`. Update the installed backend and verify the process uses the intended environment and URL configuration. |
@@ -61,9 +61,68 @@ the observations do not establish whether the phone supports every needed USB
 feature. No USB role or mount configuration was changed during diagnosis.
 
 The application should report USB features as unavailable in this state while
-keeping unrelated APIs usable. USB Explorer's parameter enumeration currently
-lets the backend failure escape and crash driver listing; this still needs a
-code fix at the feature owner.
+keeping unrelated APIs usable. The original USB Explorer parameter enumeration
+let the backend failure escape and crash driver listing.
+
+## Implementation and validation
+
+The fix extends the existing capability resolver with
+`backend:pyusb`. It uses PyUSB's normal backend selection without consuming the
+device iterator, so it supports PyUSB's alternative backends and does not require
+an attached device. USB Explorer, FT2232, GreatFET, and Ubertooth declare this
+requirement. Unavailable drivers return their static command parameter schema
+through the device manager instead of triggering live parameter enumeration.
+The existing availability response carries the failure reason and diagnostic
+hint; the existing lifecycle gate prevents executing unavailable drivers.
+
+A targeted patch was applied to the phone's installed packages, with originals
+saved under `/root/iot/usb-fix-backup-20261022-021654`. A temporary Daphne instance
+on port 18888 returned HTTP 200 for driver listing, driver states, and
+current-target APIs. USB Explorer retained its parameter schema with empty device
+options, and USB-dependent drivers reported unavailable. These checks passed
+again after applying the final backend-selection refinement. Each test instance
+was stopped afterward. The original backend was not restarted during these
+diagnostics; the user subsequently confirmed the fix works on the phone.
+
+Local full-gate results after the final backend-selection refinement: **2032
+passed, 2 failed, 5 skipped, 47 warnings**. The same two failures reproduce on
+unchanged `dev` (**2027 passed, 2 failed, 5 skipped, 47 warnings**):
+
+- `test_container_resolves_the_real_jlink_driver_for_segger_probes`: expected
+  `usb_status` monitor kind is absent.
+- `test_text_that_is_not_json_is_refused_without_reaching_a_handler`: deeply
+  nested JSON is decoded and rejected as a list, rather than failing decoding
+  with the expected error text.
+
+The full phone test gate ran in a separate source checkout and copied virtual
+environment at `/root/iotsploit-phone-tests`, using Poetry to install the current
+packages and test dependencies. The stale root lock file was regenerated only
+in that isolated checkout. Alpine build prerequisites were installed to compile
+the ARM64 dependencies; test Python dependency installation did not target the
+running `/root/iot` environment.
+
+The first phone run had **2032 passed, 1 failed, 6 skipped, 47 warnings**. Five
+skips needed Redis; one needed the optional Radamsa binary. To execute every
+case, Redis was provisioned on isolated port 16379 with persistence disabled,
+and Radamsa 0.7 was compiled for ARM64 into the test virtual environment using
+the upstream release's generated C source.
+
+The final full phone gate completed with **2038 passed, 1 failed, zero skipped,
+47 warnings** in 64.10 seconds. Ruff, import smoke, and portability checks passed.
+All USB regression cases passed. The one failure is the same nested-JSON
+assertion reproduced on unchanged local `dev`; the monitor-kind test passes
+with the freshly installed phone package metadata. No tests were weakened or
+excluded. The temporary Redis instance was stopped after the run.
+
+Phone evidence:
+
+- `/tmp/iotsploit-phone-full-gate.log`: final complete gate output.
+- `/tmp/iotsploit-phone-full-gate-initial.log`: initial run with six skips.
+- `/tmp/iotsploit-usb-fix-phone-final-api.log`: final temporary backend log.
+
+The full gate remains red on the failures described above. After reviewing the
+results and confirming the phone works, the user requested a pull request
+targeting `dev` with those validation limits recorded.
 
 ## Phone recovery steps
 
@@ -100,7 +159,8 @@ source rather than converted into empty results or false success.
 - [Python timezone data sources](https://docs.python.org/3.12/library/zoneinfo.html#data-sources)
 - [PyUSB FAQ, including Alpine backend discovery](https://github.com/pyusb/pyusb/blob/master/docs/faq.rst)
 - [Alpine iproute2 package](https://pkgs.alpinelinux.org/package/v3.20/main/aarch64/iproute2)
+- [Radamsa upstream release and generated C source](https://gitlab.com/akihe/radamsa/-/releases)
 
-This document records diagnosis and recovery guidance. It does not implement the
-remaining code fixes or record a successful application acceptance retest on the
-phone. The USB diagnosis above was verified directly through ADB.
+This document records diagnosis, recovery guidance, and the USB
+fix's validation. Other findings in the table remain outside this fix; a full
+application acceptance retest has not been completed.

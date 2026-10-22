@@ -18,6 +18,7 @@ from iotsploit_core.core.device_manager import DeviceDriverManager
 from iotsploit_core.core.device_spec import DeviceState
 from iotsploit_core.domain.device import Device, DeviceType
 from iotsploit_core.ports.resource_lease import ResourceBusyError
+from iotsploit_core.platforms.capability import Availability
 
 pytestmark = pytest.mark.unit
 
@@ -88,6 +89,29 @@ def manager(monkeypatch, tmp_path, lease):
     manager.drivers[DRIVER] = AdapterDriver()
     manager.driver_requirements[DRIVER] = ()
     return manager
+
+
+def test_unavailable_driver_listing_preserves_schema_without_probing(manager, monkeypatch):
+    driver = manager.drivers[DRIVER]
+    driver.supported_commands = {
+        "describe": {
+            "description": "Describe a device",
+            "parameters": {"device": {"type": "str", "required": True, "options": []}},
+        }
+    }
+
+    def unavailable_parameters():
+        raise AssertionError("Unavailable hardware must not be probed for parameter options")
+
+    monkeypatch.setattr(driver, "get_command_parameters", unavailable_parameters)
+    monkeypatch.setattr(manager, "driver_availability", lambda name: Availability(False, "USB unavailable"))
+
+    info = manager.list_driver_info()[0]
+
+    assert info["availability"]["available"] is False
+    assert info["availability"]["reason"] == "USB unavailable"
+    assert info["commands"] == {"describe": "Describe a device"}
+    assert info["command_parameters"]["describe"]["device"]["options"] == []
 
 
 def state(manager):

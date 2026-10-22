@@ -36,6 +36,28 @@ def test_unknown_requirement_is_blocked():
     assert "Unknown" in result.reason
 
 
+@pytest.mark.parametrize("backend", [None, "libusb1", "openusb", "libusb0"])
+def test_pyusb_requirement_selects_a_backend_without_enumerating_devices(monkeypatch, backend):
+    import usb.core
+    import usb.backend.libusb0
+    import usb.backend.libusb1
+    import usb.backend.openusb
+
+    # This object supports no enumeration: resolving prerequisites must not
+    # consume the lazy device iterator or require a connected USB device.
+    for name in ("libusb1", "openusb", "libusb0"):
+        monkeypatch.setattr(
+            getattr(usb.backend, name), "get_backend", lambda name=name: object() if name == backend else None,
+        )
+
+    result = PlatformCapabilityResolver().resolve(("module:usb", "backend:pyusb"))
+
+    assert result.available is (backend is not None)
+    if backend is None:
+        assert "could not initialize" in result.reason
+        assert "/dev/bus/usb" in result.hint
+
+
 def test_null_wifi_backend_imports_and_explains_unsupported_operations():
     backend = NullWifiBackend(wifi_iface_name="wifi0")
 

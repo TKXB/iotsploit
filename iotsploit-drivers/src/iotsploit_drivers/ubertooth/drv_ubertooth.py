@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class UbertoothDriver(BaseDeviceDriver):
-    REQUIRES = ("binary:ubertooth-util", "binary:ubertooth-btle")
+    REQUIRES = ("binary:ubertooth-util", "binary:ubertooth-btle", "backend:pyusb")
     VENDOR_ID = 0x1D50
     PRODUCT_ID = 0x6002
 

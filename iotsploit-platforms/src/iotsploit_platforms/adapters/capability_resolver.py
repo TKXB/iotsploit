@@ -50,6 +50,21 @@ class PlatformCapabilityResolver:
                         f"Required executable '{value}' was not found on PATH.",
                         f"Install '{value}' and ensure it is on PATH.",
                     )
+            elif requirement == "backend:pyusb":
+                try:
+                    import usb.core
+                except ImportError:
+                    return Availability(False, "PyUSB is not installed.", "Install pyusb and libusb.")
+                try:
+                    # Backend selection is eager; device enumeration stays lazy.
+                    usb.core.find(find_all=True)
+                except usb.core.NoBackendError:
+                    return Availability(
+                        False,
+                        "PyUSB could not initialize any USB backend.",
+                        "Check libusb installation and host USB access; on Linux, check /dev/bus/usb. "
+                        "Use PYUSB_DEBUG=debug LIBUSB_DEBUG=4 for details.",
+                    )
             elif kind == "privileged-helper":
                 if not LINUX or not hasattr(socket, "AF_UNIX"):
                     return Availability(False, "The privileged helper is Linux-only.")

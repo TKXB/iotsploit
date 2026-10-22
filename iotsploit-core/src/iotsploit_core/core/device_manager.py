@@ -408,6 +408,8 @@ class DeviceDriverManager:
         """The input schema for each command that takes one."""
         driver = self.get_driver_instance(driver_name)
         if driver:
+            if not self.driver_availability(driver_name).available:
+                return BaseDeviceDriver.get_command_parameters(driver)
             return driver.get_command_parameters()
         return {}
 
