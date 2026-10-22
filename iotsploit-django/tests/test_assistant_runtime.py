@@ -76,7 +76,7 @@ def test_discovery_lists_shadowed_binaries_in_version_order(tmp_path, monkeypatc
 
     async def spawn(path, *args, **kwargs):
         assert args == ("--version",)
-        version = b"codex-cli 0.76.0" if "old" in path else b"codex-cli 0.160.0"
+        version = b"codex-cli 0.76.0" if Path(path).parent == dirs[0] else b"codex-cli 0.160.0"
         return SimpleNamespace(communicate=AsyncMock(return_value=(version, b"")), returncode=0)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
