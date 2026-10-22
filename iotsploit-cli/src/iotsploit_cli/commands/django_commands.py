@@ -6,19 +6,22 @@ import sys
 import subprocess
 import time
 from .base_commands import BaseCommands
+from iotsploit_cli import output
 from iotsploit_core.utils import iots_logger
 import os
-import signal
 import socket
 from typing import Tuple
-try:
-    import redis  # type: ignore
-except Exception:  # pragma: no cover
-    redis = None
 
 from django.conf import settings
+from iotsploit_core.utils.helpers import log_dir, process_group_kwargs, terminate_process_group
+
+from .resource_commands import add_service_start_arguments, service_start_kwargs
 
 logger = iots_logger.get_logger(__name__)
+
+
+runserver_parser = cmd2.Cmd2ArgumentParser(description="Start the backend service suite")
+add_service_start_arguments(runserver_parser)
 
 
 class DjangoCommands(BaseCommands):
@@ -26,17 +29,15 @@ class DjangoCommands(BaseCommands):
 
     def _services_log_to_console(self) -> bool:
         override = os.getenv("IOTSPLOIT_SERVICE_LOG_TO_CONSOLE", "").strip().lower()
-        if override:
-            return override in ("1", "true", "yes", "y", "on")
-        return os.getenv("IOTSPLOIT_LOG_FORMAT", "standard").strip().lower() == "standard"
+        return override in ("1", "true", "yes", "y", "on")
 
     def _open_service_log(self, service_name: str):
         if not hasattr(self, "_service_log_files"):
             self._service_log_files = []
 
-        log_dir = os.getenv("IOTSPLOIT_SERVICE_LOG_DIR", "/tmp/sat_logs")
-        os.makedirs(log_dir, exist_ok=True)
-        log_path = os.path.join(log_dir, f"{service_name}.log")
+        service_log_dir = log_dir()
+        service_log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = service_log_dir / f"{service_name}.log"
         log_file = open(log_path, "a", buffering=1, encoding="utf-8")
         self._service_log_files.append(log_file)
         return log_file, log_path
@@ -83,57 +84,78 @@ class DjangoCommands(BaseCommands):
                 )
                 return False, guide
 
-        # If redis-py is available, ping for certainty
-        if redis is not None:
-            try:
-                client = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
-                client.ping()
-            except Exception as e:  # pragma: no cover
-                return False, (
-                    f"Connected to {redis_host}:{redis_port} but Redis ping failed: {e}\n"
-                    "Please ensure Redis is healthy and try again."
-                )
+        try:
+            import redis
+
+            redis.Redis(host=redis_host, port=redis_port, db=redis_db).ping()
+        except Exception as e:  # pragma: no cover
+            return False, (
+                f"Connected to {redis_host}:{redis_port} but Redis ping failed: {e}\n"
+                "Install the iotsploit-django distributed extra and ensure Redis is healthy."
+            )
 
         return True, "Redis is available"
 
     @cmd2.with_category('Django Commands')
-    def do_runserver(self, arg):
-        'Start Django development server, Daphne WebSocket server, MCP HTTP server, and Celery worker in the background'
+    @cmd2.with_argparser(runserver_parser)
+    def do_runserver(self, args):
+        'Start the local or distributed backend runtime in the background'
+        return self._start_services(**service_start_kwargs(args))
+
+    def _start_services(self, *, host, api_port, ws_port, mcp_host, mcp_port):
+        readonly_port = int(os.getenv("IOTSPLOIT_MCP_READONLY_PORT", str(mcp_port + 1)))
+        ports = (api_port, ws_port, mcp_port)
+        if len(set(ports)) != len(ports):
+            self.perror("--api-port, --ws-port, and --mcp-port must use distinct ports")
+            return False
+
+        if readonly_port in ports or not 1 <= readonly_port <= 65535:
+            self.perror("IOTSPLOIT_MCP_READONLY_PORT must be a distinct port between 1 and 65535")
+            return False
+
         if self.django_server_process or self.daphne_server_process:
             self.poutput("Servers are already running.")
             return
 
         try:
-            logger.info("Attempting to start Django, Daphne, MCP HTTP server, and Celery servers in background...")
-            
-            # Preflight: check Redis and fail fast if unavailable
-            redis_ok, redis_msg = self._check_redis_available()
-            if not redis_ok:
-                self.poutput(ansi.style("\n[ERROR] Redis is unavailable. Cannot start services that depend on it.", fg=ansi.Fg.RED, bold=True))
-                self.poutput(redis_msg)
-                return False
-            
-            # Prepare the commands
-            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', '0.0.0.0:8888']
-            daphne_cmd = [
-                sys.executable, 
-                '-m', 
-                'daphne', 
-                '-b', 
-                '0.0.0.0', 
-                '-p', 
-                '9999', 
-                'iotsploit_django.asgi:application'
-            ]
+            distributed = settings.IOTSPLOIT_RUNTIME == "distributed"
+            logger.debug("Starting the %s backend runtime", settings.IOTSPLOIT_RUNTIME)
+
+            api_client_host = "127.0.0.1" if host == "0.0.0.0" else host
+            mcp_client_host = "127.0.0.1" if mcp_host == "0.0.0.0" else mcp_host
+            api_base_url = f"http://{api_client_host}:{api_port}"
+            ws_base_url = f"ws://{api_client_host}:{ws_port}"
+            mcp_url = f"http://{mcp_client_host}:{mcp_port}/mcp"
+
+            if distributed:
+                redis_ok, redis_msg = self._check_redis_available()
+                if not redis_ok:
+                    self.poutput(ansi.style("\n[ERROR] Redis is unavailable.", fg=ansi.Fg.RED, bold=True))
+                    self.poutput(redis_msg)
+                    return False
+
+            django_cmd = [sys.executable, '-m', 'django', 'runserver', '--noreload', f'{host}:{api_port}']
+            if distributed:
+                daphne_cmd = [
+                    sys.executable, '-m', 'daphne', '-b', host, '-p', str(ws_port),
+                    'iotsploit_django.asgi:application',
+                ]
+            else:
+                daphne_cmd = [
+                    sys.executable, '-m', 'daphne', '--verbosity', '0',
+                    '-e', f'tcp:{api_port}:interface={host}',
+                    '-e', f'tcp:{ws_port}:interface={host}',
+                    'iotsploit_django.asgi:application',
+                ]
             mcp_bridge_cmd = [
                 sys.executable,
                 '-m',
                 'iotsploit_mcp.cli',
                 'http',
                 '--host',
-                '127.0.0.1',
+                mcp_host,
                 '--port',
-                '9900',
+                str(mcp_port),
             ]
             celery_cmd = [
                 sys.executable,
@@ -144,24 +166,67 @@ class DjangoCommands(BaseCommands):
                 'worker',
                 '--loglevel=info'
             ]
+            # Interactive runs are routed to their own queue (see
+            # CELERY_TASK_ROUTES) and need a worker that consumes it. Without
+            # this process the GUI would queue an interactive plugin and wait
+            # forever with nothing to run it. Concurrency 1 keeps a single
+            # question open at a time, and the separate process means a run
+            # parked on a prompt never occupies a general worker slot.
+            interactive_celery_cmd = [
+                sys.executable,
+                '-m',
+                'celery',
+                '-A',
+                'iotsploit_django.tasks.celery_app:app',
+                'worker',
+                '--loglevel=info',
+                '-Q',
+                'interactive',
+                '-c',
+                '1',
+                '-n',
+                'interactive@%h',
+            ]
+            streaming_celery_cmd = [
+                sys.executable,
+                '-m',
+                'celery',
+                '-A',
+                'iotsploit_django.tasks.celery_app:app',
+                'worker',
+                '--loglevel=info',
+                '-Q',
+                'streaming',
+                '-n',
+                'streaming@%h',
+            ]
+            os.environ["IOTSPLOIT_DJANGO_API_BASE_URL"] = api_base_url
+            os.environ["IOTSPLOIT_DJANGO_WS_BASE_URL"] = ws_base_url
+            os.environ["IOTSPLOIT_MCP_URL"] = mcp_url
+            self._service_api_base_url = api_base_url
             service_env = os.environ.copy()
+            service_env["IOTSPLOIT_MCP_READONLY_URL"] = f"http://127.0.0.1:{readonly_port}/mcp"
             
-            logger.info(f"Running Django command: {' '.join(django_cmd)}")
-            logger.info(f"Running Daphne command: {' '.join(daphne_cmd)}")
-            logger.info(f"Running MCP HTTP server command: {' '.join(mcp_bridge_cmd)}")
-            logger.info(f"Running Celery command: {' '.join(celery_cmd)}")
+            if distributed:
+                logger.debug("Running Django command: %s", ' '.join(django_cmd))
+            logger.debug("Running Daphne command: %s", ' '.join(daphne_cmd))
+            logger.debug("Running MCP HTTP server command: %s", ' '.join(mcp_bridge_cmd))
+            if distributed:
+                logger.debug("Running Celery command: %s", ' '.join(celery_cmd))
+                logger.debug("Running interactive Celery command: %s", ' '.join(interactive_celery_cmd))
+                logger.debug("Running streaming Celery command: %s", ' '.join(streaming_celery_cmd))
             if not self._services_log_to_console():
-                logger.info(f"Service logs are redirected to {os.getenv('IOTSPLOIT_SERVICE_LOG_DIR', '/tmp/sat_logs')}")
+                logger.info("Service logs are redirected to %s", log_dir())
             
-            # Start the processes with direct output to stdout/stderr
-            django_stdout, django_stderr, _ = self._service_stdio("django")
-            self.django_server_process = subprocess.Popen(
-                django_cmd, 
-                stdout=django_stdout,
-                stderr=django_stderr,
-                universal_newlines=True,
-                env=service_env,
-            )
+            if distributed:
+                django_stdout, django_stderr, _ = self._service_stdio("django")
+                self.django_server_process = subprocess.Popen(
+                    django_cmd,
+                    stdout=django_stdout,
+                    stderr=django_stderr,
+                    universal_newlines=True,
+                    env=service_env,
+                )
             
             daphne_stdout, daphne_stderr, _ = self._service_stdio("daphne")
             self.daphne_server_process = subprocess.Popen(
@@ -176,7 +241,7 @@ class DjangoCommands(BaseCommands):
             # later terminate the entire group
             # Set up environment variables for MCP bridge (Django API URL)
             mcp_env = service_env.copy()
-            mcp_env.setdefault('IOTSPLOIT_DJANGO_API_BASE_URL', 'http://127.0.0.1:8888')
+            mcp_env["IOTSPLOIT_MCP_READONLY"] = "0"
             
             mcp_stdout, mcp_stderr, _ = self._service_stdio("mcp")
             self.mcp_bridge_process = subprocess.Popen(
@@ -184,38 +249,60 @@ class DjangoCommands(BaseCommands):
                 stdout=mcp_stdout,
                 stderr=mcp_stderr,
                 universal_newlines=True,
-                start_new_session=True,  # create new session = new PGID on POSIX
-                env=mcp_env
+                env=mcp_env,
+                **process_group_kwargs(),
+            )
+
+            inspection_stdout, inspection_stderr, _ = self._service_stdio("mcp-readonly")
+            self.mcp_readonly_process = subprocess.Popen(
+                [sys.executable, "-m", "iotsploit_mcp.cli", "http", "--host", "127.0.0.1", "--port", str(readonly_port)],
+                stdout=inspection_stdout, stderr=inspection_stderr, universal_newlines=True,
+                env={**service_env, "IOTSPLOIT_MCP_READONLY": "1"}, **process_group_kwargs(),
             )
             
-            celery_stdout, celery_stderr, _ = self._service_stdio("celery")
-            self.celery_worker_process = subprocess.Popen(
-                celery_cmd,
-                stdout=celery_stdout,
-                stderr=celery_stderr,
-                universal_newlines=True,
-                env=service_env,
-            )
+            if distributed:
+                celery_stdout, celery_stderr, _ = self._service_stdio("celery")
+                self.celery_worker_process = subprocess.Popen(
+                    celery_cmd, stdout=celery_stdout, stderr=celery_stderr,
+                    universal_newlines=True, env=service_env,
+                )
+                interactive_stdout, interactive_stderr, _ = self._service_stdio("celery-interactive")
+                self.interactive_worker_process = subprocess.Popen(
+                    interactive_celery_cmd, stdout=interactive_stdout, stderr=interactive_stderr,
+                    universal_newlines=True, env=service_env,
+                )
+                streaming_stdout, streaming_stderr, _ = self._service_stdio("celery-streaming")
+                self.streaming_worker_process = subprocess.Popen(
+                    streaming_celery_cmd, stdout=streaming_stdout, stderr=streaming_stderr,
+                    universal_newlines=True, env=service_env,
+                )
             
-            logger.info("All servers started successfully in the background.")
-            logger.info("Services running on:")
-            logger.info("  - Django HTTP API: http://localhost:8888")
-            logger.info("  - Daphne WebSocket: ws://localhost:9999")
-            logger.info("  - MCP HTTP (Streamable HTTP): http://127.0.0.1:9900/mcp")
-            logger.info("  - Celery Worker: background task processing")
+            rows = [
+                ["HTTP API", f"http://{host}:{api_port}"],
+                ["WebSocket", f"ws://{host}:{ws_port}"],
+                ["MCP", f"http://{mcp_host}:{mcp_port}/mcp"],
+                ["Assistant MCP (read-only)", f"http://127.0.0.1:{readonly_port}/mcp"],
+            ]
+            rows.append(["Workers", "standard, interactive, streaming" if distributed else "in-process thread pools"])
+            self.poutput(ansi.style("Services started:", fg=ansi.Fg.GREEN))
+            self.poutput(output.table(["SERVICE", "ADDRESS"], rows))
+            if not self._services_log_to_console():
+                self.poutput(f"Logs: {log_dir()}")
+            if mcp_host != "127.0.0.1":
+                self.pwarning("MCP is exposed beyond loopback and does not authenticate incoming requests")
             
             # Wait for HTTP server to be available and initialize devices
             import requests
             max_retries = 30
             retry_interval = 1
             
-            logger.info("Waiting for HTTP server to be available...")
+            logger.debug("Waiting for HTTP server to be available...")
             for i in range(max_retries):
                 try:
-                    # Try to initialize devices using the HTTP endpoint (GET method)
-                    response = requests.get('http://127.0.0.1:8888/api/initialize_devices/')
+                    response = requests.post(
+                        f'{api_base_url}/api/initialize_devices/')
                     if response.status_code == 200:
-                        logger.info("Devices initialized successfully via HTTP API")
+                        logger.debug("Devices initialized successfully via HTTP API")
                         break
                     else:
                         logger.error(f"Failed to initialize devices: {response.text}")
@@ -241,14 +328,16 @@ class DjangoCommands(BaseCommands):
     def do_stop_server(self, arg):
         'Stop Django development server, Daphne WebSocket server, MCP HTTP server, and Celery worker'
         try:
-            # Cleanup devices using HTTP endpoint (GET method)
+            # Cleanup devices using the HTTP endpoint.
             # Only attempt HTTP cleanup if the Django server process is still alive
-            if self.django_server_process and self.django_server_process.poll() is None:
+            api_process = self.django_server_process or self.daphne_server_process
+            if api_process and api_process.poll() is None:
                 import requests
                 try:
-                    response = requests.get('http://127.0.0.1:8888/api/cleanup_devices/')
+                    api_base_url = getattr(self, "_service_api_base_url", "http://127.0.0.1:8888")
+                    response = requests.post(f'{api_base_url}/api/cleanup_devices/')
                     if response.status_code == 200:
-                        logger.info("Devices cleaned up successfully via HTTP API")
+                        logger.debug("Devices cleaned up successfully via HTTP API")
                     else:
                         logger.error(f"Failed to cleanup devices: {response.text}")
                 except requests.exceptions.ConnectionError:
@@ -271,7 +360,7 @@ class DjangoCommands(BaseCommands):
                 try:
                     # Terminate the entire process group so that child processes
                     # such as sat_fastmcp are also stopped.
-                    os.killpg(os.getpgid(self.mcp_bridge_process.pid), signal.SIGTERM)
+                    terminate_process_group(self.mcp_bridge_process)
                 except ProcessLookupError:
                     # Process already gone
                     pass
@@ -284,12 +373,26 @@ class DjangoCommands(BaseCommands):
                 self.celery_worker_process.terminate()
                 self.celery_worker_process = None
 
+            if getattr(self, "mcp_readonly_process", None):
+                terminate_process_group(self.mcp_readonly_process)
+                self.mcp_readonly_process = None
+
+            if getattr(self, 'interactive_worker_process', None):
+                self.interactive_worker_process.terminate()
+                self.interactive_worker_process = None
+
+            if getattr(self, 'streaming_worker_process', None):
+                self.streaming_worker_process.terminate()
+                self.streaming_worker_process = None
+
             self._close_service_log_files()
             
             if not any([self.django_server_process, self.daphne_server_process, 
                         getattr(self, 'mcp_bridge_process', None),
-                        getattr(self, 'celery_worker_process', None)]):
-                logger.info("All servers stopped.")
+                        getattr(self, 'celery_worker_process', None),
+                        getattr(self, 'interactive_worker_process', None),
+                        getattr(self, 'streaming_worker_process', None)]):
+                self.poutput("Services stopped.")
             else:
                 logger.error("No servers were running.")
                 

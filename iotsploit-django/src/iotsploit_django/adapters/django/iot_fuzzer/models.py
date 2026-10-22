@@ -26,8 +26,11 @@ class FuzzingCampaign(models.Model):
 
     STATUS_CHOICES = [
         ("idle", "Idle"),
+        ("starting", "Starting"),
         ("running", "Running"),
         ("paused", "Paused"),
+        ("stopped", "Stopped"),
+        ("reset", "Reset"),
         ("completed", "Completed"),
         ("failed", "Failed"),
     ]
@@ -65,6 +68,11 @@ class FuzzingCampaign(models.Model):
         unique=True,
         db_index=True,
         help_text="Runtime UUID for this campaign",
+    )
+    runtime_state = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Runtime counters and worker metadata for this campaign",
     )
 
     # Fuzzer integration
@@ -184,6 +192,7 @@ class ProtocolConfiguration(models.Model):
     """
 
     PROTOCOL_TYPE_CHOICES = [
+        ("usbtmc", "USBTMC"),
         ("can", "CAN Bus"),
         ("uart", "UART/Serial"),
         ("spi", "SPI"),
@@ -817,5 +826,3 @@ class LiveLogAdmin(admin.ModelAdmin):
     list_filter = ["level", "category", "source"]
     search_fields = ["message", "source"]
     readonly_fields = ["timestamp"]
-
-

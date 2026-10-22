@@ -1,6 +1,7 @@
 """Canonical resource/action commands for the interactive CLI."""
 
 import argparse
+import ipaddress
 import shlex
 
 import cmd2
@@ -16,24 +17,52 @@ def _subcommands(parser):
     return parser.add_subparsers(dest="action", required=True)
 
 
+def _ipv4_address(value):
+    try:
+        return str(ipaddress.IPv4Address(value))
+    except ipaddress.AddressValueError as error:
+        raise argparse.ArgumentTypeError("must be an IPv4 address") from error
+
+
+def _port(value):
+    try:
+        port = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("must be between 1 and 65535")
+    return port
+
+
+def add_service_start_arguments(parser):
+    parser.add_argument("--host", type=_ipv4_address, default="127.0.0.1", help="API/WebSocket bind address")
+    parser.add_argument("--api-port", type=_port, default=8888, help="HTTP API port")
+    parser.add_argument("--ws-port", type=_port, default=9999, help="WebSocket port")
+    parser.add_argument("--mcp-host", type=_ipv4_address, default="127.0.0.1", help="MCP bind address")
+    parser.add_argument("--mcp-port", type=_port, default=9900, help="MCP HTTP port")
+
+
+def service_start_kwargs(args):
+    return {
+        "host": args.host,
+        "api_port": args.api_port,
+        "ws_port": args.ws_port,
+        "mcp_host": args.mcp_host,
+        "mcp_port": args.mcp_port,
+    }
+
+
 host_parser = _parser("Show information about the IoTSploit host")
 host_sub = _subcommands(host_parser)
 host_sub.add_parser("show", help="show host system information").set_defaults(handler="do_device_info")
 
-device_parser = _parser("Discover, select, import, and use devices")
+device_parser = _parser("List devices and run device commands")
 device_sub = _subcommands(device_parser)
-device_sub.add_parser("list", help="list configured devices").set_defaults(handler="do_list_devices")
-device_sub.add_parser("scan", help="scan for available devices").set_defaults(handler="do_scan_devices")
-device_sub.add_parser("initialize", help="initialize available devices").set_defaults(handler="do_initialize_devices")
-device_select = device_sub.add_parser("select", help="select the active device")
-device_select.add_argument("device", nargs="?")
-device_select.set_defaults(handler="do_select_device", argument="device")
-device_run = device_sub.add_parser("run", help="run a command on the active device")
-device_run.add_argument("command", nargs=argparse.REMAINDER)
-device_run.set_defaults(handler="do_execute_device_command", argument="command", join=True)
-device_import = device_sub.add_parser("import", help="import devices from JSON")
-device_import.add_argument("file")
-device_import.set_defaults(handler="do_device_import", argument="file")
+device_sub.add_parser("list", help="scan with every driver and list the devices found").set_defaults(handler="do_list_devices")
+device_sub.add_parser("initialize", help="close and reopen every device in the backend").set_defaults(handler="do_initialize_devices")
+device_run = device_sub.add_parser("run", help="run a command on a device")
+device_run.add_argument("command", nargs=argparse.REMAINDER, help="<device_id> <command> [key=value ...]")
+device_run.set_defaults(handler="do_execute_device_command", argument="command")
 
 driver_parser = _parser("Inspect and manage device drivers")
 driver_sub = _subcommands(driver_parser)
@@ -83,7 +112,9 @@ plugin_sub.add_parser("refresh", help="refresh installed plugins").set_defaults(
 
 target_parser = _parser("Select, edit, import, and export targets")
 target_sub = _subcommands(target_parser)
-target_sub.add_parser("list", help="list available targets").set_defaults(handler="do_list_targets")
+target_list = target_sub.add_parser("list", help="list available targets")
+target_list.add_argument("target", nargs="?", help="show full detail for one target, or 'all'")
+target_list.set_defaults(handler="do_list_targets", argument="target")
 target_select = target_sub.add_parser("select", help="select the active target")
 target_select.add_argument("target", nargs="?")
 target_select.set_defaults(handler="do_target_select", argument="target")
@@ -93,13 +124,18 @@ target_edit.set_defaults(handler="do_edit_target", argument="target")
 target_import = target_sub.add_parser("import", help="import targets from JSON")
 target_import.add_argument("file")
 target_import.set_defaults(handler="do_target_import", argument="file")
+target_obs = target_sub.add_parser("observations", help="show what scans discovered about a target")
+target_obs.add_argument("target", nargs="?", help="defaults to the active target")
+target_obs.set_defaults(handler="do_target_observations", argument="target")
 target_export = target_sub.add_parser("export", help="export targets to JSON")
 target_export.add_argument("file", nargs="?")
 target_export.set_defaults(handler="do_target_export", argument="file")
 
 service_parser = _parser("Control IoTSploit background services")
 service_sub = _subcommands(service_parser)
-service_sub.add_parser("start", help="start backend services").set_defaults(handler="do_runserver")
+service_start = service_sub.add_parser("start", help="start backend services")
+add_service_start_arguments(service_start)
+service_start.set_defaults(local_handler="service_start")
 service_sub.add_parser("stop", help="stop backend services").set_defaults(handler="do_stop_server")
 service_sub.add_parser("status", help="show backend service status").set_defaults(local_handler="service_status")
 
@@ -160,11 +196,16 @@ class ResourceCommands(BaseCommands):
             ("daphne", "daphne_server_process"),
             ("mcp", "mcp_bridge_process"),
             ("celery", "celery_worker_process"),
+            ("celery-i", "interactive_worker_process"),
+            ("celery-s", "streaming_worker_process"),
         )
         for name, attribute in services:
             process = getattr(self, attribute, None)
             running = process is not None and process.poll() is None
             self.poutput(f"{name:<8} {'running' if running else 'stopped'}")
+
+    def _service_start(self, args):
+        return self._start_services(**service_start_kwargs(args))
 
     def _config_set(self, args):
         if not args.log_level and not args.log_format:
@@ -182,9 +223,9 @@ class ResourceCommands(BaseCommands):
         return self._dispatch_resource_command(args)
 
     @cmd2.with_category("IoTSploit Commands")
-    @cmd2.with_argparser(device_parser)
+    @cmd2.with_argparser(device_parser, preserve_quotes=True)
     def do_device(self, args):
-        """Discover, select, import, and use devices."""
+        """List devices and run device commands."""
         return self._dispatch_resource_command(args)
 
     @cmd2.with_category("IoTSploit Commands")

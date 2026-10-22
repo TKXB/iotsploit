@@ -1,0 +1,152 @@
+{
+  "ledger_version": 1,
+  "target": "core.stream_message",
+  "fingerprint": "915593da2a5ff201",
+  "updated": "2026-09-20T03:41:51+00:00",
+  "entries": {
+    "11f7ad0912b94ae1": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "2d727e6b66e4d7c1": {
+      "signature": "reject|ValueError|is valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T221636Z",
+      "edge_of": ""
+    },
+    "2f54ca01aa59f352": {
+      "signature": "reject|ValueError|is valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "31423cc0c69c6606": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "32cec4230d18bde7": {
+      "signature": "reject|KeyError|channel||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "3406aa8934d16e4f": {
+      "signature": "reject|ValueError|is not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "361ea7b78f63f052": {
+      "signature": "reject|ValueError|is not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "3c137a02954acef0": {
+      "signature": "reject|ValueError|is valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "44136fa355b3678a": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "53a2d49d29cdc521": {
+      "signature": "reject|KeyError|channel||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "5a08a0788bbc714a": {
+      "signature": "reject|ValueError|is not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "5ec96d3a2f5c33ac": {
+      "signature": "reject|ValueError|is not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "645a530e8a7105be": {
+      "signature": "reject|KeyError|stream_type||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "6b1495f5e9b7cae8": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "6ba75b388e3334a6": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "7b7153cd514e97fc": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "a413ba5a19b5f38e": {
+      "signature": "reject|ValueError|is not valid streamtype||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "a6461c9936b1d36b": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "aa142ca0b6ceacaf": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "c27a52b31c12fb58": {
+      "signature": "reject|KeyError|source||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "c4f3ee1f636b73f3": {
+      "signature": "reject|KeyError|timestamp||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "d52b1207ddc0aa0f": {
+      "signature": "reject|KeyError|channel||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    },
+    "df28f46de2b5d2bf": {
+      "signature": "reject|KeyError|||",
+      "kind": "reject",
+      "first_seen": "20260919T154128Z",
+      "edge_of": ""
+    },
+    "edc175a1b9909bc0": {
+      "signature": "reject|ValueError|is not valid streamsource||",
+      "kind": "reject",
+      "first_seen": "20260920T025733Z",
+      "edge_of": ""
+    }
+  }
+}

@@ -2,20 +2,21 @@
 #
 # test-python-full.sh — commit-time Python quality gate
 #
-# Runs every deterministic, non-interactive check in order and exits with a
-# non-zero status on the first failure. This is the canonical command that AI
-# agents and developers must run before committing Python code.
+# This is the canonical command that AI agents and developers run before
+# committing Python code, and what tools/git-hooks/pre-commit executes.
 #
 # Usage:
 #   tools/testing/test-python-full.sh
+#   tools/testing/test-python-full.sh -- -m "unit or contract"
 #
 # Exit codes:
 #   0 — all checks passed
 #   1 — at least one check failed
 #
-# The exact test paths, import mode, markers, and exclusions live in root
-# pytest configuration (pyproject.toml [tool.pytest.ini_options]). This
-# script deliberately does not duplicate that configuration.
+# The checks themselves live in tools/testing/run_gate.py, which is a single
+# owner that also runs on Windows, where this script cannot. This file stays
+# because it is the entrypoint referenced by AGENTS.md and the git hook; it
+# forwards its arguments and its exit code and does nothing else.
 
 set -euo pipefail
 
@@ -24,14 +25,4 @@ cd "$REPO_ROOT"
 
 POETRY="${POETRY:-poetry}"
 
-# ── Step 1: Ruff lint ──────────────────────────────────────────────────
-echo "── ruff check ──────────────────────────────────────────────────"
-$POETRY run ruff check .
-echo
-
-# ── Step 2: pytest ─────────────────────────────────────────────────────
-echo "── pytest ─────────────────────────────────────────────────────"
-$POETRY run pytest
-echo
-
-echo "✅ All checks passed."
+exec $POETRY run python tools/testing/run_gate.py "$@"

@@ -1,0 +1,182 @@
+{
+  "baseline": [
+    {
+      "query": "*OPC?",
+      "response_regex": "^1$"
+    },
+    {
+      "query": "SYST:BOOT?",
+      "response_regex": "^[0-9a-fA-F]{16}$"
+    },
+    {
+      "query": "SYST:CAP?",
+      "response_regex": "proto=1;mtu="
+    }
+  ],
+  "cases": [
+    {
+      "id": "identity",
+      "name": "identity",
+      "payload_hex": "2a49444e3f0a",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "argument",
+          "offset": 4,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "mode": "scpi",
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "clear"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "numeric-boundary",
+      "name": "numeric-boundary",
+      "payload_hex": "444154413a524541443f20300a",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "argument",
+          "offset": 11,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "mode": "scpi",
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "clear"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "binary-block",
+      "name": "binary-block",
+      "payload_hex": "444154413a575249544520233134414243440a",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "argument",
+          "offset": 17,
+          "size": 1,
+          "type": "uint8"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "mode": "scpi",
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_message"
+          },
+          {
+            "op": "clear"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "raw-usbtmc",
+      "name": "raw-usbtmc",
+      "payload_hex": "0101fe0006000000010000002a49444e3f0a0000",
+      "strategies": [
+        "bit_flip",
+        "random_bit",
+        "boundary_value"
+      ],
+      "target_bits": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31",
+      "frame_fields": [
+        {
+          "name": "transfer_size",
+          "offset": 4,
+          "size": 4,
+          "type": "uint32"
+        }
+      ],
+      "fuzzing_rules": [
+        {
+          "type": "bit_level"
+        }
+      ],
+      "protocol_config": {
+        "mode": "raw",
+        "sequence": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "write_raw"
+          },
+          {
+            "op": "clear"
+          },
+          {
+            "op": "canary"
+          }
+        ]
+      }
+    }
+  ]
+}

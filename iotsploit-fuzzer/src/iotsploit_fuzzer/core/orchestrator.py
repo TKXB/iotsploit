@@ -32,6 +32,7 @@ class Orchestrator:
         self._is_running = False
         self._is_paused = False
         self._should_stop = False
+        self.stop_reason = None
         self._current_iteration = 0
         
         # Protocol information for enhanced events
@@ -41,9 +42,11 @@ class Orchestrator:
 
     def _detect_protocol_type(self) -> str:
         """Detect the protocol type based on the harness"""
-        harness_class = self.harness.__class__.__name__
+        harness_class = getattr(self.harness, "inner", self.harness).__class__.__name__
         
-        if 'CAN' in harness_class.upper():
+        if 'USBTMC' in harness_class.upper():
+            return 'USBTMC'
+        elif 'CAN' in harness_class.upper():
             return 'CAN'
         elif 'UART' in harness_class.upper():
             return 'UART'
@@ -66,7 +69,7 @@ class Orchestrator:
                     'sid': 'CAN',
                     'name': 'CAN Bus Testing',
                     'icon': '🚗',
-                    'protocol': 'CAN',
+                    'protocol_type': 'can',
                     'description': 'Controller Area Network fuzzing tests'
                 }
             },
@@ -75,8 +78,17 @@ class Orchestrator:
                     'sid': 'UART',
                     'name': 'UART/Serial Testing',
                     'icon': '📡',
-                    'protocol': 'UART',
+                    'protocol_type': 'uart',
                     'description': 'Universal Asynchronous Receiver/Transmitter fuzzing tests'
+                }
+            },
+            'USBTMC': {
+                'group-usbtmc-general': {
+                    'sid': 'USBTMC',
+                    'name': 'USBTMC Testing',
+                    'icon': '🔬',
+                    'protocol_type': 'usbtmc',
+                    'description': 'USB Test & Measurement Class fuzzing tests'
                 }
             },
             'UDS': {
@@ -84,28 +96,28 @@ class Orchestrator:
                     'sid': '0x10',
                     'name': 'Diagnostic Session Control',
                     'icon': '📋',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS Diagnostic Session Control service'
                 },
                 'group-0x11': {
                     'sid': '0x11',
                     'name': 'ECU Reset',
                     'icon': '🔄',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS ECU Reset service'
                 },
                 'group-0x22': {
                     'sid': '0x22',
                     'name': 'Read Data By Identifier',
                     'icon': '📖',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS Read Data By Identifier service'
                 },
                 'group-0x27': {
                     'sid': '0x27',
                     'name': 'Security Access',
                     'icon': '🔒',
-                    'protocol': 'UDS',
+                    'protocol_type': 'uds',
                     'description': 'UDS Security Access service'
                 }
             },
@@ -114,7 +126,7 @@ class Orchestrator:
                     'sid': 'GEN',
                     'name': 'General Protocol Testing',
                     'icon': '🔧',
-                    'protocol': 'Generic',
+                    'protocol_type': 'generic',
                     'description': 'General protocol fuzzing tests'
                 }
             }
@@ -185,6 +197,19 @@ class Orchestrator:
                 'protocol_frame': f'Data: {payload_hex}'
             }
         
+        elif self._protocol_type == 'USBTMC':
+            # USBTMC messages are mostly SCPI text: show them as text, with
+            # anything unprintable escaped, rather than splitting off a fake
+            # sub-function.
+            text = ''.join(chr(b) if 32 <= b < 127 else f'\\x{b:02X}' for b in payload)
+            return {
+                'name': f'USBTMC Test {test_case_id}',
+                'subFunction': '',
+                'payload': text,
+                'description': f'USBTMC message ({len(payload)} bytes)',
+                'protocol_frame': f'Data: {text}'
+            }
+
         elif self._protocol_type == 'UDS' and len(payload) > 0:
             # For UDS, extract service ID and sub-function
             service_id = f"0x{payload[0]:02X}"
@@ -246,6 +271,7 @@ class Orchestrator:
         logger.info("Starting fuzzing campaign: %s iterations", self.config.iterations)
         self._is_running = True
         self._should_stop = False
+        self.stop_reason = None
         
         # Get base seeds for reference
         self._base_seeds = list(self.generator.seed_corpus())
@@ -308,6 +334,14 @@ class Orchestrator:
 
                 result: HarnessResult = self.harness.execute(payload)
                 self.logger_backend.record(idx, payload, result)
+                if result.monitor_verdicts is not None:
+                    self._emit_event(EventType.MONITOR_STATUS, {"monitor_verdicts": result.monitor_verdicts})
+                if self._should_stop and not result.ok and not result.crashed:
+                    # The operator's stop cut the case short; that is not a finding.
+                    break
+                if not result.sent:
+                    self.stop_reason = result.stop_reason
+                    break
                 self.monitor.process_case(idx, payload, result)
 
                 # Determine result status
@@ -316,7 +350,7 @@ class Orchestrator:
                     pass_count = 0
                     fail_count = 1
                     check_count = 0
-                elif result.timeout:
+                elif result.timeout and not result.error:
                     status = 'check'
                     pass_count = 0
                     fail_count = 0
@@ -356,13 +390,12 @@ class Orchestrator:
                         'timeout': result.timeout,
                         'error': result.error,
                         'response': result.response.hex().upper() if result.response else None,
-                        'info': result.info if hasattr(result, 'info') else None
+                        'info': result.info if hasattr(result, 'info') else None,
+                        'monitor_verdicts': result.monitor_verdicts
                     }
                 })
 
-                if result.crashed and self.config.save_crashes:
-                    self.logger_backend.save_crash(idx, payload, result)
-                    
+                if result.crashed:
                     # Emit crash detected event with enhanced information
                     self._emit_event(EventType.CRASH_DETECTED, {
                         'test_case_id': idx,
@@ -383,6 +416,10 @@ class Orchestrator:
                     'protocol_type': self._protocol_type,
                 })
 
+                if result.stop_reason:
+                    self.stop_reason = result.stop_reason
+                    break
+
                 if self.config.delay:
                     time.sleep(self.config.delay)
 
@@ -396,6 +433,14 @@ class Orchestrator:
             raise
         finally:
             self._is_running = False
+
+        if self.stop_reason or self._should_stop:
+            self._emit_event(EventType.CAMPAIGN_STOPPED, {
+                "reason": self.stop_reason or "Stopped by operator",
+                "completed_iterations": self.monitor.get_stats().get("total_cases", 0),
+                "is_running": False,
+            })
+            return
 
         # Post-campaign summary
         final_stats = self.monitor.get_stats()
@@ -425,12 +470,8 @@ class Orchestrator:
         })
 
     def stop(self) -> None:
-        """Stop the fuzzing campaign"""
+        """Stop the fuzzing campaign; run() emits CAMPAIGN_STOPPED once it exits."""
         self._should_stop = True
-        self._emit_event(EventType.CAMPAIGN_STOPPED, {
-            'completed_iterations': self._current_iteration,
-            'protocol_type': self._protocol_type,
-        })
 
     def is_running(self) -> bool:
         """Check if the campaign is running"""

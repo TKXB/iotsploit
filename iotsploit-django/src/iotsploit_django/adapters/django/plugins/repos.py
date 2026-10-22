@@ -22,6 +22,7 @@ class DjangoPluginMetaRepository:
                     "license": meta.license or "",
                     "author": meta.author or "",
                     "parameters": json.dumps(meta.parameters or {}),
+                    "requirements": list(meta.requirements),
                 },
             )
             if created:
@@ -33,6 +34,7 @@ class DjangoPluginMetaRepository:
             plugin.license = meta.license or ""
             plugin.author = meta.author or ""
             plugin.parameters = json.dumps(meta.parameters or {})
+            plugin.requirements = list(meta.requirements)
             plugin.save(
                 update_fields=[
                     "description",
@@ -41,6 +43,7 @@ class DjangoPluginMetaRepository:
                     "license",
                     "author",
                     "parameters",
+                    "requirements",
                 ]
             )
         except OperationalError:
@@ -70,6 +73,7 @@ class DjangoPluginMetaRepository:
                     author=p.author or "",
                     license=p.license or "",
                     parameters=params,
+                    requirements=tuple(p.requirements or ()),
                 )
             )
         return metas
@@ -127,4 +131,3 @@ class DjangoPluginGroupRepository:
             plugin_steps=plugin_steps,
             group_steps=group_steps,
         )
-

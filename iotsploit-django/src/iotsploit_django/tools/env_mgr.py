@@ -31,6 +31,7 @@ class Env_Mgr:
             logger.info("Initializing Env_Mgr singleton")
             self.__sat_env = {}
             self.__sat_env[Env_Mgr.ENV_PreFix + "DHU_TMP_DIR"] = "/sdcard/sat_snapshot"
+            self.__sat_env[Env_Mgr.ENV_PreFix + "SAT_RUN_IN_SHELL"] = False
             self._initialized = True
 
     def unset(self, key):

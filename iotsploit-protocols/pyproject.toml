@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "iotsploit-protocols"
+version = "0.0.10"
+description = "Automotive protocol clients and description parsers for IoTSploit"
+authors = ["IoTSploit Team <support@iotsploit.org>"]
+readme = "README.md"
+license = "GPL-3.0-or-later"
+homepage = "https://www.iotsploit.org/"
+repository = "https://github.com/TKXB/iotsploit"
+keywords = ["someip", "doip", "uds", "automotive", "security", "testing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Topic :: Security",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+packages = [{ include = "iotsploit_protocols", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+iotsploit-core = "*"
+# SOME/IP service discovery parsing and the DoIP socket both come from
+# scapy.contrib.automotive, which needs 2.5+; 2.6 is what the workspace runs.
+scapy = ">=2.6,<3"
+pydantic = ">=2.0"
+cantools = "42.0.3"
+# Same range iotsploit-drivers already pins. The SocketCAN clients import it
+# lazily so that previewing a frame works on a host with no CAN interface.
+python-can = ">=4.5"
+psutil = ">=5.9"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]

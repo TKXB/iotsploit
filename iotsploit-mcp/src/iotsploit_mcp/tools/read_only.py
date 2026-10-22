@@ -29,6 +29,10 @@ def _error(exc: Exception) -> dict[str, Any]:
 
 
 def _call(name: str, func: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Run one tool body, turning any failure into a payload rather than a raise.
+
+    Shared with ``tools.write`` so both surfaces report an error the same way.
+    """
     logger.info("MCP tool call: %s", name)
     try:
         result = _ok(func())
@@ -39,7 +43,10 @@ def _call(name: str, func: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         return _error(exc)
 
 
-def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHttpClient] = DjangoHttpClient.from_env) -> None:
+def register_read_only_tools(
+    mcp: FastMCP, client_factory: Callable[[], DjangoHttpClient] = DjangoHttpClient.from_env,
+    *, read_only: bool = False,
+) -> None:
     """Register the v1 read-only HTTP-backed tool surface."""
 
     def client() -> DjangoHttpClient:
@@ -53,7 +60,7 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
             health = client().get("/api/system_health/")
             return {
                 "status": health.get("status", "success"),
-                "mcp": {"transport": "streamable-http", "mode": "read-only"},
+                "mcp": {"transport": "streamable-http", "mode": "read-only" if read_only else "read-write"},
                 "django": health,
             }
 
@@ -113,22 +120,26 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
         path = f"/api/list_device_commands/{quote(device_name, safe='')}/"
         return _call("describe_driver", lambda: client().get(path))
 
-    @mcp.tool()
     def scan_devices(driver_name: str = "all") -> dict[str, Any]:
         """Scan devices through the Django HTTP execution plane."""
 
         def run() -> dict[str, Any]:
             if driver_name == "all":
-                return client().get("/api/scan_all_devices/")
-            return client().get(f"/api/scan_device/{quote(driver_name, safe='')}/")
+                return client().post("/api/scan_all_devices/")
+            return client().post(f"/api/scan_device/{quote(driver_name, safe='')}/")
 
         return _call("scan_devices", run)
+
+    # Legacy full servers keep their tool surface. Inspection-only servers
+    # never register active discovery, so tools/call cannot bypass tools/list.
+    if not read_only:
+        mcp.tool()(scan_devices)
 
     @mcp.tool()
     def list_devices() -> dict[str, Any]:
         """List devices known to the Django backend."""
 
-        return _call("list_devices", lambda: client().get("/api/list_devices/"))
+        return _call("list_devices", lambda: client().post("/api/list_devices/"))
 
     @mcp.tool()
     def device_info() -> dict[str, Any]:
@@ -144,15 +155,65 @@ def register_read_only_tools(mcp: FastMCP, client_factory: Callable[[], DjangoHt
 
     @mcp.tool()
     def list_targets() -> dict[str, Any]:
-        """List configured IoTSploit targets."""
+        """List configured IoTSploit targets, one summary row each.
+
+        Facet bulk (CAN frames and the like) is omitted and reported as counts.
+        Call get_target for the whole object.
+        """
 
         return _call("list_targets", lambda: client().get("/api/list_targets/"))
+
+    @mcp.tool()
+    def get_target(target_id: str) -> dict[str, Any]:
+        """Return one IoTSploit target in full, including every facet payload."""
+
+        return _call(
+            "get_target",
+            lambda: client().get(f"/api/get_target/{quote(target_id, safe='')}/"),
+        )
 
     @mcp.tool()
     def get_current_target() -> dict[str, Any]:
         """Return the currently selected IoTSploit target."""
 
         return _call("get_current_target", lambda: client().get("/api/get_current_target/"))
+
+    @mcp.tool()
+    def get_current_observations(
+        target_id: str,
+        component_id: str = "",
+        source: str = "",
+        protocol: str = "",
+        subject_kind: str = "",
+    ) -> dict[str, Any]:
+        """What has actually been observed on a target, as opposed to configured.
+
+        A target's facets say what it *should* expose; these are facts a scan
+        reported seeing. The gap between the two is usually the interesting part.
+
+        Only current state: the newest complete successful scan per component,
+        source and scope. Every record carries its own provenance, and `source`
+        is what to read it by -- a plugin name means a tool measured it, while
+        an `agent:` prefix means something was asked to look and reported back.
+        The optional arguments narrow the result; empty means no filter.
+        """
+
+        params = {
+            key: value
+            for key, value in (
+                ("target_id", target_id),
+                ("component_id", component_id),
+                ("source", source),
+                ("protocol", protocol),
+                ("subject_kind", subject_kind),
+            )
+            if value
+        }
+
+        return _call(
+            "get_current_observations",
+            lambda: client().get("/api/get_current_observations/", params=params),
+        )
 
     @mcp.tool()
     def firmware_list() -> dict[str, Any]:

@@ -18,6 +18,20 @@ iotsploit-mcp http --host 127.0.0.1 --port 9900
 
 The MCP endpoint is `http://<rig-host>:9900/mcp`.
 
+The AI Assistant uses a separate inspection instance. The normal service
+launcher starts it automatically on loopback at port 9901 (or full MCP port +
+1). When supervising services separately, run:
+
+```bash
+IOTSPLOIT_MCP_READONLY=1 iotsploit-mcp http --host 127.0.0.1 --port 9901
+```
+
+This omits active device scanning and all write tools from both listing and
+dispatch. API-mode and CLI-mode assistants use this endpoint; only an explicit,
+confirmed Scan devices quick action uses full MCP. See
+[`ai_assistant_runtime.md`](../docs/exec-plans/active/ai_assistant_runtime.md)
+for setup, migration, deployment limits, and the client protocol.
+
 Bind to `127.0.0.1` for local use (the default). The HTTP endpoint does not
 require authentication in this MVP. If you expose the service beyond loopback
 (`0.0.0.0` or a LAN address), protect it with a firewall, TLS/reverse proxy, or
@@ -50,26 +64,47 @@ Codex, Cursor, or generic MCP config:
 - `IOTSPLOIT_MCP_PORT`: optional default port for the MCP server.
 - `IOTSPLOIT_DJANGO_API_BASE_URL`: Django API base URL, default
   `http://127.0.0.1:8888`.
-- `IOTSPLOIT_DJANGO_API_TOKEN`: optional bearer token forwarded from MCP to
-  Django.
 - `IOTSPLOIT_DJANGO_API_TIMEOUT_S`: Django request timeout in seconds.
 - `IOTSPLOIT_MCP_LOG_TO_FILE`: set to `1` to enable MCP file logging.
 
 ## Current Tool Surface
 
-This branch exposes a read-only HTTP-backed MVP:
+This branch exposes an HTTP-backed MCP surface. Read-only tools are:
 
 - System: `system_status`, `system_health`, `list_urls`
 - Plugins/groups: `list_plugins`, `describe_plugin`, `list_groups`
 - Drivers/devices: `list_device_drivers`, `describe_driver`, `scan_devices`,
   `list_devices`, `device_info`, `get_driver_states`
-- Targets: `list_targets`, `get_current_target`
+- Targets: `list_targets`, `get_target`, `get_current_target`
+- Observations: `get_current_observations`
 - Firmware: `firmware_list`, `firmware_info`
 - Fuzzer results: `fuzzer_campaign_status`, `fuzzer_campaign_statistics`,
   `fuzzer_results_summary`, `fuzzer_artifacts`
 - Tools/files: `get_tools_status`, `get_tool_details`, `list_files`
 - Local rig helper: `list_serial_ports`
 
-Mutating and destructive tools are intentionally not exposed in this MVP.
-They require backend auth hardening and the two-key safety gate described in
-the implementation proposal.
+The mutating tools are `create_target`, `edit_target`, `select_target`,
+`execute_plugin`, `execute_device_command`, `set_driver_enabled` and
+`record_observations`. `execute_plugin` runs an enabled exploit plugin against
+the current target and can interact with attached hardware or the target.
+`execute_device_command` runs one command a driver publishes (see
+`describe_driver`) on one scanned device, such as an ESP32 SCPI command; some
+commands, like `flash_firmware` and `erase_flash`, are irreversible. It needs
+the driver enabled, which `set_driver_enabled` does; that setting persists and
+applies to every client. Django does not yet authenticate these requests (see
+"Mutating `/api/` requests are unauthenticated" in
+`docs/exec-plans/tech-debt-tracker.md`), and the MCP endpoint itself is
+unauthenticated too, so loopback binding is currently the only control: keep
+both bound to loopback or otherwise protected.
+
+All other mutating or destructive tools remain prohibited until backend auth
+hardening and the two-key safety gate described in the implementation proposal
+are complete.
+
+`record_observations` records findings an agent produced itself, rather than by
+running a plugin. It cannot claim to be a plugin: the backend stores the source
+as `agent:<label>`, refusing a caller-supplied `source` outright, and `source`
+is one of a scan's comparable scope fields -- so an agent's complete snapshot
+replaces only its own previous snapshot of the same scope and can never make a
+tool's measurement disappear. Pass `is_complete=False` for a spot check; the
+facts are kept as history but do not define current state.

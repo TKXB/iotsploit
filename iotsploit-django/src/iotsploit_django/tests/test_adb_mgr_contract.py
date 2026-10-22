@@ -33,6 +33,10 @@ class TestListDevices(SimpleTestCase):
         self.manager._ADB_Mgr__root_states = {}
         self.manager._ADB_Mgr__lock = __import__("threading").Lock()
         self.manager._initialized = True
+        # Pin the resolved binary. ADB_Mgr looks adb up on PATH lazily, so
+        # without this the suite passes only on a host that has adb installed
+        # and fails everywhere else with an empty result and no subprocess call.
+        self.manager._adb_path = "adb"
 
     def test_parses_device_rows_and_exposes_serial(self):
         output = (
@@ -93,6 +97,10 @@ class TestDeviceSpecificCommands(SimpleTestCase):
         self.manager._ADB_Mgr__root_states = {}
         self.manager._ADB_Mgr__lock = __import__("threading").Lock()
         self.manager._initialized = True
+        # Pin the resolved binary. ADB_Mgr looks adb up on PATH lazily, so
+        # without this the suite passes only on a host that has adb installed
+        # and fails everywhere else with an empty result and no subprocess call.
+        self.manager._adb_path = "adb"
         self.manager._target_manager = MagicMock()
 
     def test_connect_dev_uses_serial_flag_and_wait_for_device(self):
@@ -181,6 +189,10 @@ class TestShellCmd(SimpleTestCase):
         self.manager._ADB_Mgr__root_states = {}
         self.manager._ADB_Mgr__lock = __import__("threading").Lock()
         self.manager._initialized = True
+        # Pin the resolved binary. ADB_Mgr looks adb up on PATH lazily, so
+        # without this the suite passes only on a host that has adb installed
+        # and fails everywhere else with an empty result and no subprocess call.
+        self.manager._adb_path = "adb"
 
     def test_shell_cmd_executes_script_via_adb_shell(self):
         with patch.object(self.manager, "connect_dev", return_value="abc123"):
@@ -218,6 +230,10 @@ class TestErrorHandling(SimpleTestCase):
         self.manager._ADB_Mgr__root_states = {}
         self.manager._ADB_Mgr__lock = __import__("threading").Lock()
         self.manager._initialized = True
+        # Pin the resolved binary. ADB_Mgr looks adb up on PATH lazily, so
+        # without this the suite passes only on a host that has adb installed
+        # and fails everywhere else with an empty result and no subprocess call.
+        self.manager._adb_path = "adb"
 
     def test_timeout_returns_failure(self):
         with patch.object(self.manager, "connect_dev", return_value="abc123"):

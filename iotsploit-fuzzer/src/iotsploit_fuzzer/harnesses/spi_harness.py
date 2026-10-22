@@ -14,4 +14,4 @@ class SPIHarness(ProtocolHarness):
             # For SPI synchronous send/receive we ignore response for now.
             return HarnessResult(ok=True)
         except Exception as exc:
-            return HarnessResult(ok=False, crashed=True, info=str(exc), error=str(exc)) 
+            return HarnessResult(ok=False, crashed=False, info=str(exc), error=str(exc))

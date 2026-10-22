@@ -10,7 +10,6 @@ Date: 2024
 """
 
 from typing import List, Dict, Any
-import random
 import itertools
 from ..fuzzing_engine import FuzzingStrategy, FuzzingType, FuzzTestCase, MutationResult
 from ..bit_manipulator import BitManipulator
@@ -201,7 +200,7 @@ class BitFlipStrategy(FuzzingStrategy):
         # Limit total combinations to prevent explosion
         max_combinations = 50
         if len(combinations) > max_combinations:
-            combinations = random.sample(combinations, max_combinations)
+            combinations = self.rng.sample(combinations, max_combinations)
         
         return combinations
 
@@ -436,9 +435,9 @@ class RandomBitStrategy(FuzzingStrategy):
                 
                 # Randomly decide which bits to mutate
                 for bit_pos in target_bits:
-                    if random.random() < self.mutation_probability:
+                    if self.rng.random() < self.mutation_probability:
                         # Randomly flip or set the bit
-                        operation = random.choice(['flip', 'set_0', 'set_1'])
+                        operation = self.rng.choice(['flip', 'set_0', 'set_1'])
                         
                         if operation == 'flip':
                             mutated_data = BitManipulator.flip_bit(mutated_data, bit_pos)

@@ -10,7 +10,6 @@ Date: 2024
 """
 
 from typing import List, Dict, Any
-import random
 from ..fuzzing_engine import FuzzingStrategy, FuzzingType, FuzzTestCase, MutationResult
 
 
@@ -83,8 +82,8 @@ class FieldMutationStrategy(FuzzingStrategy):
         for iteration in range(iterations):
             try:
                 # Randomly select a field to mutate
-                field = random.choice(target_fields)
-                mutation_type = random.choice(self.mutation_types)
+                field = self.rng.choice(target_fields)
+                mutation_type = self.rng.choice(self.mutation_types)
                 
                 # Apply mutation
                 mutated_data, mutation_info = self._apply_field_mutation(
@@ -186,7 +185,7 @@ class FieldMutationStrategy(FuzzingStrategy):
             
         elif mutation_type == 'bit_flip_in_field':
             # Flip a random bit within the field
-            bit_offset = random.randint(0, size * 8 - 1)
+            bit_offset = self.rng.randint(0, size * 8 - 1)
             byte_idx = offset + (bit_offset // 8)
             bit_idx = bit_offset % 8
             mutated_data[byte_idx] ^= (1 << bit_idx)
@@ -209,17 +208,17 @@ class FieldMutationStrategy(FuzzingStrategy):
         if field_type.startswith('uint'):
             # Unsigned integer
             max_value = (2 ** (size * 8)) - 1
-            value = random.randint(0, max_value)
+            value = self.rng.randint(0, max_value)
             return self._int_to_bytes(value, size, field_type)
         elif field_type.startswith('int'):
             # Signed integer
             max_value = (2 ** (size * 8 - 1)) - 1
             min_value = -(2 ** (size * 8 - 1))
-            value = random.randint(min_value, max_value)
+            value = self.rng.randint(min_value, max_value)
             return self._int_to_bytes(value, size, field_type)
         else:
             # Default: random bytes
-            return bytes([random.randint(0, 255) for _ in range(size)])
+            return bytes([self.rng.randint(0, 255) for _ in range(size)])
     
     def _bytes_to_int(self, data: bytes, field_type: str) -> int:
         """Convert bytes to integer based on field type."""

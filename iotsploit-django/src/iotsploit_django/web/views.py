@@ -3,7 +3,6 @@
 from iotsploit_django.view_handlers.plugin_views import (
     list_plugins,
     list_enabled_exploit_plugins,
-    discovered_exploit_plugins,
     enable_exploit_plugin,
     disable_exploit_plugin,
     list_enabled_plugin_groups,
@@ -20,25 +19,26 @@ from iotsploit_django.view_handlers.plugin_views import (
     create_group,
     delete_group,
     cleanup_plugins,
+    plugin_paths,
     get_plugin_code,
     save_plugin_code,
     get_driver_states,
     enable_driver,
     disable_driver,
 )
+from iotsploit_django.view_handlers.can_views import identify_can_bus, inspect_can_log
 from iotsploit_django.view_handlers.misc_legacy_views import (
     active_channels,
+    health,
     list_urls,
     set_log_level,
-)
-from iotsploit_django.view_handlers.firmware_legacy_views import (
-    file_download,
 )
 from iotsploit_django.view_handlers.tool_views import (
     get_tools_status,
     refresh_tools,
     get_tool_details,
     get_system_health,
+    get_priv_status,
 )
 from iotsploit_django.view_handlers.recovery_views import (
     list_recovery_drivers,
@@ -48,13 +48,14 @@ from iotsploit_django.view_handlers.recovery_views import (
 __all__ = [
     "list_plugins",
     "list_enabled_exploit_plugins",
-    "discovered_exploit_plugins",
     "enable_exploit_plugin",
     "disable_exploit_plugin",
     "list_enabled_plugin_groups",
     "get_plugin_group",
     "list_device_drivers",
     "execute_plugin",
+    "identify_can_bus",
+    "inspect_can_log",
     "list_plugin_info",
     "list_groups",
     "execute_group",
@@ -65,19 +66,21 @@ __all__ = [
     "create_group",
     "delete_group",
     "cleanup_plugins",
+    "plugin_paths",
     "get_plugin_code",
     "save_plugin_code",
     "get_driver_states",
     "enable_driver",
     "disable_driver",
     "active_channels",
+    "health",
     "list_urls",
     "set_log_level",
-    "file_download",
     "get_tools_status",
     "refresh_tools",
     "get_tool_details",
     "get_system_health",
+    "get_priv_status",
     "list_recovery_drivers",
     "execute_recovery",
 ]

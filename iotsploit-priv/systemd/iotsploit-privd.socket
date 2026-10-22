@@ -1,0 +1,13 @@
+[Unit]
+Description=IoTSploit privileged-operation socket
+
+[Socket]
+ListenStream=/run/iotsploit/priv.sock
+SocketUser=root
+SocketGroup=iotsploit
+SocketMode=0660
+DirectoryMode=0755
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

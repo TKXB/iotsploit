@@ -1,20 +1,23 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 from iotsploit_core.core.device_manager import DeviceDriverManager
+from iotsploit_core.core.monitoring import MonitorContext, MonitorService, SourceRegistry, load_monitor_kinds
+from iotsploit_core.ports.resource_lease import ResourceLeasePort
 from iotsploit_core.core.exploit_manager import ExploitPluginManager
 from iotsploit_core.core.stream_manager import StreamManager
 
 from iotsploit_django.ports_impl.driver_state_repo import DjangoDriverStateRepository
 from iotsploit_django.ports_impl.plugin_repo import DjangoPluginGroupRepository, DjangoPluginMetaRepository
 from iotsploit_django.ports_impl.stream_backend import DjangoStreamBackend
-from iotsploit_django.ports_impl.task_runner import CeleryTaskRunner
-
 from iotsploit_django.adapters.memory.driver_state_repo import MemoryDriverStateRepository
-from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
-from iotsploit_django.config import DEVICE_PLUGINS_DIR
+from iotsploit_django.config import DEVICE_PLUGINS_DIR, EXPLOIT_PLUGINS_DIR, MONITOR_PLUGINS_DIR
+
+logger = logging.getLogger(__name__)
+
 
 def _context_factory():
     """
@@ -34,26 +37,105 @@ def _context_factory():
             "iotsploit-platforms is required for plugin execution. "
             "Install with: pip install iotsploit-django[platforms]"
         )
-    return build_context()
+
+    try:
+        return build_context()
+    except Exception as exc:
+        # Never hand a plugin no context at all. The interaction port hangs off
+        # PluginContext, so failing here is what stops an interactive plugin
+        # from being able to prompt, even though prompting needs no backend.
+        logger.warning("No backends could be built, using a bare context: %s", exc)
+        from iotsploit_core.context import PluginContext
+
+        return PluginContext()
+
+
+
+def _configured_plugins_dir(field: str, env_default: str | None) -> str | None:
+    """The operator's stored plugin root for `field`, else the environment one.
+
+    The environment variables stay the deployment default; a root set from the
+    UI overrides them, so a rig keeps its configured directory across restarts.
+    """
+    from iotsploit_django.adapters.django.plugins.models import PluginPaths
+
+    return getattr(PluginPaths.load(), field) or env_default
 
 
 def build_exploit_plugin_manager(
     *,
     plugins_dir: str | Path | None = None,
-    use_celery: bool = True,
 ) -> ExploitPluginManager:
     """Build `iotsploit_core` exploit plugin manager with Django adapters."""
 
+    from django.conf import settings
+
+    if plugins_dir is None:
+        plugins_dir = _configured_plugins_dir("exploit_dir", EXPLOIT_PLUGINS_DIR)
+
     repo = DjangoPluginMetaRepository()
     group_repo = DjangoPluginGroupRepository()
-    runner = CeleryTaskRunner() if use_celery else InProcessTaskRunner()
+    if settings.IOTSPLOIT_RUNTIME == "distributed":
+        from iotsploit_django.adapters.django.task_runner import CeleryTaskRunner
+
+        runner = CeleryTaskRunner()
+    else:
+        from iotsploit_django.adapters.memory.task_runner import InProcessTaskRunner
+
+        runner = InProcessTaskRunner()
     return ExploitPluginManager(
         plugin_repo=repo,
         group_repo=group_repo,
         task_runner=runner,
         plugins_dir=plugins_dir,
         context_factory=_context_factory,
+        observation_sink=_build_observation_sink(),
+        capability_resolver=_build_capability_resolver(),
     )
+
+
+def _build_observation_sink():
+    """Persistence for scan observations, or None if it cannot be reached.
+
+    Returning None degrades to "observations are not recorded"; it must never
+    stop plugins from running.
+    """
+    try:
+        from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+        return ObservationRepository()
+    except Exception as exc:  # pragma: no cover - defensive wiring
+        logger.warning("Observation sink unavailable, scans will not be recorded: %s", exc)
+        return None
+
+
+def _build_capability_resolver():
+    try:
+        from iotsploit_platforms.adapters.capability_resolver import PlatformCapabilityResolver
+
+        return PlatformCapabilityResolver()
+    except ImportError:
+        return None
+
+
+def build_resource_lease() -> ResourceLeasePort:
+    """Exclusive use of probes and ports, shared with the Flutter app's Rust bridge."""
+    from iotsploit_django.adapters.filelock.resource_lease import FileResourceLease
+
+    return FileResourceLease()
+
+
+def build_monitor_service(
+    driver_manager: DeviceDriverManager,
+    lease: ResourceLeasePort,
+    *,
+    plugins_dir: str | Path | None = MONITOR_PLUGINS_DIR,
+) -> MonitorService:
+    """Target monitors for campaigns and manual checks: every installed monitor kind."""
+    registry = SourceRegistry()
+    for kind in load_monitor_kinds(MonitorContext(driver_manager.driver_classes), plugins_dir):
+        registry.register(kind)
+    return MonitorService(registry, lease)
 
 
 def build_device_driver_manager(
@@ -61,13 +143,14 @@ def build_device_driver_manager(
     plugins_dir: str | Path | None = None,
     usb_config_file: str | Path | None = None,
     use_persistence: bool = True,
+    resource_lease: ResourceLeasePort | None = None,
 ) -> DeviceDriverManager:
     """Build `iotsploit_core` device driver manager with Django adapters."""
 
     repo = DjangoDriverStateRepository() if use_persistence else MemoryDriverStateRepository()
 
     if plugins_dir is None:
-        plugins_dir = DEVICE_PLUGINS_DIR
+        plugins_dir = _configured_plugins_dir("device_dir", DEVICE_PLUGINS_DIR)
     if usb_config_file is None:
         # repo_root/conf/usb_devices.json
         usb_config_file = str(Path(__file__).resolve().parents[4] / "conf" / "usb_devices.json")
@@ -76,6 +159,8 @@ def build_device_driver_manager(
         driver_state_repo=repo,
         plugins_dir=plugins_dir,
         usb_config_file=usb_config_file,
+        capability_resolver=_build_capability_resolver(),
+        resource_lease=resource_lease,
     )
 
 
@@ -83,5 +168,3 @@ def configure_stream_backend(backend: Optional[DjangoStreamBackend] = None) -> N
     """Configure core `StreamManager` backend once for the Django runtime."""
 
     StreamManager.configure_backend(backend or DjangoStreamBackend())
-
-

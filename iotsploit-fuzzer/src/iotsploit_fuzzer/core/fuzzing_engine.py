@@ -12,6 +12,7 @@ Date: 2024
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Type
 import logging
+import random
 from dataclasses import dataclass
 from enum import Enum
 
@@ -73,6 +74,7 @@ class FuzzingStrategy(ABC):
         """
         self.name = name
         self.fuzzing_type = fuzzing_type
+        self.rng = random.Random()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
     
     @abstractmethod
@@ -241,7 +243,7 @@ class FuzzingEngine:
     strategies on test cases, managing iterations, and collecting results.
     """
     
-    def __init__(self, registry: Optional[StrategyRegistry] = None):
+    def __init__(self, registry: Optional[StrategyRegistry] = None, *, rng=None):
         """
         Initialize the fuzzing engine.
         
@@ -249,6 +251,7 @@ class FuzzingEngine:
             registry: Strategy registry to use (creates new one if None)
         """
         self.registry = registry or StrategyRegistry()
+        self.rng = rng if rng is not None else random.Random()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._load_default_strategies()
     
@@ -321,8 +324,8 @@ class FuzzingEngine:
         for strategy_name in strategy_names:
             strategy = self.registry.get_strategy(strategy_name)
             if not strategy:
-                self.logger.error(f"Strategy not found: {strategy_name}")
-                continue
+                raise ValueError(f"Strategy not found: {strategy_name}")
+            strategy.rng = self.rng
             
             strategy_results = []
             
@@ -331,13 +334,9 @@ class FuzzingEngine:
                     self.logger.debug(f"Strategy {strategy_name} cannot be applied to test case {test_case.id}")
                     continue
                 
-                try:
-                    mutations = strategy.generate_mutations(test_case, iterations)
-                    strategy_results.extend(mutations)
-                    self.logger.info(f"Generated {len(mutations)} mutations for test case {test_case.id} using {strategy_name}")
-                except Exception as e:
-                    self.logger.error(f"Error generating mutations with {strategy_name} for test case {test_case.id}: {e}")
-                    continue
+                mutations = strategy.generate_mutations(test_case, iterations)
+                strategy_results.extend(mutations)
+                self.logger.info(f"Generated {len(mutations)} mutations for test case {test_case.id} using {strategy_name}")
             
             if strategy_results:
                 results[strategy_name] = strategy_results

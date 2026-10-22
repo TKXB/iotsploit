@@ -1,7 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from iotsploit_django.tools.bash_script_engine import Bash_Script_Mgr
 from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.sat_utils import *
 
@@ -13,20 +12,40 @@ import time
 import binascii
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.tools.device_info import DeviceInfo
+from iotsploit_priv import PrivilegedHelperError, call as privileged_call
 
 class DoIP_Mgr:
     __wakeupdata = bytes([0x02,0xfd,0x00,0x05,0x00,0x00,0x00,0x07,0x0e,0x80,0x00,0x00,0x00,0x00,0x00])
     __heartbeatdata = bytes([0x02, 0xfd, 0x80, 0x01, 0x00, 0x00, 0x00, 0x06, 0x0e, 0x80, 0x1f, 0xff, 0x3e, 0x80])
 
+    # Built-in defaults, used only when the ECU component has no "doip" facet.
+    # Configure the facet on the target instead of editing these.
     DHU_Addr = 0x1201
     TCAM_Addr = 0x1011
+
+    @staticmethod
+    def addr_of(ecu: str) -> int:
+        """DoIP address for an ECU: the target's facet first, else the default."""
+        from iotsploit_django.tools.doip_facet import logical_address_for
+
+        defaults = {"dhu": DoIP_Mgr.DHU_Addr, "tcam": DoIP_Mgr.TCAM_Addr}
+        return logical_address_for(ecu, defaults[ecu.lower()])
 
     @staticmethod
     def Instance():
         return _instance
     
-    def __init__(self):
+    def __init__(self, privileged_call_fn=privileged_call):
         self.__socket = None
+        self._privileged_call = privileged_call_fn
+
+    def _configure_interface(self):
+        try:
+            result = self._privileged_call("doip-config", {"iface": DeviceInfo.doip_eth_name})
+        except PrivilegedHelperError as exc:
+            raise_err(str(exc))
+        if not result.ok:
+            raise_err(result.stderr or f"doip-config failed with exit {result.exit}")
 
     
     def send_doip_package(self, bytes_to_send, recv_long_msg = True):
@@ -147,12 +166,12 @@ class DoIP_Mgr:
             if DHU_PIN == None:
                 raise_err( "测试车辆没有绑定DHU_PIN!")
 
-            if self.__unlock_mcu(DoIP_Mgr.DHU_Addr, DHU_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("dhu"), DHU_PIN) != True:
                 logger.error("Open Debug Mode Fail! Unlock DHU Fail!")
                 return False
             logger.info("Unlock DHU Success.")
 
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.DHU_Addr, b'\x2e\xc0\x3e\x01')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("dhu"), b'\x2e\xc0\x3e\x01')
             if resp_buf[-3] != 0x6e:
                 logger.error("Open Debug Mode Fail! Open Debug For DHU Fail!")
             else:
@@ -163,18 +182,18 @@ class DoIP_Mgr:
             TCAM_PIN = Env_Mgr.Instance().get("__SAT_ENV__VehicleInfo_TCAM_PIN")
             if TCAM_PIN == None:
                 raise_err( "测试车辆没有绑定TCAM_PIN!")
-            if self.__unlock_mcu(DoIP_Mgr.TCAM_Addr, TCAM_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("tcam"), TCAM_PIN) != True:
                 logger.error("Open Debug Mode Fail! Unlock TCAM Fail!")
                 return False
             logger.info("Unlock TCAM Success.")
 
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x01\x02\x32')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x01\x02\x32')
             if resp_buf[-5] == 0x71:
                 logger.info("Open Debug For TCAM Success. 1st Cmd")
                 return True
             else:
                 logger.info("Open Debug For TCAM Fail! Send 2nd Cmd.")
-                resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x01\xDC\x01')
+                resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x01\xDC\x01')
                 if resp_buf[-5] == 0x71:
                     logger.info("Open Debug For TCAM Success. 2nd Cmd")
                     return True
@@ -190,12 +209,12 @@ class DoIP_Mgr:
             if DHU_PIN == None:
                 raise_err( "测试车辆没有绑定DHU_PIN!")
             #DHU close debug        
-            if self.__unlock_mcu(DoIP_Mgr.DHU_Addr, DHU_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("dhu"), DHU_PIN) != True:
                 logger.error("Close Debug Mode Fail! Unlock DHU Fail!")
                 return False
             logger.info("Unlock DHU Success.")        
             
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.DHU_Addr, b'\x2e\xc0\x3e\x00')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("dhu"), b'\x2e\xc0\x3e\x00')
             if resp_buf[-3] != 0x6e:
                 logger.error("Close Debug Mode Fail! Close Debug For DHU Fail!")
             else:
@@ -207,18 +226,18 @@ class DoIP_Mgr:
             TCAM_PIN = Env_Mgr.Instance().get("__SAT_ENV__VehicleInfo_TCAM_PIN")
             if TCAM_PIN == None:
                 raise_err( "测试车辆没有绑定TCAM_PIN!")
-            if self.__unlock_mcu(DoIP_Mgr.TCAM_Addr, TCAM_PIN) != True:
+            if self.__unlock_mcu(DoIP_Mgr.addr_of("tcam"), TCAM_PIN) != True:
                 logger.error("Close Debug Mode Fail! Unlock TCAM Fail!")
                 return False
             logger.info("Unlock TCAM Success.")       
 
-            resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x02\x02\x32')
+            resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x02\x02\x32')
             if resp_buf[-5] == 0x71:
                 logger.info("Close Debug For TCAM Success. 1st Cmd")
                 return True
             else:
                 logger.info("Close Debug For TCAM Fail! Send 2nd Cmd.")
-                resp_buf = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x31\x02\xDC\x01')
+                resp_buf = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x31\x02\xDC\x01')
                 if resp_buf[-5] == 0x71:
                     logger.info("Close Debug For TCAM Success. 2nd Cmd")
                     return True
@@ -297,8 +316,8 @@ class DoIP_Mgr:
         """
         DoIP读取汽车VIN
         """
-        vin_in_dhu = self.send_uds_cmd(DoIP_Mgr.DHU_Addr, b'\x22\xf1\x90')[-17:].decode() #dhu 
-        vin_in_tcam = self.send_uds_cmd(DoIP_Mgr.TCAM_Addr, b'\x22\xf1\x90')[-17:].decode() #tcam
+        vin_in_dhu = self.send_uds_cmd(DoIP_Mgr.addr_of("dhu"), b'\x22\xf1\x90')[-17:].decode() #dhu 
+        vin_in_tcam = self.send_uds_cmd(DoIP_Mgr.addr_of("tcam"), b'\x22\xf1\x90')[-17:].decode() #tcam
         if vin_in_dhu != vin_in_tcam:
             logger.error("Read VIN Fail! VIN@DHU:{} Not Match VIN@TCAM:{}".format(vin_in_dhu, vin_in_tcam))
             return ""
@@ -449,12 +468,7 @@ class DoIP_Mgr:
             return True
 
         logger.info("DoIP Connect Start -->> IP:{} Port:{}".format(ip, port))
-        logger.info("Modify {} IP Start -->>".format(DeviceInfo.doip_eth_name))
-        result_code, result_buf = Bash_Script_Mgr.Instance().exec_cmd(
-            "sudo ifconfig {0} 169.254.58.58 netmask 255.255.0.0 && sudo ip r add 169.254.0.0/16 dev {0}".format(DeviceInfo.doip_eth_name))
-        if result_code < 0:
-            raise_err("Modify {} IP Fail! Bash CMD Fail! Continue..".format(DeviceInfo.doip_eth_name))
-        logger.info("Modify {} IP Finish".format(DeviceInfo.doip_eth_name))
+        self._configure_interface()
 
         connect_result = self.__connect_doip_socket(ip, port)
         if connect_result == True:
@@ -464,8 +478,7 @@ class DoIP_Mgr:
             raise_err("DoIP Connect Fail! IP:{} Port:{} Unavailable!".format(ip, port))
 
         Input_Mgr.Instance().confirm("DoIP连接失败!请连接odb线!")
-        result_code, result_buf = Bash_Script_Mgr.Instance().exec_cmd(
-            "sudo ifconfig {} 169.254.58.58 netmask 255.255.0.0".format(DeviceInfo.doip_eth_name))
+        self._configure_interface()
         connect_result = self.__connect_doip_socket(ip, port)
         if connect_result == True:
             return True
@@ -485,13 +498,6 @@ class DoIP_Mgr:
             logger.info("DoIP DisConnect Success.")
         except Exception:
             logger.exception("DoIP DisConnect Fail!")
-
-        # logger.info("Reset {} IP Start -->>".format(DeviceInfo.doip_eth_name))
-        # result_code, result_buf = Bash_Script_Mgr.Instance().exec_cmd(
-        #     "sudo ifconfig {} 0.0.0.0".format(DeviceInfo.doip_eth_name))
-        # if result_code < 0:
-        #     logger.error("Reset {} IP Fail! Bash CMD Fail! Continue..".format(DeviceInfo.doip_eth_name))
-        # logger.info("Reset {} IP Finish".format(DeviceInfo.doip_eth_name))
 
         self.__socket = None
 

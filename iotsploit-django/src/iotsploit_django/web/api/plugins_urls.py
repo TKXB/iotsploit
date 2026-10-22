@@ -9,6 +9,8 @@ urlpatterns = [
     path("list_device_drivers/", views.list_device_drivers, name="list_device_drivers"),
     # Exploit
     path("execute_plugin/", views.execute_plugin, name="execute_plugin"),
+    path("identify_can_bus/", views.identify_can_bus, name="identify_can_bus"),
+    path("inspect_can_log/", views.inspect_can_log, name="inspect_can_log"),
     # Plugin info and groups
     path("list_plugin_info/", views.list_plugin_info, name="list_plugin_info"),
     path("list_groups/", views.list_groups, name="list_groups"),
@@ -20,7 +22,6 @@ urlpatterns = [
     path("disable_driver/", views.disable_driver, name="disable_driver"),
     # SSOT: exploit plugin enable/disable + groups (for MCP runtime)
     path("plugins/exploits/enabled/", views.list_enabled_exploit_plugins, name="list_enabled_exploit_plugins"),
-    path("plugins/exploits/discovered/", views.discovered_exploit_plugins, name="discovered_exploit_plugins"),
     path(
         "plugins/exploits/<str:name>/enable/",
         views.enable_exploit_plugin,
@@ -45,9 +46,9 @@ urlpatterns = [
     path("delete_group/", views.delete_group, name="delete_group"),
     # Plugin cleanup
     path("cleanup_plugins/", views.cleanup_plugins, name="cleanup_plugins"),
+    # Legacy filesystem plugin roots
+    path("plugin_paths/", views.plugin_paths, name="plugin_paths"),
     # Plugin code editor endpoints
     path("get_plugin_code/", views.get_plugin_code, name="get_plugin_code"),
     path("save_plugin_code/", views.save_plugin_code, name="save_plugin_code"),
 ]
-
-

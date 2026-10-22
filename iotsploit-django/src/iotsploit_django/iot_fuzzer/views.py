@@ -2,6 +2,10 @@
 
 from iotsploit_django.iot_fuzzer.service import IoTFuzzerManager, IoTFuzzerService, IoTProtocolAdapter
 from iotsploit_django.iot_fuzzer.views_campaign import (
+    check_mcu_core,
+    check_monitor,
+    describe_monitor,
+    list_monitors,
     start_campaign,
     stop_campaign,
     pause_campaign,
@@ -57,6 +61,10 @@ __all__ = [
     "IoTFuzzerManager",
     "IoTFuzzerService",
     "IoTProtocolAdapter",
+    "check_mcu_core",
+    "check_monitor",
+    "describe_monitor",
+    "list_monitors",
     "start_campaign",
     "stop_campaign",
     "pause_campaign",

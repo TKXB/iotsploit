@@ -34,13 +34,10 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
     ResourceSpec("host", "Show information about the IoTSploit host", (
         _action("show", "Show host system information", "device_info"),
     )),
-    ResourceSpec("device", "Discover, select, import, and use devices", (
-        _action("list", "List configured devices", "list_devices", "lsdev"),
-        _action("scan", "Scan for available devices", "scan_devices", "scan"),
-        _action("initialize", "Initialize available devices", "initialize_devices", "initdev"),
-        _action("select", "Select the active device", "select_device", "sd", "switch_device"),
-        _action("run", "Run a command on the active device", "execute_device_command", "dc"),
-        _action("import", "Import devices from JSON", "device_import", "dimport"),
+    ResourceSpec("device", "List devices and run device commands", (
+        _action("list", "Scan with every driver and list the devices found", "list_devices", "lsdev", "scan_devices", "scan"),
+        _action("initialize", "Close and reopen every device in the backend", "initialize_devices", "initdev"),
+        _action("run", "Run a command on a device", "execute_device_command", "dc"),
     )),
     ResourceSpec("driver", "Inspect and manage device drivers", (
         _action("list", "List available device drivers", "list_device_drivers", "lsdrv"),
@@ -62,10 +59,15 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
         _action("run-all", "Execute all plugins", "exploit"),
         _action("refresh", "Refresh installed plugins", "flash_plugins", "fp"),
     )),
+    ResourceSpec("can", "Capture or monitor decoded CAN traffic", (
+        _action("capture", "Run a bounded live capture"),
+        _action("monitor", "Monitor live traffic until stopped"),
+    )),
     ResourceSpec("target", "Select, edit, import, and export targets", (
         _action("list", "List available targets", "list_targets", "lst"),
         _action("select", "Select the active target", "target_select"),
         _action("edit", "Edit a target", "edit_target", "et"),
+        _action("observations", "Show what scans discovered about a target", "target_observations", "obs"),
         _action("import", "Import targets from JSON", "target_import"),
         _action("export", "Export targets to JSON", "target_export"),
     )),
@@ -73,6 +75,12 @@ RESOURCE_SPECS: Tuple[ResourceSpec, ...] = (
         _action("start", "Start backend services", "runserver"),
         _action("stop", "Stop backend services", "stop_server"),
         _action("status", "Show backend service status"),
+    )),
+    ResourceSpec("priv", "Inspect or manage the bounded privileged helper", (
+        _action("status", "Verify native helper health and integrity"),
+        _action("install", "Install the native helper"),
+        _action("uninstall", "Remove the native helper"),
+        _action("verbs", "Show the fixed helper vocabulary"),
     )),
     ResourceSpec("wifi", "Manage Wi-Fi connectivity", (
         _action("connect", "Connect to a Wi-Fi network", "connect_wifi"),
@@ -94,7 +102,7 @@ LEGACY_REPLACEMENTS: Dict[str, str] = {
 }
 LEGACY_REPLACEMENTS.update({
     "ls": "shell ls (or !ls)",
-    "lsusb": "device scan",
+    "lsusb": "device list",
     "quit": "exit",
 })
 

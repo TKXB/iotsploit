@@ -250,7 +250,7 @@ def find_logic_analyzer_by_vid_pid(vid=0x1d50, pid=0x5128):
 def get_logic_analyzer_port():
     """
     Get the first available logic analyzer port
-    Returns the device path (e.g., '/dev/ttyACM0') or None if not found
+    Returns the serial device path or None if not found.
     """
     logic_analyzers = find_logic_analyzer_by_vid_pid()
     if logic_analyzers:

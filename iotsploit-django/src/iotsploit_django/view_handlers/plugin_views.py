@@ -19,13 +19,6 @@ import json
 
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_django.adapters.django.plugins.models import PluginGroup, PluginGroupTree
-
-
-from celery.result import AsyncResult
-from iotsploit_django.tasks.plugin_tasks import execute_plugin_task
-
-
-
 from django.views.decorators.http import require_http_methods
 
 
@@ -63,7 +56,20 @@ def __expand_toc_list(tree_list, expand_list):
 def list_plugins(request):
     plugin_manager = get_exploit_plugin_manager()
     plugins = plugin_manager.list_plugins()
-    return JsonResponse({'plugins': plugins})
+    return JsonResponse({
+        'plugins': plugins,
+        'plugin_info': [
+            {
+                "name": name,
+                "availability": {
+                    "available": (availability := plugin_manager.plugin_availability(name)).available,
+                    "reason": availability.reason,
+                    "hint": availability.hint,
+                },
+            }
+            for name in plugins
+        ]
+    })
 
 @require_http_methods(["GET"])
 def list_enabled_exploit_plugins(request):
@@ -88,6 +94,7 @@ def list_enabled_exploit_plugins(request):
                         "author": m.author,
                         "license": m.license,
                         "parameters": m.parameters or {},
+                        "requirements": list(m.requirements),
                     }
                     for m in metas
                 ],
@@ -96,47 +103,6 @@ def list_enabled_exploit_plugins(request):
     except Exception as e:
         logger.error(f"Error listing enabled exploit plugins: {str(e)}")
         return JsonResponse({"status": "error", "message": str(e), "plugins": []}, status=500)
-
-@csrf_exempt
-def discovered_exploit_plugins(request):
-    """Optional: MCP nodes can report locally discovered plugins for Django to upsert."""
-    if request.method != "POST":
-        return JsonResponse({"status": "error", "message": "Only POST method is allowed"}, status=405)
-    try:
-        from iotsploit_core.domain.plugin import PluginMeta
-        from iotsploit_django.ports_impl.plugin_repo import DjangoPluginMetaRepository
-
-        payload = json.loads(request.body or b"{}")
-        items = payload.get("plugins") if isinstance(payload, dict) else payload
-        if not isinstance(items, list):
-            return JsonResponse({"status": "error", "message": "Expected a list of plugins"}, status=400)
-
-        repo = DjangoPluginMetaRepository()
-        count = 0
-        for it in items:
-            if not isinstance(it, dict):
-                continue
-            name = (it.get("name") or "").strip()
-            module_path = (it.get("module_path") or "").strip()
-            if not name or not module_path:
-                continue
-
-            meta = PluginMeta(
-                name=name,
-                module_path=module_path,
-                enabled=True,
-                description=str(it.get("description", "") or ""),
-                author=str(it.get("author", "") or ""),
-                license=str(it.get("license", "") or ""),
-                parameters=it.get("parameters") if isinstance(it.get("parameters"), dict) else None,
-            )
-            repo.upsert(meta)
-            count += 1
-
-        return JsonResponse({"status": "accepted", "upserted": count})
-    except Exception as e:
-        logger.error(f"Error upserting discovered exploit plugins: {str(e)}")
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 @csrf_exempt
 def enable_exploit_plugin(request, name: str):
@@ -248,7 +214,8 @@ def list_device_drivers(request):
     if available_drivers:
         result = {
             "status": "success",
-            "drivers": available_drivers
+            "drivers": available_drivers,
+            "driver_info": device_manager.list_driver_info(),
         }
     else:
         result = {
@@ -284,12 +251,38 @@ def execute_plugin(request):
                 "message": "Plugin name is required"
             }, status=400)
 
-        # Get the current target
         target_manager = TargetManager.get_instance()
-        current_target = target_manager.get_current_target()
+
+        # An explicit target_id is resolved before anything else, and skips the
+        # current-target machinery entirely.
+        #
+        # Branching here rather than after is the whole point. The block below
+        # calls set_current_target() when nothing is selected, so a request that
+        # names its own target would still rewrite process-global state that
+        # every other client reads -- and two clients working on two targets
+        # would take turns changing what the other one sees. A caller that says
+        # which target it means must not have that mean "and make it current".
+        explicit_target_id = data.get('target_id')
+        if explicit_target_id:
+            stored = target_manager.get_target(explicit_target_id)
+            if stored is None:
+                return JsonResponse({
+                    "status": "error",
+                    "message": f"Target '{explicit_target_id}' not found"
+                }, status=404)
+            try:
+                current_target = target_manager.create_target_instance(stored)
+            except Exception as e:
+                logger.error(f"Error building target '{explicit_target_id}': {str(e)}")
+                return JsonResponse({
+                    "status": "error",
+                    "message": f"Error building target '{explicit_target_id}': {str(e)}"
+                }, status=400)
+        else:
+            current_target = target_manager.get_current_target()
 
         # If no current target, select the first available vehicle target
-        if not current_target:
+        if not explicit_target_id and not current_target:
             logger.debug("No current target, selecting first available vehicle target")
             all_targets = target_manager.get_all_targets()
             vehicle_targets = [t for t in all_targets if t.get('type') == 'vehicle']
@@ -313,7 +306,7 @@ def execute_plugin(request):
                     "status": "error",
                     "message": "No vehicle targets available to select."
                 }, status=400)
-        elif isinstance(current_target, dict):
+        elif not explicit_target_id and isinstance(current_target, dict):
             try:
                 # Convert dict to Vehicle object if needed
                 current_target = target_manager.create_target_instance(current_target)
@@ -325,83 +318,17 @@ def execute_plugin(request):
                 }, status=400)
 
         plugin_manager = get_exploit_plugin_manager()
-        plugin_manager.initialize()
+        result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
 
-        # Check if plugin requires root privileges
-        plugin_info = plugin_manager.get_plugin_info(plugin_name)
-        requires_root = plugin_info and plugin_info.get('RequiresRoot', False)
-
-        if requires_root:
-            # Use sudo runner for root-required plugins
-            logger.info(f"Plugin '{plugin_name}' requires root privileges, using sudo runner")
-            from iotsploit_django.tools.privilege_mgr import PrivilegeManager
-
-            priv_mgr = PrivilegeManager()
-
-            # Convert target to dict for JSON serialization
-            target_dict = None
-            if current_target:
-                if hasattr(current_target, '__dict__'):
-                    target_dict = {
-                        'name': getattr(current_target, 'name', ''),
-                        'ip_address': getattr(current_target, 'ip_address', ''),
-                        'type': getattr(current_target, 'type', 'vehicle'),
-                        'description': getattr(current_target, 'description', ''),
-                        'id': getattr(current_target, 'id', None)
-                    }
-                elif isinstance(current_target, dict):
-                    target_dict = current_target
-
-            logger.debug(f"Calling sudo runner with target_dict: {target_dict}, parameters: {parameters}")
-
-            # Track timing of the sudo execution
-            import time
-            start_time = time.time()
-
-            # Log the exact plugin name being passed
-            logger.info(f"Passing plugin_name to sudo runner: '{plugin_name}'")
-
-            success, output = priv_mgr.run_plugin_with_sudo(
-                plugin_name=plugin_name,
-                target=target_dict,
-                parameters=parameters
-            )
-
-            end_time = time.time()
-            execution_time = end_time - start_time
-
-            logger.info(f"Django sudo execution completed in {execution_time:.2f} seconds")
-            logger.debug(f"Sudo runner returned: success={success}, output length={len(output) if output else 0}")
-            logger.debug(f"Raw sudo output: {repr(output[:500])}")  # First 500 chars with escape sequences visible
-
-            if success:
-                try:
-                    # Parse JSON result from Redis
-                    import json as json_module
-                    logger.debug(f"Attempting to parse JSON: {output[:200]}...")
-                    result = json_module.loads(output)
-                    logger.debug(f"Successfully parsed JSON result: {result}")
-
-                except json_module.JSONDecodeError as e:
-                    logger.error(f"Failed to parse JSON from Redis result: {e}")
-                    logger.error(f"Full Redis result was: {repr(output)}")
-                    # Fallback if output is not valid JSON
-                    result = {
-                        "success": False,
-                        "message": f"Plugin executed but result parsing failed: {str(e)}",
-                        "data": {"raw_output": output[:200]}
-                    }
-            else:
-                logger.error(f"Sudo execution failed with output: {repr(output)}")
-                result = {
-                    "success": False,
-                    "message": f"Sudo execution failed: {output}",
-                    "data": {}
-                }
-        else:
-            # Use normal execution for non-root plugins
-            result = plugin_manager.execute_plugin(plugin_name, target=current_target, parameters=parameters)
-
+        if isinstance(result, dict) and result.get('execution_type') == 'interactive':
+            execution_id = result.get('execution_id')
+            return JsonResponse({
+                "status": "success",
+                "execution_type": "interactive",
+                "execution_id": execution_id,
+                "message": "Interactive execution started",
+                "websocket_url": f"/ws/execution/{execution_id}/",
+            })
         if isinstance(result, dict) and result.get('execution_type') == 'async':
             # For async execution, return task information
             response = {
@@ -706,19 +633,16 @@ def execute_plugin_async(request):
         target_manager = TargetManager.get_instance()
         current_target = target_manager.get_current_target()
 
-        # Start Celery task
-        logger.info(f"Starting Celery task for plugin: {plugin_name}")
-        task = execute_plugin_task.delay(
-            plugin_name,
-            target=current_target,
-            parameters=parameters
+        result = get_exploit_plugin_manager().execute_plugin_background(
+            plugin_name, target=current_target, parameters=parameters
         )
+        task_id = result.get("task_id")
 
         return JsonResponse({
             "status": "success",
-            "task_id": task.id,
+            "task_id": task_id,
             "message": "Async execution started",
-            "websocket_url": f"/ws/exploit/{task.id}/"
+            "websocket_url": f"/ws/exploit/{task_id}/"
         })
 
     except Exception as e:
@@ -750,8 +674,25 @@ def stop_plugin_async(request):
                 "message": "Task ID is required"
             }, status=400)
 
-        # Revoke Celery task
-        AsyncResult(task_id).revoke(terminate=True)
+        from django.conf import settings
+        from iotsploit_django.adapters.django.interaction import service
+        from iotsploit_django.adapters.django.interaction.models import PluginExecution
+
+        execution = PluginExecution.objects.filter(execution_id=task_id).first()
+        if execution is None:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Task {task_id} not found",
+            }, status=404)
+        if not service.cancel_execution(task_id):
+            return JsonResponse({
+                "status": "error",
+                "message": f"Task {task_id} has already finished",
+            }, status=409)
+        if settings.IOTSPLOIT_RUNTIME == "distributed" and execution.celery_task_id:
+            from iotsploit_django.tasks.celery_app import app
+
+            app.control.revoke(execution.celery_task_id, terminate=True)
 
         return JsonResponse({
             "status": "success",
@@ -800,7 +741,8 @@ def list_device_commands(request, device_name):
         return JsonResponse({
             "status": "success",
             "device": device_name,
-            "commands": commands
+            "commands": commands,
+            "command_parameters": device_manager.get_command_parameters(device_name),
         })
 
     except Exception as e:
@@ -829,7 +771,7 @@ def execute_device_command(request, driver_name):
         data = json.loads(request.body)
         command = data.get('command')
         device_id = data.get('device_id')
-        args = data.get('args', '')
+        args = data.get('args') or {}
 
         if not command:
             return JsonResponse({
@@ -1105,7 +1047,13 @@ def cleanup_plugins(request):
 
     try:
         plugin_manager = get_exploit_plugin_manager()
-        plugin_manager.cleanup_all_plugins()
+        failed_plugins = plugin_manager.cleanup_all_plugins()
+        if failed_plugins:
+            return JsonResponse({
+                "status": "error",
+                "message": "Failed to clean up plugins: " + ", ".join(failed_plugins),
+                "failed_plugins": failed_plugins,
+            }, status=500)
 
         return JsonResponse({
             "status": "success",
@@ -1226,7 +1174,7 @@ def save_plugin_code(request):
                 file.write(code)
 
             # Reload the plugin if it's already loaded
-            plugin_manager = get_exploit_plugin_manager(use_celery=False)
+            plugin_manager = get_exploit_plugin_manager()
             plugin_name = os.path.basename(plugin_path).replace('.py', '')
 
             try:
@@ -1363,4 +1311,95 @@ def disable_driver(request):
         return JsonResponse({
             "status": "error",
             "message": f"Failed to disable driver: {str(e)}"
+        }, status=500)
+
+def _validate_plugin_root(value, label):
+    """Return (stored_value, error). An empty value turns the root off.
+
+    Filesystem discovery imports every `.py` under the root as the service
+    account, so the root the operator names is executable input. Uploaded
+    files are reachable by any API caller, which makes the upload directory
+    the one place a plugin root must never be; symlinks are refused because
+    the check would otherwise only describe the link, not its destination.
+    """
+    import os
+    from pathlib import Path
+
+    from django.conf import settings
+
+    text = str(value or '').strip()
+    if not text:
+        return '', None
+    candidate = Path(text)
+    if not candidate.is_absolute():
+        return None, f"{label} must be an absolute path"
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (FileNotFoundError, OSError) as exc:
+        return None, f"{label} does not exist: {exc}"
+    if not resolved.is_dir():
+        return None, f"{label} is not a directory: {text}"
+    if resolved != Path(os.path.abspath(candidate)):
+        return None, f"{label} contains a symlink: {text}"
+
+    uploads = Path(settings.BASE_DIR, 'uploads').resolve()
+    if resolved == uploads or uploads in resolved.parents:
+        return None, f"{label} cannot be inside the upload directory: {uploads}"
+    return str(resolved), None
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def plugin_paths(request):
+    """
+    GET  -- the configured legacy filesystem plugin roots.
+    POST -- set them, then reload both managers from the new roots.
+
+    Expected JSON body, either key optional, an empty string turning that
+    root off and leaving packaged entry points as the only source:
+    {
+        "exploit_dir": "/abs/path" ,
+        "device_dir": "/abs/path"
+    }
+    """
+    from iotsploit_django.adapters.django.plugins.models import PluginPaths
+
+    try:
+        stored = PluginPaths.load()
+
+        if request.method == 'POST':
+            data = json.loads(request.body)
+            for field, label in (('exploit_dir', 'Exploit plugin directory'),
+                                 ('device_dir', 'Device driver directory')):
+                if field not in data:
+                    continue
+                value, error = _validate_plugin_root(data[field], label)
+                if error:
+                    return JsonResponse({"status": "error", "message": error}, status=400)
+                setattr(stored, field, value)
+            stored.save()
+
+            get_exploit_plugin_manager().set_plugins_dir(stored.exploit_dir or None)
+            get_device_driver_manager().set_plugins_dir(stored.device_dir or None)
+
+        exploit_manager = get_exploit_plugin_manager()
+        device_manager = get_device_driver_manager()
+        return JsonResponse({
+            "status": "success",
+            "exploit_dir": stored.exploit_dir,
+            "device_dir": stored.device_dir,
+            "exploit_plugin_count": len(exploit_manager.plugin_registry),
+            "device_driver_count": len(device_manager.drivers),
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "message": "Request body must be JSON"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error configuring plugin paths: {str(e)}")
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to configure plugin paths: {str(e)}"
         }, status=500)

@@ -14,7 +14,6 @@ from iotsploit_core.ports.plugin_repo import PluginGroupRepository
 class DjangoHttpApiConfig:
     base_url: str
     timeout_s: float = 5.0
-    bearer_token: str | None = None
 
 
 class HttpPluginGroupRepository(PluginGroupRepository):
@@ -25,24 +24,21 @@ class HttpPluginGroupRepository(PluginGroupRepository):
     - GET /api/plugin_groups/<name>/
     """
 
-    def __init__(self, *, base_url: str, timeout_s: float = 5.0, bearer_token: str | None = None) -> None:
+    def __init__(self, *, base_url: str, timeout_s: float = 5.0) -> None:
         base_url = (base_url or "").strip().rstrip("/")
         if not base_url:
             raise ValueError("base_url is required for HttpPluginGroupRepository")
-        self._cfg = DjangoHttpApiConfig(base_url=base_url, timeout_s=float(timeout_s), bearer_token=bearer_token)
+        self._cfg = DjangoHttpApiConfig(base_url=base_url, timeout_s=float(timeout_s))
         self._session = requests.Session()
 
     @staticmethod
     def from_env() -> "HttpPluginGroupRepository":
         base_url = os.getenv("IOTSPLOIT_DJANGO_API_BASE_URL", "http://127.0.0.1:8888")
         timeout_s = float(os.getenv("IOTSPLOIT_DJANGO_API_TIMEOUT_S", "5.0"))
-        bearer_token = os.getenv("IOTSPLOIT_DJANGO_API_TOKEN") or None
-        return HttpPluginGroupRepository(base_url=base_url, timeout_s=timeout_s, bearer_token=bearer_token)
+        return HttpPluginGroupRepository(base_url=base_url, timeout_s=timeout_s)
 
     def _headers(self) -> dict[str, str]:
         headers: dict[str, str] = {"Accept": "application/json"}
-        if self._cfg.bearer_token:
-            headers["Authorization"] = f"Bearer {self._cfg.bearer_token}"
         return headers
 
     def _url(self, path: str) -> str:

@@ -6,6 +6,7 @@ package at settings import time.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -71,7 +72,7 @@ TEMPLATES = [
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.getenv("IOTSPLOIT_DATABASE_PATH", str(BASE_DIR / "db.sqlite3")),
     }
 }
 
@@ -79,6 +80,17 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# An ARXML import round-trips its candidate target through the client: the
+# preview parses the upload and returns the whole candidate, and create_target
+# reads it back as a JSON body. Django's 2.5 MB default bounds that body, so a
+# real vehicle's candidate is refused with "Request body exceeded
+# settings.DATA_UPLOAD_MAX_MEMORY_SIZE" even though its ARXML passed the
+# importer's own 256 MiB limit. Matching that limit keeps one wall instead of
+# two: a candidate is smaller than the ARXML it came from, so a file the parser
+# accepted always has a candidate the create accepts. File parts never count
+# against this -- the upload handlers spool them to disk.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 256 * 1024 * 1024
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = True
@@ -93,34 +105,82 @@ CSP_SCRIPT_SRC = ("'self'",)
 CSP_STYLE_SRC = ("'self'",)
 CSP_IMG_SRC = ("'self'",)
 
-# Celery
-# NOTE: use 127.0.0.1 instead of "localhost" to avoid IPv6 ::1 resolution issues
-# when Redis is only bound to IPv4.
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
-CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
-CELERY_BROKER_CONNECTION_RETRY = True
-CELERY_BROKER_TRANSPORT_OPTIONS = {
-    "visibility_timeout": 3600,
-    "socket_timeout": 30,
-    "socket_connect_timeout": 30,
-}
+IOTSPLOIT_RUNTIME = os.getenv("IOTSPLOIT_RUNTIME", "local").strip().lower()
+if IOTSPLOIT_RUNTIME not in {"local", "distributed"}:
+    raise RuntimeError(
+        "IOTSPLOIT_RUNTIME must be 'local' or 'distributed', "
+        f"not {IOTSPLOIT_RUNTIME!r}"
+    )
+IOTSPLOIT_LOCAL_STANDARD_WORKERS = max(
+    1, int(os.getenv("IOTSPLOIT_LOCAL_STANDARD_WORKERS", "2"))
+)
 
-# Channels / Redis
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+
+if IOTSPLOIT_RUNTIME == "distributed":
+    redis_url = os.getenv(
+        "REDIS_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    )
+    CELERY_BROKER_URL = redis_url
+    CELERY_RESULT_BACKEND = redis_url
+    CELERY_ACCEPT_CONTENT = ["json"]
+    CELERY_TASK_SERIALIZER = "json"
+    CELERY_RESULT_SERIALIZER = "json"
+    CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+    CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+    CELERY_BROKER_CONNECTION_RETRY = True
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        "visibility_timeout": 3600,
+        "socket_timeout": 30,
+        "socket_connect_timeout": 30,
     }
+
+# Interactive plugin execution
+#
+# A plugin can stop mid-run and ask the operator a typed question, and the
+# Control Panel can answer it. There is no setting for this: it is simply how
+# an interactive plugin runs, the same way it already works in the shell.
+
+# Interactive runs get their own queue at concurrency 1. Waiting on an answer
+# holds a worker slot without using CPU, so isolating them keeps ordinary plugin
+# runs moving; concurrency 1 means only one run can be waiting at a time, which
+# is what lets the Control Panel show a single unambiguous question. The
+# iotsploit shell's `runserver` starts this worker alongside the ordinary one;
+# to run it by hand:
+#   celery -A iotsploit_django.tasks.celery_app worker -Q interactive -c 1
+# Long-running monitor sessions use the same durable execution task and bound
+# interaction port, but are submitted explicitly to ``streaming``. Keeping
+# them off ``interactive`` means a one-hour monitor can never starve prompts.
+#   celery -A iotsploit_django.tasks.celery_app worker -Q streaming
+CELERY_TASK_ROUTES = {
+    "iotsploit_django.tasks.interaction_tasks.run_execution_task": {
+        "queue": "interactive",
+    },
 }
 
-REDIS_HOST = "127.0.0.1"
-REDIS_PORT = 6379
-REDIS_DB = 0
+if IOTSPLOIT_RUNTIME == "local":
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": (
+                "iotsploit_django.adapters.django.threadsafe_channel_layer."
+                "ThreadSafeInMemoryChannelLayer"
+            )
+        }
+    }
+else:
+    # socket_timeout must stay clear of channels_redis' brpop_timeout (5s).
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [
+                    {"host": REDIS_HOST, "port": REDIS_PORT, "socket_timeout": 30},
+                ],
+            },
+        }
+    }
 
 # Logging
 LOGGING = {
@@ -147,6 +207,7 @@ LOGGING = {
         # Ports & Adapters: core uses stdlib logging; Django host wires handlers/levels.
         "iotsploit_core": {"handlers": ["stream"], "level": "INFO", "propagate": False},
         "iotsploit_django": {"handlers": ["stream"], "level": "INFO", "propagate": False},
+        "iotsploit_drivers": {"handlers": ["stream"], "level": "INFO", "propagate": False},
         # Some legacy fuzzer namespaces (if present)
         "fuzzer.orchestrator": {"handlers": ["stream"], "level": "INFO", "propagate": False},
         "fuzzer.monitor": {"handlers": ["stream"], "level": "INFO", "propagate": False},
@@ -155,6 +216,3 @@ LOGGING = {
         "": {"level": "WARNING", "handlers": []},
     },
 }
-
-
-

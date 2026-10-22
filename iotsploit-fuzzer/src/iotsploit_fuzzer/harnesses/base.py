@@ -13,6 +13,15 @@ class HarnessResult:
     info: Optional[str] = None
     timeout: bool = False
     error: Optional[str] = None
+    #: Where the result came from, when the harness can say: ``file:line`` for
+    #: an escaped exception. Reported, never compared -- a line number moves
+    #: under any edit.
+    site: Optional[str] = None
+    #: One ``MonitorVerdict.to_dict()`` per target monitor, when monitors watch the case.
+    monitor_verdicts: Optional[list] = None
+    stop_reason: Optional[str] = None
+    sent: bool = True
+    evidence: Optional[dict] = None
 
 
 class ProtocolHarness(abc.ABC):
@@ -20,4 +29,4 @@ class ProtocolHarness(abc.ABC):
 
     @abc.abstractmethod
     def execute(self, payload: bytes) -> HarnessResult:
-        """Encode, send and receive based on *payload*.""" 
+        """Encode, send and receive based on *payload*."""

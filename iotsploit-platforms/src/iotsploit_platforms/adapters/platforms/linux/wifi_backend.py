@@ -5,15 +5,13 @@ This module provides Linux-specific WiFi backend implementation using
 NetworkManager's native libnm API via GObject Introspection.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 import uuid
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
-
-import gi
-gi.require_version('NM', '1.0')
-from gi.repository import NM, GLib
 
 from iotsploit_core.ports.wifi_backend import WifiBackend
 from iotsploit_core.utils.exceptions import NotSupportedError
@@ -22,6 +20,23 @@ logger = logging.getLogger(__name__)
 
 # NetworkManager DBus constants (from NM headers / docs)
 _NM_ACTIVE_CONNECTION_STATE_ACTIVATED = 2
+NM = None
+GLib = None
+
+
+def _load_network_manager() -> None:
+    global NM, GLib
+    if NM is not None:
+        return
+    try:
+        import gi
+
+        gi.require_version("NM", "1.0")
+        from gi.repository import GLib as gi_glib, NM as gi_nm
+    except (ImportError, ValueError) as exc:
+        raise NotSupportedError(f"NetworkManager bindings are unavailable: {exc}") from exc
+    NM = gi_nm
+    GLib = gi_glib
 
 
 class LinuxWifiBackend(WifiBackend):
@@ -42,6 +57,7 @@ class LinuxWifiBackend(WifiBackend):
             wifi_iface_name: WiFi interface name (e.g., "wlan0", "wlp0s20f3")
             forward_eth_name: Ethernet interface for forwarding (used for AP mode NAT)
         """
+        _load_network_manager()
         self.wifi_iface_name = wifi_iface_name
         self.forward_eth_name = forward_eth_name
         
@@ -622,6 +638,7 @@ class LinuxWifiBackend(WifiBackend):
                     if addresses:
                         status_dict["sta_status"] = {
                             "ip_address": addresses[0].get_address(),
+                            "gateway": ip4_config.get_gateway(),
                             "state": active_conn.get_state().value_nick,
                         }
         

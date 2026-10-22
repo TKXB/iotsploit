@@ -362,12 +362,20 @@ def create_test_case(request: HttpRequest):
             # Use bitrate and device_path for CAN
             default_settings.update({'bitrate': 500000, 'device_path': 'can0'})
         elif protocol_type == 'uart':
-            default_settings.update({'baud_rate': 115200, 'port': '/dev/ttyUSB0', 'timeout': 1000})
+            default_settings.update({'baud_rate': 115200, 'port': '', 'timeout': 1000})
 
-        protocol_config, created = ProtocolConfiguration.objects.get_or_create(
-            protocol_type=protocol_type,
-            defaults={'settings': default_settings}
-        )
+        if protocol_type == 'usbtmc':
+            from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+            settings = case_data.get('protocol_settings', {})
+            try:
+                USBTMCHarness.validate(settings)
+            except ValueError as exc:
+                return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
+            protocol_config, created = ProtocolConfiguration.objects.get_or_create(
+                protocol_type=protocol_type, settings=settings)
+        else:
+            protocol_config, created = ProtocolConfiguration.objects.get_or_create(
+                protocol_type=protocol_type, defaults={'settings': default_settings})
 
         test_case = TestCase.objects.create(
             name=case_data.get('name', ''),
@@ -460,11 +468,19 @@ def update_test_case(request: HttpRequest, case_id):
         # Handle protocol_type updates
         if 'protocol_type' in case_data:
             protocol_type = case_data['protocol_type']
-            # Find or create ProtocolConfiguration for this protocol type
-            protocol_config, created = ProtocolConfiguration.objects.get_or_create(
-                protocol_type=protocol_type,
-                defaults={'settings': {}}
-            )
+            if protocol_type == 'usbtmc':
+                from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+                settings = case_data.get('protocol_settings', test_case.protocol_config.settings
+                                         if test_case.protocol_config.protocol_type == 'usbtmc' else {})
+                try:
+                    USBTMCHarness.validate(settings)
+                except ValueError as exc:
+                    return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
+                protocol_config, created = ProtocolConfiguration.objects.get_or_create(
+                    protocol_type=protocol_type, settings=settings)
+            else:
+                protocol_config, created = ProtocolConfiguration.objects.get_or_create(
+                    protocol_type=protocol_type, defaults={'settings': {}})
             test_case.protocol_config = protocol_config
 
         # Handle protocol_frame updates by updating frame fields

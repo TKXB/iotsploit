@@ -2,7 +2,6 @@ import logging
 logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
-import netifaces
 from iotsploit_django.tools.sat_utils import *
 from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.input_mgr import Input_Mgr
@@ -17,7 +16,7 @@ class EcuProfile:
     """Per-ECU configuration. Adding an ECU is a single registry entry below."""
     name: str                               # canonical key, e.g. "tcam"
     display: str                            # label used in every user/log string
-    doip_addr: int                         # DoIP target address
+    doip_addr: int                         # default DoIP address; the ECU's "doip" facet wins
     static_ip: Optional[str] = None        # fixed IP; when set, skip WiFi/gateway lookup
     ap_ip_env: Optional[str] = None        # env override for the ECU AP-mode IP
     sta_mac_env: Optional[str] = None      # env: expected STA MAC when SAT itself is AP
@@ -57,11 +56,23 @@ ECU_REGISTRY = {
     ),
     "vgm": EcuProfile(
         name="vgm", display="VGM",
-        doip_addr=0x1001,                  # TODO: promote to DoIP_Mgr.VGM_Addr
+        doip_addr=0x1001,
         static_ip="169.254.19.1",
         supports_wifi=False,
     ),
 }
+
+
+def doip_address_of(profile: EcuProfile) -> int:
+    """The ECU's configured DoIP address, falling back to the registry default.
+
+    The registry entry is no longer the only source: a "doip" facet on the
+    matching component overrides it, so a new vehicle variant is a target edit
+    rather than a code edit.
+    """
+    from iotsploit_django.tools.doip_facet import logical_address_for
+
+    return logical_address_for(profile.name, profile.doip_addr)
 
 
 def _profile(ecu: str) -> EcuProfile:
@@ -87,7 +98,7 @@ def check_ecu_alive(ecu: str, checktype: str, allow_live: bool = True) -> bool:
         if checktype == "ip":
             ip = get_ecu_ip(ecu, allow_live=allow_live)
             return len(NetAudit_Mgr.Instance().ip_detect([ip])) > 0
-        return DoIP_Mgr.Instance().check_mcu_alive(p.doip_addr) is not False
+        return DoIP_Mgr.Instance().check_mcu_alive(doip_address_of(p)) is not False
     except SAT_Exception:
         return False
 
@@ -139,11 +150,12 @@ def _resolve_live_ip(ecu: str):
                 logger.info("Vehicle model configured {} hotspot LAN IP: {}".format(p.display, ap_ip))
                 return ap_ip
 
-        sat_ip = wifi_status.get("sta_status", {}).get("ip_address")
+        sta_status = wifi_status.get("sta_status", {})
+        sat_ip = sta_status.get("ip_address")
         if sat_ip == None:
             raise_err("SAT failed to obtain an IP address; SAT failed to connect to the {} hotspot!".format(p.display))
 
-        gw_ip = netifaces.gateways()['default'][netifaces.AF_INET][0]
+        gw_ip = sta_status.get("gateway")
         if gw_ip == None:
             raise_err("SAT failed to obtain the WIFI0 gateway IP address; SAT failed to connect to the {} hotspot!".format(p.display))
 

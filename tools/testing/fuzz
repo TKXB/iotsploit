@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# fuzz — throw malformed input at one function and see if it keeps its promise
+#
+#   tools/testing/fuzz mypkg.parser:parse --raises ValueError --seed '{"a": 1}'
+#   tools/testing/fuzz ./newfile.py:parse_thing --raises ValueError --seed @sample.txt
+#
+# --raises is the contract you are testing: the exceptions the function says
+# it can raise. Anything else escaping is the finding. Get it wrong and the
+# run stops and tells you, rather than reporting every input as a defect.
+#
+# Run with no arguments for the full help.
+
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+exec "${POETRY:-poetry}" run python -m iotsploit_fuzzer.fuzz "$@"

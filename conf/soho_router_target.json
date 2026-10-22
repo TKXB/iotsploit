@@ -1,0 +1,192 @@
+{
+  "targets": [
+    {
+      "target_id": "soho_router_001",
+      "name": "OpenWrt SOHO Router",
+      "type": "router",
+      "status": "active",
+      "ip_address": "192.168.1.1",
+      "location": "Lab bench 2",
+      "properties": {
+        "model": "MT7621 reference board",
+        "firmware": "OpenWrt 23.05.3",
+        "note": "Demo target. Exercises the non-vehicle shape: several small buses, unregistered facets, and components no bus reaches."
+      },
+      "buses": [
+        {
+          "bus_id": "bus_lan",
+          "name": "LAN Switch Fabric",
+          "type": "ethernet",
+          "properties": {"speed": "1000BASE-T", "ports": 5}
+        },
+        {
+          "bus_id": "bus_wan",
+          "name": "WAN Uplink",
+          "type": "ethernet",
+          "properties": {"speed": "1000BASE-T", "ports": 1}
+        },
+        {
+          "bus_id": "bus_mgmt",
+          "name": "Management VLAN 99",
+          "type": "vlan",
+          "properties": {"vlan_id": 99, "tagged": true}
+        },
+        {
+          "bus_id": "bus_guest",
+          "name": "Guest VLAN 20",
+          "type": "vlan",
+          "properties": {"vlan_id": 20, "tagged": true, "isolated": true}
+        }
+      ],
+      "components": [
+        {
+          "component_id": "c_soc",
+          "name": "Main SoC",
+          "type": "generic",
+          "status": "active",
+          "properties": {"part": "MediaTek MT7621AT", "cores": 2, "arch": "mips"},
+          "facets": {
+            "ssh": {"port": 22, "user": "root", "auth": "password", "banner": "Dropbear SSH"},
+            "http": {"port": 80, "tls": false, "path": "/cgi-bin/luci", "server": "uhttpd"}
+          }
+        },
+        {
+          "component_id": "c_switch",
+          "name": "5-Port Switch",
+          "type": "network",
+          "status": "active",
+          "ip_address": "192.168.1.1",
+          "mac_address": "AA:BB:CC:00:11:01",
+          "interface_type": "ethernet",
+          "bandwidth": "1 Gbps",
+          "properties": {"part": "MT7530"},
+          "facets": {
+            "snmp": {"port": 161, "version": "2c", "community": "public"}
+          }
+        },
+        {
+          "component_id": "c_wan_phy",
+          "name": "WAN PHY",
+          "type": "network",
+          "status": "active",
+          "ip_address": "203.0.113.42",
+          "mac_address": "AA:BB:CC:00:11:00",
+          "interface_type": "ethernet",
+          "bandwidth": "1 Gbps",
+          "properties": {"part": "MT7530 port 4"},
+          "facets": {
+            "dhcp": {"mode": "client", "lease_seconds": 86400, "server": "203.0.113.1"}
+          }
+        },
+        {
+          "component_id": "c_wifi24",
+          "name": "2.4 GHz Radio",
+          "type": "network",
+          "status": "active",
+          "mac_address": "AA:BB:CC:00:11:10",
+          "interface_type": "wireless",
+          "bandwidth": "300 Mbps",
+          "properties": {"part": "MT7603EN"},
+          "facets": {
+            "wifi": {
+              "ssid": "HomeNet",
+              "band": "2.4GHz",
+              "channel": 6,
+              "security": "WPA2-PSK",
+              "hidden": false,
+              "clients": [
+                {"mac": "3C:22:FB:11:22:33", "hostname": "kitchen-tablet", "rssi_dbm": -58},
+                {"mac": "AC:DE:48:00:11:22", "hostname": "thermostat", "rssi_dbm": -71},
+                {"mac": "F0:9F:C2:AA:BB:CC", "hostname": "printer", "rssi_dbm": -66}
+              ]
+            }
+          }
+        },
+        {
+          "component_id": "c_wifi5",
+          "name": "5 GHz Radio",
+          "type": "network",
+          "status": "active",
+          "mac_address": "AA:BB:CC:00:11:11",
+          "interface_type": "wireless",
+          "bandwidth": "867 Mbps",
+          "properties": {"part": "MT7612EN"},
+          "facets": {
+            "wifi": {
+              "ssid": "HomeNet-5G",
+              "band": "5GHz",
+              "channel": 36,
+              "security": "WPA3-SAE",
+              "hidden": false,
+              "clients": [
+                {"mac": "A4:83:E7:44:55:66", "hostname": "laptop", "rssi_dbm": -41},
+                {"mac": "8C:85:90:77:88:99", "hostname": "phone", "rssi_dbm": -49}
+              ]
+            }
+          }
+        },
+        {
+          "component_id": "c_uart",
+          "name": "Serial Console",
+          "type": "generic",
+          "status": "active",
+          "properties": {"header": "J4", "level": "3.3V"},
+          "facets": {
+            "uart": {
+              "baud": 115200,
+              "data_bits": 8,
+              "parity": "none",
+              "stop_bits": 1,
+              "pinout": "J4.2 TX / J4.3 RX / J4.4 GND"
+            }
+          }
+        },
+        {
+          "component_id": "c_spi_flash",
+          "name": "SPI NOR Flash",
+          "type": "generic",
+          "status": "active",
+          "properties": {"part": "W25Q128JV", "package": "SOIC-8"},
+          "facets": {
+            "spi": {
+              "chip": "W25Q128JV",
+              "size_bytes": 16777216,
+              "clock_hz": 20000000,
+              "partitions": [
+                {"name": "u-boot", "offset": 0, "size": 196608},
+                {"name": "factory", "offset": 262144, "size": 65536},
+                {"name": "firmware", "offset": 327680, "size": 16449536}
+              ]
+            }
+          }
+        },
+        {
+          "component_id": "c_usb",
+          "name": "USB 3.0 Host",
+          "type": "generic",
+          "status": "inactive",
+          "properties": {"controller": "xHCI", "ports": 1},
+          "facets": {}
+        }
+      ],
+      "edges": [
+        {"source": "soho_router_001", "target": "bus_wan", "relation": "hosts", "properties": {}},
+        {"source": "soho_router_001", "target": "bus_lan", "relation": "hosts", "properties": {}},
+        {"source": "soho_router_001", "target": "bus_mgmt", "relation": "hosts", "properties": {}},
+        {"source": "soho_router_001", "target": "bus_guest", "relation": "hosts", "properties": {}},
+
+        {"source": "c_wan_phy", "target": "bus_wan", "relation": "bus_member", "properties": {}},
+        {"source": "c_switch", "target": "bus_lan", "relation": "bus_member", "properties": {}},
+        {"source": "c_soc", "target": "bus_lan", "relation": "bus_member", "properties": {}},
+        {"source": "c_soc", "target": "bus_mgmt", "relation": "bus_member", "properties": {}},
+        {"source": "c_wifi24", "target": "bus_lan", "relation": "bus_member", "properties": {}},
+        {"source": "c_wifi24", "target": "bus_guest", "relation": "bus_member", "properties": {}},
+        {"source": "c_wifi5", "target": "bus_lan", "relation": "bus_member", "properties": {}},
+        {"source": "c_wifi5", "target": "bus_guest", "relation": "bus_member", "properties": {}},
+
+        {"source": "c_soc", "target": "bus_wan", "relation": "connects", "properties": {"role": "routes between WAN and LAN"}},
+        {"source": "bus_mgmt", "target": "bus_lan", "relation": "reachable_from", "properties": {"via": "SoC, when the firewall zone allows it"}}
+      ]
+    }
+  ]
+}

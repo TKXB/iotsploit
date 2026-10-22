@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IoTSploit — USBTMC Fuzzing Architecture &amp; Change Plan</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1120;--panel:#131d30;--line:#2b3c55;--text:#ecf2fa;--muted:#a9b8ce;--blue:#81b5ff;--green:#75dfad;--amber:#ffd080;--red:#ff9595}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,sans-serif}main{max-width:1360px;margin:auto;padding:40px 24px 80px}h1{font-size:clamp(30px,5vw,48px);line-height:1.15;max-width:1000px}h2{font-size:26px;margin-top:0}h3{font-size:18px}p{margin:10px 0}a{color:var(--blue)}section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;margin:24px 0}nav,.legend,.filters{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0}nav a{text-decoration:none}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.card{border:1px solid var(--line);border-radius:12px;padding:18px}.note{border-left:4px solid var(--blue);padding:12px 18px;background:#172741;margin:18px 0}.tag{display:inline-block;border-radius:6px;padding:2px 9px;font-size:12px;font-weight:700;white-space:nowrap}.edit{color:var(--amber);background:#493b22}.add{color:var(--green);background:#173e32}.delete{color:var(--red);background:#482731}.reuse{color:var(--blue);background:#213b5b}.table-wrap,.diagram{overflow:auto}table{border-collapse:collapse;width:100%;min-width:650px}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:13px}code{font:13px/1.5 ui-monospace,monospace;overflow-wrap:anywhere;color:#c4ddff}pre{background:#091221;border:1px solid var(--line);padding:18px;border-radius:10px;overflow:auto}pre code{overflow-wrap:normal}button{border:1px solid var(--line);border-radius:8px;color:var(--text);background:#1b2b43;padding:9px 14px;cursor:pointer}button[aria-pressed="true"]{border-color:var(--blue);background:#284973}button:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:4px}svg{display:block;width:100%;min-width:1080px;height:auto}svg text{fill:var(--text);font:14px system-ui,sans-serif}svg .title{font-weight:700;font-size:16px}svg .small{font-size:12px;fill:var(--muted)}svg .group{fill:#10192b;stroke:var(--line)}svg .node{fill:#18283f;stroke:var(--blue);stroke-width:2}svg .new{fill:#15352e;stroke:var(--green)}svg .changed{fill:#342d22;stroke:var(--amber)}svg .removed{fill:#38232d;stroke:var(--red);stroke-dasharray:6 4}svg .arrow{fill:none;stroke:var(--blue);stroke-width:2}svg .observe{fill:none;stroke:var(--green);stroke-width:2}svg .label-add{fill:var(--green);font-weight:700}svg .label-edit{fill:var(--amber);font-weight:700}svg .label-delete{fill:var(--red);font-weight:700}li{margin:7px 0}details{border-top:1px solid var(--line);padding:16px 0}summary{cursor:pointer;font-weight:700}footer{color:var(--muted);margin-top:30px}[hidden]{display:none!important}
+@media(max-width:760px){main{padding:22px 14px 50px}section{padding:18px}.grid{grid-template-columns:1fr}}
+@media print{body{background:white;color:#152237}section,.card{background:white;border-color:#ccc}.muted,th,footer{color:#45546a}code{color:#174877}nav,.filters{display:none}tr{break-inside:avoid}.diagram{overflow:visible}svg{min-width:0}svg text{fill:#152237}svg .small{fill:#45546a}svg .group{fill:#f4f7fa}svg .node{fill:#edf3fb}svg .new{fill:#e8f7ef}svg .changed{fill:#fff4dd}svg .removed{fill:#ffe8e8}.note{background:#edf3fb}}
+</style>
+</head>
+<body><main>
+<header>
+<p class="muted">IoTSploit · Implemented USBTMC device debugging · 30 September 2026</p>
+<h1>USBTMC fuzzing: architecture and component changes</h1>
+<p>Extend your existing fuzzer and monitor framework to test SCPI inputs and USBTMC sequences against real firmware. Python owns USB access on the rig; Flutter configures campaigns and displays evidence.</p>
+<p class="muted">Reviewed: root and UI branch <code>feat/jtag-core-monitor</code>; <code>ui/third_party/iotsploit-usb</code> on <code>main</code> at <code>982385f</code>. Implemented on feat/usbtmc-fuzzing. The split-command EOM fix was built, flashed, and verified on STM32F407VG. See the Markdown delivery record for validation limits.</p>
+</header>
+<nav aria-label="Sections"><a href="#changes-diagram">Change diagram</a><a href="#architecture">Runtime architecture</a><a href="#inventory">Files</a><a href="#contracts">Contracts</a><a href="#phases">Phases</a><a href="#validation">Validation</a></nav>
+
+<section><h2>Verified result</h2><p>The USBTMC EOM bug is fixed: split identity queries now return the full identity on the flashed STM32F4-Discovery. USBTMC configuration, raw sequences, MCU monitoring, saved evidence and exact replay are implemented.</p><p>Python: 1922 passed. Flutter: 787 passed. C: five tests exercised, CAN test skipped. Rust host: 72 passed. See <a href="usbtmc-fuzzing-plan.md#16-delivered-implementation-and-hardware-findings">delivery details and remaining coverage</a>.</p></section>
+<section id="changes-diagram">
+<h2>1. What gets added, modified, or deleted</h2>
+<p>Each box names an existing owner or a proposed component. Red boxes identify code paths to remove, not entire files. Arrows show how the resulting components work together.</p>
+<div class="legend"><span class="tag add">ADD</span><span class="tag edit">MODIFY</span><span class="tag delete">DELETE PATH / CALLBACKS</span><span class="tag reuse">REUSE</span></div>
+<div class="diagram">
+<svg viewBox="0 0 1240 890" role="img" aria-labelledby="change-title change-desc">
+<title id="change-title">Component change diagram for USBTMC fuzzing</title>
+<desc id="change-desc">Modify the Flutter fuzzer UI, API settings, protocol choices, composition, runtime, result pipeline and desktop lease integration. Add a Python USBTMC interface, harness, choices migration and minimal high-risk coverage. Reuse generators, MCU monitors and firmware. Reject USBTMC mock fallback and delete empty board OUT-start callbacks after moving EOM handling into shared firmware glue.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#81b5ff"/></marker></defs>
+<rect class="group" x="10" y="10" width="1220" height="175" rx="14"/>
+<text class="title" x="30" y="38">UI repository · ui/</text>
+<rect class="node changed" x="30" y="55" width="560" height="105" rx="10"/>
+<text class="label-edit" x="48" y="80">MODIFY · Fuzzer configuration, cases &amp; results</text>
+<text x="48" y="106">ProtocolType · ProtocolConfig · API serialization</text>
+<text class="small" x="48" y="130">Device picker · SCPI / raw mode · sequence templates · transcript view</text>
+<rect class="node changed" x="650" y="55" width="560" height="105" rx="10"/>
+<text class="label-edit" x="668" y="80">MODIFY · Existing desktop USB session lease</text>
+<text x="668" y="106">rust/src/api/usbtmc.rs · existing Rust lock owner</text>
+<text class="small" x="668" y="130">Keep Device Control; coordinate same-host interface ownership</text>
+<path class="arrow" d="M310 160 V220" marker-end="url(#arrow)"/>
+<text class="small" x="330" y="205">Existing HTTP / WebSocket</text>
+
+<rect class="group" x="10" y="220" width="1220" height="490" rx="14"/>
+<text class="title" x="30" y="248">Root repository · Python on the hardware rig</text>
+<rect class="node changed" x="30" y="270" width="365" height="100" rx="10"/>
+<text class="label-edit" x="47" y="295">MODIFY · API + protocol settings</text>
+<text class="small" x="47" y="320">iot_protocol_adapter · views_configuration</text>
+<text class="small" x="47" y="343">Model choices · rig discovery · save/load</text>
+<rect class="node changed" x="435" y="270" width="365" height="100" rx="10"/>
+<text class="label-edit" x="452" y="295">MODIFY · Composition + runtime</text>
+<text class="small" x="452" y="320">core_container · iot_protocol_runtime</text>
+<text class="small" x="452" y="343">Build adapter · acquire lease · real setup</text>
+<path class="arrow" d="M395 319 H435" marker-end="url(#arrow)"/>
+<rect class="node" x="840" y="270" width="370" height="100" rx="10"/>
+<text x="858" y="295">REUSE · Generators + monitor wrapper</text>
+<text class="small" x="858" y="320">Radamsa / selected field mutations</text>
+<text class="small" x="858" y="343">MonitorSetHarness · McuCoreMonitor</text>
+
+<rect class="node new" x="30" y="410" width="365" height="100" rx="10"/>
+<text class="label-add" x="47" y="435">ADD · USBTMCHarness</text>
+<text class="small" x="47" y="460">Valid framing → raw frames + sequences</text>
+<text class="small" x="47" y="483">Response checks · canary · exact replay</text>
+<rect class="node new" x="435" y="410" width="365" height="100" rx="10"/>
+<text class="label-add" x="452" y="435">ADD · USBTMCInterface</text>
+<text class="small" x="452" y="460">PyUSB adapter · discover / claim / close</text>
+<text class="small" x="452" y="483">Bulk / control I/O · transfer deadlines</text>
+<path class="arrow" d="M615 370 V390 H212 V410" marker-end="url(#arrow)"/>
+<path class="arrow" d="M395 460 H435" marker-end="url(#arrow)"/>
+<path class="arrow" d="M1025 370 V391 H260 V410" marker-end="url(#arrow)"/>
+<rect class="node changed" x="840" y="410" width="370" height="100" rx="10"/>
+<text class="label-edit" x="858" y="435">MODIFY · Result + artifact owners</text>
+<text class="small" x="858" y="460">HarnessResult · Orchestrator · TestLogger</text>
+<text class="small" x="858" y="483">Protocol evidence + MCU observations</text>
+<path class="arrow" d="M212 510 V530 H1025 V510" marker-end="url(#arrow)"/>
+
+<rect class="node removed" x="30" y="560" width="365" height="120" rx="10"/>
+<text class="label-delete" x="47" y="585">DELETE · Wrong execution path</text>
+<text x="47" y="611">USBTMC setup failure → mock run</text>
+<text class="small" x="47" y="638">Change fallback at the runtime owner.</text>
+<text class="small" x="47" y="660">Missing / busy hardware returns a real error.</text>
+<rect class="node removed" x="435" y="560" width="365" height="120" rx="10"/>
+<text class="label-delete" x="452" y="585">DELETE · Empty board callbacks</text>
+<text x="452" y="611">Six OUT-start callback stubs</text>
+<text class="small" x="452" y="638">Moved to shared usbscpi_tinyusb.c</text>
+<text class="small" x="452" y="660">Header EOM fixes split SCPI commands.</text>
+<rect class="node new" x="840" y="560" width="370" height="120" rx="10"/>
+<text class="label-add" x="858" y="585">ADD · Supporting integration</text>
+<text class="small" x="858" y="611">Django choices migration · optional PyUSB extra</text>
+<text class="small" x="858" y="638">Minimal framing / replay / lease coverage</text>
+<text class="small" x="858" y="660">Extend existing integration tests</text>
+
+<rect class="group" x="10" y="745" width="1220" height="135" rx="14"/>
+<text class="title" x="30" y="774">Firmware repository · ui/third_party/iotsploit-usb</text>
+<rect class="node changed" x="30" y="790" width="755" height="65" rx="10"/>
+<text x="48" y="815">MODIFY · Shared USBTMC glue EOM handling; reuse core and handlers</text>
+<text class="small" x="48" y="839">Fixed: split *IDN? now returns identity. Shared glue owns OUT-start callback.</text>
+<rect class="node" x="840" y="790" width="370" height="65" rx="10"/>
+<text x="858" y="815">REUSE · DebugAccess + probe</text>
+<text class="small" x="858" y="839">J-Link / ST-LINK observes the MCU</text>
+<path class="arrow" d="M615 510 V545 H818 V727 H615 V790" marker-end="url(#arrow)"/>
+<text class="small" x="829" y="732">USB bulk + control</text>
+</svg>
+</div>
+<div class="note"><strong>No entire file is scheduled for deletion.</strong> Remove the incorrect USBTMC mock path and in-scope metadata duplication. Existing protocol engines, monitor kinds, Device Control and firmware remain the owners of their current behavior.</div>
+</section>
+
+<section id="architecture">
+<h2>2. Runtime architecture and boundaries</h2>
+<div class="grid">
+<div class="card"><h3>Execution path</h3><pre><code>Flutter fuzzer UI
+  ↓ existing API
+Django campaign composition
+  ↓ existing generator + orchestrator
+MonitorSetHarness
+  ↓ before observation
+USBTMCHarness
+  ↓ ordered USB operations
+USBTMCInterface (PyUSB)
+  ↓ selected rig interface
+TinyUSB → USBSCPI → app handlers
+  ↑ response / stall / disconnect
+  ↑ after observation + verdict
+Existing logger → results → Flutter</code></pre></div>
+<div class="card"><h3>Independent observation path</h3><pre><code>MonitorService + debug resource lease
+  ↓ McuCoreSource
+DebugAccess adapter
+  ↓ separate J-Link / ST-LINK
+Target Cortex-M MCU
+  ↑ state + register evidence
+McuCoreMonitor
+  ↑ verdict / fault snapshot
+MonitorSetHarness → HarnessResult</code></pre><p>USB response handling belongs to the harness. The MCU monitor independently judges faults, lockups, halts and resets. A running CPU can still have an unusable USBTMC interface.</p></div>
+</div>
+<h3>Locked scope for the proposed implementation</h3>
+<ul><li>Python owns campaign USB access on the rig. Flutter uses backend discovery, not desktop-local enumeration.</li><li>One transport and one harness support both modes. No new campaign engine or generic sequence framework.</li><li>The fuzzer keeps zero dependency on iotsploit-core and Django. Composition supplies the interface and existing resource lease.</li><li>Linux is the first hardware qualification target. Existing Nordic and STM32 Cortex-M targets can use the current MCU monitor. ESP32-S3 needs a separate monitor backend.</li><li>The Rust desktop control session remains, with same-host resource coordination. Separate machines' local lock files do not coordinate each other.</li><li>Initial campaigns stop on failure. Automatic recovery is deferred until evidence preservation and reconnect behavior are proven.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Option</th><th>Coverage / trade-off</th><th>Recommendation</th></tr></thead><tbody><tr><td>Python raw USB adapter</td><td>SCPI payloads, headers and class requests; fits the existing backend campaign.</td><td>Implement first.</td></tr><tr><td>Desktop Rust session as campaign executor</td><td>Existing normal communication, but would need desktop-to-backend execution coordination.</td><td>Keep for Device Control; do not create a second campaign executor.</td></tr><tr><td>Native sanitizer fuzzing</td><td>Fast C parser/glue coverage without a board; does not establish physical USB behavior.</td><td>Complementary follow-up inside iotsploit-usb.</td></tr></tbody></table></div>
+</section>
+
+<section id="inventory">
+<h2>3. File-level implementation inventory</h2>
+<p>Paths are relative to the root. <code>ui/</code> is a separate repository. The inventory records the delivered owners; detailed validation is in the Markdown companion.</p>
+<div class="filters" role="group" aria-label="Filter changes"><button data-filter="all" aria-pressed="true">All</button><button data-filter="add" aria-pressed="false">Add</button><button data-filter="edit" aria-pressed="false">Modify</button><button data-filter="delete" aria-pressed="false">Delete</button><button data-filter="reuse" aria-pressed="false">Reuse</button></div>
+<div class="table-wrap"><table id="inventory-table"><thead><tr><th>Action</th><th>Owner / file</th><th>Change and rationale</th><th>Phase</th></tr></thead><tbody>
+<tr data-action="add"><td><span class="tag add">ADD</span></td><td><code>iotsploit-fuzzer/src/iotsploit_fuzzer/interfaces/usbtmc_interface.py</code></td><td>Discover exact interface; claim, transfer, timeout and close. Other interface files own unrelated transports.</td><td>1</td></tr>
+<tr data-action="add"><td><span class="tag add">ADD</span></td><td><code>iotsploit-fuzzer/src/iotsploit_fuzzer/harnesses/usbtmc_harness.py</code></td><td>Framing, response parsing, sequences, canaries and replay. Keep small framing helpers in this owner initially.</td><td>1–3</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-fuzzer/pyproject.toml</code></td><td>Add optional PyUSB dependency / USBTMC extra; update aggregate extra. Django already declares PyUSB. Regenerate Poetry lock if needed.</td><td>1</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-django/src/iotsploit_django/composition_root/fuzzer_container.py</code></td><td>Compose USB adapter and existing lease; supply interface to runtime. Do not let core select an OS adapter.</td><td>1</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-django/src/iotsploit_django/tools/iot_protocol_runtime.py</code></td><td>Construct real USBTMC campaign; SCPI seeds; guaranteed cleanup; existing monitor wrapper. No mock fallback for USBTMC even without MCU monitors.</td><td>1–3</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-django/src/iotsploit_django/tools/iot_protocol_adapter.py</code><br><code>iotsploit-django/src/iotsploit_django/tools/iot_protocol_components.py</code></td><td>Protocol metadata, live rig choices, validation, compatibility and actual connection checks. Share transport construction with execution.</td><td>1–2</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-django/src/iotsploit_django/iot_fuzzer/views_configuration.py</code></td><td>Preserve validated USB selector/mode/settings. Current save extracts device_path, baud_rate and timeout and would drop new fields. Reuse metadata and connection-test endpoints.</td><td>1–2</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-django/src/iotsploit_django/adapters/django/iot_fuzzer/models.py</code></td><td>Add usbtmc to ProtocolConfiguration choices and dependent choices. Existing JSON fields hold settings; no new campaign table.</td><td>1</td></tr>
+<tr data-action="add"><td><span class="tag add">ADD</span></td><td><code>iotsploit-django/src/iotsploit_django/migrations/&lt;next&gt;_usbtmc_protocol_choices.py</code></td><td>Generate migration for the changed model field choices.</td><td>1</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>iotsploit-fuzzer/src/iotsploit_fuzzer/harnesses/base.py</code><br><code>iotsploit-fuzzer/src/iotsploit_fuzzer/core/orchestrator.py</code><br><code>iotsploit-fuzzer/src/iotsploit_fuzzer/analysis/logger.py</code></td><td>One optional bounded evidence field; correct protocol label and completion events; transcript persistence even without monitor_verdicts; manifest beside existing artifacts.</td><td>1–2</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>ui/lib/screens/iot_fuzzer/models/fuzzer_enums.dart</code><br><code>ui/lib/screens/iot_fuzzer/models/config_models.dart</code></td><td>Add enum and USB settings to existing model. Preserve other protocols' serialization; USB identity is not a fake serial path.</td><td>2–3</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>ui/lib/services/iot_fuzzer/configuration_api_service.dart</code><br><code>ui/lib/screens/iot_fuzzer/controllers/config_controller.dart</code><br><code>ui/lib/screens/iot_fuzzer/controllers/test_controller.dart</code></td><td>Round-trip settings, select rig device, assemble actual usbtmc config, expose setup errors. Find every enum switch before implementation.</td><td>2–3</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>ui/lib/screens/iot_fuzzer/pages/configuration_page.dart</code><br><code>ui/lib/screens/iot_fuzzer/widgets/management_cases_panel.dart</code><br><code>ui/lib/screens/iot_fuzzer/widgets/test_execution_table.dart</code></td><td>Device picker, modes, case templates and protocol/MCU outcome display. Reuse shared components from the showcase.</td><td>2–3</td></tr>
+<tr data-action="edit"><td><span class="tag edit">MODIFY</span></td><td><code>ui/rust/src/api/usbtmc.rs</code><br><code>ui/rust/src/probe_lock.rs</code></td><td>Reuse lock mechanism for USBTMC interface keys; desktop session holds the same-host lease. Retain desktop control API.</td><td>1–2</td></tr>
+<tr data-action="delete"><td><span class="tag delete">DELETE PATH</span></td><td><code>iot_protocol_runtime.py</code></td><td>Remove failed USBTMC setup → mock execution path at the fallback owner. No new initialization flags; preserve unrelated protocol behavior.</td><td>1</td></tr>
+<tr data-action="delete"><td><span class="tag delete">DELETE CALLBACKS</span></td><td><code>examples/*/main*.c</code></td><td>Delete empty OUT-start callback stubs. Shared firmware glue owns header EOM. Existing protocol metadata accessor is reused.</td><td>1</td></tr>
+<tr data-action="reuse"><td><span class="tag reuse">REUSE</span></td><td><code>harnesses/monitor_set_harness.py</code><br><code>monitors/mcu_core.py</code><br><code>iotsploit-core/.../core/monitoring/service.py</code></td><td>Existing monitor sampling, verdicts, snapshots and leases. USB protocol judgement belongs to the harness, not a new monitor plugin opening the same connection.</td><td>All</td></tr>
+<tr data-action="reuse"><td><span class="tag reuse">REUSE</span></td><td><code>generators/radamsa_generator.py</code><br><code>core/fuzzing_engine.py</code><br><code>iotsploit-django/.../tools/frame_utils.py</code></td><td>Mutate command/header byte regions. Keep operation scaffold separate so host-side JSON rejection does not consume the campaign.</td><td>All</td></tr>
+<tr data-action="reuse"><td><span class="tag reuse">REFERENCE</span></td><td><code>iotsploit-drivers/.../usb_explorer/drv_usb_explorer.py</code><br><code>ui/third_party/iotsploit-usb/host/rust/src/usbtmc_raw.rs</code></td><td>Review identity/display conventions and current framing. USB Explorer is generic enumeration; do not import private helpers or assume it owns USBTMC transport.</td><td>1</td></tr>
+<tr data-action="reuse"><td><span class="tag reuse">REUSE</span></td><td><code>ui/third_party/iotsploit-usb/src/usbscpi.c</code><br><code>ui/third_party/iotsploit-usb/glue/usbscpi_tinyusb.c</code></td><td>Core parser is reused; shared TinyUSB glue was modified to preserve header EOM after the split-query defect was reproduced.</td><td>All</td></tr>
+<tr data-action="add"><td><span class="tag add">ADD COVERAGE</span></td><td><code>iotsploit-fuzzer/tests/test_usbtmc_harness.py</code></td><td>Minimal coverage justified by uncovered high-risk wire framing, sequence execution and classification. Extend existing Django, Rust lease and UI tests for integration.</td><td>1–3</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="contracts"><h2>4. Configuration, execution and replay contracts</h2>
+<h3>Proposed campaign configuration</h3>
+<pre><code>{
+  "protocol_config": {
+    "protocol_type": "usbtmc",
+    "mode": "scpi",
+    "device": {"vid": 4617, "pid": 1, "serial": "DEVICE_SERIAL", "interface": 0},
+    "timeout": 1000,
+    "max_response_bytes": 4096,
+    "case_deadline_ms": 5000,
+    "baseline_query": "*IDN?",
+    "sequence": [
+      {"op": "write_message", "data": "$payload", "eom": true},
+      {"op": "request_read", "max_bytes": 4096}
+    ]
+  },
+  "monitors": [{
+    "kind": "mcu_core", "name": "mcu_core:main",
+    "resource": "usb:0483-PROBE_SERIAL/debug", "target": "STM32F407VG",
+    "options": {"recovery_policy": "stop", "settle_ms": 20}
+  }]
+}</code></pre>
+<p class="muted">Identity values are placeholders. Derive endpoints from the selected interface descriptors. Never silently pick the first VID/PID match. Without a unique serial, use rig topology plus interface, verify identity after reconnect, and require reselection when ambiguous.</p>
+<div class="grid"><div class="card"><h3>SCPI mode · first delivery</h3><p>Mutate commands and binary-block data, then construct valid USBTMC framing. Use known queries and application commands as seeds. Non-query writes do not imply a response.</p><p>Seeds: <code>*IDN?\n</code>, <code>SYST:ERR?\n</code>, valid application queries, and valid/truncated <code>:DATA:WRITE #…</code> blocks.</p></div><div class="card"><h3>Raw protocol mode · next delivery</h3><p>Mutate selected header or payload regions in named sequence templates. Raw writes preserve malformed bytes: do not repair tags, inverse tags, lengths, EOM or padding after mutation.</p><p>Operation scaffold, host buffers and deadlines remain validated. Initial sequence variants are explicit templates, not a new general-purpose language.</p></div></div>
+<h3>Sequence example</h3><pre><code>1. Write partial command with EOM=false.
+2. Request response with a bounded read size.
+3. Record response, timeout or stall.
+4. Execute the template's explicit USBTMC clear handshake.
+5. Write a valid *IDN? message with EOM=true.
+6. Request and verify identity response.
+7. Sample MCU state, save evidence, decide whether to stop.</code></pre>
+<p>Operations belong in the harness: logical write, exact raw bulk write, request/read, bounded delay and specific USBTMC class requests. Verify request fields against the specification before implementation. Class clear, endpoint halt clearing and USB device reset are distinct operations.</p>
+<h3>Per-case ordering</h3><ol><li>Acquire interface and debug leases; open hardware.</li><li>Preflight a known query and MCU observation.</li><li>Generate bytes with the existing mutation path.</li><li>MonitorSetHarness samples before, executes the sequence, then samples after.</li><li>Persist exact transfers, responses and monitor evidence.</li><li>Stop on unusable protocol state or MCU failure; release resources.</li></ol>
+<div class="note"><strong>Preserve evidence before recovery.</strong> No implicit endpoint clear, reply draining or board reset before recording a failure. Clear/abort inside a test is an explicit stimulus. Initial MCU policy is <code>stop</code>. Recovery between campaigns is a separate recorded action.</div>
+<h3>Outcome classification</h3><div class="table-wrap"><table><thead><tr><th>Observation</th><th>Classification</th><th>Action</th></tr></thead><tbody><tr><td>Invalid command returns a documented error</td><td>Expected rejection</td><td>Continue if subsequent communication is healthy.</td></tr><tr><td>Mutant times out; valid canary succeeds</td><td>No reply / inconclusive</td><td>Record; do not label an MCU crash.</td></tr><tr><td>Valid canary fails while CPU remains running</td><td>Protocol failure / unavailable interface</td><td>Stop and preserve transcript.</td></tr><tr><td>Persistent fault or lockup in MCU monitor</td><td>MCU crash evidence</td><td>Existing fault snapshot; stop and save.</td></tr><tr><td>Disconnect or unexpected reset</td><td>Disconnect/reset evidence</td><td>Stop; verify identity before reconnect replay.</td></tr><tr><td>Host rejects invalid sequence settings before I/O</td><td>Invalid test configuration</td><td>Do not count as firmware coverage or a firmware bug.</td></tr></tbody></table></div>
+<p>A canary following incomplete input is meaningful only after explicit synchronization. Waiting for more bytes can be legitimate. Bracketing MCU observations does not prove which step caused a transient failure.</p>
+<h3>Evidence and reproduction</h3><ul><li>Campaign manifest: normalized config, firmware identity, descriptors, monitor config, generator seed, initial baseline and software revisions.</li><li>Case: existing content-hashed input, campaign ID/index, effective sequence template and mutated region.</li><li>Transcript: ordered bulk/control operations; exact bytes; requested/actual lengths; relative timestamps; replies and exceptions.</li><li>Result: protocol classification, existing HarnessResult fields, MCU verdicts and snapshots.</li><li>Replay uses the same harness with mutation disabled and an explicitly selected, verified target. Preserve earlier campaign artifacts.</li></ul>
+<p><strong>Payload hash alone is not sequence identity.</strong> The same bytes with different EOM, operation order or delays are different tests. Store the effective sequence with campaign attribution.</p>
+<h3>Resource and execution bounds</h3><ul><li>Proposed key: <code>usbtmc:1209-0001-SHA256(serial)/if0</code>; separate from the debug key. Python/Rust same-host takers use identical normalization.</li><li>Hold the lease for the connection lifetime. Claim only the selected USBTMC interface, not the composite vendor log interface.</li><li>Release on failed setup, cancellation and completion. Restore a driver only if this session detached it.</li><li>Bound operation count, actual transmitted bytes, delays, reads and case deadline. Fuzzed declared lengths must not cause unbounded host allocation.</li><li>Check cancellation between operations; transfer deadlines bound cancellation latency.</li></ul>
+</section>
+
+<section id="phases"><h2>5. Phased implementation plan</h2>
+<details open><summary>Phase 0 · Establish the baseline</summary><ul><li>Choose board/firmware, rig interface and independent debug probe.</li><li>Record descriptors and valid USBTMC traffic; verify PyUSB/libusb access and MCU manual check.</li><li>Audit API/model serialization, enum switches and existing lock-key construction.</li><li>Confirm metadata duplication before planning its removal.</li></ul><p><strong>Exit:</strong> repeatable identity query and MCU observation; agreed wire and lease contracts.</p></details>
+<details open><summary>Phase 1 · Real backend protocol support</summary><ul><li>Add adapter and harness with valid framing and bounded response handling.</li><li>Compose hardware and leases at the existing application boundary.</li><li>Add protocol metadata, choices/migration, live rig discovery and real connection checks.</li><li>Preserve settings and reject USBTMC mock fallback.</li><li>Verify cleanup on failed open, stop and cancellation.</li></ul><p><strong>Exit:</strong> backend sends real queries, records replies, reports missing/busy hardware and releases the interface.</p></details>
+<details open><summary>Phase 2 · Complete application workflow</summary><ul><li>Add USBTMC picker/config to existing UI and round-trip saved settings.</li><li>Add SCPI/binary seeds through current case management.</li><li>Extend result evidence/logger and exact replay path.</li><li>Show protocol failures separately from MCU evidence.</li><li>Make desktop Device Control honor the same-host USB lease.</li></ul><p><strong>Exit:</strong> operator configures, runs, inspects and replays a real campaign from the application.</p></details>
+<details open><summary>Phase 3 · USBTMC headers and state sequences</summary><ul><li>Add raw frames and validated class-request operations.</li><li>Add templates for split messages, EOM changes, tags, lengths, padding and read sizes.</li><li>Test clear/abort during partial commands and pending replies.</li><li>Place canaries after explicit synchronization; retain exact transcripts.</li><li>Replay every interesting finding from its verified baseline.</li></ul><p><strong>Exit:</strong> malformed frames reach firmware unchanged; saved failures reproduce or are explicitly reported as flaky.</p></details>
+<details open><summary>Phase 4 · Triage, fixes and optional native fuzzing</summary><ul><li>Reduce findings by deleting operations and shrinking byte regions.</li><li>Locate owner: TinyUSB, glue, SCPI core or application handler.</li><li>Fix the owner and retain minimal regression reproductions.</li><li>Optionally add native sanitizer fuzzing around existing C tests and TinyUSB stub.</li><li>Consider automatic recovery only after evidence and reconnect behavior are verified.</li></ul><p><strong>Exit:</strong> accepted bugs have a reproducible case, owner, fix and verification evidence.</p></details>
+</section>
+
+<section id="validation"><h2>6. Validation and acceptance</h2>
+<p>New tests are justified only for uncovered high-risk wire framing, ownership, persistence and classification. Extend existing integration tests elsewhere. Hardware results are separate from host test results.</p>
+<div class="table-wrap"><table><thead><tr><th>Area</th><th>Required evidence</th></tr></thead><tbody><tr><td>Framing</td><td>Known-good messages; tag handling; alignment; short reads; malformed response rejection; bounded response assembly.</td></tr><tr><td>Sequences</td><td>Exact bytes and operation order; cancellation/deadlines; expected rejection vs protocol failure.</td></tr><tr><td>Ownership</td><td>Busy rejection, failed-open cleanup, Python/Rust same-host contention, selected-interface-only claiming.</td></tr><tr><td>Persistence</td><td>API/database/UI settings round-trip; correct usbtmc campaign configuration.</td></tr><tr><td>Replay</td><td>Transcript retained without MCU monitor; immutable saved bytes/order; no cross-campaign overwrites.</td></tr><tr><td>Hardware</td><td>Identity query; invalid command then valid query; split block; clear/abort sequence; known MCU fault; release after stop.</td></tr><tr><td>UI</td><td>Missing/busy device and setup errors; transcript view; rendered screenshots of changed screens.</td></tr></tbody></table></div>
+<h3>Implementation commit gates</h3><pre><code># Root Python repository
+tools/testing/test-python-full.sh
+
+# UI repository, for Dart changes
+tools/testing/test-flutter-full.sh
+
+# UI Rust bridge, relevant lease/session checks
+cargo test --lib
+
+# iotsploit-usb, only when C/build/transport tests change
+tools/testing/test-c-full.sh</code></pre>
+<p>Use Poetry for Python execution and the pinned fvm Flutter toolchain. Report failed/skipped checks and hardware blockers. Python, Flutter/Rust, firmware C and Rust-host gates passed; the CAN capture hardware test was skipped without vcan0.</p>
+</section>
+
+<section><h2>7. Risks and limits</h2><ul><li>Bus addresses change after resets; reconnect must verify identity.</li><li>Raw USB transfers provide message and class-request control, not arbitrary electrical/link-layer packets.</li><li>Logical replay cannot guarantee identical physical scheduling; keep flaky findings separate.</li><li>Mutation plus MCU observation is black-box hardware fuzzing, not firmware coverage feedback.</li><li>Before/after samples may miss transient faults; start with short sequences.</li><li>Initial platform acceptance is Linux; qualify Windows/macOS driver binding and lock behavior separately.</li><li>Keep existing CAN/UART/SPI behavior, monitor plugins and Device Control working.</li></ul></section>
+
+<section><h2>8. References and decision status</h2><ul><li><a href="../../../AGENTS.md">Root guidance</a>, <a href="../../architecture.md">architecture</a>, and <a href="../../../.agents/standards/testing.md">test policy</a>.</li><li><a href="../active/target_monitor_architecture_plan.md">Existing target monitor architecture plan</a>.</li><li><a href="../../../ui/third_party/iotsploit-usb/host/rust/src/usbtmc_raw.rs">Current Rust USBTMC framing</a> and <a href="../../../ui/third_party/iotsploit-usb/glue/usbscpi_tinyusb.c">firmware glue</a>.</li><li><a href="https://www.usb.org/documents?search=USBTMC">USB-IF document library</a>: verify class request and framing contracts.</li><li><a href="https://github.com/pyusb/pyusb/blob/master/docs/tutorial.rst">Official PyUSB tutorial</a>: interface access and ownership.</li><li><a href="https://llvm.org/docs/LibFuzzer.html">LLVM libFuzzer</a>: optional native fuzzing.</li></ul><p><strong>Recommended decision:</strong> implement the Python adapter and harness in phases 0–3; keep native fuzzing complementary. Firmware fixes follow reproduced findings. Implementation and hardware validation are recorded in <a href="usbtmc-fuzzing-plan.md">the Markdown delivery record</a>. Native fuzzing remains optional follow-up.</p></section>
+<footer>One HTML artifact, no external assets. Diagrams and filter controls work offline. Root, UI and firmware are separate Git repositories; commits remain separate.</footer>
+</main><script>
+const buttons=document.querySelectorAll('[data-filter]');
+const rows=document.querySelectorAll('#inventory-table tbody tr');
+buttons.forEach(button=>button.addEventListener('click',()=>{
+  buttons.forEach(other=>other.setAttribute('aria-pressed',String(other===button)));
+  rows.forEach(row=>row.hidden=button.dataset.filter!=='all'&&row.dataset.action!==button.dataset.filter);
+}));
+let printState;
+window.addEventListener('beforeprint',()=>{
+  printState={rows:Array.from(rows,row=>row.hidden),details:Array.from(document.querySelectorAll('details'),item=>item.open)};
+  rows.forEach(row=>row.hidden=false);
+  document.querySelectorAll('details').forEach(item=>item.open=true);
+});
+window.addEventListener('afterprint',()=>{
+  if(!printState)return;
+  rows.forEach((row,index)=>row.hidden=printState.rows[index]);
+  document.querySelectorAll('details').forEach((item,index)=>item.open=printState.details[index]);
+});
+</script></body></html>

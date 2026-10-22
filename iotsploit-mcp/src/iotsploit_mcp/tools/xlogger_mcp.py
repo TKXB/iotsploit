@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
+from iotsploit_core.utils.helpers import log_dir
+
 
 LOG_FORMATS = {
     "standard": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -20,7 +22,7 @@ class _MCPLogConfig:
     fmt: str = LOG_FORMATS["standard"]
     datefmt: str = "%Y-%m-%d %H:%M:%S"
     default_level: int = logging.INFO
-    default_log_dir: str = "/tmp/sat_logs"
+    default_log_dir: str = str(log_dir())
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -145,4 +147,3 @@ class XLoggerMCP:
 
 # Global instance
 xlog_mcp = XLoggerMCP()
-

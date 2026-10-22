@@ -4,10 +4,31 @@ import sys
 import time
 import importlib
 import inspect
-from typing import Dict
 import argparse
 
 LOG_FORMAT_CHOICES = ("standard", "compact", "plain")
+
+
+def _tolerate_unencodable_output() -> None:
+    """Never let a status message kill the process.
+
+    The CLI prints emoji in its progress output. A Windows console on a
+    non-UTF-8 code page (GBK on a Chinese install) raises UnicodeEncodeError
+    on the first one, which killed the process during database setup -- before
+    it could report what it was doing. Replacing the character is the right
+    trade: the console cannot render it either way, and the run continues.
+
+    Left alone where the stream already encodes them, so Linux output is
+    unchanged.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass  # not a reconfigurable text stream (redirected, wrapped)
+
+
+_tolerate_unencodable_output()
 
 
 def _prime_log_format_env_from_argv(argv):
@@ -35,56 +56,33 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
 import django
 django.setup()
 
-def ensure_database_initialized():
-    """Automatically initialize database tables if they don't exist"""
-    try:
-        from iotsploit_django.adapters.django.plugins.models import Plugin
-        Plugin.objects.exists()
-        
-        from sqlalchemy.exc import OperationalError
-        from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-        from iotsploit_django.adapters.django.device_models import DeviceDriverState
-        
-        session = get_default_sqlalchemy_db().SessionLocal()
-        try:
-            session.query(DeviceDriverState).first()
-            session.close()
-        except OperationalError as e:
-            session.close()
-            if "no such table: device_driver_states" in str(e):
-                print("🔧 Setting up SQLAlchemy database tables...")
-                db = get_default_sqlalchemy_db()
-                db.Base.metadata.create_all(db.engine)
-                print("✅ SQLAlchemy tables created successfully!")
-            else:
-                raise e
-                
-    except Exception as e:
-        if "no such table" in str(e) or "no such column" in str(e):
-            print("🔧 Database not initialized. Setting up database...")
-            try:
-                print("📋 Running Django migrations...")
-                from django.core.management import execute_from_command_line
-                execute_from_command_line(["manage.py", "migrate", "--noinput"])
-                print("✅ Django migrations completed!")
-                
-                print("📋 Creating SQLAlchemy tables...")
-                from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-                db = get_default_sqlalchemy_db()
-                db.Base.metadata.create_all(db.engine)
-                print("✅ SQLAlchemy tables created!")
-                
-                print("🎉 Database initialization completed successfully!")
-                
-            except Exception as init_error:
-                print(f"❌ Error initializing database: {init_error}")
-                print("💡 You may need to run: python manage.py migrate")
-                raise init_error
-        else:
-            raise e
+def ensure_database_migrated():
+    """Apply pending migrations so an existing database follows the code.
 
-# Initialize database before proceeding
-ensure_database_initialized()
+    An existing database is copied first, so a failed migration can be undone
+    by restoring the copy.
+    """
+    from django.core.management import call_command
+    from django.db import connection
+    from django.db.migrations.executor import MigrationExecutor
+    import shutil
+
+    executor = MigrationExecutor(connection)
+    plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+    if not plan:
+        return
+    names = ", ".join(f"{migration.app_label}.{migration.name}" for migration, _ in plan)
+    print(f"📋 Applying database migrations: {names}")
+    database = connection.settings_dict["NAME"]
+    if executor.loader.applied_migrations and os.path.isfile(database):
+        backup = f"{database}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+        shutil.copy2(database, backup)
+        print(f"💾 Database backed up to {backup}")
+    call_command("migrate", interactive=False, verbosity=0)
+    print("✅ Database migrations applied")
+
+
+ensure_database_migrated()
 
 # Now it's safe to import Django and other modules
 import cmd2
@@ -95,6 +93,7 @@ from iotsploit_cli.command_registry import (
     LEGACY_REPLACEMENTS,
     RESOURCE_SPECS,
 )
+from iotsploit_cli.commands.resource_commands import add_service_start_arguments, service_start_kwargs
 
 # Command palette imports (prompt-toolkit based live command discovery).
 # Wrapped in try/except so the shell still works if prompt-toolkit is missing.
@@ -111,13 +110,13 @@ except ImportError:  # pragma: no cover
 
 from iotsploit_django.adapters.django.target_models import TargetManager
 from iotsploit_core.domain.target import Vehicle
-from iotsploit_django.composition_root.wiring import get_device_driver_manager, get_exploit_plugin_manager
-from iotsploit_django.adapters.django.device_models import DeviceManager
-from iotsploit_core.domain.device import DeviceType, SerialDevice, SocketCANDevice, USBDevice
+from iotsploit_django.composition_root.wiring import get_exploit_plugin_manager
 from iotsploit_django.tools.env_mgr import Env_Mgr
 from iotsploit_django.tools.report_mgr import Report_Mgr
-from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_django.tools.xlogger import xlog as logger
+from iotsploit_core.core.interaction_binding import bind_interaction
+from iotsploit_cli.interaction_console import ConsoleInteractionAdapter
+from iotsploit_cli.plugin_log_console import console_plugin_logs
 from iotsploit_core.utils import iots_logger
 
 def global_exception_handler(exctype, value, traceback):
@@ -135,6 +134,8 @@ def discover_command_modules():
     for filename in os.listdir(commands_dir):
         if filename.endswith('.py') and not filename.startswith('__') and filename != 'base_commands.py':
             module_name = filename[:-3]
+            if module_name == "linux_commands" and not sys.platform.startswith("linux"):
+                continue
             
             try:
                 module = importlib.import_module(f'iotsploit_cli.commands.{module_name}')
@@ -150,13 +151,13 @@ def discover_command_modules():
             except Exception as e:
                 logger.error(f"Error loading {module_name}: {e}")
     
-    logger.info(f"Auto-discovered {len(command_classes)} command modules")
+    logger.debug(f"Auto-discovered {len(command_classes)} command modules")
     return command_classes
 
 # Auto-discover command modules
 try:
     CommandMixins = discover_command_modules()
-    logger.info(f"Successfully loaded command modules: {[cls.__name__ for cls in CommandMixins]}")
+    logger.debug(f"Successfully loaded command modules: {[cls.__name__ for cls in CommandMixins]}")
 except Exception as e:
     logger.error(f"Failed to discover command modules: {e}")
     CommandMixins = []
@@ -183,54 +184,26 @@ class SAT_Shell(SAT_Shell_Base):
         self.daphne_server_process = None
         self.mcp_bridge_process = None
         self.celery_worker_process = None
+        self.interactive_worker_process = None
+        self.streaming_worker_process = None
         
-        # Initialize device manager and connected devices
-        self.device_driver_manager = get_device_driver_manager()
-        # 初始化设备相关属性
-        self._current_plugin = None
-        self._current_device = None
-        self._current_driver = None
-        self.connected_devices = {}
-        
-        
-        # Initialize plugin manager
-        # Use Django composition root to wire ORM repos (+ optional Celery runner).
-        # Default to Celery-enabled behavior for parity with previous implementation.
-        use_celery = os.getenv("SAT_SHELL_USE_CELERY", "1").lower() not in ("0", "false", "no")
-        self.plugin_manager = get_exploit_plugin_manager(use_celery=use_celery)
+        # The Django composition root selects the runner for this runtime.
+        self.plugin_manager = get_exploit_plugin_manager()
         self.plugin_manager.initialize()
         
         # Initialize target manager
         self.target_manager = TargetManager.get_instance()
         self.target_manager.register_target("vehicle", Vehicle)
         
-        # Check if database has any targets, if not, optionally load from JSON as initial setup
+        # Check if database has any targets, if not, hint how to add one.
         existing_targets = self.target_manager.get_all_targets()
         if not existing_targets:
-            logger.info("No targets found in database. You can:")
-            logger.info("1. Use Flutter UI to create targets")
-            logger.info("2. Use 'target_import' command to import from JSON file")
-            logger.info("3. Use target management commands to create targets manually")
+            logger.debug("No targets in database; use 'target import' or the UI to add one.")
         else:
-            logger.info(f"Found {len(existing_targets)} targets in database")
+            logger.debug(f"Found {len(existing_targets)} targets in database")
         
         # Note: Removed automatic JSON loading to prevent overwriting user changes
         # Use 'target_import conf/target.json' command if you need to import from JSON
-
-        # Initialize device manager
-        self.device_manager = DeviceManager.get_instance()
-        self.device_manager.register_device(DeviceType.Serial, SerialDevice)
-        self.device_manager.register_device(DeviceType.USB, USBDevice)
-        self.device_manager.register_device(DeviceType.CAN, SocketCANDevice)
-        
-        # Note: Removed automatic JSON loading to use database as single source of truth
-        # Devices are now discovered by drivers via scan() or managed through UI/CLI
-        # Use 'device_import <json_file>' command if you need to import from JSON
-        existing_devices = self.device_manager.get_all_devices()
-        if not existing_devices:
-            logger.info("No devices found in database. Devices will be auto-discovered by drivers.")
-            logger.info("You can also use 'device_import conf/devices.json' to import from JSON file.")
-
 
         # -- Command palette initialization (TTY-only) --------------------- #
         # The palette uses prompt-toolkit for live command discovery.
@@ -308,6 +281,28 @@ class SAT_Shell(SAT_Shell_Base):
         """Deprecated alias for exit which preserves cleanup behavior."""
         return self.do_exit(arg)
 
+    def onecmd_plus_hooks(self, *args, **kwargs):
+        """Run every shell command with an operator attached to the terminal.
+
+        A plugin can ask a question at any point during a run, and in the shell
+        there is always someone there to answer it. Binding here rather than at
+        each call site means every path that ends up executing a plugin --
+        `exec`, plugin groups, sequences, run-all, and anything added later --
+        can prompt without being wired up individually.
+
+        The binding does not reach a plugin that prompts from a thread it
+        spawned itself; context variables do not cross threads.
+
+        A plugin's own log records are shown here for the same reason and over
+        the same span: asking a question is only half a conversation, and
+        without this the shell answered every one of them into a logger with no
+        handler. Unlike the binding, this one does reach the threads a plugin
+        spawns -- logging is process-global, which is why it is scoped to a
+        single command rather than left on.
+        """
+        with bind_interaction(ConsoleInteractionAdapter()), console_plugin_logs():
+            return super().onecmd_plus_hooks(*args, **kwargs)
+
     def precmd(self, statement):
         """Warn when an executable compatibility command is used directly."""
         statement = super().precmd(statement)
@@ -355,162 +350,13 @@ class SAT_Shell(SAT_Shell_Base):
             return cmd_func.__doc__.split('\n')[0]
         return ''
 
-    def _select_device(self, selected_plugin=None):
-        """Helper method to handle device selection process"""
-        try:
-            available_plugins = [
-                driver_name for driver_name, device 
-                in self.connected_devices.items()
-            ]
-            
-            if not available_plugins:
-                logger.error(ansi.style("No initialized devices available", fg=ansi.Fg.RED))
-                return False
-
-            if selected_plugin:
-                if selected_plugin not in available_plugins:
-                    logger.error(
-                        ansi.style(
-                            f"Device '{selected_plugin}' is not initialized. "
-                            f"Available devices: {', '.join(available_plugins)}",
-                            fg=ansi.Fg.RED,
-                        )
-                    )
-                    return False
-            else:
-                selected_plugin = Input_Mgr.Instance().single_choice(
-                    "Select device plugin",
-                    available_plugins
-                )
-
-            device = self.connected_devices.get(selected_plugin)
-            if not device:
-                logger.error(ansi.style(f"Device not found for {selected_plugin}", fg=ansi.Fg.RED))
-                return False
-
-            self._current_device = device
-            self._current_driver = self.device_driver_manager.get_driver_instance(selected_plugin)
-            self._current_plugin = selected_plugin
-
-            logger.info(ansi.style(f"Selected device: {device.name}", fg=ansi.Fg.GREEN))
-            return True
-
-        except Exception as e:
-            logger.error(ansi.style(f"Error during device selection: {str(e)}", fg=ansi.Fg.RED))
-            logger.debug("Detailed error:", exc_info=True)
-            return False
-
-    def _display_devices(self, devices: Dict, sources: Dict):
-        """Helper method to display device information"""
-        for device_id, device in devices.items():
-            source = sources.get(device_id, "unknown")
-            source_color = ansi.Fg.GREEN if source == "dynamic" else ansi.Fg.BLUE
-            
-            logger.info(ansi.style(f"\n  Device ID: {device_id}", fg=ansi.Fg.CYAN))
-            logger.info(ansi.style(f"  Source: {source}", fg=source_color))
-            logger.info(f"  Name: {device.name}")
-            logger.info("  " + "-" * 40)
-
-    def _auto_initialize_devices(self):
-        """自动扫描并初始化所有可用设备"""
-        logger.info("Automatic device initialization started...")
-        
-        available_drivers = list(self.device_driver_manager.drivers.keys())
-        if not available_drivers:
-            logger.warning("No device drivers available!")
-            return
-
-        logger.info(f"Found {len(available_drivers)} drivers: {', '.join(available_drivers)}")
-
-        for driver_name in available_drivers:
-            try:
-                logger.info(f"Initializing {driver_name}...")
-                
-                scan_result = self.device_driver_manager.scan_devices(driver_name)
-                if scan_result['status'] != 'success':
-                    logger.error(f"Failed to scan {driver_name}: {scan_result.get('message', 'Unknown error')}")
-                    continue
-                
-                devices = scan_result.get('devices', [])
-                if not devices:
-                    logger.warning(f"No devices found for {driver_name}")
-                    continue
-
-                logger.info(f"Found {len(devices)} device(s) for {driver_name}")
-
-                for device in devices:
-                    try:
-                        logger.info(f"Processing device: {device.name} (ID: {device.device_id})")
-
-                        init_result = self.device_driver_manager.initialize_device(driver_name, device)
-                        if init_result['status'] != 'success':
-                            logger.error(f"Failed to initialize {device.name}: {init_result['message']}")
-                            continue
-
-                        connect_result = self.device_driver_manager.connect_device(driver_name, device)
-                        if connect_result['status'] != 'success':
-                            logger.error(f"Failed to connect {device.name}: {connect_result['message']}")
-                            continue
-
-                        self.connected_devices[driver_name] = device
-                        logger.info(f"Successfully connected {device.name} using {driver_name}")
-
-                    except Exception as e:
-                        logger.error(f"Error processing device: {str(e)}")
-
-            except Exception as e:
-                logger.error(f"Error initializing {driver_name}: {str(e)}")
-
-        self._show_initialization_summary()
-
-    def _show_initialization_summary(self):
-        """打印设备初始化摘要"""
-        logger.info("Device Initialization Summary:")
-        
-        for driver_name, driver in self.device_driver_manager.drivers.items():
-            logger.info("")
-            logger.info(f"{driver_name}:")
-            
-            current_device = self.connected_devices.get(driver_name)
-            
-            if current_device:
-                state = self.device_driver_manager.get_device_state(
-                    driver_name, 
-                    device_id=current_device.device_id
-                )
-                logger.info(f"  Device: {current_device.name}")
-                logger.info(f"  State: {state.value}")
-            else:
-                logger.info("  Device: No device connected")
-                logger.info("  State: unknown")
-                
-            commands = self.device_driver_manager.get_supported_commands(driver_name)
-            if commands:
-                logger.info(f"  Commands: {', '.join(commands.keys())}")
-
-    def _cleanup_devices(self):
-        """清理所有设备连接"""
-        if not self.connected_devices:
-            return
-
-        logger.info("Cleaning up device connections...")
-        for driver_name, device in list(self.connected_devices.items()):
-            try:
-                result = self.device_driver_manager.close_device(driver_name, device)
-                if result['status'] == 'success':
-                    logger.info(f"Successfully closed {device.name}")
-                    del self.connected_devices[driver_name]
-                else:
-                    logger.error(f"Failed to close {device.name}: {result['message']}")
-            except Exception as e:
-                logger.error(f"Error closing {device.name}: {str(e)}")
-
 def main():
     import signal
     import atexit
 
     parser = argparse.ArgumentParser(description='SAT Shell entrypoint')
     parser.add_argument('--runserver', action='store_true', help='Start servers directly and keep running until Ctrl+C; on Ctrl+C, stop servers')
+    add_service_start_arguments(parser)
     parser.add_argument(
         '--log-format',
         choices=LOG_FORMAT_CHOICES,
@@ -541,13 +387,7 @@ def main():
     # Register OS signal + atexit handlers in the entrypoint so that unexpected exits
     # (terminal closed / SIGTERM) also trigger the same cleanup path.
     def _shutdown():
-        try:
-            shell.do_stop_server("")
-        finally:
-            try:
-                shell._cleanup_devices()
-            except Exception:
-                pass
+        shell.do_stop_server("")
 
     def _signal_handler(signum, frame):  # noqa: ARG001
         _shutdown()
@@ -557,13 +397,13 @@ def main():
         # Do not raise here; just best-effort cleanup.
         _shutdown()
 
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGHUP, _signal_handler)
+    for signal_name in ("SIGTERM", "SIGINT", "SIGHUP"):
+        if shutdown_signal := getattr(signal, signal_name, None):
+            signal.signal(shutdown_signal, _signal_handler)
     atexit.register(_atexit_handler)
 
     if args.runserver:
-        ok = shell.do_runserver("")
+        ok = shell._start_services(**service_start_kwargs(args))
         if ok is False:
             sys.exit(1)
         while True:

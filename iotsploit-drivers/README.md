@@ -14,6 +14,16 @@ Official IoTSploit device driver package. Contains all built-in hardware drivers
 | J-Link | `iotsploit_drivers.jlink` | SEGGER J-Link debug probe |
 | Ubertooth | `iotsploit_drivers.ubertooth` | Ubertooth Bluetooth driver |
 | FPGA | `iotsploit_drivers.iotsploit_func_fpga` | ECP5 FPGA driver |
+| Ethernet VLAN | `iotsploit_drivers.ethernet` | Persistent NetworkManager VLAN configuration |
+
+### Ethernet VLAN
+
+`drv_eth_vlan` scans NetworkManager Ethernet parents and exposes `add_vlan`,
+`edit_vlan`, `delete_vlan`, and the read-only `vlan_status` command. Profiles
+created by the driver are named `iotsploit-vlan-<parent>-<id>`; edit and delete
+refuse every other profile. The VLAN address, cloned MAC, and autoconnect state
+persist in NetworkManager. An optional permanent peer neighbor is applied to
+the live interface during add or edit, but must be reapplied after reboot.
 
 ## Installation
 

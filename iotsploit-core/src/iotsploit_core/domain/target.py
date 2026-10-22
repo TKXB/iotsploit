@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any, Dict, List, Optional, Type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializeAsAny, field_validator, model_validator
+
+from iotsploit_core.domain.facet import Facet, resolve_facets
+
+#: Where interfaces used to live on a stored target. Read, never written.
+LEGACY_INTERFACES_KEY = "interfaces"
 
 
 class Target(BaseModel, ABC):
@@ -14,12 +19,67 @@ class Target(BaseModel, ABC):
     properties: Dict[str, Any] = Field(default_factory=dict)
     ip_address: Optional[str] = None
     location: Optional[str] = None
-    components: List["Component"] = Field(default_factory=list)
-    interfaces: List["Interface"] = Field(default_factory=list)
+    # SerializeAsAny keeps subclass fields: without it pydantic serializes these
+    # against the *declared* type and silently drops adb_serial_id and friends,
+    # which is why every caller used to re-dump the items one by one.
+    # An ethernet port and an ECU are both endpoints: same id, name, type,
+    # status, and both carry protocol config. They were two lists until the
+    # split started doing harm -- an interface could not hold a facet, so the
+    # host and port of the protocol it carries had to be stored on some
+    # component instead. ``type`` says which kind a row is.
+    components: SerializeAsAny[List["Component"]] = Field(default_factory=list)
+    # Plane T. The graph is projected from these on demand, never stored as one.
+    buses: List["Bus"] = Field(default_factory=list)
+    edges: List["Edge"] = Field(default_factory=list)
 
-    @abstractmethod
+    @field_validator("components", mode="before")
+    @classmethod
+    def _resolve_components(cls, value: Any) -> Any:
+        """Build each component through the factory, as a stored read does.
+
+        Without this the model has two ways in and they disagree. The storage
+        path calls ``ComponentFactory`` and gets an ``ECUComponent`` carrying
+        ``ecu_type``, ``protocol``, ``address`` and ``firmware_version``;
+        constructing the model from a plain dict gets a base ``Component``,
+        and pydantic drops those fields silently because unknown keys are
+        ignored rather than refused.
+
+        The visible consequence is that a target does not survive its own
+        round trip: dump it and read the dump back and the typed half is
+        gone, with no error anywhere. Resolving here makes the model the one
+        owner, which is what ``_resolve_facets`` already does for facets.
+        """
+        if not isinstance(value, list):
+            return value
+        return [
+            ComponentFactory.create_component(item) if isinstance(item, dict) else item
+            for item in value
+        ]
+
+    @model_validator(mode="after")
+    def _check_edge_endpoints(self) -> "Target":
+        """Every edge endpoint must resolve to something on this target.
+
+        An edge to a deleted component is not a harmless leftover: it is a
+        topology claim that reads as true and answers reachability questions
+        wrongly. Better to reject the write than to store a lie.
+        """
+        if not self.edges:
+            return self
+        known = {self.target_id}
+        known.update(comp.component_id for comp in self.components)
+        known.update(bus.bus_id for bus in self.buses)
+        for edge in self.edges:
+            for role, endpoint in (("source", edge.source), ("target", edge.target)):
+                if endpoint not in known:
+                    raise ValueError(
+                        f"edge {edge.relation!r} has unknown {role} {endpoint!r}; "
+                        f"known ids: {sorted(known)}"
+                    )
+        return self
+
     def get_info(self) -> Dict[str, Any]:
-        raise NotImplementedError
+        return self.model_dump()
 
     def get_ecu_ip(self, ecu: str) -> Optional[str]:
         """Return the configured IP of the ECU component whose name matches `ecu`.
@@ -42,7 +102,20 @@ class Component(BaseModel):
     name: str
     type: str
     status: str = "active"
+    # Typed, protocol-specific configuration, keyed by facet name. Open by
+    # design: core registers none of these, plugins register their own.
+    facets: SerializeAsAny[Dict[str, Facet]] = Field(default_factory=dict)
+    # Unstructured leftovers only. Anything a driver acts on belongs in a facet.
     properties: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("facets", mode="before")
+    @classmethod
+    def _resolve_facets(cls, value: Any) -> Any:
+        return resolve_facets(value)
+
+    def facet(self, key: str) -> Optional[Facet]:
+        """The facet stored under ``key``, or None. Never raises."""
+        return self.facets.get(key)
 
     def get_info(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -53,28 +126,12 @@ class ADBDevice(Component):
     usb_vendor_id: Optional[str] = None
     usb_product_id: Optional[str] = None
 
-    def get_info(self) -> Dict[str, Any]:
-        info = super().get_info()
-        info.update(
-            {
-                "adb_serial_id": self.adb_serial_id,
-                "usb_vendor_id": self.usb_vendor_id,
-                "usb_product_id": self.usb_product_id,
-            }
-        )
-        return info
-
 
 class CameraComponent(Component):
     resolution: Optional[str] = None
     fps: Optional[int] = None
     codec: Optional[str] = None
     rtsp_url: Optional[str] = None
-
-    def get_info(self) -> Dict[str, Any]:
-        info = super().get_info()
-        info.update({"resolution": self.resolution, "fps": self.fps, "codec": self.codec, "rtsp_url": self.rtsp_url})
-        return info
 
 
 class SensorComponent(Component):
@@ -84,19 +141,6 @@ class SensorComponent(Component):
     range_max: Optional[float] = None
     accuracy: Optional[float] = None
 
-    def get_info(self) -> Dict[str, Any]:
-        info = super().get_info()
-        info.update(
-            {
-                "sensor_type": self.sensor_type,
-                "unit": self.unit,
-                "range_min": self.range_min,
-                "range_max": self.range_max,
-                "accuracy": self.accuracy,
-            }
-        )
-        return info
-
 
 class NetworkComponent(Component):
     ip_address: Optional[str] = None
@@ -104,17 +148,6 @@ class NetworkComponent(Component):
     interface_type: Optional[str] = None
     bandwidth: Optional[str] = None
 
-    def get_info(self) -> Dict[str, Any]:
-        info = super().get_info()
-        info.update(
-            {
-                "ip_address": self.ip_address,
-                "mac_address": self.mac_address,
-                "interface_type": self.interface_type,
-                "bandwidth": self.bandwidth,
-            }
-        )
-        return info
 
 
 class ECUComponent(Component):
@@ -122,13 +155,6 @@ class ECUComponent(Component):
     protocol: Optional[str] = None
     address: Optional[str] = None
     firmware_version: Optional[str] = None
-
-    def get_info(self) -> Dict[str, Any]:
-        info = super().get_info()
-        info.update(
-            {"ecu_type": self.ecu_type, "protocol": self.protocol, "address": self.address, "firmware_version": self.firmware_version}
-        )
-        return info
 
 
 class ComponentFactory:
@@ -171,11 +197,71 @@ class ComponentFactory:
         return list(cls._component_types.keys())
 
 
-class Interface(BaseModel):
-    interface_id: str
+def fold_legacy_interfaces(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Move a stored target's ``interfaces`` into its ``components``.
+
+    Interfaces were a parallel list with a component's shape minus facets.
+    Nothing ever branched on which list a row was in; the one real difference
+    was that an interface could not carry protocol config.
+
+    Ids were already unique across both lists -- edge validation pooled them
+    into one namespace -- so an interface keeps its id and every edge goes on
+    pointing at the same thing. Folding twice is a no-op, which is what makes
+    this safe to run on every read.
+
+    Returns a new dict; the argument is left alone.
+    """
+    if LEGACY_INTERFACES_KEY not in data:
+        return data
+
+    legacy = data.get(LEGACY_INTERFACES_KEY) or []
+    folded = dict(data)
+    components = list(folded.get("components") or [])
+    taken = {c.get("component_id") for c in components if isinstance(c, dict)}
+
+    for raw in legacy:
+        if not isinstance(raw, dict):
+            continue
+        item = dict(raw)
+        item["component_id"] = item.pop("interface_id", None) or item.get("component_id") or ""
+        if item["component_id"] in taken:
+            continue
+        item.setdefault("type", "interface")
+        components.append(item)
+        taken.add(item["component_id"])
+
+    folded["components"] = components
+    folded.pop(LEGACY_INTERFACES_KEY, None)
+    return folded
+
+
+class Bus(BaseModel):
+    """A shared medium: a CAN bus, an Ethernet segment, a VLAN.
+
+    A bus is a *scope*, not an endpoint -- you do not query it by id, things
+    live on it. CAN messages anchor here rather than to a component, because a
+    frame has one sender and many receivers. Catalog rows need a stable bus id
+    to point at, which is why this exists before any DBC import.
+    """
+
+    bus_id: str
     name: str
-    type: str
-    status: str = "active"
+    type: str  # "can" | "ethernet" | "vlan"
+    properties: Dict[str, Any] = Field(default_factory=dict)
+
+    def get_info(self) -> Dict[str, Any]:
+        return self.model_dump()
+
+
+class Edge(BaseModel):
+    """A typed relationship between two things on a target.
+
+    Endpoints are ids of a component, interface, bus, or the target itself.
+    """
+
+    source: str
+    target: str
+    relation: str  # "connects" | "hosts" | "bus_member" | "reachable_from"
     properties: Dict[str, Any] = Field(default_factory=dict)
 
     def get_info(self) -> Dict[str, Any]:
@@ -184,18 +270,6 @@ class Interface(BaseModel):
 
 class Vehicle(Target):
     """Vehicle target with ADB-specific helper methods."""
-
-    def get_info(self) -> Dict[str, Any]:
-        info = super().model_dump()
-        info.update(
-            {
-                "ip_address": self.ip_address,
-                "location": self.location,
-                "components": [comp.model_dump() for comp in self.components],
-                "interfaces": [intf.model_dump() for intf in self.interfaces],
-            }
-        )
-        return info
 
     # -------- ADB helpers (used by ADB_Mgr / UI) --------
     def get_adb_devices(self) -> Dict[str, ADBDevice]:
@@ -232,17 +306,6 @@ class Vehicle(Target):
 class GenericTarget(Target):
     """Generic target for non-vehicle devices (ECU, IoT, phone, router, camera, etc)."""
 
-    def get_info(self) -> Dict[str, Any]:
-        info = self.model_dump()
-        # Ensure components and interfaces are serialized properly
-        info.update(
-            {
-                "components": [comp.model_dump() for comp in self.components],
-                "interfaces": [intf.model_dump() for intf in self.interfaces],
-            }
-        )
-        return info
-
 
 # Target type registry
 TARGET_TYPES = {
@@ -254,5 +317,3 @@ TARGET_TYPES = {
     "camera": "Camera",
     "generic": "Generic",
 }
-
-

@@ -32,11 +32,13 @@ class FirmwareCommands(BaseCommands):
                 name = firmware['name']
                 device_type = firmware.get('device_type', 'unknown')
                 version = firmware.get('version', 'unknown')
-                path = firmware.get('path', 'unknown')
-                
-                # Check if file exists
-                from pathlib import Path
-                file_exists = Path(path).exists() if path != 'unknown' else False
+                path = firmware.get('path') or firmware.get('resource', 'unknown')
+
+                try:
+                    sizes = firmware_service.file_sizes(name)
+                except Exception:
+                    sizes = []
+                file_exists = bool(sizes) and None not in sizes
                 status_color = ansi.Fg.GREEN if file_exists else ansi.Fg.RED
                 status_text = "✓" if file_exists else "✗"
                 
@@ -54,7 +56,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput("")
 
         except Exception as e:
-            logger.error(f"Error listing firmware: {str(e)}")
+            self.perror(f"Error listing firmware: {str(e)}")
             self.poutput(ansi.style(f"Error listing firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_lsfw = do_list_firmware
@@ -94,7 +96,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput(ansi.style(f"Failed to add firmware: {name}", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(f"Error adding firmware: {str(e)}")
+            self.perror(f"Error adding firmware: {str(e)}")
             self.poutput(ansi.style(f"Error adding firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_addfw = do_add_firmware
@@ -133,16 +135,17 @@ class FirmwareCommands(BaseCommands):
             
             self.poutput(ansi.style(f"Flashing firmware '{firmware_name}' to device '{device_name}'...", fg=ansi.Fg.YELLOW))
             
-            # Flash the firmware
-            success = firmware_service.flash_registered_firmware(firmware_name, options)
-            
-            if success:
+            result = firmware_service.flash(firmware_name, options)
+
+            if result.success:
                 self.poutput(ansi.style(f"Successfully flashed firmware: {firmware_name}", fg=ansi.Fg.GREEN))
             else:
                 self.poutput(ansi.style(f"Failed to flash firmware: {firmware_name}", fg=ansi.Fg.RED))
+                if result.stderr:
+                    self.poutput(result.stderr)
                 
         except Exception as e:
-            logger.error(f"Error flashing firmware: {str(e)}")
+            self.perror(f"Error flashing firmware: {str(e)}")
             self.poutput(ansi.style(f"Error flashing firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_flashfw = do_flash_firmware
@@ -179,7 +182,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput(ansi.style(f"Failed to remove firmware: {firmware_name}", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(f"Error removing firmware: {str(e)}")
+            self.perror(f"Error removing firmware: {str(e)}")
             self.poutput(ansi.style(f"Error removing firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_rmfw = do_remove_firmware
@@ -208,7 +211,7 @@ class FirmwareCommands(BaseCommands):
                 self.poutput(ansi.style("Failed to download firmware", fg=ansi.Fg.RED))
                 
         except Exception as e:
-            logger.error(f"Error downloading firmware: {str(e)}")
+            self.perror(f"Error downloading firmware: {str(e)}")
             self.poutput(ansi.style(f"Error downloading firmware: {str(e)}", fg=ansi.Fg.RED))
 
     do_dlfw = do_download_firmware

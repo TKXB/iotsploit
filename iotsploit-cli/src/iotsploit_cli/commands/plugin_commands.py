@@ -3,6 +3,7 @@
 import cmd2
 from cmd2 import ansi
 from .base_commands import BaseCommands
+from iotsploit_cli import output
 from iotsploit_core.core.exploit_spec import ExploitResult
 from iotsploit_django.tools.input_mgr import Input_Mgr
 from iotsploit_core.utils import iots_logger
@@ -13,17 +14,39 @@ logger = iots_logger.get_logger(__name__)
 class PluginCommands(BaseCommands):
     """Plugin-related commands for the SAT Shell"""
 
+    def _show_plugin_result(self, name, success, message, data=None):
+        """One result block: a marked headline, the message, then any data."""
+        mark = ansi.style(f"✓ {name}", fg=ansi.Fg.GREEN) if success else ansi.style(f"✗ {name}", fg=ansi.Fg.RED)
+        self.poutput(mark)
+        if message:
+            self.poutput(f"  {message}")
+        if data not in (None, "", {}, []):
+            import json
+            for line in json.dumps(data, indent=2, default=str).splitlines():
+                self.poutput(f"  {line}")
+
     @cmd2.with_category('Plugin Commands')
     def do_list_plugins(self, arg):
         'List all available plugins'
         plugins = self.plugin_manager.list_plugins()
-        
-        if plugins:
-            logger.info(ansi.style("Available plugins:", fg=ansi.Fg.CYAN))
-            for plugin in plugins:
-                logger.info(ansi.style(f"  - {plugin}", fg=ansi.Fg.CYAN))
-        else:
-            logger.info(ansi.style("No plugins available.", fg=ansi.Fg.YELLOW))
+
+        if not plugins:
+            self.poutput("No plugins available.")
+            return
+
+        rows = []
+        available_count = 0
+        for plugin in plugins:
+            availability = self.plugin_manager.plugin_availability(plugin)
+            available_count += bool(availability.available)
+            description = self.plugin_manager.plugin_registry[plugin].get("description", "")
+            rows.append([
+                plugin,
+                output.available_mark(availability.available, availability.reason),
+                description,
+            ])
+        self.poutput(output.table(["PLUGIN", "AVAILABLE", "DESCRIPTION"], rows, maximums=[None, None, 60]))
+        self.poutput(f"{len(plugins)} plugins · {available_count} available")
 
     do_lsp = do_list_plugins
 
@@ -33,7 +56,7 @@ class PluginCommands(BaseCommands):
         plugins = self.plugin_manager.list_plugins()
         
         if not plugins:
-            logger.info(ansi.style("No plugins available to execute.", fg=ansi.Fg.YELLOW))
+            self.poutput("No plugins available to execute.")
             return
 
         if not arg:
@@ -42,18 +65,29 @@ class PluginCommands(BaseCommands):
                 plugins
             )
         else:
-            choice = arg
+            # cmd2 hands us a Statement, not a str. It compares equal to its own
+            # text but hashes a tuple containing a list, so using it as a dict
+            # key later raises TypeError. Flatten it here.
+            choice = str(arg).strip()
 
         if choice not in plugins:
-            logger.error(ansi.style(f"Plugin '{choice}' not found.", fg=ansi.Fg.RED))
+            self.perror(f"Plugin '{choice}' not found.")
             return
 
-        logger.info(ansi.style(f"Executing plugin: {choice}", fg=ansi.Fg.CYAN))
+        availability = self.plugin_manager.plugin_availability(choice)
+        if not availability.available:
+            message = availability.reason
+            if availability.hint:
+                message = f"{message} {availability.hint}"
+            self.perror(message)
+            return
+
+        self.poutput(ansi.style(f"Executing plugin: {choice}", fg=ansi.Fg.CYAN))
         try:
             # Get the plugin instance to access its parameters
             plugin_instance = self.plugin_manager.get_plugin(choice)
             if not plugin_instance:
-                logger.error(ansi.style(f"Could not get plugin instance for '{choice}'", fg=ansi.Fg.RED))
+                self.perror(f"Could not get plugin instance for '{choice}'")
                 return
                 
             # Get plugin info with parameters
@@ -136,91 +170,84 @@ class PluginCommands(BaseCommands):
 
             logger.debug(f"Executing plugin '{choice}' with target={target_dict}, parameters={parameters}")
 
-            # Execute with target (device info) and parameters (plugin inputs) kept separate
-            result = self.plugin_manager.execute_plugin(choice, target=target_dict, parameters=parameters)
+            # Execute with target (device info) and parameters (plugin inputs) kept
+            # separate. The interaction port is already bound by the shell, so a
+            # plugin that prompts mid-run reaches this terminal without anything
+            # extra here.
+            result = self.plugin_manager.execute_plugin(
+                choice,
+                target=target_dict,
+                parameters=parameters,
+            )
             
             # Check if this is an async execution
             if isinstance(result, dict) and result.get('execution_type') == 'async':
                 task_id = result.get('task_id')
-                logger.info(ansi.style(f"Plugin running asynchronously with task ID: {task_id}", fg=ansi.Fg.CYAN))
-                
+                self.poutput(ansi.style(f"Plugin running asynchronously with task ID: {task_id}", fg=ansi.Fg.CYAN))
+
                 # Ask user if they want to wait for results
                 wait_for_results = Input_Mgr.Instance().yes_no_input(
                     "Do you want to wait for the asynchronous task to complete?",
                     default=True
                 )
-                
-                if wait_for_results:
-                    # Import celery here to avoid circular imports
-                    try:
-                        from celery.result import AsyncResult
-                        from iotsploit_django.tasks import celery_app
-                        import time
 
-                        task_result = AsyncResult(task_id, app=celery_app)
-                        
-                        # Poll for results with a progress bar
-                        progress = 0
+                if wait_for_results:
+                    try:
+                        import time
+                        from iotsploit_django.adapters.django.interaction.models import (
+                            ExecutionStatus,
+                            PluginExecution,
+                        )
+
                         start_time = time.time()
-                        
-                        logger.info(ansi.style("Waiting for task to complete...", fg=ansi.Fg.CYAN))
-                        
-                        while not task_result.ready():
-                            # Try to get progress information
-                            task_info = task_result.info
-                            
-                            if isinstance(task_info, dict):
-                                new_progress = task_info.get('progress', 0)
-                                message = task_info.get('message', 'Processing...')
-                                
-                                # Only update if progress has changed
-                                if new_progress != progress:
-                                    progress = new_progress
-                                    # Print progress bar
-                                    bar_length = 50
-                                    filled_length = int(bar_length * progress / 100)
-                                    bar = '█' * filled_length + '-' * (bar_length - filled_length)
-                                    logger.info(f"Progress: [{bar}] {progress:.1f}% - {message}")
-                            
-                            # Sleep briefly before checking again
-                            time.sleep(0.5)
-                            
-                            # Add a timeout to prevent infinite waiting
-                            if time.time() - start_time > 300:  # 5 minutes
-                                logger.warning(ansi.style("Timeout waiting for task to complete", fg=ansi.Fg.YELLOW))
+                        self.poutput("Waiting for task to complete...")
+
+                        execution = None
+                        while True:
+                            execution = PluginExecution.objects.filter(
+                                execution_id=task_id
+                            ).first()
+                            if execution is None or execution.is_terminal:
                                 break
-                        
-                        # Get final result
-                        final_result = task_result.get(timeout=5)  # 5 second timeout for final result
-                        
-                        logger.info(ansi.style("Async plugin execution completed", fg=ansi.Fg.GREEN))
+                            time.sleep(0.5)
+                            if time.time() - start_time > 300:  # 5 minutes
+                                self.pwarning("Timeout waiting for task to complete")
+                                return
+
+                        final_result = (
+                            execution.result or execution.error
+                            if execution is not None
+                            else {"status": "error", "message": "Execution not found"}
+                        )
                         if isinstance(final_result, dict):
-                            logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
-                            for key, value in final_result.items():
-                                logger.info(f"{key}: {value}")
+                            self._show_plugin_result(
+                                choice,
+                                execution is not None
+                                and execution.status == ExecutionStatus.COMPLETED
+                                and final_result.get("status") != "error"
+                                and final_result.get("success", True),
+                                final_result.get("message", ""),
+                                {k: v for k, v in final_result.items() if k not in ("status", "message")},
+                            )
                         else:
-                            logger.info(f"Result: {final_result}")
-                    
-                    except ImportError as e:
-                        logger.error(ansi.style(f"Error importing Celery modules: {str(e)}", fg=ansi.Fg.RED))
+                            self._show_plugin_result(
+                                choice,
+                                execution.status == ExecutionStatus.COMPLETED,
+                                str(final_result),
+                            )
+
                     except Exception as e:
-                        logger.error(ansi.style(f"Error getting async result: {str(e)}", fg=ansi.Fg.RED))
+                        self.perror(f"Error getting async result: {str(e)}")
                         logger.debug("Detailed error:", exc_info=True)
-                
-                # Display initial async info regardless
-                logger.info(ansi.style("Initial async task info:", fg=ansi.Fg.GREEN))
-                logger.info(str(result))
-                
+                else:
+                    self.poutput(f"Task {task_id} is running in the background.")
+
             elif isinstance(result, ExploitResult):
-                logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
-                logger.info(f"Success: {result.success}")
-                logger.info(f"Message: {result.message}")
-                logger.info(f"Data: {result.data}")
+                self._show_plugin_result(choice, result.success, result.message, result.data)
             else:
-                logger.info(ansi.style("Plugin execution result:", fg=ansi.Fg.GREEN))
-                logger.info(str(result))
+                self._show_plugin_result(choice, True, str(result))
         except Exception as e:
-            logger.error(ansi.style(f"Error executing plugin: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(f"Error executing plugin: {str(e)}")
             logger.debug("Detailed error:", exc_info=True)
 
     do_exec = do_execute_plugin
@@ -229,41 +256,19 @@ class PluginCommands(BaseCommands):
     def do_flash_plugins(self, arg):
         'Refresh and reload all plugins from installed packages and entry points'
         try:
-            logger.info(ansi.style("Starting plugin refresh...", fg=ansi.Fg.CYAN))
-            
-            # Get current plugin count
             initial_plugins = len(self.plugin_manager.list_plugins())
-            
-            # Run auto-discovery
             self.plugin_manager.auto_discover_plugins()
-            
-            # Get new plugin count
             final_plugins = len(self.plugin_manager.list_plugins())
-            
-            # Calculate changes
+
             if final_plugins > initial_plugins:
-                logger.info(ansi.style(
-                    f"Plugin refresh complete! Added {final_plugins - initial_plugins} new plugins.", 
-                    fg=ansi.Fg.GREEN
-                ))
+                self.poutput(ansi.style(f"Added {final_plugins - initial_plugins} plugins.", fg=ansi.Fg.GREEN))
             elif final_plugins < initial_plugins:
-                logger.info(ansi.style(
-                    f"Plugin refresh complete! Removed {initial_plugins - final_plugins} plugins.", 
-                    fg=ansi.Fg.YELLOW
-                ))
+                self.poutput(ansi.style(f"Removed {initial_plugins - final_plugins} plugins.", fg=ansi.Fg.YELLOW))
             else:
-                logger.info(ansi.style(
-                    "Plugin refresh complete! No changes detected.", 
-                    fg=ansi.Fg.CYAN
-                ))
-            
-            # Display current plugins
-            logger.info(ansi.style("\nCurrent plugins:", fg=ansi.Fg.CYAN))
-            for plugin in self.plugin_manager.list_plugins():
-                logger.info(ansi.style(f"  - {plugin}", fg=ansi.Fg.CYAN))
-                
+                self.poutput("No changes.")
+            self.poutput(f"{final_plugins} plugins installed. Use 'plugin list' to see them.")
         except Exception as e:
-            logger.error(ansi.style(f"Error refreshing plugins: {str(e)}", fg=ansi.Fg.RED))
+            self.perror(f"Error refreshing plugins: {str(e)}")
             logger.debug("Detailed error:", exc_info=True)
 
     do_fp = do_flash_plugins

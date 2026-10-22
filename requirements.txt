@@ -39,7 +39,6 @@ MarkupSafe==2.1.5
 mdit-py-plugins==0.4.1
 mdurl==0.1.2
 mistune==3.0.2
-netifaces==0.11.0
 oauthlib==3.2.2
 packaging==23.2
 paramiko==3.4.0
@@ -69,7 +68,6 @@ ROPGadget==7.4
 rpyc==6.0.0
 sentry-sdk==2.10.0
 six==1.16.0
-smbus==1.1.post2
 sniffio==1.3.1
 sortedcontainers==2.4.0
 sqlparse==0.5.1

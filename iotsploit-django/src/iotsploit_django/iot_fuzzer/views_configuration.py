@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpRequest
 import json
 import logging
+from iotsploit_core.utils.helpers import runtime_dir
 
 from iotsploit_django.iot_fuzzer.service import (
     IoTFuzzerService,
@@ -85,16 +86,26 @@ def save_protocol_config(request: HttpRequest):
         # Extract configuration components
         protocol_type = config_data.get('protocol_type', 'uart')
         protocol_settings = {
-            'device_path': config_data.get('device_path', '/dev/ttyACM0'),
+            'device_path': config_data.get('device_path', ''),
             'baud_rate': config_data.get('baud_rate', '115200'),
             'timeout': config_data.get('timeout', 1000),
         }
+        if protocol_type == 'usbtmc':
+            from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+            protocol_settings = {key: config_data[key] for key in (
+                'device', 'mode', 'timeout', 'max_response_bytes', 'case_deadline_ms',
+                'baseline_query', 'sequence',
+            ) if key in config_data}
+            try:
+                USBTMCHarness.validate(protocol_settings)
+            except ValueError as exc:
+                return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
 
         generator_type = config_data.get('generator_type', 'radamsa')
         generator_settings = {
             'mutation_rate': config_data.get('mutation_rate', 0.5),
             'coverage_feedback': config_data.get('coverage_feedback', True),
-            'radamsa_path': config_data.get('radamsa_path', '/usr/bin/radamsa'),
+            'radamsa_path': config_data.get('radamsa_path', 'radamsa'),
         }
 
         campaign_settings = {
@@ -106,7 +117,7 @@ def save_protocol_config(request: HttpRequest):
 
         monitoring_settings = {
             'log_level': config_data.get('log_level', 'info'),
-            'output_directory': config_data.get('output_directory', '/tmp/fuzzer_output'),
+            'output_directory': config_data.get('output_directory', str(runtime_dir() / 'fuzzer_output')),
             'realtime_monitoring': config_data.get('realtime_monitoring', True),
             'performance_metrics': config_data.get('performance_metrics', True),
         }

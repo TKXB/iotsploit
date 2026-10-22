@@ -1,0 +1,329 @@
+"""A device command must reach the driver, and the device, it was addressed to.
+
+`POST /api/execute_device_command/<driver>/` is the only route between a
+button in the UI and a driver's `_command_impl`, and until now nothing tested
+it. The rules below are the ones the PCAN driver broke, each in a way that
+looked like success from the outside:
+
+* **A command arrives without an initialize.** The UI scans and then commands;
+  it never calls `/api/initialize_devices/` in between. A driver that keeps
+  the thing it needs -- an interface name, a handle -- in state that only
+  `initialize` sets therefore acts on `None`.
+* **The addressed device is the one the driver receives.** The manager
+  resolves `device_id` out of the driver's own scan results. A driver that
+  reads a single "current device" attribute instead will happily configure the
+  wrong bus and report success, which is worse than failing.
+* **An unknown `device_id` is a structured error.** The UI reads
+  `data['result']` on a 200 and shows the raw body otherwise, so a stack trace
+  behind a 500 reaches an operator as noise.
+
+The last tests cover the payloads that route feeds off: the driver list
+carries each driver's commands, one scan request covers every driver, and the
+device list names the driver each device's commands go to. The drivers page
+used to ask per driver, which put a hardware scan behind every render.
+
+The manager is real here; only the driver is a stub. Testing this against a
+mocked manager would assert nothing about the lifecycle, which is where the
+defect was.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+
+import django
+import pytest
+from django.test import Client
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "iotsploit_django.settings.dev")
+django.setup()
+
+from iotsploit_core.core.base_plugin import BaseDeviceDriver  # noqa: E402
+from iotsploit_core.core.device_manager import DeviceDriverManager  # noqa: E402
+from iotsploit_core.domain.device import Device, DeviceType  # noqa: E402
+
+pytestmark = pytest.mark.contract
+
+DRIVER = "drv_stub"
+SCAN_PATH = f"/api/scan_device/{DRIVER}/"
+COMMAND_PATH = f"/api/execute_device_command/{DRIVER}/"
+
+
+def _device(device_id: str) -> Device:
+    return Device(device_id=device_id, name=f"stub {device_id}", device_type=DeviceType.CAN)
+
+
+class RecordingDriver(BaseDeviceDriver):
+    """Two devices, and a log of every lifecycle call the manager makes.
+
+    Two and not one on purpose: with a single device, a driver that ignores
+    the device it was handed passes anyway.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.supported_commands = {
+            "identify": "Report which device answered",
+            "configure": {
+                "description": "Apply a setting",
+                "parameters": {
+                    "level": {"type": "int", "required": True, "description": "How much"},
+                },
+            },
+        }
+        self.calls: list[tuple] = []
+        self.last_args = None
+
+    def _scan_impl(self) -> list[Device]:
+        self.calls.append(("scan",))
+        return [_device("stub_001"), _device("stub_002")]
+
+    def _initialize_impl(self, device: Device) -> bool:
+        self.calls.append(("initialize", device.device_id))
+        return True
+
+    def _connect_impl(self, device: Device) -> bool:
+        self.calls.append(("connect", device.device_id))
+        return True
+
+    def _command_impl(self, device: Device, command: str, args=None):
+        self.calls.append(("command", device.device_id, command))
+        self.last_args = args
+        return f"{command} on {device.device_id}"
+
+
+class ForgetfulRepo:
+    """The driver-state port, backed by nothing: this test persists no state."""
+
+    def get_enabled(self, driver_name: str):
+        return None
+
+    def set_enabled(self, driver_name: str, enabled: bool, description: str | None = None) -> None:
+        pass
+
+    def list_enabled(self) -> dict[str, bool]:
+        return {}
+
+
+@pytest.fixture
+def manager(monkeypatch, tmp_path) -> DeviceDriverManager:
+    """A real manager carrying one stub driver, wired into both view modules.
+
+    `DeviceDriverManager` is a singleton, so the instance is swapped rather
+    than constructed alongside the process-wide one; monkeypatch restores it.
+    `load_plugins` is silenced because the real entry points would drag every
+    installed driver into a test about the manager.
+    """
+    monkeypatch.setattr(DeviceDriverManager, "_instance", None)
+    monkeypatch.setattr(DeviceDriverManager, "load_plugins", lambda self: None)
+
+    manager = DeviceDriverManager(
+        driver_state_repo=ForgetfulRepo(),
+        plugins_dir=tmp_path,
+        usb_config_file=tmp_path / "no_usb_config.json",
+    )
+    manager.drivers[DRIVER] = RecordingDriver()
+    manager.driver_requirements[DRIVER] = ()
+
+    for module in (
+        "iotsploit_django.view_handlers.device_views",
+        "iotsploit_django.view_handlers.plugin_views",
+    ):
+        monkeypatch.setattr(f"{module}.get_device_driver_manager", lambda: manager)
+
+    return manager
+
+
+@pytest.fixture
+def driver(manager) -> RecordingDriver:
+    return manager.drivers[DRIVER]
+
+
+def _command(device_id: str, command: str = "identify"):
+    return Client().post(
+        COMMAND_PATH,
+        data=json.dumps({"command": command, "device_id": device_id}),
+        content_type="application/json",
+    )
+
+
+def test_a_command_reaches_the_driver_without_an_initialize(driver):
+    """The UI scans and commands. Nothing in between calls initialize."""
+    assert Client().post(SCAN_PATH).status_code == 200
+
+    response = _command("stub_001")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "success", "result": "identify on stub_001"}
+    assert driver.calls == [("scan",), ("command", "stub_001", "identify")]
+
+
+def test_the_driver_receives_the_device_the_request_named(driver):
+    """Two adapters, and the second one is the one that must answer."""
+    Client().post(SCAN_PATH)
+
+    assert _command("stub_002").json()["result"] == "identify on stub_002"
+    assert ("command", "stub_002", "identify") in driver.calls
+    assert not any(call[:2] == ("command", "stub_001") for call in driver.calls)
+
+
+def test_command_arguments_reach_the_driver_as_the_caller_sent_them(driver):
+    """`args` used to arrive wrapped in another `args`, so nothing read them.
+
+    The endpoint has always accepted an `args` object, but the manager took it
+    through `**kwargs` and passed the whole kwargs dict on, so a driver was
+    handed `{"args": {...}}`. Every driver that reads a key fell back to its
+    default instead -- silently, which is how `write_memory` wrote to an
+    address nobody asked for.
+    """
+    Client().post(SCAN_PATH)
+
+    response = Client().post(
+        COMMAND_PATH,
+        data=json.dumps({
+            "command": "identify",
+            "device_id": "stub_001",
+            "args": {"vlan_id": 67, "address": "172.31.67.6/16"},
+        }),
+        content_type="application/json",
+    )
+
+    assert response.json()["status"] == "success"
+    assert driver.last_args == {"vlan_id": 67, "address": "172.31.67.6/16"}
+
+
+def test_a_command_without_arguments_reaches_the_driver_with_an_empty_mapping(driver):
+    """The command menu sends no `args` at all, and a driver reading one must
+    not have to tell "absent" apart from "empty"."""
+    Client().post(SCAN_PATH)
+
+    _command("stub_001")
+
+    assert driver.last_args == {}
+
+
+def test_the_driver_list_carries_the_schema_for_a_parameterised_command(driver):
+    """The form the operator fills in is built from this, in the same payload.
+
+    A command that takes no input is absent rather than empty, so a client can
+    ask "does this need a form?" without inspecting the contents.
+    """
+    response = Client().get("/api/list_device_drivers/")
+
+    entry = next(e for e in response.json()["driver_info"] if e["name"] == DRIVER)
+    assert entry["command_parameters"] == {
+        "configure": {"level": {"type": "int", "required": True, "description": "How much"}}
+    }
+
+
+def test_a_declared_command_still_reads_as_a_plain_description(driver, manager):
+    """Every existing reader takes name -> description and must keep working.
+
+    The CLI menu, the drivers page and `list_device_commands` all render the
+    description directly; a driver that declares parameters must not start
+    handing them a mapping.
+    """
+    assert manager.get_supported_commands(DRIVER)["configure"] == "Apply a setting"
+
+    body = Client().get(f"/api/list_device_commands/{DRIVER}/").json()
+
+    assert body["commands"]["configure"] == "Apply a setting"
+    assert body["command_parameters"]["configure"]["level"]["type"] == "int"
+
+
+def test_an_unknown_device_is_an_error_an_operator_can_read(driver):
+    Client().post(SCAN_PATH)
+
+    response = _command("stub_404")
+
+    # 200 with status error, not a 500: the UI shows the body verbatim.
+    assert response.status_code == 200
+    assert response.json() == {"status": "error", "message": "Device stub_404 not found"}
+    assert not any(call[0] == "command" for call in driver.calls)
+
+
+def test_a_command_before_any_scan_does_not_reach_the_driver(driver):
+    """The driver's devices come from its own scan, so there is nothing to address yet."""
+    response = _command("stub_001")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "error"
+    assert driver.calls == []
+
+
+def test_the_command_route_refuses_get(driver):
+    """The client contract that broke in the first place, on the route it broke on."""
+    assert Client().get(COMMAND_PATH).status_code == 405
+
+
+def test_a_command_naming_no_driver_does_not_reach_a_different_one(driver):
+    response = Client().post(
+        "/api/execute_device_command/drv_absent/",
+        data=json.dumps({"command": "identify", "device_id": "stub_001"}),
+        content_type="application/json",
+    )
+
+    assert response.json() == {"status": "error", "message": "Driver drv_absent is disabled"}
+    assert driver.calls == []
+
+
+def test_the_driver_list_carries_the_commands_for_each_driver(driver):
+    """Rendering a command menu must not cost a request per driver."""
+    response = Client().get("/api/list_device_drivers/")
+
+    entry = next(e for e in response.json()["driver_info"] if e["name"] == DRIVER)
+    assert entry["commands"] == {
+        "identify": "Report which device answered",
+        "configure": "Apply a setting",
+    }
+
+
+def test_one_request_scans_every_driver(driver):
+    """The page needs device counts, and that is a single round trip."""
+    response = Client().post("/api/scan_all_devices/")
+
+    body = response.json()
+    assert [d["device_id"] for d in body["results"][DRIVER]["devices"]] == [
+        "stub_001",
+        "stub_002",
+    ]
+    assert driver.calls == [("scan",)]
+
+
+def test_a_disabled_driver_is_not_scanned(driver, manager):
+    """`scan_device/<driver>/` reaches the hardware past the enablement flag.
+
+    The all-driver route goes through the manager, which honours it, so a
+    driver an operator switched off is left alone.
+    """
+    manager.disable_driver(DRIVER)
+
+    body = Client().post("/api/scan_all_devices/").json()
+
+    assert body["results"][DRIVER]["devices"] == []
+    assert driver.calls == []
+
+
+def test_the_device_list_names_the_driver_a_command_goes_to(driver):
+    """The shell's `device run <device_id>` finds the route from this list.
+
+    It is the same list the UI reads, scanned by the manager that owns the
+    hardware, so a device listed here is one a command can reach.
+    """
+    body = Client().post("/api/list_devices/").json()
+
+    assert [(d["device_id"], d["driver"], d["source"]) for d in body["devices"]] == [
+        ("stub_001", DRIVER, "dynamic"),
+        ("stub_002", DRIVER, "dynamic"),
+    ]
+    assert _command("stub_002").json()["result"] == "identify on stub_002"
+
+
+def test_a_disabled_driver_lists_no_devices(driver, manager):
+    manager.disable_driver(DRIVER)
+
+    body = Client().post("/api/list_devices/").json()
+
+    assert body == {"status": "success", "devices": [], "message": "No devices found"}
+    assert driver.calls == []

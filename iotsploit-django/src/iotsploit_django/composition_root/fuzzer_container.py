@@ -30,3 +30,19 @@ def get_fuzzer_bridge() -> IoTFuzzerBridge:
     return IoTFuzzerBridge.get_instance()
 
 
+def open_usbtmc(config: dict, owner: str):
+    """Compose one real USBTMC session with the application's shared lease."""
+    from iotsploit_fuzzer.harnesses.usbtmc_harness import USBTMCHarness
+    from iotsploit_fuzzer.interfaces.usbtmc_interface import USBTMCInterface
+    from iotsploit_django.composition_root.wiring import get_resource_lease
+
+    USBTMCHarness.validate(config)
+    interface = USBTMCInterface(config.get("device"), lease=get_resource_lease(), owner=owner)
+    try:
+        harness = USBTMCHarness(interface, config)
+        harness.preflight()
+    except BaseException:
+        interface.close()
+        raise
+    return interface, harness
+

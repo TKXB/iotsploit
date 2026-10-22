@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from iotsploit_django.adapters.django.target_models import TargetManager
+from iotsploit_core.domain.summary import summarize_target
 from iotsploit_core.domain.target import ComponentFactory, TARGET_TYPES
 from iotsploit_django.tools.xlogger import xlog
 import json
@@ -10,15 +11,23 @@ logger = xlog.get_logger('target_views')
 def list_targets(request):
     """
     GET
-    Returns a list of all targets
+    Returns a summary row per target: identity, topology shape and counts.
+
+    Facet bulk is omitted -- a DBC-imported target is almost entirely CAN
+    signals, and returning every one of them made listing the inventory a
+    multi-hundred-kilobyte request for data no listing displays. Each row
+    carries ``summary: true`` and the sizes of what was left out.
+
+    A caller that needs the whole object asks ``get_target`` for one. Nothing
+    here may be written back with ``edit_target``: it is missing fields.
     """
     target_manager = TargetManager.get_instance()
     all_targets = target_manager.get_all_targets()
-    
+
     if all_targets:
         result = {
             "status": "success",
-            "targets": all_targets
+            "targets": [summarize_target(t) for t in all_targets]
         }
     else:
         result = {
@@ -26,8 +35,28 @@ def list_targets(request):
             "targets": [],
             "message": "No targets available."
         }
-    
+
     return JsonResponse(result)
+
+
+def get_target(request, target_id):
+    """
+    GET
+    Returns one target in full, including every facet payload.
+
+    This is the read that ``list_targets`` deliberately no longer performs for
+    every row at once. Editors and detail views call it for the one target the
+    user actually opened.
+    """
+    try:
+        target_manager = TargetManager.get_instance()
+        stored = target_manager.get_target(target_id)
+        if stored is None:
+            return JsonResponse({"error": f"Target '{target_id}' not found"}, status=404)
+        return JsonResponse({"status": "success", "target": stored})
+    except Exception as e:
+        logger.error(f"Error getting target {target_id}: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 def select_target(request):
@@ -93,13 +122,6 @@ def select_target(request):
         else:
             logger.debug("  No components found")
         
-        # Log interfaces if available
-        if selected_target.get('interfaces'):
-            logger.debug(f"  Interfaces ({len(selected_target['interfaces'])}):")
-            for i, intf in enumerate(selected_target['interfaces']):
-                logger.debug(f"    [{i+1}] {intf.get('name', 'Unknown')} ({intf.get('type', 'Unknown')})")
-        else:
-            logger.debug("  No interfaces found")
         
         # Create a target instance and set it as current
         logger.debug("select_target: Creating target instance")
@@ -185,9 +207,18 @@ def edit_target(request):
         # Log the incoming updates for debugging
         logger.debug(f"Received updates for target {target_id}: {updates}")
         
-        # Apply updates to the target
+        # Apply updates to the target. 'interfaces' is still accepted so an
+        # older client's payload is folded into components on hydration rather
+        # than dropped without a word.
+        #
+        # 'type' is here because create_target already accepts it and the edit
+        # dialog already sends it: leaving it out meant a user changed a
+        # target's type, was told the target had been updated, and it had not.
+        # Silently discarding a field while reporting success is worse than
+        # rejecting it.
         for key, value in updates.items():
-            if key in ['name', 'status', 'ip_address', 'location', 'components', 'interfaces']:
+            if key in ['name', 'type', 'status', 'ip_address', 'location',
+                       'components', 'interfaces', 'buses', 'edges']:
                 target[key] = value
                 logger.debug(f"Updated {key}: {value}")
             elif key == 'properties' and isinstance(value, dict):
@@ -197,23 +228,26 @@ def edit_target(request):
         
         logger.debug(f"Final target data before database update: {target}")
         
-        # Special handling for components and interfaces to ensure they're properly formatted
         if 'components' in target:
             logger.debug(f"Components to update: {target['components']}")
-        if 'interfaces' in target:
-            logger.debug(f"Interfaces to update: {target['interfaces']}")
         
-        # Update the target in the database
-        success = target_manager.update_target(target)
-        
-        if success:
-            return JsonResponse({
-                'status': 'success',
-                'message': f'Successfully updated target {target_id}',
-                'target': target
-            })
-        else:
+        # Same as create_target: the model's own reason for refusing beats a
+        # bare 500. An edge naming a component the update just deleted is the
+        # commonest way to land here.
+        try:
+            target_manager.create_target_instance(target)
+        except Exception as exc:
+            logger.debug(f"edit_target rejected {target_id}: {exc}")
+            return JsonResponse({'error': f'Invalid target: {exc}'}, status=400)
+
+        if not target_manager.update_target(target):
             return JsonResponse({'error': f'Failed to update target {target_id}'}, status=500)
+
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Successfully updated target {target_id}',
+            'target': target
+        })
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data'}, status=400)
@@ -239,7 +273,8 @@ def create_target(request):
             "key": "value"
         },
         "components": [],
-        "interfaces": []
+        "buses": [],
+        "edges": []
     }
     """
     if request.method != 'POST':
@@ -271,20 +306,37 @@ def create_target(request):
             'location': data.get('location'),
             'properties': data.get('properties', {}),
             'components': data.get('components', []),
-            'interfaces': data.get('interfaces', [])
+            'interfaces': data.get('interfaces', []),
+            # Topology is part of the model, so it is part of the contract.
+            # Dropping it here meant a client could post a complete target,
+            # be told it was created, and get back one with no buses and no
+            # edges -- the two fields that make it a network rather than a
+            # bag of components.
+            'buses': data.get('buses', []),
+            'edges': data.get('edges', []),
         }
-        
-        # Add the target to the database
-        success = target_manager.add_target(target_data)
-        
-        if success:
-            return JsonResponse({
-                'status': 'success',
-                'message': f'Successfully created target {target_data["target_id"]}',
-                'target': target_data
-            })
-        else:
+
+        # Hydrate before saving so a payload the model rejects comes back as
+        # a 400 saying why. add_target swallows the reason into a log and
+        # returns False, which reaches the caller as a bare 500 -- no use to
+        # anyone, and no use at all to a client trying to correct itself.
+        try:
+            target_instance = target_manager.create_target_instance(target_data)
+        except Exception as exc:
+            logger.debug(f"create_target rejected {target_data['target_id']}: {exc}")
+            return JsonResponse({'error': f'Invalid target: {exc}'}, status=400)
+
+        try:
+            target_manager.save_target(target_instance)
+        except Exception as exc:
+            logger.error(f"Error saving target {target_data['target_id']}: {exc}")
             return JsonResponse({'error': f'Failed to create target {target_data["target_id"]}'}, status=500)
+
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Successfully created target {target_data["target_id"]}',
+            'target': target_data
+        })
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data'}, status=400)
@@ -385,4 +437,26 @@ def get_target_types(request):
         })
     except Exception as e:
         logger.error(f"Error getting target types: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500) 
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def get_facet_schemas(request):
+    """
+    GET
+    JSON Schema for every registered facet key, so a client can render typed,
+    labelled fields instead of untyped key/value boxes.
+
+    A key absent from this map is not an error: it means no loaded plugin owns
+    it, and its payload is stored verbatim. Clients must show such facets
+    read-only rather than dropping them.
+    """
+    try:
+        from iotsploit_core.domain.facet import FacetRegistry
+
+        return JsonResponse({
+            'status': 'success',
+            'facet_schemas': FacetRegistry.schemas(),
+        })
+    except Exception as e:
+        logger.error(f"Error getting facet schemas: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

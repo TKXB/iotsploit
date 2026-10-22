@@ -9,6 +9,7 @@ from pathlib import Path
 
 from iotsploit_django.tools.report_mgr import Report_Mgr
 from iotsploit_django.tools.env_mgr import Env_Mgr
+from iotsploit_core.core.tool_manager import PathResolver
 
 
 class Bash_Script_Mgr:
@@ -75,8 +76,11 @@ class Bash_Script_Mgr:
             logger.error("Bash Script Exec Fail! File:{} Not Exist!".format(cmd_list[0]))
             return -1, "File:{} Not Exist!".format(cmd_list[0])
 
-        cmd_list.insert(0, "bash")
         try:
+            bash = PathResolver().resolve_tool_path("bash")
+            if not bash:
+                raise RuntimeError("Required tool is unavailable: bash")
+            cmd_list.insert(0, bash)
             process = subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
                                        stdin=subprocess.PIPE,
                                        env = Env_Mgr.Instance().fork_sat_env(),
@@ -148,8 +152,11 @@ class Bash_Script_Mgr:
                 logger.exception("Bash Script Exec Fail! TEMP File Write Fail! Dir:{}".format(str(Bash_Script_Mgr.__temp_dir)))
                 return -1, "TEMP File Write Fail in Dir:{}\n".format(str(Bash_Script_Mgr.__temp_dir)), ""
 
-        cmd_list.insert(0, "bash")
         try:
+            bash = PathResolver().resolve_tool_path("bash")
+            if not bash:
+                raise RuntimeError("Required tool is unavailable: bash")
+            cmd_list.insert(0, bash)
             logger.info("Bash Script Load Success. Cmd:{} . Start To Exec -->>\n".format(cmd_list)) 
 
             Report_Mgr.Instance().start_log_teststep_exec_process(test_step)

@@ -1,12 +1,11 @@
 import json
 import logging
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from iotsploit_django.tools.monitor_mgr import SystemMonitor
 import asyncio
-# Import the configured Celery app to ensure result backend is available
-from iotsploit_django.tasks.celery_app import app as celery_app
 from iotsploit_core.core.stream_manager import StreamManager, StreamData, StreamType, StreamSource, StreamAction
-from iotsploit_django.adapters.django.device_driver_manager_factory import get_device_driver_manager
+from iotsploit_django.composition_root.wiring import get_device_driver_manager
 import time
 from iotsploit_core.core.device_spec import DeviceState
 from collections import deque
@@ -17,6 +16,40 @@ logger = logging.getLogger(__name__)
 MAX_LOG_ENTRIES = 1000
 console_log_buffer = deque(maxlen=MAX_LOG_ENTRIES)
 log_buffer_lock = threading.Lock()
+
+
+class NotAMessage(Exception):
+    """The client sent something that is not a message this socket reads."""
+
+
+def decoded_message(text_data: object) -> dict:
+    """The client's text as a message object, or a refusal.
+
+    Only ``json.loads`` sits inside the try. A ``ValueError`` raised further
+    down by a consumer's own handler is a different thing entirely, and
+    reporting it as bad JSON hides the real fault -- which is what the single
+    wide try in each of these handlers used to do.
+
+    ``json.loads`` raises more than ``JSONDecodeError`` on text a client
+    chooses: a plain ``ValueError`` for a number of more than 4300 digits,
+    and a ``RecursionError`` for a deeply nested document. Both escaped and
+    took the socket with them.
+
+    A well-formed document that is not an object is refused here too. Every
+    consumer below reads its message with ``.get()``, so ``null``, a list, a
+    bare string or a number reached that call and raised ``AttributeError``
+    -- a valid JSON value closing a socket.
+    """
+    try:
+        message = json.loads(text_data)
+    except (ValueError, RecursionError) as error:
+        raise NotAMessage(f"invalid JSON: {error}") from None
+    if not isinstance(message, dict):
+        raise NotAMessage(
+            f"a message must be a JSON object, not {type(message).__name__}"
+        )
+    return message
+
 
 class SystemUsageConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -47,18 +80,14 @@ class SystemUsageConsumer(AsyncWebsocketConsumer):
                 break
 
 class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
-    instances = {}  # Deprecated: use channel layers for cross-process messaging
-
     async def connect(self):
         self.task_id = self.scope['url_route']['kwargs']['task_id']
-        self.group_name = f"exploit_task_{self.task_id}"
-        
-        # Join channel group for cross-process messaging from Celery worker
+        self.group_name = f"plugin_execution_{self.task_id}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        
+
         logger.info(f"WebSocket connected for task: {self.task_id}")
         await self.accept()
-        
+
         self.is_polling = True
         asyncio.create_task(self.poll_task_status())
 
@@ -68,29 +97,36 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
         logger.info(f"WebSocket disconnected for task: {self.task_id}")
         self.is_polling = False
 
-    async def task_update(self, event):
-        """Handle task_update messages from Celery worker via channel_layer.group_send()."""
-        await self.send(text_data=json.dumps(event['data']))
+    async def execution_event(self, event):
+        """Translate durable terminal events to the legacy socket envelope."""
+        if event["message"]["event"] in {"completed", "failed", "cancelled", "expired"}:
+            await self.send_task_status()
 
     async def receive(self, text_data):
         """Handle incoming messages - could be used for requesting status updates"""
         try:
-            data = json.loads(text_data)
-            if data.get('action') == 'get_status':
-                await self.send_task_status()
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON received")
+            data = decoded_message(text_data)
+        except NotAMessage as error:
+            logger.error("Ignoring a message from the client: %s", error)
+            return
+
+        if data.get('action') == 'get_status':
+            await self.send_task_status()
 
     async def send_task_status(self):
-        """Fetch and send task status from Celery/Redis"""
+        """Fetch and send task status from the durable execution row."""
         try:
-            result = celery_app.AsyncResult(self.task_id)
-            
-            if result.ready():
-                task_result = result.get()
+            state = await self._state()
+            if state is None:
+                await self.send(text_data=json.dumps({
+                    'status': 'error',
+                    'message': f'Task {self.task_id} not found'
+                }))
+                self.is_polling = False
+            elif state["terminal"]:
                 await self.send(text_data=json.dumps({
                     'status': 'complete',
-                    'result': task_result
+                    'result': state["result"]
                 }))
                 self.is_polling = False
             else:
@@ -107,10 +143,79 @@ class ExploitWebsocketConsumer(AsyncWebsocketConsumer):
             }))
             self.is_polling = False
 
+    @database_sync_to_async
+    def _state(self):
+        from iotsploit_django.adapters.django.interaction.models import PluginExecution
+
+        execution = PluginExecution.objects.filter(execution_id=self.task_id).first()
+        if execution is None:
+            return None
+        result = execution.result or execution.error or {
+            "status": execution.status,
+        }
+        return {"terminal": execution.is_terminal, "result": result}
+
     async def poll_task_status(self):
         while self.is_polling:
             await self.send_task_status()
             await asyncio.sleep(1)
+
+class PluginExecutionConsumer(AsyncWebsocketConsumer):
+    """Live events for one plugin execution, keyed on its own id.
+
+    Unlike the older exploit socket this does not poll Celery: the worker emits
+    what happens, and a client that misses something refetches
+    `/api/plugin-executions/<id>/`. On connect it replays the current state so a
+    reload or a reconnect lands on the open prompt rather than an empty screen.
+    """
+
+    async def connect(self):
+        self.execution_id = self.scope["url_route"]["kwargs"]["execution_id"]
+        self.group_name = f"plugin_execution_{self.execution_id}"
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+        logger.info("WebSocket connected for execution: %s", self.execution_id)
+
+        state = await self._state()
+        if state is not None:
+            await self.send(text_data=json.dumps({
+                "execution_id": str(self.execution_id),
+                "event": "state",
+                "payload": state,
+            }))
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        logger.info("WebSocket disconnected for execution: %s", self.execution_id)
+
+    async def execution_event(self, event):
+        """Forward one event emitted by the worker."""
+        await self.send(text_data=json.dumps(event["message"]))
+
+    async def receive(self, text_data):
+        """Answering and cancelling go over authenticated HTTP, not this socket.
+
+        Only a state refresh is accepted here, so there is one audited path for
+        anything that changes a run.
+        """
+        try:
+            data = decoded_message(text_data)
+        except NotAMessage:
+            return
+        if data.get("action") == "get_state":
+            state = await self._state()
+            await self.send(text_data=json.dumps({
+                "execution_id": str(self.execution_id),
+                "event": "state",
+                "payload": state or {},
+            }))
+
+    @database_sync_to_async
+    def _state(self):
+        from iotsploit_django.view_handlers.interaction_views import execution_state
+        return execution_state(self.execution_id)
+
 
 class DeviceStreamConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -145,7 +250,19 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            json_data = json.loads(text_data)
+            json_data = decoded_message(text_data)
+        except NotAMessage as error:
+            await self.send(text_data=json.dumps(StreamData(
+                stream_type=StreamType.CAN,
+                channel=self.channel,
+                timestamp=time.time(),
+                source=StreamSource.SYSTEM,
+                action=StreamAction.ERROR,
+                data={'message': f'Invalid message: {error}'},
+            ).to_dict()))
+            return
+
+        try:
             stream_data = StreamData.from_dict(json_data)
 
             driver_name = None
@@ -272,8 +389,17 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                 try:
                     can_id = int(stream_data.data['id'], 16)
                     can_data = bytes.fromhex(stream_data.data['data'])
-                    
-                    driver.send_can_message(driver.device, can_id, can_data)
+                    # The client already states these; dropping them sent every
+                    # frame as standard classic CAN regardless of what was asked.
+                    metadata = stream_data.metadata or {}
+
+                    driver.send_can_message(
+                        driver.device,
+                        can_id,
+                        can_data,
+                        is_extended_id=bool(metadata.get('is_extended_id', False)),
+                        is_fd=bool(metadata.get('is_fd', False)),
+                    )
                     
                     response_data = StreamData(
                         stream_type=StreamType.CAN,
@@ -313,7 +439,7 @@ class DeviceStreamConsumer(AsyncWebsocketConsumer):
                     )
                     await self.send(text_data=json.dumps(error_data.to_dict()))
                     
-        except json.JSONDecodeError as e:
+        except (KeyError, ValueError) as e:
             error_data = StreamData(
                 stream_type=StreamType.CAN,
                 channel=self.channel,
@@ -428,7 +554,15 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(text_data)
+            data = decoded_message(text_data)
+        except NotAMessage as error:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Invalid message: {error}'
+            }))
+            return
+
+        try:
             message_type = data.get('type')
             
             if message_type == 'get_status':
@@ -440,11 +574,6 @@ class IoTFuzzerTestingConsumer(AsyncWebsocketConsumer):
             elif message_type == 'unsubscribe_campaign':
                 await self.unsubscribe_from_campaign(data.get('campaign_id'))
                 
-        except json.JSONDecodeError:
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': 'Invalid JSON format'
-            }))
         except Exception as e:
             logger.error(f"Error handling WebSocket message: {str(e)}")
             await self.send(text_data=json.dumps({
@@ -661,7 +790,15 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
-            data = json.loads(text_data)
+            data = decoded_message(text_data)
+        except NotAMessage as error:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Invalid message: {error}'
+            }))
+            return
+
+        try:
             message_type = data.get('type')
             
             if message_type == 'get_logs':
@@ -671,11 +808,6 @@ class IoTFuzzerResultsConsumer(AsyncWebsocketConsumer):
             elif message_type == 'subscribe_logs':
                 await self.subscribe_to_logs(data.get('campaign_id'))
                 
-        except json.JSONDecodeError:
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': 'Invalid JSON format'
-            }))
         except Exception as e:
             logger.error(f"Error handling WebSocket message: {str(e)}")
             await self.send(text_data=json.dumps({

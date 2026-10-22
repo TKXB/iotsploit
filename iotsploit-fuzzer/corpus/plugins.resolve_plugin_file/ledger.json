@@ -1,0 +1,152 @@
+{
+  "ledger_version": 1,
+  "target": "plugins.resolve_plugin_file",
+  "fingerprint": "2a391912b5729a66",
+  "updated": "2026-09-20T04:45:23+00:00",
+  "entries": {
+    "1200cfdced683605": {
+      "signature": "reject|ValueError|plugin path does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "21bf6dd8a3f171db": {
+      "signature": "reject|ValueError|filesystem paths must be absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "34a6cc6cbbe251d4": {
+      "signature": "reject|ValueError|filesystem plugin paths must absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "3cef1015c2063518": {
+      "signature": "reject|ValueError|filesystem plugin paths must absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "43222f44ea2b845c": {
+      "signature": "reject|ValueError|plugin path does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "4728754d2cf7495d": {
+      "signature": "reject|ValueError|plugin does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "479fb2bc349490cf": {
+      "signature": "reject|ValueError|filesystem plugin paths must absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "47da63681a4c6501": {
+      "signature": "reject|ValueError|embedded null byte||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "518b6468ef16ba4b": {
+      "signature": "reject|ValueError|plugin path does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "594e519ae499312b": {
+      "signature": "reject|ValueError|filesystem plugin paths must be absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T043717Z",
+      "edge_of": ""
+    },
+    "599c83a04aedc485": {
+      "signature": "reject|ValueError|plugin path does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "616e6ca77774f15e": {
+      "signature": "reject|ValueError|plugin does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "663013e86ad3b107": {
+      "signature": "reject|ValueError|embedded null byte||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "8a5edab282632443": {
+      "signature": "reject|ValueError|plugin path escapes configured directory||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "9afdcac93069e0b6": {
+      "signature": "reject|ValueError|filesystem paths must be absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "a2c2339691fc48fb": {
+      "signature": "reject|ValueError|plugin path escapes configured directory||",
+      "kind": "reject",
+      "first_seen": "20260920T044238Z",
+      "edge_of": ""
+    },
+    "a5e260e5a708e9bc": {
+      "signature": "reject|ValueError|plugin path escapes configured directory||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "aa64d60d9fcf2083": {
+      "signature": "reject|ValueError|plugin does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "b964538359b06887": {
+      "signature": "reject|ValueError|filesystem paths must be absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    },
+    "bc2f4dbbf049957c": {
+      "signature": "reject|ValueError|plugin path does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "ca978112ca1bbdca": {
+      "signature": "reject|ValueError|filesystem plugin paths must be absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T043717Z",
+      "edge_of": ""
+    },
+    "ccef67bac2e33391": {
+      "signature": "reject|ValueError|plugin path does not exist||",
+      "kind": "reject",
+      "first_seen": "20260920T043953Z",
+      "edge_of": ""
+    },
+    "e3b0c44298fc1c14": {
+      "signature": "reject|ValueError|filesystem plugin paths must be absolute||",
+      "kind": "reject",
+      "first_seen": "20260920T043717Z",
+      "edge_of": ""
+    },
+    "ef78666bbf8794a2": {
+      "signature": "reject|ValueError|embedded null byte||",
+      "kind": "reject",
+      "first_seen": "20260920T044406Z",
+      "edge_of": ""
+    }
+  }
+}

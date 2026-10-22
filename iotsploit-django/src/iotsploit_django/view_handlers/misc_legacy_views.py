@@ -1,6 +1,11 @@
 from iotsploit_django.tools.sat_utils import *
 
+from importlib.metadata import version as package_version
+
+from django.conf import settings
+from django.db import connection
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 
 from django.http import JsonResponse
 from iotsploit_django.composition_root.wiring import (
@@ -117,6 +122,47 @@ def list_urls(request):
             'status': 'error',
             'message': f'Failed to list URLs: {str(e)}'
         }, status=500)
+
+# Bump when a change breaks what the UI expects from this API. The UI compares it
+# with the value it was built against and reports a mismatch instead of failing
+# screen by screen.
+API_VERSION = 1
+
+
+@require_GET
+def health(request):
+    """
+    GET
+    Report that the backend is up, which version it runs, and whether its
+    dependencies answer. Polled by the UI, so it must stay cheap.
+    """
+    checks = {}
+    try:
+        connection.ensure_connection()
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = str(e)
+    if settings.IOTSPLOIT_RUNTIME == "distributed":
+        try:
+            import redis
+
+            redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                db=settings.REDIS_DB,
+                socket_timeout=1,
+            ).ping()
+            checks["redis"] = "ok"
+        except Exception as e:
+            checks["redis"] = str(e)
+
+    return JsonResponse({
+        "version": package_version("iotsploit-django"),
+        "api_version": API_VERSION,
+        "runtime": settings.IOTSPLOIT_RUNTIME,
+        "checks": checks,
+    })
+
 
 @csrf_exempt
 def set_log_level(request):

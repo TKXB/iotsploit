@@ -6,19 +6,51 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from typing import Any, Dict, List, Optional, Type
 
 from sqlalchemy import Column, JSON, String, DateTime, text as sqlalchemy_text
 from sqlalchemy.sql import func
 
 from iotsploit_django.adapters.django.sqlalchemy_database import get_default_sqlalchemy_db
-from iotsploit_core.domain.target import ComponentFactory, GenericTarget, Target, Vehicle
+from iotsploit_core.domain.target import (
+    GenericTarget,
+    Target,
+    Vehicle,
+    fold_legacy_interfaces,
+)
+from iotsploit_core.domain.target_transfer import (
+    TargetTransferError,
+    build_envelope,
+    read_envelope,
+)
 from iotsploit_django.tools.xlogger import xlog
 
 _db = get_default_sqlalchemy_db()
 Base = _db.Base
 engine = _db.engine
 SessionLocal = _db.SessionLocal
+
+
+def _apply_target(model: "TargetDBModel", target: Target) -> None:
+    """Copy the domain fields onto an ORM row.
+
+    Insert and update used to repeat this list separately, so a new field had to
+    be added in two places and silently went missing from updates if it was not.
+    """
+    model.target_id = target.target_id
+    model.name = target.name
+    model.type = target.type
+    model.status = target.status
+    model.properties = target.properties
+    model.ip_address = target.ip_address
+    model.location = target.location
+    model.components = [comp.model_dump() for comp in target.components]
+    # Drained, not left in place: the fold on read is idempotent, but a stale
+    # list here would keep being folded into a target that already holds it.
+    model.interfaces = []
+    model.buses = [bus.model_dump() for bus in target.buses]
+    model.edges = [edge.model_dump() for edge in target.edges]
 
 
 class TargetDBModel(Base):
@@ -33,28 +65,30 @@ class TargetDBModel(Base):
     location = Column(String, nullable=True)
     components = Column(JSON, nullable=True)
     interfaces = Column(JSON, nullable=True)
+    buses = Column(JSON, nullable=True)
+    edges = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=func.now(), nullable=True)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=True)
 
     def __init__(self, target: Target):
-        self.target_id = target.target_id
-        self.name = target.name
-        self.type = target.type
-        self.status = target.status
-        self.properties = target.properties
-        self.ip_address = target.ip_address
-        self.location = target.location
-        self.components = [comp.model_dump() for comp in target.components]
-        self.interfaces = [intf.model_dump() for intf in target.interfaces]
+        _apply_target(self, target)
 
 
 class TargetManager:
     _instance = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls):
+        # Published only once initialize() has finished. It used to be stored
+        # first, so a request arriving while the first one was still creating
+        # the tables got an object with no Session yet -- and if initialize()
+        # raised, every later request got that half-built object for good.
         if cls._instance is None:
-            cls._instance = super(TargetManager, cls).__new__(cls)
-            cls._instance.initialize()
+            with cls._instance_lock:
+                if cls._instance is None:
+                    instance = super(TargetManager, cls).__new__(cls)
+                    instance.initialize()
+                    cls._instance = instance
         return cls._instance
 
     def initialize(self):
@@ -78,6 +112,8 @@ class TargetManager:
         migrations = {
             "created_at": "DATETIME",
             "updated_at": "DATETIME",
+            "buses": "JSON",
+            "edges": "JSON",
         }
 
         with engine.connect() as conn:
@@ -105,18 +141,22 @@ class TargetManager:
         raise ValueError(f"No target type registered for: {target_type}")
 
     def save_target(self, target: Target):
+        """Persist a target, refusing one that has no identity.
+
+        Every write funnels through here, and the id is what the store looks a
+        target up by: an empty one inserts a row that no route taking a
+        target_id can reach again, so it can never be opened, edited, selected
+        or deleted. Validating in the create view alone left that a caller
+        away, and one such row is already on a rig.
+        """
+        if not target.target_id:
+            raise ValueError("target_id is required: a target without an id cannot be addressed")
+
         session = self.Session()
         try:
             existing_target = session.query(TargetDBModel).filter_by(target_id=target.target_id).first()
             if existing_target:
-                existing_target.name = target.name
-                existing_target.type = target.type
-                existing_target.status = target.status
-                existing_target.properties = target.properties
-                existing_target.ip_address = target.ip_address
-                existing_target.location = target.location
-                existing_target.components = [comp.model_dump() for comp in target.components]
-                existing_target.interfaces = [intf.model_dump() for intf in target.interfaces]
+                _apply_target(existing_target, target)
                 session.commit()
             else:
                 target_model = TargetDBModel(target)
@@ -129,31 +169,60 @@ class TargetManager:
         finally:
             session.close()
 
+    def get_target(self, target_id: str) -> Optional[Dict[str, Any]]:
+        """One target in full, by id, with no side effect.
+
+        Deliberately does *not* touch the current target. A caller that names
+        the target it wants is answering the question "which one", and having
+        that answer also rewrite a process-global selection would change what
+        every other client sees as a side effect of one read.
+
+        Returns ``None`` rather than raising when the id is unknown, so a view
+        can turn that into a 404 without catching anything.
+        """
+        if not target_id or target_id == "__settings__":
+            return None
+        session = self.Session()
+        try:
+            stored = (
+                session.query(TargetDBModel)
+                .filter(TargetDBModel.target_id == target_id)
+                .one_or_none()
+            )
+            return self._target_dict(stored) if stored is not None else None
+        finally:
+            session.close()
+
     def get_all_targets(self) -> List[Dict[str, Any]]:
         session = self.Session()
         try:
             # Exclude the special settings pseudo-target
             targets = session.query(TargetDBModel).filter(TargetDBModel.target_id != "__settings__").all()
-            result = []
-            for t in targets:
-                # All targets now have full fields (ip_address, location, components, interfaces)
-                target_info: Dict[str, Any] = {
-                    "target_id": t.target_id,
-                    "name": t.name,
-                    "type": t.type,
-                    "status": t.status,
-                    "properties": t.properties,
-                    "ip_address": t.ip_address,
-                    "location": t.location,
-                    "components": t.components or [],
-                    "interfaces": t.interfaces or [],
-                    "created_at": t.created_at.isoformat() if t.created_at else None,
-                    "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-                }
-                result.append(target_info)
-            return result
+            return [self._target_dict(t) for t in targets]
         finally:
             session.close()
+
+    @staticmethod
+    def _target_dict(t: "TargetDBModel") -> Dict[str, Any]:
+        """One stored row as the folded target shape every caller expects."""
+        target_info: Dict[str, Any] = {
+            "target_id": t.target_id,
+            "name": t.name,
+            "type": t.type,
+            "status": t.status,
+            "properties": t.properties,
+            "ip_address": t.ip_address,
+            "location": t.location,
+            "components": t.components or [],
+            "interfaces": t.interfaces or [],
+            "buses": t.buses or [],
+            "edges": t.edges or [],
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        }
+        # Callers see one list of endpoints. Rows stored under the old key move
+        # across here and are written back folded on next save.
+        return fold_legacy_interfaces(target_info)
 
     # ---------------- current target (in-memory) ----------------
 
@@ -215,43 +284,39 @@ class TargetManager:
 
     # ---------------- hydrate / update helpers ----------------
 
+    @staticmethod
+    def _hydrate_target(target_data: Dict[str, Any], target_class: Type[Target]) -> Target:
+        """Build a domain Target from a dict payload.
+
+        Class selection stays with the caller on purpose: the JSON import path
+        honours registered target types, while the request path knows only
+        Vehicle and GenericTarget. Only the field hydration is shared.
+        """
+        target_data = fold_legacy_interfaces(target_data)
+        # Components are resolved by the model itself, so that constructing a
+        # target anywhere gets the same typed components this path used to
+        # build by hand -- including create_target below, which never did.
+        return target_class(
+            target_id=target_data.get("target_id", ""),
+            name=target_data.get("name", ""),
+            type=target_data.get("type", "vehicle"),
+            status=target_data.get("status", "active"),
+            properties=target_data.get("properties") or {},
+            ip_address=target_data.get("ip_address"),
+            location=target_data.get("location"),
+            components=target_data.get("components") or [],
+            buses=target_data.get("buses") or [],
+            edges=target_data.get("edges") or [],
+        )
+
     def create_target_instance(self, target_data: Dict[str, Any]) -> Target:
         """
         Create a domain Target instance from a dict (as returned by get_all_targets or request payloads).
-        All target types now share the same fields (ip_address, location, components, interfaces).
+        All target types now share the same fields (ip_address, location, components).
         """
-        target_type = target_data.get("type", "vehicle")
-
-        # Re-hydrate components/interfaces using the domain factory when possible
-        raw_components = target_data.get("components") or []
-        components = []
-        for c in raw_components:
-            if isinstance(c, dict):
-                components.append(ComponentFactory.create_component(c))
-            else:
-                # already a pydantic model
-                components.append(c)
-
-        interfaces = target_data.get("interfaces") or []
-
-        common_kwargs: Dict[str, Any] = {
-            "target_id": target_data.get("target_id", ""),
-            "name": target_data.get("name", ""),
-            "type": target_type,
-            "status": target_data.get("status", "active"),
-            "properties": target_data.get("properties", {}) or {},
-            "ip_address": target_data.get("ip_address"),
-            "location": target_data.get("location"),
-            "components": components,
-            "interfaces": interfaces,
-        }
-
-        # Use Vehicle class for vehicle type (has ADB helper methods)
-        # Use GenericTarget for all other types
-        if target_type == "vehicle":
-            return Vehicle(**common_kwargs)
-
-        return GenericTarget(**common_kwargs)
+        # Vehicle has the ADB helper methods; everything else is generic.
+        target_class = Vehicle if target_data.get("type", "vehicle") == "vehicle" else GenericTarget
+        return self._hydrate_target(target_data, target_class)
 
     def update_target(self, target_data: Dict[str, Any]) -> bool:
         """
@@ -324,7 +389,7 @@ class TargetManager:
                 xlog.info(f"Backed up original file to: {backup_path}", name="target_model")
             
             # Write targets to JSON file
-            data = {"targets": targets}
+            data = build_envelope(targets, source="export_targets_to_json")
             with open(json_file_path, "w") as file:
                 json.dump(data, file, indent=2)
             
@@ -343,6 +408,15 @@ class TargetManager:
         with open(json_file_path, "r") as file:
             data = json.load(file)
 
+        # A file that is not an export used to read as zero targets and report
+        # success, because ``data.get("targets", [])`` cannot tell an empty
+        # export from a wrong file. Say which it was.
+        try:
+            incoming = read_envelope(data)
+        except TargetTransferError as exc:
+            xlog.error(f"{json_file_path}: {exc}", name="target_model")
+            return
+
         existing_ids: set[str] = set()
         if not force_overwrite:
             session = self.Session()
@@ -353,7 +427,7 @@ class TargetManager:
 
         imported_count = 0
         skipped_count = 0
-        for target in data.get("targets", []):
+        for target in incoming:
             target_id = target.get("target_id", "")
             if not target_id:
                 xlog.warning("Skipping target import: missing target_id", name="target_model")
@@ -364,24 +438,8 @@ class TargetManager:
                 skipped_count += 1
                 continue
 
-            target_type = target.get("type", "vehicle")
-            target_class = self.targets.get(target_type, Vehicle)
-
-            # Re-hydrate components/interfaces using the domain factory
-            components = [ComponentFactory.create_component(c) for c in target.get("components", [])]
-            interfaces = target.get("interfaces", [])
-
-            target_instance = target_class(
-                target_id=target_id,
-                name=target.get("name", ""),
-                type=target_type,
-                status=target.get("status", "active"),
-                properties=target.get("properties", {}),
-                ip_address=target.get("ip_address"),
-                location=target.get("location"),
-                components=components,
-                interfaces=interfaces,
-            )
+            target_class = self.targets.get(target.get("type", "vehicle"), Vehicle)
+            target_instance = self._hydrate_target(target, target_class)
             self.save_target(target_instance)
             self.current_target = target_instance
             imported_count += 1

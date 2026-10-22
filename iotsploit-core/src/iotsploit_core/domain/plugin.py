@@ -13,5 +13,5 @@ class PluginMeta:
     author: str = ""
     license: str = ""
     parameters: Optional[Dict[str, Any]] = None
-
+    requirements: tuple[str, ...] = ()
 

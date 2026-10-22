@@ -1,0 +1,286 @@
+"""The MCP tools that change a target.
+
+These check the shape of what reaches Django, not Django itself: the HTTP
+client is a stand-in that records the call. What matters here is that the
+whole model goes over the wire -- buses and edges included -- and that a
+refusal comes back as a payload rather than an exception, because a tool that
+raises tells the agent nothing it can act on.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+import pytest
+from mcp.server.fastmcp import FastMCP
+
+from iotsploit_mcp.adapters.django_http_client import DjangoHttpError
+from iotsploit_mcp.tools.write import register_write_tools
+
+pytestmark = pytest.mark.contract
+
+
+class FakeClient:
+    """Records posts. Raises whatever it was told to, like the real one does."""
+
+    def __init__(self, error: Exception | None = None):
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.error = error
+
+    def post(self, path: str, *, json: dict[str, Any] | None = None) -> dict[str, Any]:
+        self.calls.append((path, json or {}))
+        if self.error is not None:
+            raise self.error
+        return {"status": "success"}
+
+
+def tools(client: FakeClient) -> dict[str, Any]:
+    mcp = FastMCP("test")
+    register_write_tools(mcp, client_factory=lambda: client)
+    return {t.name: t for t in asyncio.run(mcp.list_tools())}
+
+
+def call(client: FakeClient, tool: str, **kwargs) -> Any:
+    """`tool` rather than `name`, which is an argument of the tool itself."""
+    mcp = FastMCP("test")
+    register_write_tools(mcp, client_factory=lambda: client)
+    return asyncio.run(mcp.call_tool(tool, kwargs))
+
+
+def test_the_write_surface_is_exactly_these_seven(monkeypatch):
+    """Deletion is absent on purpose. It is the one that is not recoverable."""
+    assert set(tools(FakeClient())) == {
+        "create_target",
+        "edit_target",
+        "select_target",
+        "execute_plugin",
+        "execute_device_command",
+        "set_driver_enabled",
+        "record_observations",
+    }
+
+
+def test_create_sends_the_topology(monkeypatch):
+    client = FakeClient()
+
+    call(
+        client,
+        "create_target",
+        target_id="t1",
+        name="Bench",
+        type="router",
+        components=[{"component_id": "c1", "name": "SoC", "type": "generic"}],
+        buses=[{"bus_id": "b1", "name": "LAN", "type": "ethernet"}],
+        edges=[{"source": "c1", "target": "b1", "relation": "bus_member"}],
+    )
+
+    path, payload = client.calls[0]
+    assert path == "/api/create_target/"
+    assert payload["buses"][0]["bus_id"] == "b1"
+    assert payload["edges"][0]["relation"] == "bus_member"
+
+
+def test_create_defaults_topology_to_empty_rather_than_omitting_it(monkeypatch):
+    """Django reads these keys; leaving them out would rely on its defaults."""
+    client = FakeClient()
+
+    call(client, "create_target", target_id="t1", name="Bench")
+
+    _, payload = client.calls[0]
+    assert payload["buses"] == [] and payload["edges"] == []
+    assert payload["components"] == [] and payload["properties"] == {}
+
+
+def test_edit_passes_updates_through_untouched(monkeypatch):
+    client = FakeClient()
+    updates = {"buses": [{"bus_id": "b2", "name": "WAN", "type": "ethernet"}]}
+
+    call(client, "edit_target", target_id="t1", updates=updates)
+
+    path, payload = client.calls[0]
+    assert path == "/api/edit_target/"
+    assert payload == {"target_id": "t1", "updates": updates}
+
+
+def test_select_posts_the_id(monkeypatch):
+    client = FakeClient()
+
+    call(client, "select_target", target_id="t1")
+
+    assert client.calls[0] == ("/api/select_target/", {"target_id": "t1"})
+
+
+def test_execute_plugin_posts_name_and_parameters(monkeypatch):
+    client = FakeClient()
+    parameters = {"interface": "can0", "duration": 10}
+
+    call(client, "execute_plugin", plugin_name="can_sniff", parameters=parameters)
+
+    assert client.calls[0] == (
+        "/api/execute_plugin/",
+        {"plugin_name": "can_sniff", "parameters": parameters},
+    )
+
+
+def test_execute_plugin_forwards_an_explicit_target(monkeypatch):
+    """No new tool: the same one gains an argument, so an agent can avoid the
+    global select_target mutation without the tool count changing."""
+    client = FakeClient()
+
+    call(
+        client,
+        "execute_plugin",
+        plugin_name="CAN Frame Composer",
+        parameters={"request": {"schema_version": 1}},
+        target_id="bench_vehicle",
+    )
+
+    assert client.calls[0] == (
+        "/api/execute_plugin/",
+        {
+            "plugin_name": "CAN Frame Composer",
+            "parameters": {"request": {"schema_version": 1}},
+            "target_id": "bench_vehicle",
+        },
+    )
+
+
+def test_execute_plugin_omits_the_target_key_when_not_given(monkeypatch):
+    """Existing callers must post exactly what they posted before, so the
+    server's legacy current-target path still applies to them."""
+    client = FakeClient()
+
+    call(client, "execute_plugin", plugin_name="ip_scan", parameters={})
+
+    assert "target_id" not in client.calls[0][1]
+
+
+def test_execute_plugin_defaults_parameters_to_empty(monkeypatch):
+    client = FakeClient()
+
+    call(client, "execute_plugin", plugin_name="ip_scan")
+
+    assert client.calls[0] == (
+        "/api/execute_plugin/",
+        {"plugin_name": "ip_scan", "parameters": {}},
+    )
+
+
+PORT_22 = {
+    "protocol": "tcp",
+    "subject_kind": "port",
+    "subject_id": "22",
+    "observed_property": "open",
+    "value": {"banner": "OpenSSH 8.9"},
+}
+
+
+def test_record_observations_sends_the_scan_as_one_call(monkeypatch):
+    client = FakeClient()
+
+    call(
+        client,
+        "record_observations",
+        target_id="zxd",
+        agent="claude",
+        scope_key="tcp:22,80,443",
+        component_id="c_gateway",
+        facts=[PORT_22],
+    )
+
+    path, payload = client.calls[0]
+    assert path == "/api/record_observations/"
+    assert payload["scope_key"] == "tcp:22,80,443"
+    assert payload["component_id"] == "c_gateway"
+    assert payload["facts"] == [PORT_22]
+
+
+def test_record_observations_never_sends_a_source(monkeypatch):
+    """The backend assigns it. A source here would come back as a 400 anyway."""
+    client = FakeClient()
+
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:22", facts=[PORT_22])
+
+    assert "source" not in client.calls[0][1]
+
+
+def test_record_observations_claims_completeness_only_when_asked(monkeypatch):
+    """A snapshot defines current state, so the flag has to travel explicitly."""
+    client = FakeClient()
+
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:1-65535", facts=[PORT_22], is_complete=False)
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:22", facts=[PORT_22])
+
+    assert client.calls[0][1]["is_complete"] is False
+    assert client.calls[1][1]["is_complete"] is True
+
+
+def test_record_observations_passes_an_empty_result_through(monkeypatch):
+    """Finding nothing is a fact about the target, not a call to skip."""
+    client = FakeClient()
+
+    call(client, "record_observations", target_id="zxd", agent="claude",
+         scope_key="tcp:1-1024", facts=[])
+
+    assert client.calls[0][1]["facts"] == []
+
+
+def test_execute_device_command_names_the_device_it_acts_on(monkeypatch):
+    """Without device_id the backend cannot find the device and refuses."""
+    client = FakeClient()
+
+    call(client, "execute_device_command", driver_name="drv_esp32",
+         device_id="esp32_0", command="get_version", args={"verbose": True})
+
+    assert client.calls[0] == (
+        "/api/execute_device_command/drv_esp32/",
+        {"command": "get_version", "device_id": "esp32_0", "args": {"verbose": True}},
+    )
+
+
+def test_execute_device_command_defaults_args_to_empty(monkeypatch):
+    client = FakeClient()
+
+    call(client, "execute_device_command", driver_name="drv_esp32",
+         device_id="esp32_0", command="reset")
+
+    assert client.calls[0][1]["args"] == {}
+
+
+@pytest.mark.parametrize(("enabled", "path"), [
+    (True, "/api/enable_driver/"),
+    (False, "/api/disable_driver/"),
+])
+def test_set_driver_enabled_posts_to_the_matching_route(monkeypatch, enabled, path):
+    client = FakeClient()
+
+    call(client, "set_driver_enabled", driver_name="drv_esp32", enabled=enabled,
+         description="bench test")
+
+    assert client.calls[0] == (path, {"driver_name": "drv_esp32", "description": "bench test"})
+
+
+def test_set_driver_enabled_omits_an_unset_description(monkeypatch):
+    client = FakeClient()
+
+    call(client, "set_driver_enabled", driver_name="drv_esp32", enabled=True)
+
+    assert client.calls[0][1] == {"driver_name": "drv_esp32"}
+
+
+def test_a_refusal_comes_back_as_a_payload_the_agent_can_read(monkeypatch):
+    """A raising tool tells the agent nothing. The 400 and its reason do."""
+    client = FakeClient(
+        error=DjangoHttpError("HTTP 400", status_code=400,
+                              response_text='{"error": "Invalid target: edge ... unknown source"}')
+    )
+
+    result = call(client, "create_target", target_id="t1", name="Bench")
+
+    text = str(result)
+    assert "400" in text
+    assert "unknown source" in text
