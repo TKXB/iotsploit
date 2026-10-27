@@ -209,11 +209,13 @@ actually had. No playback speed, including none at all, can influence it.
 
 ### Moving through a log
 
-A replay has transport controls: play, pause, a scrubber, and a speed from
-0.5× to **Max**. Max is the default and means the whole log at once, which is
-how replay behaved before it had a transport — nobody should wait eighty
-seconds for a result they used to get instantly. The slower speeds are for
-watching something unfold.
+A replay has transport controls: play, pause, a scrubber, and speeds from
+0.5× to 5×, with 1× as the default. Opening a log leaves playback paused at
+00:00 while the backend loads its frames. Loading progress fills the buffered
+track without moving the playhead. Press Play to watch from the beginning,
+or seek directly to any loaded position.
+**Cancel loading** is available while the backend reads the file and disappears
+when loading finishes. Play and Pause control playback of the loaded frames.
 
 The controls work because the parse and the playback are separate things:
 
