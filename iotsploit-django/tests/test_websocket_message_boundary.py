@@ -38,7 +38,7 @@ def test_an_object_is_a_message():
         ("{not json", "invalid JSON"),
         ("", "invalid JSON"),
         ('{"n": ' + "9" * 8000 + "}", "invalid JSON"),   # int-string limit, a plain ValueError
-        ("[" * 2000 + "]" * 2000, "invalid JSON"),       # RecursionError in the decoder
+        ("[" * 10000 + "]" * 10000, "invalid JSON"),     # exceeds CPython 3.12's decoder nesting budget too
     ],
 )
 def test_text_that_is_not_json_is_refused_without_reaching_a_handler(text, why):

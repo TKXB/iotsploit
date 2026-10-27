@@ -226,10 +226,10 @@ The controls work because the parse and the playback are separate things:
   observation batch comes from the complete parse, so pausing at 30% does not
   record a partial read as a finding.
 
-Snapshots are bucketed by the log's own arrival times rather than by wall
-clock, and every 25th carries the full table as a **keyframe**. Seeking is then
-a jump to the nearest keyframe plus a short fold forward — the same mechanism a
-video player uses, and for the same reason.
+Table snapshots are bucketed by the log's own arrival times rather than by wall
+clock, and every 25th carries the full table as a **keyframe**. Each batch also
+carries every decoded data frame between updates. Playback selects the last
+actual frame at the playhead position, including between table snapshots.
 
 #### Seeking cannot change the numbers
 
@@ -240,13 +240,18 @@ the same log would read different numbers and one of them would cite it. That
 equivalence — seek-to-position equals play-to-position — is asserted in both the
 Python and the Flutter test suites.
 
-#### The timeline is bounded by resolution, not by log size
+#### Every recorded data frame remains inspectable
 
-The client holds every bucket in order to scrub without a round trip, so the
-count is capped at 600 and bucket size is what gives way: 200 ms for a
-80-second log, 6 seconds for an hour of traffic. Never finer than 50 ms.
-Scrubbing an hour-long log is coarser than scrubbing a minute of one, which is
-the honest trade and the one a video scrubber makes too.
+Table updates target 600 buckets, with a minimum interval of 50 ms. This does
+not sample signal history: batches retain every data frame and flush after
+512 frames even if the next table update is not due. The existing replay
+frame budget bounds the read and reports truncation in the result.
+
+Select an ID and open **All recorded frames** in the signal inspector to see
+its timestamped payloads and decoded values. Select a history entry or use
+**Previous frame** and **Next frame** to inspect every signal in that frame.
+**Follow playhead** returns the inspector to playback. A 50 ms rolling counter
+therefore retains every value even with 200 ms table updates.
 
 ### The log says which bus it is
 
