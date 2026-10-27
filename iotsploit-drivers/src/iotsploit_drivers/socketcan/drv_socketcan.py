@@ -308,6 +308,8 @@ class SocketCANDriver(BaseDeviceDriver):
     def _setup_acquisition(self, device: Device):
         """设置CAN数据采集"""
         logger.info("Setting up CAN acquisition")
+        self.device = device
+        self.current_interface = device.interface
         self._error_counts.clear()
         self._last_error_report.clear()
         if not self.bus:

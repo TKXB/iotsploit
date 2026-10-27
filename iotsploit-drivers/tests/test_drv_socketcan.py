@@ -305,3 +305,30 @@ def test_the_bus_always_receives_fd_frames(driver, monkeypatch, supports_fd):
     assert opened["fd"] is True
     assert opened["channel"] == "can0"
     assert opened["interface"] == "socketcan"
+
+
+@pytest.mark.parametrize("interface, device_id", [("can0", "can_001"), ("can1", "can_002")])
+def test_acquisition_on_a_scanned_device_publishes_to_its_selected_channel(monkeypatch, interface, device_id):
+    driver = SocketCANDriver()
+    driver.stream_wrapper = RecordingStream()
+    opened = {}
+
+    def fake_bus(**kwargs):
+        opened.update(kwargs)
+        return RecordingBus()
+
+    monkeypatch.setattr(drv_socketcan.can.interface, "Bus", fake_bus)
+    device = SocketCANDevice(device_id=device_id, name=f"SocketCAN_{interface}", interface=interface)
+
+    driver._setup_acquisition(device)
+    driver.handle_received_message(
+        can.Message(arbitration_id=0x15A, data=bytes.fromhex("EC04000000000000"), timestamp=2.0)
+    )
+    driver.handle_received_message(error_frame("0004000000000000"))
+
+    assert opened["channel"] == interface
+    assert opened["fd"] is True
+    assert [item.channel for item in driver.stream_wrapper.published] == [device_id, device_id]
+    assert driver.stream_wrapper.published[0].metadata["interface"] == interface
+    driver._cleanup_acquisition(device)
+    assert driver.bus is None
