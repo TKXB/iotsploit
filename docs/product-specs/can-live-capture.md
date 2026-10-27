@@ -249,6 +249,10 @@ not sample signal history: batches retain every data frame and flush after
 512 frames even if the next table update is not due. The existing replay
 frame budget bounds the read and reports truncation in the result.
 
+In the local runtime, replay delivery waits for space in each subscriber's
+channel queue. A fast file parser must not drop history batches or the final
+completion message when a WebSocket consumer falls behind.
+
 Select an ID and open **All recorded frames** in the signal inspector to see
 its timestamped payloads and decoded values. Select a history entry or use
 **Previous frame** and **Next frame** to inspect every signal in that frame.

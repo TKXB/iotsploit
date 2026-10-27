@@ -17,6 +17,7 @@ class ThreadSafeInMemoryChannelLayer(InMemoryChannelLayer):
         super().__init__(*args, **kwargs)
         self._asgi_loop = None
         self._loop_lock = threading.Lock()
+        self._space_available = asyncio.Condition()
 
     def _capture_loop(self):
         loop = asyncio.get_running_loop()
@@ -32,7 +33,10 @@ class ThreadSafeInMemoryChannelLayer(InMemoryChannelLayer):
 
     async def receive(self, channel):
         self._capture_loop()
-        return await super().receive(channel)
+        message = await super().receive(channel)
+        async with self._space_available:
+            self._space_available.notify_all()
+        return message
 
     async def group_add(self, group, channel):
         self._capture_loop()
@@ -40,7 +44,29 @@ class ThreadSafeInMemoryChannelLayer(InMemoryChannelLayer):
 
     async def group_discard(self, group, channel):
         self._capture_loop()
-        return await super().group_discard(group, channel)
+        await super().group_discard(group, channel)
+        async with self._space_available:
+            self._space_available.notify_all()
+
+    async def group_send_reliable(self, group, message):
+        """Backpressure replay producers instead of dropping full-queue batches."""
+        home_loop = self._asgi_loop
+        if home_loop is not None and home_loop is not asyncio.get_running_loop():
+            future = asyncio.run_coroutine_threadsafe(
+                self.group_send_reliable(group, message), home_loop
+            )
+            return await asyncio.wrap_future(future)
+
+        self._clean_expired()
+        for channel in list(self.groups.get(group, {})):
+            async with self._space_available:
+                await self._space_available.wait_for(
+                    lambda: channel not in self.groups.get(group, {})
+                    or channel not in self.channels
+                    or self.channels[channel].qsize() < self.capacity
+                )
+                if channel in self.groups.get(group, {}):
+                    await self.send(channel, message)
 
     async def group_send(self, group, message):
         current_loop = asyncio.get_running_loop()

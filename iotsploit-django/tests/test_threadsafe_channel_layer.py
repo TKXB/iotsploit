@@ -32,3 +32,47 @@ def test_worker_thread_events_arrive_in_order_under_load():
 
     messages = asyncio.run(exercise())
     assert [message["sequence"] for message in messages] == list(range(100))
+
+
+def test_reliable_replay_waits_for_a_slow_consumer_and_delivers_the_final_batch():
+    async def exercise():
+        layer = ThreadSafeInMemoryChannelLayer(capacity=2)
+        channel = await layer.new_channel()
+        await layer.group_add("replay", channel)
+
+        def produce():
+            async def send():
+                for sequence in range(200):
+                    await layer.group_send_reliable(
+                        "replay", {"type": "event", "sequence": sequence, "final": sequence == 199}
+                    )
+            asyncio.run(send())
+
+        worker = asyncio.create_task(asyncio.to_thread(produce))
+        messages = []
+        for _ in range(200):
+            messages.append(await asyncio.wait_for(layer.receive(channel), timeout=5))
+            await asyncio.sleep(0.001)
+        await worker
+        return messages
+
+    messages = asyncio.run(exercise())
+
+    assert [message["sequence"] for message in messages] == list(range(200))
+    assert messages[-1]["final"] is True
+
+
+def test_reliable_send_unblocks_when_a_full_queue_subscriber_disconnects():
+    async def exercise():
+        layer = ThreadSafeInMemoryChannelLayer(capacity=1)
+        channel = await layer.new_channel()
+        await layer.group_add("replay", channel)
+        await layer.group_send_reliable("replay", {"type": "event"})
+        blocked = asyncio.create_task(layer.group_send_reliable("replay", {"type": "final"}))
+        await asyncio.sleep(0)
+        assert not blocked.done()
+
+        await layer.group_discard("replay", channel)
+        await asyncio.wait_for(blocked, timeout=1)
+
+    asyncio.run(exercise())

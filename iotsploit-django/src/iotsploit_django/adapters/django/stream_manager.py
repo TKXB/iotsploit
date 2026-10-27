@@ -84,7 +84,10 @@ class DjangoStreamManager:
         message = {"type": "stream_data", "data": stream_data.to_dict()}
 
         try:
-            await self.channel_layer.group_send(group_name, message)
+            if not self._distributed and (stream_data.metadata or {}).get("reliable"):
+                await self.channel_layer.group_send_reliable(group_name, message)
+            else:
+                await self.channel_layer.group_send(group_name, message)
         except Exception as e:
             logger.error(f"Error broadcasting to group {group_name}: {str(e)}")
 
