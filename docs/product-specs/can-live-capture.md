@@ -216,6 +216,9 @@ track without moving the playhead. Press Play to watch from the beginning,
 or seek directly to any loaded position.
 **Cancel loading** is available while the backend reads the file and disappears
 when loading finishes. Play and Pause control playback of the loaded frames.
+Cancelling leaves only the received portion seekable; it does not mark the
+unread tail as complete. Startup failures are reported through the execution
+socket, including failures that occurred before the viewer connected.
 
 The controls work because the parse and the playback are separate things:
 
@@ -252,6 +255,17 @@ frame budget bounds the read and reports truncation in the result.
 In the local runtime, replay delivery waits for space in each subscriber's
 channel queue. A fast file parser must not drop history batches or the final
 completion message when a WebSocket consumer falls behind.
+
+The UI and CLI assign a UUID `stream_id` to each run and subscribe before
+dispatching it. This keeps viewers on the same bus from receiving each other's
+replays. Direct API callers can provide the same optional request field.
+Changing the target or bus clears the previous replay and its subscriptions.
+
+Signal values and decode errors describe the current frame; the decode-error
+counter remains cumulative. Replay requires nondecreasing timestamps and
+refuses an out-of-order log explicitly rather than returning incorrect seek
+results. The initial scan checks cancellation before opening the log and at
+512-frame checkpoints.
 
 Select an ID and open **All recorded frames** in the signal inspector to see
 its timestamped payloads and decoded values. Select a history entry or use

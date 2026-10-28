@@ -45,7 +45,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
 
 from iotsploit_protocols.errors import NotConfigured
 
@@ -718,6 +718,7 @@ def scan_log(
     *,
     channel: Optional[LogChannel] = None,
     max_frames: Optional[int] = None,
+    check_cancelled: Optional[Callable[[], None]] = None,
 ) -> LogReadStats:
     """Read a log through once without keeping it, to learn what it covers.
 
@@ -729,9 +730,16 @@ def scan_log(
     only learns its own scale at the moment it finishes, which is no progress
     bar at all.
     """
+    if check_cancelled is not None:
+        check_cancelled()
     reader = open_log(path, channel=channel, max_frames=max_frames)
-    for _ in reader.messages():
-        pass
+    previous = None
+    for index, message in enumerate(reader.messages()):
+        if check_cancelled is not None and (index + 1) % 512 == 0:
+            check_cancelled()
+        if previous is not None and message.timestamp < previous:
+            raise CanLogError(f"CAN log timestamps move backwards at frame {index + 1}; replay requires time order")
+        previous = message.timestamp
     return reader.stats
 
 

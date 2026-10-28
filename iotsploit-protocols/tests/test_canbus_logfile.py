@@ -387,3 +387,37 @@ def test_identities_exclude_faults_and_remote_requests(tmp_path):
     )
 
     assert identities_from_log(path) == {(0x100, False), (0x18DB33F1, True)}
+
+
+def test_scan_cancellation_is_checked_before_opening_the_file(tmp_path):
+    from iotsploit_protocols.canbus.logfile import scan_log
+
+    def cancelled():
+        raise RuntimeError("scan cancelled")
+
+    with pytest.raises(RuntimeError, match="scan cancelled"):
+        scan_log(tmp_path / "not-opened.asc", check_cancelled=cancelled)
+
+
+def test_scan_checks_cancellation_while_reading(tmp_path):
+    from iotsploit_protocols.canbus.logfile import scan_log
+
+    path = write(tmp_path, "base hex timestamps absolute\n" + "0.0 1 123 Rx d 1 11\n" * 1024)
+    calls = []
+    def cancel_during_scan():
+        calls.append(True)
+        if len(calls) == 2:
+            raise RuntimeError("scan cancelled")
+
+    with pytest.raises(RuntimeError, match="scan cancelled"):
+        scan_log(path, check_cancelled=cancel_during_scan)
+    assert len(calls) == 2
+
+
+def test_scan_refuses_backwards_timestamps_instead_of_misleading_seeking(tmp_path):
+    from iotsploit_protocols.canbus.logfile import scan_log
+
+    path = write(tmp_path, "base hex timestamps absolute\n0.0 1 123 Rx d 1 11\n2.0 1 123 Rx d 1 22\n1.0 1 123 Rx d 1 33\n")
+
+    with pytest.raises(CanLogError, match="timestamps move backwards at frame 3"):
+        scan_log(path)

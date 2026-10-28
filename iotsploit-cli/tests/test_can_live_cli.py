@@ -184,9 +184,10 @@ def test_session_connects_before_start_and_renders_the_final_snapshot():
         ws_base_url="ws://rig:9999",
     )
 
-    result = session.run(run_spec())
+    run = run_spec()
+    result = session.run(run)
 
-    assert events[0] == ("connect", "ws://rig:9999/ws/device/stream/can_capture_body/")
+    assert events[0] == ("connect", f"ws://rig:9999/ws/device/stream/can_capture_{run.stream_id}/")
     assert events[1] == ("start", "capture")
     assert renderer.shown == [(1, "capture")]
     assert renderer.finished == [(1, "capture", "completed")]

@@ -15,13 +15,14 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-from iotsploit_core.ports.interaction import Prompt, coerce_answer
+from iotsploit_core.ports.interaction import InteractionCancelled, Prompt, coerce_answer
 from iotsploit_django.adapters.django.interaction.events import emit
 from iotsploit_django.adapters.django.interaction.models import (
     ExecutionStatus,
     InputRequest,
     PluginExecution,
     RequestStatus,
+    TERMINAL_EXECUTION_STATUSES,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,11 @@ def mark_running(execution_id, *, celery_task_id="") -> None:
     updates = {"status": ExecutionStatus.RUNNING, "started_at": timezone.now()}
     if celery_task_id:
         updates["celery_task_id"] = celery_task_id
-    PluginExecution.objects.filter(execution_id=execution_id).update(**updates)
+    started = PluginExecution.objects.filter(execution_id=execution_id).exclude(
+        status__in=TERMINAL_EXECUTION_STATUSES
+    ).update(**updates)
+    if not started:
+        raise InteractionCancelled("The execution is already finished.")
     emit(execution_id, "execution_started", {})
 
 

@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 
 DEFAULT_API_BASE = "http://127.0.0.1:8888"
@@ -43,6 +44,7 @@ class CanLiveRun:
     #: not necessarily the host running this shell.
     path: str = ""
     log_channel: int | str | None = None
+    stream_id: str = field(default_factory=lambda: uuid4().hex)
 
     @property
     def source_label(self) -> str:
@@ -83,6 +85,7 @@ class CanLiveRun:
                 "snapshot_interval_ms": self.snapshot_interval_ms,
                 "decode": self.decode,
             }
+        request["stream_id"] = self.stream_id
         return {
             "plugin_name": "CAN Live Capture",
             "target_id": self.target_id,
@@ -310,7 +313,7 @@ class CanLiveSession:
         )
 
     def run(self, run: CanLiveRun) -> dict[str, Any]:
-        stream_url = f"{self.ws_base_url}/ws/device/stream/can_capture_{run.bus_id}/"
+        stream_url = f"{self.ws_base_url}/ws/device/stream/can_capture_{run.stream_id}/"
         stream = self.stream_factory(stream_url)
         execution_id: str | None = None
         view = CanSnapshotView()
