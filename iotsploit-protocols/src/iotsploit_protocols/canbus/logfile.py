@@ -11,7 +11,9 @@ downstream needs one: :class:`~iotsploit_exploits.canbus.live_capture.CaptureAgg
 reads identity, payload, arrival time, and the frame-class flags by attribute
 and nothing else. ASC stays a small native parser; binary BLF and the two other
 widely used text formats delegate parsing to ``python-can`` without ever
-constructing a CAN bus or touching a platform socket.
+constructing a CAN bus or touching a platform socket. candump is a second
+small native parser for the same reason ASC is: python-can's reader aborts on
+the first bad line and mis-tags error frames.
 
 Three things in the Vector ASC format are worth knowing before changing this,
 because each one silently produces plausible wrong numbers rather than an
@@ -45,6 +47,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from string import hexdigits
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type
 
 from iotsploit_protocols.errors import NotConfigured
@@ -579,31 +582,26 @@ class PythonCanLogReader:
     def messages(self) -> Iterator[ReplayMessage]:
         try:
             self._validate()
-            from can import io
+            for message in self._read():
+                observed_channel = message.channel if message.channel is not None else 0
+                self.stats.channels_present.add(observed_channel)
+                if self.channel is not None and observed_channel != self.channel:
+                    continue
 
-            reader_type: Type[Any] = getattr(io, self.reader_name)
-            with reader_type(self.path) as source:
-                for source_message in source:
-                    message = self._convert(source_message)
-                    observed_channel = message.channel if message.channel is not None else 0
-                    self.stats.channels_present.add(observed_channel)
-                    if self.channel is not None and observed_channel != self.channel:
-                        continue
+                if message.is_error_frame:
+                    self.stats.error_frames += 1
+                else:
+                    self.stats.frames += 1
+                if self.stats.first_timestamp is None:
+                    self.stats.first_timestamp = message.timestamp
+                    self._set_started_at(message.timestamp)
+                self.stats.last_timestamp = message.timestamp
 
-                    if message.is_error_frame:
-                        self.stats.error_frames += 1
-                    else:
-                        self.stats.frames += 1
-                    if self.stats.first_timestamp is None:
-                        self.stats.first_timestamp = message.timestamp
-                        self._set_started_at(message.timestamp)
-                    self.stats.last_timestamp = message.timestamp
+                yield message
 
-                    yield message
-
-                    if self.max_frames is not None and self.stats.frames >= self.max_frames:
-                        self.stats.truncated = True
-                        return
+                if self.max_frames is not None and self.stats.frames >= self.max_frames:
+                    self.stats.truncated = True
+                    return
         except CanLogError:
             raise
         # Reader implementations also surface format-specific exceptions from
@@ -615,6 +613,14 @@ class PythonCanLogReader:
 
     def _validate(self) -> None:
         """Reject known unsupported variants before a reader can partially parse them."""
+
+    def _read(self) -> Iterator[ReplayMessage]:
+        from can import io
+
+        reader_type: Type[Any] = getattr(io, self.reader_name)
+        with reader_type(self.path) as source:
+            for source_message in source:
+                yield self._convert(source_message)
 
     def _convert(self, message: Any) -> ReplayMessage:
         channel = message.channel
@@ -650,9 +656,83 @@ class BlfLogReader(PythonCanLogReader):
     one_based_channels = True
 
 
+#: ``(1700000000.000100) can0 123#1122``, with an optional trailing ``T``/``R``
+#: direction marker. python-can's reader is not used for this format: it aborts
+#: on the first bad line (the usual one is the line cut off by Ctrl-C), tests
+#: only bit 0x80 for an error frame, and files bus errors under channel 0.
+_CANDUMP_LINE_RE = re.compile(r"\A\(([0-9]+(?:\.[0-9]+)?)\)\s+(\S+)\s+(\S+?)(?:\s+[TR])?\Z")
+_CANDUMP_ERROR_FLAG = 0x20000000
+
+
 class CandumpLogReader(PythonCanLogReader):
+    """A ``candump -l`` / ``-L`` log, one frame per line.
+
+    A line that does not parse is counted and skipped, never fatal, like ASC.
+    Screen output (``candump -ta``) is a different layout and counts as
+    unparsable, so a file of it fails as "no readable frames" rather than being
+    guessed at.
+    """
+
     format = "candump"
-    reader_name = "CanutilsLogReader"
+
+    def _read(self) -> Iterator[ReplayMessage]:
+        with self.path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                message = self._parse_line(line)
+                if message is None:
+                    self.stats.unparsable_lines += 1
+                    continue
+                yield message
+
+    @staticmethod
+    def _parse_line(line: str) -> Optional[ReplayMessage]:
+        match = _CANDUMP_LINE_RE.match(line)
+        if match is None:
+            return None
+        stamp, channel, frame = match.groups()
+        identifier, separator, rest = frame.partition("#")
+        if not separator or len(identifier) not in (3, 8) or not set(identifier) <= set(hexdigits):
+            return None
+        raw_id = int(identifier, 16)
+        is_extended = len(identifier) == 8
+        is_error = bool(raw_id & _CANDUMP_ERROR_FLAG)
+        frame_id = raw_id & MAX_EXTENDED_FRAME_ID
+        if raw_id > 0x3FFFFFFF or (not is_extended and frame_id > MAX_STANDARD_FRAME_ID):
+            return None
+
+        is_fd = rest.startswith("#")
+        if is_fd:
+            # A one-digit flags nibble (BRS/ESI) precedes the payload.
+            rest = rest[2:] if len(rest) >= 2 and rest[1] in hexdigits else None
+            if rest is None:
+                return None
+
+        is_remote = rest[:1] == "R"
+        if is_remote:
+            if is_fd or rest[1:] not in {"", "0", "1", "2", "3", "4", "5", "6", "7", "8"}:
+                return None
+            data = b""
+        else:
+            try:
+                data = bytes.fromhex(rest.replace(".", ""))
+            except ValueError:
+                return None
+            if len(data) not in (VALID_LENGTHS if is_fd else range(9)):
+                return None
+
+        return ReplayMessage(
+            timestamp=float(stamp),
+            arbitration_id=frame_id,
+            data=data,
+            is_extended_id=is_extended,
+            is_error_frame=is_error,
+            is_remote_frame=is_remote,
+            is_fd=is_fd,
+            channel=channel,
+        )
 
 
 class TrcLogReader(PythonCanLogReader):

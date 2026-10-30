@@ -421,3 +421,93 @@ def test_scan_refuses_backwards_timestamps_instead_of_misleading_seeking(tmp_pat
 
     with pytest.raises(CanLogError, match="timestamps move backwards at frame 3"):
         scan_log(path)
+
+
+# ── candump -l / -L ───────────────────────────────────────────────────
+
+
+def read_candump(tmp_path, body, **kwargs):
+    reader = open_log(write(tmp_path, body, name="capture.log"), **kwargs)
+    return list(reader.messages()), reader.stats
+
+
+def test_candump_reads_classic_extended_fd_and_remote_frames(tmp_path):
+    messages, stats = read_candump(
+        tmp_path,
+        "(1700000000.000100) can0 123#11.22\n"
+        "(1700000000.000200) can0 18DB33F1#AABBCCDD T\n"
+        "(1700000000.000300) can0 123##1" + "00" * 12 + "\n"
+        "(1700000000.000400) can0 124#R\n"
+        "(1700000000.000500) can0 125#R4\n",
+    )
+
+    assert [(m.arbitration_id, m.is_extended_id, m.is_fd, m.is_remote_frame) for m in messages] == [
+        (0x123, False, False, False),
+        (0x18DB33F1, True, False, False),
+        (0x123, False, True, False),
+        (0x124, False, False, True),
+        (0x125, False, False, True),
+    ]
+    assert messages[0].data == b"\x11\x22"
+    assert len(messages[2].data) == 12
+    assert stats.frames == 5
+    assert stats.unparsable_lines == 0
+
+
+def test_a_candump_line_cut_off_by_ctrl_c_is_skipped_not_fatal(tmp_path):
+    messages, stats = read_candump(
+        tmp_path, "(1700000000.000100) can0 123#1122\n(1700000000.0002"
+    )
+
+    assert len(messages) == 1
+    assert stats.unparsable_lines == 1
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "(1700000000.0) can0 123#112",  # odd hex length
+        "(1700000000.0) can0 12#11",  # identifier width
+        "(1700000000.0) can0 0x1#11",  # not hex
+        "(1700000000.0) can0 800#11",  # standard id out of range
+        "(1700000000.0) can0 123#112233445566778899",  # classic over 8 bytes
+        "(1700000000.0) can0 123##1" + "00" * 13,  # not an FD length
+        "(1700000000.0) can0 123#R9",
+        "(1700000000.0) can0 123###0011",  # CAN XL
+        "  can0  123   [2]  11 22",  # screen output has no timestamp column
+        "(1700000000.0) can0 123 [2] 11 22",  # nor is it a log line
+    ],
+)
+def test_malformed_candump_lines_are_counted(tmp_path, line):
+    messages, stats = read_candump(tmp_path, line + "\n(1700000001.0) can0 123#11\n")
+
+    assert len(messages) == 1
+    assert stats.unparsable_lines == 1
+
+
+def test_candump_error_frames_are_faults_and_keep_their_channel(tmp_path):
+    messages, stats = read_candump(
+        tmp_path,
+        "(1700000000.0) can0 20000004#0004000000000000\n"
+        "(1700000000.1) can0 20000088#0000000000000000\n"
+        "(1700000000.2) can0 123#11\n",
+        channel="can0",
+    )
+
+    assert [(m.arbitration_id, m.is_error_frame) for m in messages] == [
+        (0x4, True),
+        (0x88, True),
+        (0x123, False),
+    ]
+    assert stats.error_frames == 2
+    assert stats.frames == 1
+    assert stats.channels_present == {"can0"}
+    assert identities_from_log(tmp_path / "capture.log") == {(0x123, False)}
+
+
+def test_a_candump_file_of_screen_output_reads_no_frames(tmp_path):
+    messages, stats = read_candump(tmp_path, "  can0  123   [2]  11 22\n")
+
+    assert messages == []
+    assert stats.unparsable_lines == 1
+    assert stats.channels_present == set()

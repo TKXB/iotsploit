@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IoTSploit · CAN Bus Monitor recorded-log architecture</title>
+<style>
+:root{color-scheme:dark;--bg:#0a1020;--ink:#eef3ff;--muted:#a4b2cb;--line:#293952;--ui:#73c4ff;--dj:#5fe0bb;--ex:#ffc46b;--py:#b9a1ff;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:1320px;margin:auto;padding:44px 32px}
+.eyebrow{font-size:12px;letter-spacing:.2em;color:var(--dj);font-weight:700}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.2;margin:10px 0}
+h2{margin:40px 0 12px;font-size:22px}
+p{color:var(--muted);max-width:900px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:#152138;padding:1px 6px;border-radius:5px;color:var(--ink)}
+.canvas{overflow:auto;border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,#101a2d,#0c1425);margin-top:20px}
+svg{display:block;width:100%;min-width:1000px;height:auto}
+svg text{font-family:system-ui,-apple-system,Segoe UI,sans-serif;fill:var(--ink)}
+svg .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;fill:var(--muted)}
+svg .t{font-size:13px;font-weight:700}
+svg .lane{font-size:11px;letter-spacing:.16em;font-weight:700}
+svg .lbl{font-size:11px;fill:var(--muted)}
+.legend{display:flex;gap:22px;flex-wrap:wrap;margin:20px 0 0;font-size:13px;color:var(--muted)}
+.legend span:before{content:'';display:inline-block;width:14px;height:14px;border-radius:3px;margin:0 8px -2px 0;border:2px solid var(--c)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#152138}
+td.bad{color:var(--bad)}td.ok{color:var(--dj)}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">CAN BUS MONITOR · CURRENT ARCHITECTURE</div>
+<h1>Recorded-log replay path</h1>
+<p>How a recorded CAN log moves from the Flutter UI to the decoded table. The reader is chosen by file suffix in
+<code>open_log()</code>. Everything after <code>ReplayMessage</code> is the same pipeline a live SocketCAN capture uses.
+The candump <code>.log</code> reader, highlighted in red, is the only component that needs to change.</p>
+
+<div class="legend">
+  <span style="--c:var(--ui)">Flutter UI</span>
+  <span style="--c:var(--dj)">Django API</span>
+  <span style="--c:var(--ex)">Exploit plugin</span>
+  <span style="--c:var(--py)">iotsploit-protocols</span>
+  <span style="--c:var(--bad)">Known gaps</span>
+</div>
+
+<div class="canvas">
+<svg viewBox="0 0 1200 940" role="img" aria-label="CAN Bus Monitor recorded-log architecture">
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8fa3c4"/></marker>
+</defs>
+
+<!-- lanes -->
+<g fill="none" stroke-dasharray="4 5" stroke-width="1">
+  <rect x="20" y="20" width="1160" height="130" rx="12" stroke="#73c4ff55"/>
+  <rect x="20" y="180" width="1160" height="140" rx="12" stroke="#5fe0bb55"/>
+  <rect x="20" y="350" width="1160" height="210" rx="12" stroke="#ffc46b55"/>
+  <rect x="20" y="590" width="1160" height="330" rx="12" stroke="#b9a1ff55"/>
+</g>
+<text class="lane" x="36" y="44" style="fill:var(--ui)">FLUTTER UI · ui/lib/screens/tasks/components/can_screen.dart</text>
+<text class="lane" x="36" y="204" style="fill:var(--dj)">DJANGO API · iotsploit-django/.../view_handlers/can_views.py</text>
+<text class="lane" x="36" y="374" style="fill:var(--ex)">EXPLOIT PLUGIN "CAN Live Capture" · iotsploit_exploits/canbus/live_capture.py</text>
+<text class="lane" x="36" y="614" style="fill:var(--py)">PROTOCOLS · iotsploit_protocols/canbus/logfile.py</text>
+
+<!-- UI boxes -->
+<g fill="#13233d" stroke="#73c4ff" stroke-width="1.5">
+  <rect x="40" y="60" width="190" height="64" rx="9"/>
+  <rect x="260" y="60" width="190" height="64" rx="9"/>
+  <rect x="480" y="60" width="190" height="64" rx="9"/>
+  <rect x="700" y="60" width="190" height="64" rx="9"/>
+  <rect x="930" y="60" width="230" height="64" rx="9"/>
+</g>
+<text class="t" x="56" y="86">_pickLog()</text><text class="mono" x="56" y="106">.asc .blf .log .trc</text>
+<text class="t" x="276" y="86">Log channel dropdown</text><text class="mono" x="276" y="106">can0 / vcan1 / 1 / 2</text>
+<text class="t" x="496" y="86">Identify bus</text><text class="mono" x="496" y="106">score log vs target buses</text>
+<text class="t" x="716" y="86">_runReplay()</text><text class="mono" x="716" y="106">opens WS, runs plugin</text>
+<text class="t" x="946" y="86">Table · transport bar</text><text class="mono" x="946" y="106">can_replay · can_transport_bar</text>
+
+<!-- Django boxes -->
+<g fill="#10282a" stroke="#5fe0bb" stroke-width="1.5">
+  <rect x="40" y="230" width="190" height="64" rx="9"/>
+  <rect x="260" y="230" width="190" height="64" rx="9"/>
+  <rect x="480" y="230" width="190" height="64" rx="9"/>
+  <rect x="700" y="230" width="190" height="64" rx="9"/>
+  <rect x="930" y="230" width="230" height="64" rx="9"/>
+</g>
+<text class="t" x="56" y="256">upload_file</text><text class="mono" x="56" y="276">category=can-logs</text>
+<text class="t" x="276" y="256">inspect_can_log</text><text class="mono" x="276" y="276">scan_log → stats</text>
+<text class="t" x="496" y="256">identify_can_bus</text><text class="mono" x="496" y="276">identities_from_log</text>
+<text class="t" x="716" y="256">Plugin execution</text><text class="mono" x="716" y="276">mode=replay</text>
+<text class="t" x="946" y="256">WebSocket stream</text><text class="mono" x="946" y="276">/ws/device/stream/can_capture_*</text>
+
+<!-- Plugin boxes -->
+<g fill="#2a2414" stroke="#ffc46b" stroke-width="1.5">
+  <rect x="695" y="410" width="200" height="60" rx="9"/>
+  <rect x="930" y="390" width="230" height="50" rx="9"/>
+  <rect x="930" y="470" width="230" height="60" rx="9"/>
+</g>
+<text class="t" x="711" y="434">scan_log (1st pass)</text><text class="mono" x="711" y="454">select_log_channel</text>
+<text class="t" x="946" y="412">_emit_timeline</text><text class="mono" x="946" y="430">duration · unparsable_lines</text>
+<text class="t" x="946" y="494">CaptureAggregator + decode</text><text class="mono" x="946" y="514">same path as live SocketCAN</text>
+
+<!-- Protocols -->
+<g fill="#1d1a36" stroke="#b9a1ff" stroke-width="1.5">
+  <rect x="400" y="620" width="400" height="56" rx="9"/>
+  <rect x="40" y="730" width="200" height="70" rx="9"/>
+  <rect x="280" y="730" width="200" height="70" rx="9"/>
+  <rect x="520" y="730" width="200" height="70" rx="9"/>
+  <rect x="400" y="850" width="400" height="50" rx="9"/>
+</g>
+<rect x="760" y="730" width="400" height="70" rx="9" fill="#3a1418" stroke="#ff6b6b" stroke-width="2.5"/>
+<text class="t" x="416" y="644">open_log()</text><text class="mono" x="416" y="664">READERS[suffix] · no content sniffing</text>
+<text class="t" x="56" y="754">AscLogReader</text><text class="mono" x="56" y="772">native parser</text><text class="mono" x="56" y="788">bad lines counted + skipped</text>
+<text class="t" x="296" y="754">BlfLogReader</text><text class="mono" x="296" y="772">PythonCanLogReader</text><text class="mono" x="296" y="788">→ python-can BLFReader</text>
+<text class="t" x="536" y="754">TrcLogReader</text><text class="mono" x="536" y="772">PythonCanLogReader</text><text class="mono" x="536" y="788">→ python-can TRCReader</text>
+<text class="t" x="776" y="754" style="fill:#ffb3b3">CandumpLogReader  (.log)</text>
+<text class="mono" x="776" y="772">PythonCanLogReader → python-can CanutilsLogReader</text>
+<text class="mono" x="776" y="788" style="fill:#ff9a9a">⚠ 1 bad line aborts · error frames mis-tagged</text>
+<text class="t" x="416" y="872">ReplayMessage + LogReadStats</text><text class="mono" x="416" y="890">frames · error_frames · unparsable_lines · channels</text>
+
+<!-- arrows -->
+<g fill="none" stroke="#8fa3c4" stroke-width="1.6" marker-end="url(#a)">
+  <path d="M135 124V228"/>
+  <path d="M230 262H258"/>
+  <path d="M355 230V126"/>
+  <path d="M355 294V648H398"/>
+  <path d="M575 124V228"/>
+  <path d="M575 294V618"/>
+  <path d="M795 124V228"/>
+  <path d="M795 294V408"/>
+  <path d="M760 470V618"/>
+  <path d="M895 430L928 418"/>
+  <path d="M1045 390V296"/>
+  <path d="M930 500H910V262H928"/>
+  <path d="M1045 230V126"/>
+  <path d="M520 676L150 728"/>
+  <path d="M570 676L390 728"/>
+  <path d="M620 676V728"/>
+  <path d="M680 676L940 728"/>
+  <path d="M140 800L470 848"/>
+  <path d="M380 800L540 848"/>
+  <path d="M620 800V848"/>
+  <path d="M960 800L740 848"/>
+  <path d="M800 875H1185V500H1162"/>
+</g>
+<text class="lbl" x="362" y="160">format, channels_present</text>
+<text class="lbl" x="362" y="560">inspect</text>
+<text class="lbl" x="582" y="560">identify</text>
+<text class="lbl" x="802" y="340">replay request</text>
+<text class="lbl" x="768" y="560">scan + open</text>
+<text class="lbl" x="1052" y="340">timeline header</text>
+<text class="lbl" x="1052" y="180">snapshots</text>
+<text class="lbl" x="300" y="704">.asc</text>
+<text class="lbl" x="455" y="704">.blf</text>
+<text class="lbl" x="626" y="704">.trc</text>
+<text class="lbl" x="820" y="704" style="fill:#ff9a9a">.log</text>
+<text class="lbl" x="1000" y="868">2nd pass: frames</text>
+</svg>
+</div>
+
+<h2>Known gaps in candump <code>.log</code> support</h2>
+<p>Each gap was reproduced with the current <code>CandumpLogReader</code>.</p>
+<table>
+<tr><th>#</th><th>Input</th><th>Current result</th><th>Effect in the UI</th></tr>
+<tr><td>—</td><td><code>(1700000000.000100) can0 123#1122</code></td><td class="ok">Parsed correctly</td><td>Replays normally</td></tr>
+<tr><td>1</td><td>Valid lines followed by a truncated last line (for example, after Ctrl-C)</td><td class="bad"><code>CanLogError: not enough values to unpack</code></td><td>"Could not open the log": the whole file is rejected</td></tr>
+<tr><td>2</td><td>Controller error frame <code>20000004#0004000000000000</code></td><td class="bad">Data frame, ID <code>0x4</code>, <code>is_error_frame=False</code></td><td>A fake ID <code>0x4</code> row appears in the table</td></tr>
+<tr><td>3</td><td>Bus error frame <code>20000088#…</code> on <code>can0</code></td><td class="bad">Channel becomes <code>0</code></td><td>Extra channel <code>0</code> in the dropdown; the error is lost when <code>can0</code> is selected</td></tr>
+<tr><td>4</td><td>Timestamped screen output <code>(ts) can0 123 [2] 11 22</code></td><td class="bad"><code>too many values to unpack</code></td><td>The file is rejected</td></tr>
+<tr><td>5</td><td>Any of the above</td><td class="bad"><code>unparsable_lines</code> is always 0</td><td>A partial read looks clean</td></tr>
+</table>
+
+<h2>Integration point for the proposal</h2>
+<p>Replace <code>CandumpLogReader</code> with a native per-line parser in <code>logfile.py</code>, following <code>AscLogReader</code>:
+same <code>ReplayMessage</code> and <code>LogReadStats</code>, and bad lines are counted and skipped.
+<code>open_log()</code>, the Django endpoints, the plugin and the Flutter screen keep their current interfaces.
+The UI already shows <code>unparsable_lines</code> during replay through <code>can_transport_bar.dart</code>.</p>
+</main>
+</body>
+</html>
