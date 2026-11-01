@@ -28,7 +28,7 @@ or CAN access.
 | No ESP32 or logic analyzer found | Expected when no accessible matching device exists | Check hardware access only if the device should be present. |
 | Missing `usb_devices.json` | Configuration/path issue | Verify the deployed USB configuration path and packaged configuration. It is not evidence that USB hardware is absent. |
 | DoIP facet re-registration | Duplicate registration in project code | Consolidate registration at its owner; unrelated to Alpine. |
-| ECP5 FPGA discovered and connected | Hardcoded demonstration behavior | The inspected driver returns a predefined device and simulates connection; these logs do not prove real FPGA access. |
+| ECP5 FPGA discovery | Removed fake driver | The FPGA driver returned a predefined device and simulated connection without checking hardware. Its driver registration and implementation have been removed. |
 | Daphne HTTP/2 support not enabled | Informational | Normal HTTP/WebSocket operation does not require enabling HTTP/2. |
 
 Server startup succeeds in the supplied logs. The initialization endpoint's HTTP

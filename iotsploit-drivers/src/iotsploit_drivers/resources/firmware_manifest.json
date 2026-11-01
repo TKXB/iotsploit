@@ -4,16 +4,6 @@
     "notes": "Entries use logical resource refs of the form '<package>:<relpath>' resolved via importlib.resources. User overrides in ~/.iotsploit/firmware_manifest.json may also use a plain 'path' key pointing to a filesystem location."
   },
 
-  "iotsploit_func": {
-    "resource": "iotsploit_drivers:resources/firmware/iotsploit_func_fpga/iotsploit_func.bit",
-    "device_type": "fpga",
-    "version": "1.0.0",
-    "flash_options": {
-      "cable": "ft2232_b",
-      "target": "flash"
-    }
-  },
-
   "usbserial_ecp5": {
     "resource": "iotsploit_drivers:resources/firmware/logic/usbserial_ecp5.bit",
     "device_type": "fpga",

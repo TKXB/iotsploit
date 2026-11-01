@@ -13,7 +13,6 @@ Official IoTSploit device driver package. Contains all built-in hardware drivers
 | Logic Analyzer | `iotsploit_drivers.logic` | Enxor logic analyzer driver |
 | J-Link | `iotsploit_drivers.jlink` | SEGGER J-Link debug probe |
 | Ubertooth | `iotsploit_drivers.ubertooth` | Ubertooth Bluetooth driver |
-| FPGA | `iotsploit_drivers.iotsploit_func_fpga` | ECP5 FPGA driver |
 | Ethernet VLAN | `iotsploit_drivers.ethernet` | Persistent NetworkManager VLAN configuration |
 
 ### Ethernet VLAN

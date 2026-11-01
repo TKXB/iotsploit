@@ -121,9 +121,9 @@ def test_initialize_asks_the_backend_to_reopen_every_device(monkeypatch, said):
         "/api/initialize_devices/": {
             "status": "success",
             "results": {
-                "drv_iotsploit_fpga": {
+                "drv_socketcan": {
                     "status": "success",
-                    "devices": [{"device": "Lattice ECP5", "status": "success", "message": "Successfully connected"}],
+                    "devices": [{"device": "SocketCAN_vcan0", "status": "success", "message": "Successfully connected"}],
                 },
                 "drv_esp32": {"status": "error", "message": "Failed to scan: port busy"},
             },
@@ -134,7 +134,7 @@ def test_initialize_asks_the_backend_to_reopen_every_device(monkeypatch, said):
     Shell().do_initialize_devices("")
 
     assert backend.calls == [("POST", "/api/initialize_devices/", None)]
-    assert any("Lattice ECP5" in line and "Successfully connected" in line for line in said)
+    assert any("SocketCAN_vcan0" in line and "Successfully connected" in line for line in said)
     assert any("drv_esp32" in line and "port busy" in line for line in said)
 
 
