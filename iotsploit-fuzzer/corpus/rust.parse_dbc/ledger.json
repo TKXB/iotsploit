@@ -1,8 +1,8 @@
 {
   "ledger_version": 1,
   "target": "rust.parse_dbc",
-  "fingerprint": "9c9c9d8d49110038",
-  "updated": "2026-11-11T10:49:20+00:00",
+  "fingerprint": "e1e2ff6f9cfce794",
+  "updated": "2026-11-11T14:06:16+00:00",
   "entries": {
     "4bf5122f344554c5": {
       "signature": "reject|RustParserError|native document parser rejected the file||",

@@ -5,9 +5,9 @@ without starting Django, uploading a file, or creating/selecting a target.
 The tool is available in desktop Dev, Prod, and Offline builds. Mobile and web
 are not enabled for this tool.
 
-The Rust document owner reads one UTF-8 source up to 32 MiB. This conservative
-input bound is separate from the legacy backend's 256 MiB upload limit; the
-public sample measurements do not establish large OEM-file compatibility.
+The Rust document owner reads one UTF-8 ARXML or DBC source up to **100 MiB**
+(104,857,600 bytes). Files one byte larger are rejected. This local limit is
+separate from the legacy backend's 256 MiB upload limit.
 Closing the document releases its opaque Rust owner. Documents are session
 local, with no library/database or automatic source retention.
 
@@ -17,8 +17,17 @@ fields (including ARXML identifiers). Tables page through at most 50 entries;
 the Rust API caps requests at 100. Select an entry for source properties,
 parent/child navigation and references. Resolved references open their source
 definition; unresolved references are labelled and are never fetched from
-the network or filesystem automatically. Narrow windows alternate between the
-list and inspector. Diagnostics expose coverage and source/schema warnings.
+the network or filesystem automatically.
+
+The compact document toolbar contains file actions and search. The outline
+uses the same panel, divider, text and selection roles as Target Explorer.
+At 1,180 pixels of available page width the outline, table and inspector are
+docked; from 820 pixels the outline stays visible and the inspector moves to
+a Details tab; narrower windows use a category selector and Definitions/Details
+tabs. Inspector tabs separate readable Overview fields, References and exact
+parsed Source paths. Document information contains file metadata, SHA-256 and
+informational parser coverage. Warnings contains actual parse/schema/reference
+issues; routine coverage text is not counted as a warning.
 
 ## Coverage
 
@@ -102,14 +111,14 @@ included in a Python-only installation's gate.
 ## Validation record (2026-11-11)
 
 Validated on Linux with Rust 1.92.0, Flutter 3.35.7 / Dart 3.9.2, and cantools
-42.0.3. The full Flutter gate passed 950 widget/unit tests with zero analyzer
+42.0.3. The full Flutter gate passed 956 widget/unit tests with zero analyzer
 issues, alongside its Rust checks. The full Python gate passed 2,064 tests,
 with 5 skips and 47 warnings. The additional cross-repository
-comparison passed all 3 cases; all 6 document integration tests passed.
+comparison passed all 3 cases; all 7 document integration tests passed.
 
 Native fuzz campaigns ran 2,000 new mutations per format plus retained inputs:
 no crashes, timeouts, resource failures or contract violations. The resulting
-10 DBC and 34 ARXML retained cases replayed with zero findings. A full Linux
+10 DBC and 39 ARXML retained cases replayed with zero findings. A full Linux
 debug app build succeeded. Desktop/narrow viewer renders were inspected using
 the actual Rust bridge and downloaded files; artifacts are under
 `ui/build/network-descriptions/` (not source-controlled).
@@ -119,3 +128,16 @@ measured 0.04 s / 7,436 KiB peak RSS for the 71,059-byte ARXML, and 0.03 s /
 7,820 KiB for the 822-byte DBC using `/usr/bin/time`. These are sample checks,
 not a large-file benchmark or an OEM compatibility claim. No private OEM
 sample was supplied. Other desktop platforms have not been validated here.
+
+The GUI alignment was additionally rendered inside the real application shell,
+including its navigation and header, at 1,600, 1,250 and 430 pixels in light and
+dark themes. Updated screenshots are in `ui/build/network-description-gui/`.
+The responsive tests also exercise searching after inspecting a definition.
+The route's selection area now belongs to page content, and the backend footer
+wraps its status at medium widths without overflowing.
+
+The size-boundary regression creates actual synthetic DBC and ARXML files with
+padding comments, reads each through the native path owner at exactly 100 MiB,
+then appends one byte and verifies rejection. Temporary files are removed.
+This verifies the byte limit; it is not a benchmark of a dense 100 MiB OEM
+object graph. Coverage descriptions are metadata, outside the warnings list.
