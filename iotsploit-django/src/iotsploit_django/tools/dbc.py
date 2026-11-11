@@ -179,7 +179,7 @@ def _attach_value_tables(
 ) -> None:
     """Fold ``VAL_`` tables onto the signals they name.
 
-    Matched on ``(frame id, signal name)`` because a signal name is only unique
+    Matched on ``(frame id, extended flag, signal name)`` because a signal name is only unique
     within its frame -- ``AliveCounter`` appears in half the frames on a real
     bus, and attaching one frame's labels to all of them would fabricate
     meanings the file never stated.
@@ -189,14 +189,14 @@ def _attach_value_tables(
     importing, and refusing the whole file would leave the operator with
     nothing.
     """
-    by_identity: Dict[Tuple[int, str], List[CanSignal]] = {}
+    by_identity: Dict[Tuple[int, bool, str], List[CanSignal]] = {}
     for message in [m for node in contents.nodes for m in node.messages] + contents.unsent:
         for signal in message.signals:
-            by_identity.setdefault((message.frame_id, signal.name), []).append(signal)
+            by_identity.setdefault((message.frame_id, message.is_extended, signal.name), []).append(signal)
 
     for raw_id, signal_name, choices in tables:
         frame_id = raw_id & ~_EXTENDED_FLAG
-        signals = by_identity.get((frame_id, signal_name))
+        signals = by_identity.get((frame_id, bool(raw_id & _EXTENDED_FLAG), signal_name))
         if not signals:
             contents.warnings.append(
                 f"VAL_ names signal {signal_name!r} on frame 0x{frame_id:X}, "

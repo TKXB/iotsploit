@@ -1,0 +1,68 @@
+{
+  "ledger_version": 1,
+  "target": "rust.parse_dbc",
+  "fingerprint": "9c9c9d8d49110038",
+  "updated": "2026-11-11T10:49:20+00:00",
+  "entries": {
+    "4bf5122f344554c5": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "60f6a2296287feef": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104156Z",
+      "edge_of": "reject|RustParserError|native document parser rejected the file||"
+    },
+    "622a8539aa65af7c": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "62c04b4ed962bc47": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104156Z",
+      "edge_of": "accept|||dict[1]<bool>|"
+    },
+    "6e340b9cffb37a98": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "7e83c76a9fa2f4b7": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "9ef978f2a0af4cdb": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "a8100ae6aa1940d0": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "c992e6d871cebd0a": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    },
+    "e3b0c44298fc1c14": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104156Z",
+      "edge_of": ""
+    }
+  }
+}

@@ -1,0 +1,212 @@
+{
+  "ledger_version": 1,
+  "target": "rust.parse_arxml",
+  "fingerprint": "394896ec097c5482",
+  "updated": "2026-11-11T10:49:38+00:00",
+  "entries": {
+    "000cab2afd97e574": {
+      "signature": "reject|RustParserError|native document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "0fecf52b5e62cdac": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": "accept|||dict[1]<bool>|"
+    },
+    "17d49aaa28608551": {
+      "signature": "reject|RustParserError|document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": "accept|||dict[1]<bool>|"
+    },
+    "1a9fd326de29b780": {
+      "signature": "reject|RustParserError|native document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "365f765f91e7a4a0": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "370cc995f4690893": {
+      "signature": "reject|RustParserError|native document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "393a5d6d09a1f3c9": {
+      "signature": "reject|RustParserError|document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "4bf5122f344554c5": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "530a92800acab1f6": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "5ea3997ffc171a9b": {
+      "signature": "reject|RustParserError|native document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "61723c6ddfc99959": {
+      "signature": "reject|RustParserError|native document parser rejected the||",
+      "kind": "reject",
+      "first_seen": "20261111T104920Z",
+      "edge_of": ""
+    },
+    "6e340b9cffb37a98": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "730675aa1a11b905": {
+      "signature": "reject|RustParserError|native document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "7863b959484169b7": {
+      "signature": "reject|RustParserError|document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": "accept|||dict[1]<bool>|"
+    },
+    "7931412d825ae6cd": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104158Z",
+      "edge_of": "reject|RustParserError|native document parser rejected the file||"
+    },
+    "7d747b0e4670be04": {
+      "signature": "reject|RustParserError|native document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": "accept|||dict[1]<bool>|"
+    },
+    "7e1ba6c8dcd5a88b": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "7e70ca3faa77f65b": {
+      "signature": "reject|RustParserError|native document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "87a8a23f2d14b4da": {
+      "signature": "reject|RustParserError|document parser rejected the||",
+      "kind": "reject",
+      "first_seen": "20261111T104920Z",
+      "edge_of": ""
+    },
+    "92a3375706c28667": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "955f9521e88a2658": {
+      "signature": "reject|RustParserError|native document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": "accept|||dict[1]<bool>|"
+    },
+    "9680bd8a99fd4b03": {
+      "signature": "reject|RustParserError|document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "9a125bd55569dc9a": {
+      "signature": "reject|RustParserError|native document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "a2c4fc4b444e3dcf": {
+      "signature": "reject|RustParserError|document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "b3c6886c731cae92": {
+      "signature": "reject|RustParserError|native document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "b9ba76cbe8b42225": {
+      "signature": "reject|RustParserError|native document parser rejected the||",
+      "kind": "reject",
+      "first_seen": "20261111T104920Z",
+      "edge_of": ""
+    },
+    "c047a14fc527ce98": {
+      "signature": "reject|RustParserError|document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "c6bf5671279bc7ec": {
+      "signature": "accept|||dict[1]<bool>|",
+      "kind": "accept",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "cfb6e7172585076e": {
+      "signature": "reject|RustParserError|document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "d40b95be572ad0ec": {
+      "signature": "reject|RustParserError|document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "dea46668e9a200e5": {
+      "signature": "reject|RustParserError|document parser rejected file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "e29d94175430d5bf": {
+      "signature": "reject|RustParserError|native document parser rejected the||",
+      "kind": "reject",
+      "first_seen": "20261111T104920Z",
+      "edge_of": ""
+    },
+    "e3b0c44298fc1c14": {
+      "signature": "reject|RustParserError|native document parser rejected the file||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    },
+    "f170a210f933b1d4": {
+      "signature": "reject|RustParserError|document parser rejected||",
+      "kind": "reject",
+      "first_seen": "20261111T104158Z",
+      "edge_of": ""
+    }
+  }
+}

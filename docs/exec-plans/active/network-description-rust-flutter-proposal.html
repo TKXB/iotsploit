@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ARXML &amp; DBC Explorer — Rust + Flutter Proposal</title>
+<style>
+  :root { --bg:#f3f5f8; --paper:#fff; --ink:#16243b; --muted:#57667c; --line:#d9e1eb; --accent:#235be7; --tint:#edf3ff; --green:#147355; --warm:#97600e; --code:#eef1f6; }
+  [data-theme="dark"] { --bg:#101722; --paper:#182232; --ink:#e6edf8; --muted:#a8b8cf; --line:#35435a; --accent:#91b6ff; --tint:#202f49; --green:#79d7b6; --warm:#f1c275; --code:#111b2b; }
+  * { box-sizing:border-box; } html { scroll-behavior:smooth; scroll-padding-top:26px; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  a { color:var(--accent); text-underline-offset:3px; } button { font:inherit; cursor:pointer; }
+  .shell { display:grid; grid-template-columns:244px minmax(0,1fr); max-width:1580px; margin:auto; }
+  aside { position:sticky; top:0; height:100vh; overflow:auto; padding:30px 22px; border-right:1px solid var(--line); }
+  .brand { font-size:12px; letter-spacing:.12em; font-weight:800; color:var(--accent); text-transform:uppercase; }
+  aside strong { display:block; font-size:20px; margin:10px 0 20px; line-height:1.35; }
+  nav a { display:block; text-decoration:none; color:var(--muted); font-size:13px; padding:6px 0; }
+  nav a:hover { color:var(--accent); } .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:22px; }
+  button { border:1px solid var(--line); color:var(--ink); background:var(--paper); border-radius:8px; padding:6px 11px; font-size:12px; }
+  main { min-width:0; padding:44px clamp(22px,4vw,68px) 80px; }
+  header { padding:30px 0 34px; } h1 { font-size:clamp(35px,4vw,56px); letter-spacing:-.045em; line-height:1.1; margin:16px 0 22px; max-width:900px; }
+  h2 { font-size:28px; letter-spacing:-.025em; line-height:1.25; margin:0 0 16px; } h3 { font-size:18px; line-height:1.4; margin:24px 0 9px; }
+  p { margin:10px 0 16px; } .lead { font-size:20px; line-height:1.6; color:var(--muted); max-width:850px; }
+  .tag { display:inline-block; border:1px solid var(--line); background:var(--paper); padding:4px 10px; border-radius:20px; font-size:12px; margin:0 6px 6px 0; }
+  .tag.blue { background:var(--tint); color:var(--accent); border-color:transparent; } .small,figcaption { color:var(--muted); font-size:13px; }
+  section { margin:0 0 26px; padding:30px; border:1px solid var(--line); background:var(--paper); border-radius:16px; }
+  .num { display:block; color:var(--accent); font-size:12px; font-weight:800; letter-spacing:.1em; margin-bottom:10px; text-transform:uppercase; }
+  .cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:20px 0; }
+  .card { border:1px solid var(--line); border-radius:11px; padding:18px; } .card h3 { margin:0 0 8px; } .card p { font-size:14px; margin:0; color:var(--muted); }
+  .callout { background:var(--tint); padding:16px 20px; border-left:4px solid var(--accent); border-radius:4px 10px 10px 4px; margin:20px 0; }
+  .callout p:last-child { margin-bottom:0; } .warning { border-color:var(--warm); background:var(--code); }
+  .table-wrap { overflow-x:auto; margin:18px 0; } table { width:100%; border-collapse:collapse; font-size:14px; text-align:left; }
+  th,td { border-bottom:1px solid var(--line); padding:12px 13px; vertical-align:top; } th { background:var(--tint); font-weight:700; } td:first-child { font-weight:600; }
+  code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.86em; background:var(--code); padding:2px 5px; border-radius:4px; overflow-wrap:anywhere; }
+  pre { overflow-x:auto; background:var(--code); padding:18px; border:1px solid var(--line); border-radius:10px; font-size:13px; line-height:1.65; }
+  pre code { background:none; padding:0; font-size:inherit; } ul,ol { padding-left:23px; } li { margin:6px 0; }
+  figure { margin:22px 0; } .diagram { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--code); padding:12px; }
+  svg { display:block; width:100%; min-width:760px; height:auto; } svg text { font-family:system-ui,sans-serif; }
+  .box { fill:var(--paper); stroke:var(--line); stroke-width:1.5; } .accentbox { fill:var(--tint); stroke:var(--accent); stroke-width:1.7; }
+  .stext { fill:var(--ink); font-size:16px; font-weight:650; } .subtext { fill:var(--muted); font-size:13px; }
+  .arrow { fill:none; stroke:var(--accent); stroke-width:2; } .optional { stroke-dasharray:6 5; } .boundary { fill:none; stroke:var(--line); stroke-dasharray:7 5; }
+  figcaption { margin-top:9px; } details { border:1px solid var(--line); border-radius:10px; margin:12px 0; padding:14px 18px; }
+  summary { font-weight:700; cursor:pointer; } .phase { color:var(--accent); margin-right:9px; } .badge { color:var(--green); font-size:12px; font-weight:700; }
+  .mock { border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:20px 0; font-size:13px; }
+  .mockbar { display:flex; gap:12px; flex-wrap:wrap; padding:14px 18px; background:var(--tint); align-items:center; }
+  .mockbar strong { margin-right:auto; } .mockbody { display:grid; grid-template-columns:190px minmax(0,1fr) 210px; min-height:270px; }
+  .mockpane { padding:16px; min-width:0; } .mockpane + .mockpane { border-left:1px solid var(--line); } .mockpane p { margin:5px 0; }
+  .selected { background:var(--tint); color:var(--accent); padding:5px 7px; border-radius:5px; } .mock table { font-size:12px; } .mock td,.mock th { padding:8px; }
+  footer { font-size:13px; color:var(--muted); padding:10px 5px; }
+  @media(max-width:1100px) { .shell { grid-template-columns:200px minmax(0,1fr); } aside { padding:24px 16px; } section { padding:24px; } .mockbody { grid-template-columns:160px minmax(0,1fr); } .mockpane:last-child { grid-column:1/-1; border-top:1px solid var(--line); border-left:0; } }
+  @media(max-width:760px) { .shell { display:block; } aside { position:relative; height:auto; border-right:0; border-bottom:1px solid var(--line); padding:18px 22px; } aside strong { margin:5px 0; } nav { display:none; } .controls { margin-top:10px; } main { padding:18px 14px 40px; } header { padding:24px 8px; } section { padding:22px 17px; } .cards { grid-template-columns:1fr; } .mockbody { display:block; } .mockpane + .mockpane { border-left:0; border-top:1px solid var(--line); } }
+  @media print { :root,[data-theme="dark"] { --bg:white; --paper:white; --ink:#16243b; --muted:#57667c; --line:#cbd5e1; --accent:#235be7; --tint:#edf3ff; --code:#f4f6fa; } .shell { display:block; } aside,.controls { display:none; } main { padding:0; } section { border:0; border-top:1px solid var(--line); border-radius:0; padding:22px 0; } .diagram { break-inside:avoid; } svg { min-width:0; } h2,h3,summary { break-after:avoid; } details { break-inside:avoid; } a { color:inherit; } }
+</style>
+</head>
+<body>
+<div class="shell">
+<aside aria-label="Document navigation">
+  <div class="brand">IoTSploit · Design proposal</div>
+  <strong>Network<br>Descriptions</strong>
+  <nav>
+    <a href="#decision">01 · Decision &amp; scope</a>
+    <a href="#current">02 · Current implementation</a>
+    <a href="#options">03 · Architecture choices</a>
+    <a href="#architecture">04 · Proposed architecture</a>
+    <a href="#experience">05 · User experience</a>
+    <a href="#model">06 · Document model</a>
+    <a href="#parsers">07 · Parser strategy</a>
+    <a href="#migration">08 · Python migration</a>
+    <a href="#bridge">09 · Bridge &amp; lifecycle</a>
+    <a href="#performance">10 · Resources &amp; platforms</a>
+    <a href="#changes">11 · Code ownership</a>
+    <a href="#delivery">12 · Delivery phases</a>
+    <a href="#validation">13 · Validation &amp; risks</a>
+    <a href="#decisions">14 · Decisions &amp; references</a>
+  </nav>
+  <div class="controls"><button id="theme" type="button">Dark mode</button><button id="print" type="button">Print / PDF</button></div>
+  <p class="small">Self-contained HTML.<br>Diagrams are embedded SVG.<br>No CDN or network required.</p>
+</aside>
+<main>
+<header>
+  <span class="tag blue">Option B selected</span><span class="tag">Revision 2 · Review addressed · 11 Nov 2026</span><span class="tag">Local source viewer implemented · follow-ons pending</span>
+  <h1>Open a network description.<br>Understand it locally.</h1>
+  <p class="lead">A Rust + Flutter explorer for ARXML and DBC files, independent of vehicle targets and the Python backend. Preserve source meaning, browse large descriptions, and make target creation an optional next step.</p>
+  <div class="callout"><strong>Implementation status:</strong> local desktop opening, bounded browsing, source properties/reference navigation, shared DBC checks and Rust parser fuzzing are implemented. See the <a href="../../product-specs/network-descriptions.md">current feature specification</a>. ARXML is currently a source-definition/mapping explorer; full flattened CAN semantic parity, multi-file loading and target conversion remain follow-on work. The phase gates below are not all complete.</div>
+  <div class="cards">
+    <div class="card"><h3>Local by default</h3><p>Open and inspect files without uploading OEM data or starting Django.</p></div>
+    <div class="card"><h3>Reuse the working parts</h3><p>Extend the Rust DBC parser and existing Flutter bridge; reuse suitable explorer presentation.</p></div>
+    <div class="card"><h3>Migrate with evidence</h3><p>Use the Python importer and cantools as comparison references before switching existing entry points.</p></div>
+  </div>
+</header>
+
+<section id="decision">
+  <span class="num">01 · Decision &amp; scope</span><h2>Make the document the primary object.</h2>
+  <p>The user has selected a separate Rust + Flutter file explorer. The proposed first release is a tool inside the existing IoTSploit app, with its own route and document lifecycle. Opening a file requires neither a target ID nor a display name. Creating a target remains an explicit, separate operation.</p>
+  <div class="table-wrap"><table><thead><tr><th>In the first independent viewer release</th><th>Deferred</th></tr></thead><tbody>
+    <tr><td>Open DBC or ARXML; parse locally; inspect supported semantics and source properties</td><td>Editing and writing DBC/ARXML</td></tr>
+    <tr><td>Browse networks, nodes/ECUs, frames, PDUs where present, signals, and references</td><td>Complete coverage of every AUTOSAR object class</td></tr>
+    <tr><td>Search, filter, inspect warnings, and follow resolved references</td><td>Live bus capture, transmission, decoding, and fuzzing integration</td></tr>
+    <tr><td>Open one ARXML source; report unresolved references within that document</td><td>Multi-file ARXML after single-file parity; automatic filesystem crawling or fetching references</td></tr>
+    <tr><td>Session-local documents; explicit reopen from the file picker</td><td>Persistent document library, indexing service, cross-release diff/merge</td></tr>
+    <tr><td>Desktop release first; preserve a platform-neutral parser boundary</td><td>Guaranteed mobile/web availability before platform validation</td></tr>
+  </tbody></table></div>
+  <p><strong>Optional next delivery:</strong> “Create Target” converts either a parsed DBC or a parsed ARXML document to the existing target contract and submits it through the existing creation service. It must not become a prerequisite for browsing. DBC conversion creates a new target; the Python CLI's existing-target merge behavior is retained separately.</p>
+  <div class="callout"><strong>Success:</strong> launch the app without Django, open a supported DBC or ARXML, inspect its frames and signals, follow references, review limitations, and close it. No target is created or selected.</div>
+</section>
+
+<section id="current">
+  <span class="num">02 · Facts from the repository</span><h2>This is an extension plus an ARXML migration.</h2>
+  <div class="table-wrap"><table><thead><tr><th>Existing owner</th><th>Current behavior</th><th>Implication</th></tr></thead><tbody>
+    <tr><td><code>iotsploit_protocols/autosar/arxml.py</code></td><td>Python ElementTree extracts topology; cantools loads CAN definitions in strict mode; output is a vehicle target.</td><td>Port topology rules and replace the cantools-dependent semantic extraction. A line-by-line translation is insufficient.</td></tr>
+    <tr><td><code>arxml_views.py</code> + Flutter import dialog</td><td>Upload → preview candidate → explicit create. Preview needs target ID/name. Raw upload is deleted after parsing.</td><td>Separate local file opening from target creation; retain the old workflow until replacement gates pass.</td></tr>
+    <tr><td><code>iotsploit_django/tools/dbc.py</code></td><td>Live Python parser used by <code>apply_dbc</code>, <code>tools/import_dbc.py</code>, and fuzz target <code>django.parse_dbc</code>.</td><td>Remains the legacy Python consumer owner until Phase 5. Shared-subset fixtures compare Python and Rust; expanded Rust coverage is explicitly versioned, not claimed as Python parity.</td></tr>
+    <tr><td><code>ui/can/crates/can-core/src/dbc.rs</code></td><td>Rust port of the Python DBC parser, returning nodes, frames, and warnings.</td><td>Owns DBC parsing for the local viewer. Extend or replace this implementation; no second Rust DBC path.</td></tr>
+    <tr><td><code>ui/rust/src/api/can.rs</code></td><td><code>can_parse_dbc</code> has no application callers; references are generated bindings. Its DTO is also referenced by an uncalled <code>TargetCanIndex.fromDbc</code> factory.</td><td>Replace this unused API with the document API. Remove obsolete DTOs, mapper, and uncalled factory after checking references; regenerate bindings. Preserve node metadata in the new contract without promising compatibility with unused output.</td></tr>
+    <tr><td><code>can-core::FrameDef / SignalDef</code></td><td>CAN codec definitions cover core bit placement, scaling, choices, and a simple multiplexer token.</td><td>These are not a full AUTOSAR model. Rich references, containers, float/wide data, and complex multiplexing need explicit representation.</td></tr>
+    <tr><td><code>ui/lib/screens/targets/explorer/</code></td><td>Tree, graph, tables, and inspector exist; page/model are coupled to targets, facets, observations, and backend loading.</td><td>Reuse focused presentation by modifying the existing owner. Do not feed the viewer a fabricated target just to reuse the whole page.</td></tr>
+    <tr><td><code>ui/rust/Cargo.toml</code></td><td>Rust library already depends on can-core, Tokio, serde, and flutter_rust_bridge pinned to 2.11.1.</td><td>No new FFI framework or bridge upgrade is required for this proposal.</td></tr>
+  </tbody></table></div>
+  <h3>Coordination with the active ARXML import release</h3>
+  <p><strong>Proposed release decision:</strong> finish the already-built upload → preview → create release on <code>feat/arxml-import-api</code> / <code>feat/arxml-import-ui</code> and ship its bounded scope after its existing production measurement and manual rig gates pass. Do not expand or redesign that upload dialog while the Rust viewer is developed. The active plan records most implementation as complete, but remains Active because those validation steps are outstanding.</p>
+  <p>The local viewer is a later independent release. Phase 4 deliberately replaces <code>arxml_import_dialog.dart</code>'s upload/parse stages with local document conversion for supported platforms, reusing the create service and relevant review UI. It does not discard or rebuild the target persistence contract. The backend preview endpoint stays available for existing consumers until separately retired.</p>
+  <p><strong>Active-plan coordination recorded:</strong> its status now links this successor and retains the outstanding gates and no-merge scope. Phase 4 dialog replacement remains follow-on work. The delivered local source viewer does not cancel the upload release or mark that plan complete.</p>
+</section>
+
+<section id="options">
+  <span class="num">03 · Architecture choices</span><h2>Use the existing app and one local parsing core.</h2>
+  <div class="table-wrap"><table><thead><tr><th>Criterion</th><th>A · Viewer with Python</th><th>B · Rust in existing Flutter app</th><th>C · Separate desktop application</th></tr></thead><tbody>
+    <tr><td>Approach</td><td>Detach UI, retain Python parsing</td><td>Local Rust document core through existing bridge</td><td>New app shell around a Rust parser</td></tr>
+    <tr><td>Main goal</td><td>Fast UI separation</td><td>Offline browsing with shared app integration</td><td>Independent product distribution</td></tr>
+    <tr><td>Code impact / files</td><td>Medium; backend DTOs + viewer</td><td>High; Rust parser/core + bridge + viewer</td><td>High; B plus packaging and app shell</td></tr>
+    <tr><td>Effort / risk</td><td>Lower; deployment dependency remains</td><td>Higher; ARXML semantic migration</td><td>Highest; migration and duplicated app maintenance</td></tr>
+    <tr><td>Performance</td><td>Existing parser plus request overhead</td><td>Local I/O; must benchmark parsing and memory</td><td>Same parser potential as B</td></tr>
+    <tr><td>Compatibility</td><td>Existing cantools behavior</td><td>Explicit support matrix and parity checks</td><td>Same as B plus packaging matrix</td></tr>
+    <tr><td>Validation</td><td>UI + backend contract</td><td>Semantic differential checks + UI + FFI lifecycle</td><td>B plus installation/update coverage</td></tr>
+    <tr><td>Maintenance / extensions</td><td>Two language runtimes to operate</td><td>Existing bridge, codec, and app shared</td><td>Independent release and navigation owners</td></tr>
+    <tr><td>Recommended when</td><td>Short-term separation only</td><td><strong>Selected: local parsing within IoTSploit</strong></td><td>A separately distributed product is required</td></tr>
+  </tbody></table></div>
+  <p><strong>Recommendation:</strong> B. The benefit is architectural independence and local file handling. Faster parsing is a hypothesis to measure, not a reason to promise an unverified rewrite.</p>
+</section>
+
+<section id="architecture">
+  <span class="num">04 · Proposed architecture</span><h2>Rust owns source meaning. Flutter owns interaction.</h2>
+  <figure><div class="diagram">
+    <svg viewBox="0 0 1080 700" role="img" aria-labelledby="arch-title arch-desc">
+      <title id="arch-title">Proposed local parsing architecture</title><desc id="arch-desc">DBC and ARXML source files enter Rust parsers. A document core retains source identities, reference indexes and diagnostics. The existing Flutter Rust bridge serves bounded queries to a Flutter explorer. Optional target conversion goes through the existing Django target API.</desc>
+      <defs><marker id="arrow-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker></defs>
+      <rect x="22" y="25" width="1036" height="526" rx="18" class="boundary"/>
+      <text x="44" y="53" class="subtext">LOCAL APP PROCESS · no Python or Django required to open and browse</text>
+      <rect x="55" y="84" width="245" height="76" rx="11" class="box"/><text x="77" y="115" class="stext">DBC file</text><text x="77" y="138" class="subtext">Selected local source</text>
+      <rect x="55" y="190" width="245" height="76" rx="11" class="box"/><text x="77" y="221" class="stext">ARXML source</text><text x="77" y="244" class="subtext">Single file first; file sets later</text>
+      <rect x="365" y="84" width="295" height="76" rx="11" class="box"/><text x="385" y="115" class="stext">Existing Rust DBC owner</text><text x="385" y="138" class="subtext">Extend coverage in can-core</text>
+      <rect x="365" y="190" width="295" height="76" rx="11" class="box"/><text x="385" y="221" class="stext">Rust AUTOSAR adapter</text><text x="385" y="244" class="subtext">Load elements → resolve semantics</text>
+      <path d="M300 122H363M300 228H363" class="arrow" marker-end="url(#arrow-a)"/>
+      <rect x="725" y="84" width="295" height="182" rx="11" class="accentbox"/><text x="747" y="117" class="stext">Document core</text>
+      <text x="747" y="146" class="subtext">Native source model + CAN views</text><text x="747" y="172" class="subtext">Scoped identity / reference index</text><text x="747" y="198" class="subtext">Diagnostics / support coverage</text><text x="747" y="224" class="subtext">Tree, table, detail, search queries</text>
+      <path d="M660 122H723M660 228H723" class="arrow" marker-end="url(#arrow-a)"/>
+      <rect x="725" y="325" width="295" height="76" rx="11" class="box"/><text x="747" y="356" class="stext">flutter_rust_bridge</text><text x="747" y="379" class="subtext">Opaque document + bounded DTOs</text>
+      <path d="M872 266V323" class="arrow" marker-end="url(#arrow-a)"/>
+      <rect x="55" y="325" width="605" height="76" rx="11" class="accentbox"/><text x="77" y="356" class="stext">Flutter · Network Descriptions</text><text x="77" y="379" class="subtext">Open · outline · search · tables · inspector · warnings</text>
+      <path d="M725 363H662" class="arrow" marker-end="url(#arrow-a)"/>
+      <rect x="55" y="447" width="605" height="70" rx="11" class="box"/><text x="77" y="476" class="stext">Optional target conversion</text><text x="77" y="498" class="subtext">Review supported mapping and losses → explicit Create Target</text>
+      <path d="M355 401V445" class="arrow optional" marker-end="url(#arrow-a)"/>
+      <rect x="55" y="590" width="605" height="76" rx="11" class="box"/><text x="77" y="621" class="stext">Existing create_target API → existing persistence</text><text x="77" y="644" class="subtext">Target identity and uniqueness validated by backend</text>
+      <path d="M355 517V588" class="arrow optional" marker-end="url(#arrow-a)"/>
+      <text x="725" y="463" class="subtext">Solid lines: independent viewer</text><text x="725" y="489" class="subtext">Dashed lines: later target integration</text>
+      <text x="725" y="620" class="subtext">Python remains available to existing</text><text x="725" y="644" class="subtext">CLI/backend consumers during migration.</text>
+    </svg>
+  </div><figcaption>Figure 1. Proposed ownership boundaries. The optional write path is separate from parsing and browsing.</figcaption></figure>
+  <p>The new document core depends on source parsers and reusable CAN definitions. <code>can-core</code> does not depend on the document viewer, Django, Flutter, or AUTOSAR. Flutter obtains display data through the bridge and keeps selection, sorting controls, and navigation state.</p>
+  <p><strong>Avoid a universal replacement model:</strong> store source-specific details alongside shared communication views. ARXML PDUs, references, and packages must not disappear simply because DBC has no equivalent.</p>
+</section>
+
+<section id="experience">
+  <span class="num">05 · User experience</span><h2>A document explorer, available before any target exists.</h2>
+  <ol>
+    <li>Open <strong>Toolkit → Network Descriptions</strong>. Reuse the toolkit catalog and availability rules.</li>
+    <li>Choose <strong>Open DBC</strong> or <strong>Open ARXML</strong>. First release opens one source per document. Multi-file ARXML is a later extension; unrelated DBCs are not merged into one invented network.</li>
+    <li>Show loading stages: reading, parsing, resolving references, building indexes. Only show numeric progress if the underlying operation exposes real progress.</li>
+    <li>Show document summary, source files, supported-feature status, and counts. Open the outline and initial table.</li>
+    <li>Select a node, frame, PDU, or signal; inspect properties and source identity. Follow references to their definitions. Unresolved links explain which reference could not be found.</li>
+    <li>Close the document to release its resources. Changing the current target has no effect on the open file.</li>
+  </ol>
+  <div class="mock" aria-label="Illustrative viewer wireframe">
+    <div class="mockbar"><strong>Network Descriptions / vehicle.arxml</strong><span class="tag">Open files</span><span class="tag">Search name / ID / path</span><span class="tag">Close</span></div>
+    <div class="mockbody">
+      <div class="mockpane"><strong>Outline</strong><p>▾ Source files</p><p>▾ Networks</p><p>&nbsp; ▾ Powertrain CAN</p><p>&nbsp; &nbsp; ECUs</p><p class="selected">&nbsp; &nbsp; Frames</p><p>&nbsp; &nbsp; PDUs</p><p>&nbsp; &nbsp; Signals</p><p>▸ Packages / elements</p><p>▸ Diagnostics</p></div>
+      <div class="mockpane"><strong>Frames · Powertrain CAN</strong><div class="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Bytes</th><th>Signals</th></tr></thead><tbody><tr><td>0x180</td><td>EngineStatus</td><td>8</td><td>12</td></tr><tr><td>0x240</td><td>VehicleSpeed</td><td>8</td><td>6</td></tr></tbody></table></div><p class="small">Illustrative data; not a measured project file.</p><p>Details · References · Source properties</p><p><span class="tag">1 unresolved reference</span></p></div>
+      <div class="mockpane"><strong>Inspector</strong><p>EngineStatus</p><p class="small">/Vehicle/Frames/EngineStatus</p><hr><p>Identifier: 0x180</p><p>Frame type: Standard</p><p>Payload length: 8 bytes</p><p>PDU: EngineStatusPdu →</p><p>Source: vehicle.arxml</p></div>
+    </div>
+  </div>
+  <h3>Views and interactions</h3>
+  <p>Reuse the existing outline/table/inspector visual language and shared app components. Offer a network topology graph where the document actually defines topology. Show frames and signals in tables, with a bit-layout view only when the existing codec can represent the selected signal faithfully. Source properties mean the retained parsed representation; exact source snippets require retained bytes and available spans.</p>
+  <p>On narrow screens, show outline and details sequentially. Rust handles filtering/sorting for large result sets before pagination. A result selection has a stable document entity ID, so navigating from a reference selects the same entity in every view.</p>
+  <div class="callout warning"><strong>Coverage must be visible.</strong> Distinguish malformed input, unresolved references, valid but unsupported semantics, and information unavailable in the source. A successful XML parse alone must not show “fully supported.”</div>
+</section>
+
+<section id="model">
+  <span class="num">06 · Document model</span><h2>Preserve source identity before building CAN views.</h2>
+  <div class="table-wrap"><table><thead><tr><th>Concept</th><th>Required information</th><th>Identity and fidelity rules</th></tr></thead><tbody>
+    <tr><td>Document</td><td>Format, source manifest, parser version, schema/system metadata, counts, coverage, diagnostics</td><td>Session-owned DBC or ARXML source. Keep source identity so the later multi-file extension does not change entity identity rules.</td></tr>
+    <tr><td>Source file</td><td>Display name, bytes, hash, detected encoding/schema; retained content only where needed</td><td>No file content or absolute path in application logs. Hashes provide provenance, not semantic identity.</td></tr>
+    <tr><td>Network / ECU / node</td><td>Names, kinds, connectors, memberships, declared bitrate and endpoints where available</td><td>ARXML uses full paths and physical-channel scope. DBC uses source + declared node name; an unnamed network stays explicitly unspecified.</td></tr>
+    <tr><td>Frame / occurrence</td><td>Identifier, standard/extended, payload byte length, FD status if known, senders/receivers, timing, PDU mappings</td><td>Separate reusable definitions from network occurrences. Same name/ID on different networks stays separate.</td></tr>
+    <tr><td>PDU / signal mapping</td><td>Definition reference, placement, container relations, multiplexing conditions, system/I-signal links</td><td>Keep definition identity distinct from frame/PDU placement. Unsupported mappings remain inspectable with diagnostics.</td></tr>
+    <tr><td>Signal semantics</td><td>Start bit, width, bit numbering convention, signed/float encoding, scaling, unit, limits, value labels, recipients</td><td>Preserve unsupported or nonlinear scaling in its native representation. Never reduce it to an invented factor/offset.</td></tr>
+    <tr><td>Reference</td><td>Owner entity, destination path/type, resolved destination or unresolved reason</td><td>Keep original reference text. Do not join by short name alone.</td></tr>
+    <tr><td>Diagnostic</td><td>Severity, stable category/code, source/entity, explanation, location if available</td><td>Distinguish parse failure, incomplete document, and unsupported viewer feature.</td></tr>
+  </tbody></table></div>
+  <h3>Keep browsing fidelity separate from codec capability</h3>
+  <p>Reuse <code>FrameDef</code> and <code>SignalDef</code> for layouts they accurately express. Add source metadata and richer mappings in the document owner. If a signal cannot fit the current codec—wide integers, floating-point payloads, complex multiplexing—display its actual definition and mark the codec action unavailable. Do not silently narrow it.</p>
+  <p>Prefer a Rust-owned opaque document containing its native model and compact indexes. Build bounded summaries/details on demand rather than retaining a second full object graph of every source element. Share definitions by ID; frame placement is its own relation.</p>
+  <pre><code>// Conceptual contract; field names are proposals, not implemented APIs.
+Document
+  sources[]                 // filename, hash, schema/encoding metadata
+  native_model              // DBC contents or AUTOSAR element model
+  entity_index              // document-scoped identity → source entity
+  reference_index           // original path → resolved or unresolved
+  communication_views       // networks, frames, PDUs, signals, placements
+  diagnostics[]             // source-linked limitations and errors
+  support_summary           // what loaded; what the viewer understands</code></pre>
+</section>
+
+<section id="parsers">
+  <span class="num">07 · Parser strategy</span><h2>Reuse DBC. Evaluate a proper AUTOSAR foundation.</h2>
+  <h3>DBC: extend the existing Rust owner</h3>
+  <p>Start with <code>can-core::parse_dbc</code>. Preserve declared nodes without frames, node comments, senders, signals, choices, and warnings through the document API. Replace the unused <code>can_parse_dbc</code> bridge and its now-unused mapping/types rather than keeping a second interface.</p>
+  <p><strong>DBC ownership during migration:</strong> Rust owns new local-viewer format work. Python <code>dbc.py::parse_dbc</code> remains the compatibility implementation for <code>apply_dbc</code>, the import CLI, and its fuzz target until Phase 5 explicitly migrates those consumers. The parser implementation owner maintains a single versioned feature matrix and shared synthetic input set. Every Rust change reruns comparisons for the common supported subset; newly supported Rust-only constructs are marked as differences and unavailable through Python, not silently advertised as equivalent. Avoid independently expanding Python's grammar; any necessary legacy fix is reviewed against both implementations.</p>
+  <p>Audit float types, extended multiplexing, signal/frame comments, receivers, attributes/defaults, CAN FD metadata, escaped strings, and source encodings. Those are coverage checks, not claims of current support. For the first viewer, unsupported meaningful records must be reported rather than silently discarded.</p>
+  <p>If corpus evidence shows the current line parser cannot cover the agreed scope cleanly, evaluate replacing its internals with <a href="https://docs.rs/can-dbc/latest/can_dbc/">can-dbc</a>, whose documentation lists a broader DBC grammar. Keep the existing parser entry point and downstream behavior where compatible. Do not operate two competing Rust parsers in production.</p>
+  <h3>ARXML: load the AUTOSAR model, then extract communication meaning</h3>
+  <p>Evaluate <a href="https://docs.rs/autosar-data/latest/autosar_data/">autosar-data</a> first: its documentation describes multi-file loading, AUTOSAR paths, cross references, validation, and non-strict loading. Evaluate <a href="https://docs.rs/autosar-data-abstraction/latest/autosar_data_abstraction/">autosar-data-abstraction</a> only where it removes complex traversal; it provides common communication abstractions but explicitly does not cover every class, including LIN in its listed bus abstractions.</p>
+  <p>These capabilities make the crates candidates, not a proven drop-in replacement for cantools. Confirm schema support, reference behavior, encoding acceptance, thread/FFI compatibility, dependency licensing, memory profile, and required communication constructs on the project corpus before pinning versions.</p>
+  <h3>Named licensing constraint</h3>
+  <p>The <code>ui/can</code> workspace declares <code>GPL-3.0-or-later OR LicenseRef-IotSploit-Commercial</code>. To preserve the commercial distribution option, this proposal requires new parser dependencies and their transitive dependencies to offer an acceptable permissive license; a GPL-only dependency is outside this design. Upstream manifests currently declare <code>MIT OR Apache-2.0</code> for <a href="https://github.com/DanielT/autosar-data/blob/main/autosar-data/Cargo.toml">autosar-data</a>, <a href="https://github.com/DanielT/autosar-data-abstraction/blob/main/Cargo.toml">autosar-data-abstraction</a>, and <a href="https://github.com/oxibus/can-dbc/blob/main/Cargo.toml">can-dbc</a>. Before adoption, record the exact pinned versions, transitive license inventory, selected license terms, and notice/attribution requirements. Upstream main-branch declarations alone are not a release audit.</p>
+  <div class="table-wrap"><table><thead><tr><th>ARXML extraction step</th><th>Result</th><th>Critical check</th></tr></thead><tbody>
+    <tr><td>1 · Load selected sources</td><td>Packages, named elements, source provenance, schema information</td><td>Reject malformed input; report unsupported schema/constructs and duplicate definitions.</td></tr>
+    <tr><td>2 · Resolve paths</td><td>References linked within the selected source; later across a selected file set</td><td>Missing references remain explicit; no filesystem guesses or short-name matching.</td></tr>
+    <tr><td>3 · Build topology</td><td>ECUs, clusters, physical channels, connector memberships, Ethernet endpoints</td><td>Preserve channel scope, ownership, and ambiguous or missing associations.</td></tr>
+    <tr><td>4 · Extract CAN semantics</td><td>Frame triggerings → frame/PDU mappings → I-signals/system signals → encoding/scaling</td><td>Offsets, bit numbering, signedness, float types, multiplexing, container relations.</td></tr>
+    <tr><td>5 · Index for browsing</td><td>Query views, counts, diagnostics, source-element navigation</td><td>Distinguish definitions from occurrences in counts and identity.</td></tr>
+  </tbody></table></div>
+  <div class="callout"><strong>Scope boundary:</strong> first migrate the semantics already exposed by the Python importer. Add source-element browsing to explain unsupported content. LIN/Ethernet payload decoding, SOME/IP service interpretation, and comprehensive Adaptive AUTOSAR support require separate scope.</div>
+  <div class="callout warning"><strong>Known multiplexing gap:</strong> Rust <code>SignalDef.multiplexer</code> currently expresses one <code>M</code>/<code>m&lt;n&gt;</code> token. Python ARXML <code>_signal_dict</code> joins several branch memberships as <code>m1,m2</code> and also preserves <code>multiplexer_signal</code>. Phase 3 must retain switch identity and branch sets/ranges in the document model, validate each placement, and only adapt representable layouts to the existing codec. Do not truncate to the first branch or feed a comma-separated token into a single-token codec.</div>
+</section>
+
+<section id="migration">
+  <span class="num">08 · Python migration</span><h2>Port our rules; replace cantools deliberately.</h2>
+  <figure><div class="diagram">
+    <svg viewBox="0 0 1080 385" role="img" aria-labelledby="migration-title migration-desc">
+      <title id="migration-title">Python to Rust migration and comparison</title><desc id="migration-desc">A controlled fixture set is parsed by the existing Python importer and the proposed Rust parser. Their supported semantics are compared after normalization. Rust becomes the default viewer after passing the migration gate; existing backend and CLI users keep their workflows until separately migrated.</desc>
+      <defs><marker id="arrow-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker></defs>
+      <rect x="30" y="130" width="210" height="100" rx="12" class="box"/><text x="50" y="163" class="stext">Controlled corpus</text><text x="50" y="190" class="subtext">Synthetic edge cases</text><text x="50" y="213" class="subtext">Permitted real OEM files</text>
+      <rect x="305" y="40" width="300" height="96" rx="12" class="box"/><text x="325" y="73" class="stext">Python + cantools</text><text x="325" y="99" class="subtext">Existing topology and CAN output</text><text x="325" y="121" class="subtext">Reference, not an infallible oracle</text>
+      <rect x="305" y="240" width="300" height="96" rx="12" class="accentbox"/><text x="325" y="273" class="stext">Rust document core</text><text x="325" y="300" class="subtext">Native source + communication views</text><text x="325" y="322" class="subtext">No Python fallback at runtime</text>
+      <path d="M240 155H270V88H303M240 205H270V288H303" class="arrow" marker-end="url(#arrow-m)"/>
+      <rect x="680" y="130" width="360" height="100" rx="12" class="accentbox"/><text x="700" y="162" class="stext">Semantic migration gate</text><text x="700" y="190" class="subtext">Normalize and compare supported fields</text><text x="700" y="214" class="subtext">Classify differences → fix or document</text>
+      <path d="M605 88H640V155H678M605 288H640V205H678" class="arrow" marker-end="url(#arrow-m)"/>
+      <text x="680" y="285" class="stext">Pass → local viewer release</text><text x="680" y="313" class="subtext">Retire old entry points only after their</text><text x="680" y="337" class="subtext">consumers and compatibility are addressed.</text>
+    </svg>
+  </div><figcaption>Figure 2. Python runs during single-file migration validation; the local viewer does not call it. DBC uses the live Python DBC parser as its common-subset reference. Multi-file ARXML is outside this comparison gate.</figcaption></figure>
+  <div class="table-wrap"><table><thead><tr><th>Current Python responsibility</th><th>Rust destination</th><th>Migration rule</th></tr></thead><tbody>
+    <tr><td>Size/hash/encoding inspection and DTD/entity rejection</td><td>Source opening in document owner</td><td>Preserve the meaningful safety contract across encodings; verify chosen loader behavior.</td></tr>
+    <tr><td><code>_extract_topology</code> and cluster/ECU/connector extraction</td><td>AUTOSAR adapter</td><td>Port domain mapping rules, using the library's native references instead of rebuilding a general XML parser.</td></tr>
+    <tr><td><code>cantools.database.load_file(..., strict=True)</code></td><td>AUTOSAR communication extraction + validation</td><td>Implement explicitly; this dependency cannot be translated away by moving our wrapper code.</td></tr>
+    <tr><td>Message/signal conversion</td><td>CAN communication views</td><td>Preserve payload length, extended/FD flags, byte order, scaling, ranges, choices, float/wide signals, multiplexing and containers within agreed scope.</td></tr>
+    <tr><td>Target construction, edges, stable IDs, DoIP facets</td><td>Optional target conversion boundary</td><td>Keep target-specific IDs out of document identity. Preserve legacy output semantics when replacing that workflow.</td></tr>
+    <tr><td>Counts, warnings, ECU-extract status, provenance</td><td>Document metadata + conversion report</td><td>Do not interpret absence of the partial-system category as proof of completeness. Preserve source category; state uncertainty.</td></tr>
+    <tr><td>CLI and backend persistence</td><td>Remain with existing consumers initially</td><td>No viewer runtime dependency. Python deletion requires a complete consumer migration, not just a new UI.</td></tr>
+    <tr><td><code>dbc.py::parse_dbc</code> and <code>apply_dbc</code></td><td>Rust parser now; DBC target conversion in Phase 4; Python consumer migration in Phase 5</td><td>Compare the shared subset on the same fixture bytes. Preserve node-owned frames, unsent bus frames, and component identity for conversion. Existing-target CLI behavior is not removed.</td></tr>
+  </tbody></table></div>
+  <p><strong>Comparison method:</strong> flatten Python target output and Rust communication views into a temporary validation representation keyed by network/channel and source identity. For DBC, compare Python/Rust parsed contents directly on the common subset and target mapping separately. Compare structure, metadata, and declared semantics—not byte-for-byte JSON or aggregate counts alone. Resolve differences against the source and specifications; document intentional fixes to current Python behavior.</p>
+  <p><strong>Gate prerequisite:</strong> “zero unexplained differences” applies only to a named manifest revision, explicit feature matrix, parser versions, and recorded cases. The manifest/sample set must be built first; a tiny generated XML fixture or parser acceptance count cannot establish production parity. Multi-file ARXML is deferred until after Phase 3 and uses source/specification expectations plus split/combined equivalence where valid, not a claimed Python multi-file oracle.</p>
+  <h3>Named consumer migration inventory</h3>
+  <div class="table-wrap"><table><thead><tr><th>Live consumer / entry point</th><th>Until local-viewer release</th><th>Replacement or retention gate</th></tr></thead><tbody>
+    <tr><td><code>tools/import_arxml.py</code> → Python <code>import_arxml</code></td><td>Retain single-file target JSON CLI</td><td>Phase 5 Rust CLI/binding only if required; preserve output semantics and invocation workflow before retiring Python.</td></tr>
+    <tr><td><code>tools/import_dbc.py</code> → <code>apply_dbc</code> → Python <code>parse_dbc</code></td><td>Retain new-target and <code>--onto</code> existing-target behavior</td><td>Phase 4 covers new-target DBC conversion only. Phase 5 must separately migrate and validate <code>--onto</code> before deleting this path.</td></tr>
+    <tr><td><code>POST /api/preview_arxml_import/</code> → <code>arxml_views.py</code></td><td>Ship active release after its existing validation gates; retain HTTP contract</td><td>Phase 4 replaces its Flutter caller. Endpoint retirement requires caller inventory; a new UI alone does not authorize removal.</td></tr>
+    <tr><td><code>POST /api/create_target/</code>; existing target hydration/import persistence</td><td>Retain as format-independent write owner</td><td>Phase 4 reuses this endpoint for both formats. No parallel Rust target database writer and no new DBC upload endpoint assumed.</td></tr>
+    <tr><td>Fuzz target <code>django.parse_dbc</code></td><td>Keep exercising live Python parser</td><td>Add Rust target separately using the same campaign framework. Rebaseline/retire legacy target only when its Python consumers migrate.</td></tr>
+    <tr><td>Fuzz target <code>autosar.inspect_file</code></td><td>Keep exercising Python <code>_inspect_file</code></td><td>This is the file-inspection guard, not full cantools import coverage. Add full Rust parse/resolution fuzz coverage; retain the Python guard target while that path is live.</td></tr>
+  </tbody></table></div>
+  <p><strong>Deletion policy:</strong> once the local viewer is validated, replace the old Flutter upload/preview path if the optional target conversion is ready. Keep backend/CLI paths used by external consumers. Do not retain a hidden Python fallback that gives the same viewer two different parsing behaviors.</p>
+</section>
+
+<section id="bridge">
+  <span class="num">09 · Bridge &amp; lifecycle</span><h2>One document handle, small query results.</h2>
+  <p>Use the app's existing <code>flutter_rust_bridge</code> integration. Keep CPU-heavy parsing on the Rust worker side, away from Flutter's UI thread. A synchronous Rust parser can be exposed as an asynchronous Dart call; adding <code>async fn</code> alone does not make CPU work non-blocking or cancellable.</p>
+  <pre><code>// Illustrative API shapes; finalize after the parser feasibility phase.
+open_document(sources: Vec&lt;DocumentSource&gt;) -&gt; DocumentHandle
+document.summary() -&gt; DocumentSummary
+document.children(parent, offset, limit) -&gt; Page&lt;TreeEntry&gt;
+document.search(query, scope, offset, limit) -&gt; Page&lt;SearchHit&gt;
+document.frames(network, filter, sort, offset, limit) -&gt; Page&lt;FrameRow&gt;
+document.details(entity_id) -&gt; EntityDetails
+document.references(entity_id, offset, limit) -&gt; Page&lt;ReferenceRow&gt;
+document.diagnostics(offset, limit) -&gt; Page&lt;Diagnostic&gt;
+// Closing releases the opaque owner and any document-owned source resources.</code></pre>
+  <p><code>DocumentSource</code> accepts a local path when usable or explicitly supplied bytes with a display name when the platform requires them. Detect format from content and report mismatched extensions. Do not pass a full source as a Dart string when Rust can read it directly.</p>
+  <ul>
+    <li><strong>Ownership:</strong> page/session owns an opaque document. Prefer bridge-managed lifetime; avoid a global ID registry. Clear Dart references and verify eventual native release when closing.</li>
+    <li><strong>Query bounds:</strong> cap page size in Rust; filter and sort before slicing. Return totals or a continuation indicator without materializing all rows in Dart.</li>
+    <li><strong>Thread safety:</strong> verify the native model can safely cross the bridge boundary. Keep a completed document read-only and coordinate queries in its owner if required.</li>
+    <li><strong>Failure:</strong> structured fatal error for invalid input; partial document plus diagnostics only when the source can be loaded meaningfully. Never return an empty “successful” document after a parse failure.</li>
+    <li><strong>Cancellation:</strong> support checks between owned stages. An underlying parser may not be interruptible mid-call; document that limit and release its result when it finishes. Do not claim immediate cancellation.</li>
+  </ul>
+</section>
+
+<section id="performance">
+  <span class="num">10 · Resources &amp; platforms</span><h2>Large-file behavior must be measured end to end.</h2>
+  <p>The current Python importer permits files up to 256 MiB. That is an existing upload contract, not proof that a 256 MiB AUTOSAR document will fit safely in the app. Determine local per-file and total-document limits from measured native-model memory, indexes, retained bytes, and bridge results.</p>
+  <div class="table-wrap"><table><thead><tr><th>Area</th><th>Proposed behavior</th><th>Evidence required</th></tr></thead><tbody>
+    <tr><td>Memory</td><td>Native model plus compact indexes; avoid full duplicated normalized model and Dart tree. Release closed documents.</td><td>Peak RSS and retained memory for small, representative, and largest supported corpus files; repeated open/close.</td></tr>
+    <tr><td>Responsiveness</td><td>Worker parsing, lazy tree expansion, bounded tables/search, staged loading indicator.</td><td>UI remains interactive during opening; query and rendering latency recorded on named hardware/build.</td></tr>
+    <tr><td>Resource bounds</td><td>Bound input file count/total bytes and query sizes. Validate available loader limits for depth, element count, and references.</td><td>Adversarial malformed/deep input checks. File-size limits alone are not a parser memory guarantee.</td></tr>
+    <tr><td>Local file privacy</td><td>Read explicitly selected sources; no implicit upload, database retention, or background directory scanning.</td><td>Offline run and network observation; logs contain no payload or source paths.</td></tr>
+    <tr><td>Diagnostics</td><td>Show errors tied to sources; never fetch external entities or referenced files automatically.</td><td>DTD/entity cases in supported encodings; unresolved-reference and duplicate-definition cases.</td></tr>
+  </tbody></table></div>
+  <h3>Platform rollout</h3>
+  <p><strong>Linux desktop:</strong> first end-to-end acceptance platform on this rig. <strong>Windows/macOS:</strong> target local file paths, with release gated on native builds and file lifecycle checks. <strong>Android/iOS:</strong> validate file-picker URI/byte handling, memory limits, and library build compatibility before enabling. <strong>Web:</strong> separate WASM feasibility gate; no assumption that the app's native Rust library or dependencies already build for the browser.</p>
+  <p class="small">No speedup ratio, memory budget, fixed parse deadline, or delivery date is asserted here. Set those targets after Phase 0 measurements. Keep unsupported platforms clearly unavailable through existing capability rules.</p>
+</section>
+
+<section id="changes">
+  <span class="num">11 · Code ownership &amp; reuse</span><h2>Extend the existing owners; add only the missing boundary.</h2>
+  <div class="table-wrap"><table><thead><tr><th>Location</th><th>Proposed change</th><th>Why here / what to avoid</th></tr></thead><tbody>
+    <tr><td><code>ui/can/crates/can-core/src/dbc.rs</code></td><td>Preserve source metadata and expose agreed DBC coverage; extend parser diagnostics.</td><td>Existing DBC owner; no parallel viewer parser.</td></tr>
+    <tr><td><code>ui/can/crates/network-description/</code><br><span class="badge">Proposed new crate</span></td><td>Document ownership, source opening, AUTOSAR adapter, scoped identities, reference/search queries, diagnostics.</td><td>Existing can-core owns codec/DBC arithmetic, not a multi-file AUTOSAR graph. A sibling in the current workspace keeps AUTOSAR dependencies out of the reusable codec and transport.</td></tr>
+    <tr><td><code>ui/can/Cargo.toml</code> + <code>ui/rust/Cargo.toml</code></td><td>Register the sibling crate and bridge dependency; pin validated parser dependencies.</td><td>Use the existing workspace and Rust build path. Do not create a second workspace or runtime.</td></tr>
+    <tr><td><code>ui/rust/src/api/</code><br><span class="badge">Proposed document API module</span></td><td>Replace unused <code>can_parse_dbc</code> with thin opaque owner + bounded queries. Delete obsolete <code>CanDbc*</code>/<code>CanChoiceDto</code>, <code>frame_dto</code>, uncalled <code>TargetCanIndex.fromDbc</code>, and stale documentation after reference checks; regenerate bindings.</td><td>Reuse bridge infrastructure, not the unused API surface. Preserve log parsing and CAN codec APIs.</td></tr>
+    <tr><td><code>ui/lib/screens/targets/explorer/</code></td><td>Identify reusable table/inspector/tree rendering. Extract only components that both screens actually use.</td><td>Keep target loading, observations, facets, and current-target state in their existing owner. Avoid a generic explorer framework.</td></tr>
+    <tr><td><code>ui/lib/screens/network_descriptions/</code><br><span class="badge">Proposed new feature page</span></td><td>File picker, loading/error state, selection, document outline/table/inspector, diagnostics.</td><td>Targets page cannot cleanly own an independent local document lifecycle. Reuse showcase components before adding UI components.</td></tr>
+    <tr><td>Toolkit catalog, router, route names, availability</td><td>Register the tool in the existing navigation/capability owner.</td><td>No second sidebar system or target-selection prerequisite.</td></tr>
+    <tr><td>Existing target import dialog/service</td><td>Later replace ARXML upload parsing with conversion from an open Rust document, once parity passes.</td><td>Reuse <code>createTarget</code>; one explicit conversion report and creation boundary.</td></tr>
+    <tr><td><code>iotsploit-fuzzer/.../targets/iotsploit.py</code> and existing corpus/replay owners</td><td>Register Rust DBC and full single-file ARXML parser adapters; use existing budgets, mutators, ledger, and replay.</td><td>Thin test adapter to the actual Rust library; no separate fuzz orchestration service or production Python dependency.</td></tr>
+  </tbody></table></div>
+  <p>The feature creates a few justified files because document ownership does not fit the target page or codec. Exact file counts are intentionally deferred until the reuse assessment; a new generic utility layer is not part of this plan.</p>
+  <h3>Optional target conversion</h3>
+  <p><strong>Phase 4 covers both DBC and ARXML.</strong> Keep one conversion boundary with format-specific mappings and emit the existing JSON contract. DBC maps declared nodes to components, transmitted frames to node CAN facets, unsent frames to the bus, and node memberships to edges, matching <code>apply_dbc</code> on new-target fixtures. ARXML retains its topology/bus-frame/DoIP mappings. Ask for target ID/name (and DBC bus identity/name where needed) at conversion time; show mapping losses before calling the existing target service. Backend validates uniqueness and persists. Editing/merging existing targets, including the Python CLI's <code>--onto</code> semantics, is outside Phase 4 and remains supported by its existing owner.</p>
+</section>
+
+<section id="delivery">
+  <span class="num">12 · Delivery phases</span><h2>Ship independent browsing before changing legacy consumers.</h2>
+  <p><strong>Dependencies:</strong> Phase 0D → Phase 1 can ship independently. Phase 0A → Phase 2 → Phase 3 follows the ARXML track; it reuses Phase 1's document/viewer boundary but does not block DBC delivery. Phase 3 → Phase 3M (optional extension) and Phase 4 are separate follow-ons. Phase 5 migrates remaining consumers. These are work dependencies, not an instruction to spawn parallel agents.</p>
+  <h3>Build the sample set: an owned deliverable</h3>
+  <p><strong>Current evidence:</strong> no standalone <code>.dbc</code> or <code>.arxml</code> sample files were found in the relevant repository sources. There are inline/generated DBC/ARXML test inputs and retained fuzz archives. Several ARXML unit tests inject a fake database; the Django endpoint tests include small XML parsed by real cantools. These are useful seeds, not representative OEM compatibility evidence.</p>
+  <div class="table-wrap"><table><thead><tr><th>Deliverable / owner</th><th>Location and contents</th><th>Acceptance</th></tr></thead><tbody>
+    <tr><td>Public synthetic corpus<br><strong>Parser implementation owner</strong></td><td>Proposed <code>ui/can/fixtures/network-descriptions/</code>, shared by Rust checks and the Python comparison runner. Promote/adapt license-safe inline inputs; add minimal meaningful DBC and single-file ARXML fixtures for each agreed feature and rejection case.</td><td>Manifest names case ID, author/provenance, license/redistribution permission, hash, format/schema, feature, expected semantics/rejection, and reference-parser versions. Both repository gates receive this same corpus revision; missing required corpus is a gate failure, not a silent skip.</td></tr>
+    <tr><td>Feature matrix and reviewed expected results<br><strong>Parser implementation owner; migration reviewer signs off</strong></td><td>Manifest and expected semantic records beside the public inputs. Include shared Python/Rust DBC subset, Rust-only extensions, single-file ARXML coverage, and explicitly unsupported cases.</td><td>Do not derive all expectations solely from Python. Review against source; record explained differences and reviewer decisions.</td></tr>
+    <tr><td>Representative OEM corpus<br><strong>Project maintainer/data owner supplies permitted files; parser owner measures them</strong></td><td>Access-controlled directory outside Git, provided through proposed <code>IOTSPLOIT_PRIVATE_PARSER_CORPUS</code>. No OEM payloads or identifying expected output in public CI artifacts or logs. Do not place private data into tracked fuzz archives.</td><td>Data owner records permitted access/use/storage. Keep reports in the same private location; publish only approved aggregate results. Public CI uses synthetic inputs. If private samples are unavailable, report the evidence gap and do not claim OEM/large-file validation passed.</td></tr>
+    <tr><td>Retained mutation corpus<br><strong>Existing parser-fuzz target maintainer</strong></td><td>Existing <code>iotsploit-fuzzer/corpus/&lt;target&gt;/</code> archive + ledger conventions, seeded only with redistributable synthetic inputs for tracked runs.</td><td>Rust targets replay through the existing framework; no separate mutation/campaign mechanism.</td></tr>
+  </tbody></table></div>
+  <details open><summary><span class="phase">Phase 0D</span>DBC audit, fixtures, and replacement API</summary>
+    <p>Build the DBC portion of the public corpus and feature matrix; compare existing Python/Rust parsers on their common subset. Confirm no callers for the old bridge/factory, identify deletions, and validate opaque-document ownership. Establish the existing-framework Rust fuzz adapter and required build artifact. No AUTOSAR crate evaluation is a prerequisite.</p>
+    <p><strong>Exit:</strong> manifest-backed DBC comparison, documented Rust-only gaps/extensions, validated bridge replacement plan, and executable Rust DBC fuzz/replay adapter.</p>
+  </details>
+  <details open><summary><span class="phase">Phase 0A</span>Single-file ARXML evaluation and corpus</summary>
+    <p>Build single-file ARXML samples and expected semantics; seek permitted representative files through the data owner. Evaluate named AUTOSAR crates, permissive/transitive licenses, schema coverage, threading, and memory on those files. Record Python/cantools baseline semantics and measurements.</p>
+    <p><strong>Exit:</strong> named corpus revision, selected foundation, support matrix, known gaps, and evidence-based go/no-go for single-file ARXML. Missing private samples remain an explicit validation limitation. This work does not delay the DBC release.</p>
+  </details>
+  <details open><summary><span class="phase">Phase 1</span>Local DBC browsing</summary>
+    <p>After Phase 0D, expose DBC content through document ownership, preserving nodes and comments. Replace the unused bridge and uncalled DTO factory; regenerate bindings. Add toolkit route/viewer, bounded queries, search, diagnostics, and close/release behavior. Register and replay Rust DBC parsing through the existing fuzz framework.</p>
+    <p><strong>Exit:</strong> desktop opens a DBC offline without a target, browses corpus-backed frames/signals, reports limitations, releases resources, and passes shared-subset/fuzz checks. This release can ship before Phase 0A completes.</p>
+  </details>
+  <details open><summary><span class="phase">Phase 2</span>ARXML loading, topology, and references</summary>
+    <p>After Phase 0A and the viewer boundary, load one ARXML file; index full paths, packages/elements, ECUs/clusters/channels/connectors/endpoints. Follow same-file references and show missing/conflicting definitions. Preserve source category/provenance; register full Rust parse/resolution fuzz coverage.</p>
+    <p><strong>Exit:</strong> browse single-file topology; same-file reference navigation works; unresolved external references remain visible. Label this slice as topology/source browsing until CAN semantics are complete.</p>
+  </details>
+  <details open><summary><span class="phase">Phase 3</span>ARXML communication semantics and parity</summary>
+    <p>Implement frame/PDU/signal traversal, placement, encoding/scaling, value labels and agreed multiplexing/container coverage, including the known <code>m1,m2</code> representation gap. Compare single-file output against Python/cantools and reviewed source expectations. Reuse CAN codec only where representations match; replay Rust semantic-extraction fuzz inputs.</p>
+    <p><strong>Exit:</strong> zero unexplained differences for the named single-file manifest/feature matrix, passing Rust parser fuzz replay, and visible unsupported semantics. ARXML + DBC local viewer is ready for the agreed desktop release; private-corpus limitations are stated.</p>
+  </details>
+  <details><summary><span class="phase">Phase 3M</span>Later extension: selected multi-file ARXML</summary>
+    <p>After Phase 3, accept a selected related source set. Add cross-file identity/conflict/reference cases to the manifest. Validate against the source files/specification and split/combined-document equivalence where structurally valid. Python <code>import_arxml(path)</code> is single-file and is not a multi-file oracle.</p>
+    <p><strong>Exit:</strong> reviewed expected cross-file links and placements, file-order independence for compatible input sets, explicit duplicate/missing-definition diagnostics, and matching fuzz cases. This extension is not part of the first ARXML release and does not block Phase 4 for single-file inputs.</p>
+  </details>
+  <details><summary><span class="phase">Phase 4</span>DBC + ARXML target conversion and dialog replacement</summary>
+    <p>Map both document formats to the existing new-target contract. For DBC compare node components, sender facets, unsent bus frames, memberships and IDs with <code>apply_dbc</code> on an empty/new target; for ARXML compare existing bus/topology/DoIP mapping. Show losses and explicit review/create confirmation; reuse the existing backend create service.</p>
+    <p>Replace the active release's <code>arxml_import_dialog.dart</code> upload/preview stages for supported platforms only after ARXML conversion passes. The earlier upload release ships under its existing gates; this is its declared successor, not concurrent duplicate UX development.</p>
+    <p><strong>Exit:</strong> optional target creation works for both formats; target explorer and existing workflows continue; HTTP preview and both Python CLIs remain until their named consumers migrate. No existing-target DBC merge replacement is claimed.</p>
+  </details>
+  <details><summary><span class="phase">Phase 5</span>Additional platforms and consumer consolidation</summary>
+    <p>Validate further platform packaging separately. Migrate Python DBC consumers to the Rust format owner through an explicitly validated integration if full consolidation is chosen; preserve <code>apply_dbc</code>/<code>--onto</code> behavior and reference IDs. Update the CLI, fuzz registry, and backend consumers together. Do the same consumer inventory for Python ARXML before retirement.</p>
+    <p><strong>Exit:</strong> only verified platforms advertised; each removed Python parser/endpoint has a validated consumer replacement. If consumer migration is deferred, record that Python remains the legacy owner and keep the common-subset agreement gate; do not claim a single implementation has already been achieved.</p>
+  </details>
+</section>
+
+<section id="validation">
+  <span class="num">13 · Validation &amp; risks</span><h2>Prove meaning, independence, and resource behavior.</h2>
+  <p>Use existing Rust DBC tests, CAN codec golden cases, Python ARXML importer tests, and Flutter explorer coverage first. Minimal new fixtures/checks are justified for uncovered high-risk parser semantics, reference resolution, and FFI lifetime behavior. Avoid tests that merely repeat DTO assignments.</p>
+  <div class="table-wrap"><table><thead><tr><th>Acceptance area</th><th>Required evidence</th></tr></thead><tbody>
+    <tr><td>Offline independence</td><td>Open and browse both formats with Django stopped and no network access; no target ID/name requirement and no target database change.</td></tr>
+    <tr><td>DBC fidelity</td><td>Declared nodes including empty nodes, sender/receiver relationships, standard/extended IDs, signed/unsigned, Intel/Motorola, scaling/units, value labels, and supported multiplexing preserved. Known unsupported constructs reported.</td></tr>
+    <tr><td>ARXML fidelity</td><td>Topology plus frame/PDU/signal semantics agree with reviewed source and reference output for the feature matrix. Reused short names and frame IDs across channels remain distinct.</td></tr>
+    <tr><td>References</td><td>First release resolves same-file links and shows missing references. Phase 3M separately validates selected multi-file links against reviewed source/specification expectations. No fabricated target relationships.</td></tr>
+    <tr><td>Numeric fidelity</td><td>Wide signal widths retained; unsupported raw values are not narrowed through Dart/JS numeric limits. Float/complex scaling preserved as source semantics, with unavailable codec actions explained.</td></tr>
+    <tr><td>Containers and multiplexing</td><td>Relations and conditions preserved, or the corresponding feature is explicitly outside supported semantic coverage; no flattened misleading layout.</td></tr>
+    <tr><td>Resources and malformed input</td><td>Measure open/query time and peak/retained memory; verify repeated open/close; check oversize, deep/malformed, DTD/entity and duplicate/reference cases under documented limits.</td></tr>
+    <tr><td>UI</td><td>Render desktop and narrow layouts to images; inspect readability, overflow, errors, warnings, and large tables. Verify selection and reference navigation, not only widget assertions.</td></tr>
+    <tr><td>Regression</td><td>Existing CAN codec/composer/parser and target explorer checks pass. Run repository-required gates before committing affected Python/Dart code.</td></tr>
+    <tr><td>Rust fuzz coverage</td><td>Actual Rust DBC and full ARXML parse/resolution entry points run through the existing parser framework; malformed input, semantic extraction, panics/abort, timeouts and resource failures are distinguished. Retained corpus replay is a required release/build check.</td></tr>
+  </tbody></table></div>
+  <h3>Extend the existing parser-fuzz registry</h3>
+  <p>Register proposed targets <code>rust.parse_dbc</code> and <code>rust.parse_arxml</code> in the existing IoTSploit target pack, using its <code>ParseTarget</code>, mutators, isolated workers, budgets, fingerprints, ledgers, and corpus replay. Python's current <code>django.parse_dbc</code> and <code>autosar.inspect_file</code> remain while their production paths exist. The latter covers only <code>_inspect_file</code>, so it cannot stand in for full Rust AUTOSAR parsing or resolution.</p>
+  <p><strong>Adapter delivery:</strong> build a minimal test-only native probe library linked to the same Rust parser functions used by the app; a thin Python adapter loads it inside the existing isolated parser worker. It needs no Flutter runtime. Keep the probe's input/output boundary small and bounded; return ordinary parser rejection separately from success. Preserve panic/abort/worker death as framework violations rather than converting them into declared input rejection. Apply the existing process time/memory/output budgets to the worker that executes the native code. Verify panic, hang, and resource classification when introducing the adapter; native ABI/lifetime glue itself must be checked.</p>
+  <p>Build the probe before the existing campaign/replay command and make missing artifacts a failure in the Rust-enabled gate. Include the Rust build/source revision in adapter fingerprinting so changed native code cannot reuse an unreviewed old baseline. Reuse existing framework rebaseline/review rules; do not add a second fuzz runner. This Python adapter is validation infrastructure, not a dependency of the shipped Rust + Flutter viewer.</p>
+  <p><strong>Corpus boundaries:</strong> seed tracked campaigns only from redistributable synthetic cases, including float/width/multiplexing/container and malformed-reference cases as those features land. Private OEM files may be exercised only in a private campaign/corpus location with the data owner's permission; generated mutations inherit that storage boundary. Phase 3M adds cross-file cases only when that extension is implemented.</p>
+  <h3>Concrete validation commands and scope</h3>
+  <pre><code># Existing Rust owner; extend only as new semantic coverage warrants.
+cargo test --manifest-path ui/can/Cargo.toml -p can-core
+# Once the proposed crate exists:
+cargo test --manifest-path ui/can/Cargo.toml -p network-description
+
+# Existing Python reference runs use Poetry, from the repository root.
+poetry run pytest iotsploit-protocols/tests/test_arxml_import.py
+
+# After the native probe is built and Rust targets are registered:
+poetry run python -m iotsploit_fuzzer.core.parser_campaign --target rust.parse_dbc --iterations 2000
+poetry run python -m iotsploit_fuzzer.core.parser_campaign --target rust.parse_arxml --iterations 2000
+poetry run python -m iotsploit_fuzzer.core.parser_campaign --replay
+
+# Before committing changed Dart code, from ui/:
+tools/testing/test-flutter-full.sh
+# If Python code changes, before committing from repository root:
+tools/testing/test-python-full.sh</code></pre>
+  <p class="small">Commands above are proposed implementation checks, not checks executed for this HTML-only proposal. Bridge code generation and rendering should use the pinned toolchain documented by the UI repository.</p>
+  <div class="table-wrap"><table><thead><tr><th>Risk</th><th>Mitigation / release gate</th></tr></thead><tbody>
+    <tr><td>Rust AUTOSAR library accepts XML but misses needed communication semantics</td><td>Phase 0A corpus-backed sample extraction; Phase 3 single-file parity. Native library coverage alone is insufficient.</td></tr>
+    <tr><td>Current DBC subset appears to be a comprehensive viewer</td><td>Coverage audit and user-visible diagnostics; replace parser internals only if justified by the corpus.</td></tr>
+    <tr><td>Large AUTOSAR graph causes excessive memory use</td><td>Keep native model, compact indexes, bounded queries; measure actual limits before release.</td></tr>
+    <tr><td>Existing target explorer reuse spreads target dependencies into viewer</td><td>Share concrete renderers; keep target data loading and current-target state outside local document owner.</td></tr>
+    <tr><td>Different parser results between local viewer and legacy Python consumers</td><td>Versioned support report, differential validation, explicit documented differences; no hidden fallback.</td></tr>
+    <tr><td>Deleting Python breaks external CLI/backend users</td><td>Inventory consumers and preserve their existing workflows until each replacement passes validation.</td></tr>
+    <tr><td>Rust and Python DBC parsers drift while both remain live</td><td>Rust owns new viewer grammar; Python legacy scope is explicit. Shared-subset corpus comparisons run on changes; Rust-only features are versioned, and Phase 5 owns consumer consolidation.</td></tr>
+    <tr><td>Developing two replacement import dialogs at once</td><td>Ship the active bounded upload release after existing gates, freeze its scope, and explicitly replace its local parse stages only in Phase 4.</td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="decisions">
+  <span class="num">14 · Decisions &amp; references</span><h2>Selected direction, explicit remaining gates.</h2>
+  <p><strong>Already selected:</strong> B — independent local parsing and viewing with Rust + Flutter.</p>
+  <p><strong>Proposed delivery defaults:</strong> existing app; Linux desktop first; read-only local viewing; single-file ARXML first; multi-file deferred to Phase 3M; DBC release independent of AUTOSAR evaluation; replace unused DBC bridge; new-target conversion for both formats in Phase 4. Finish/ship the active upload release under its existing gates, then replace its Flutter parsing stages once the Rust successor passes validation.</p>
+  <p><strong>Requires evidence in Phase 0D/0A:</strong> an owned corpus and manifest, supported features/schema versions, permissive direct/transitive licenses preserving the commercial option, document resource limits, threading/lifetime behavior, native fuzz adapter feasibility, and delivery estimate. Missing OEM files remain an explicit evidence limitation.</p>
+  <h3>Revision 2 review disposition</h3>
+  <div class="table-wrap"><table><thead><tr><th>Review item</th><th>Disposition in this proposal</th></tr></thead><tbody>
+    <tr><td>1 · Python DBC ownership and conversion</td><td>Sections 02/07/08 define Rust viewer vs Python legacy ownership, common-subset agreement, Phase 5 consolidation, and Phase 4 conversion for both formats.</td></tr>
+    <tr><td>2 · Unused DBC bridge</td><td>Sections 02/07/11 and Phase 1 replace it; remove unused DTO/factory path after checking references.</td></tr>
+    <tr><td>3 · Active ARXML release overlap</td><td>Section 02 recommends finish/ship under existing gates, freeze scope, add successor coordination at adoption; Phase 4 explicitly replaces the dialog's parse stages.</td></tr>
+    <tr><td>4 · Missing representative samples</td><td>Section 12 assigns corpus construction, manifest, reviewers, public location, and private OEM storage. Existing inline/generated cases and fuzz archives are acknowledged.</td></tr>
+    <tr><td>5 · Multi-file oracle mismatch</td><td>Moved out of first release into Phase 3M; source/specification and split/combined expectations instead of a Python multi-file parity claim.</td></tr>
+    <tr><td>6 · DBC blocked by AUTOSAR evaluation</td><td>Phase 0D → 1 is independent of Phase 0A; DBC can ship first.</td></tr>
+    <tr><td>7 · Rust parsers not fuzzed</td><td>Section 13 registers both actual Rust parser paths through existing framework adapters, budgets, ledgers, and replay.</td></tr>
+    <tr><td>8 · Multiplexer representation gap</td><td>Section 07 names Python <code>m1,m2</code> vs Rust single-token gap and requires structured branch/switch semantics in Phase 3.</td></tr>
+    <tr><td>9 · Commercial licensing constraint</td><td>Section 07 names the workspace license, permissive-dependency requirement, candidate manifest declarations, and pinned/transitive audit.</td></tr>
+    <tr><td>10 · Named consumers</td><td>Section 08 lists both CLI importers, Python DBC owner, preview/create endpoints and both existing fuzz targets with retirement gates.</td></tr>
+  </tbody></table></div>
+  <h3>Repository evidence</h3>
+  <ul>
+    <li><a href="../../../iotsploit-protocols/src/iotsploit_protocols/autosar/arxml.py">Python ARXML importer</a> — topology pass, cantools loading, conversion and metadata.</li>
+    <li><a href="../../../iotsploit-django/src/iotsploit_django/tools/dbc.py">Live Python DBC parser and target application</a>, <a href="../../../tools/import_dbc.py">DBC CLI</a>, and <a href="../../../tools/import_arxml.py">ARXML CLI</a>.</li>
+    <li><a href="../../../iotsploit-fuzzer/src/iotsploit_fuzzer/targets/iotsploit.py">Existing parser-fuzz registry</a> and <a href="../../../iotsploit-fuzzer/README.md">worker, corpus, ledger and campaign conventions</a>.</li>
+    <li><a href="../../../iotsploit-django/src/iotsploit_django/view_handlers/arxml_views.py">Django preview endpoint</a> and <a href="../../product-specs/import-arxml.md">current ARXML product specification</a>.</li>
+    <li><a href="../../../ui/can/crates/can-core/src/dbc.rs">Rust DBC parser</a> and <a href="../../../ui/can/crates/can-core/src/lib.rs">existing CAN definitions/codec</a>.</li>
+    <li><a href="../../../ui/rust/src/api/can.rs">Existing CAN bridge</a>, <a href="../../../ui/rust/Cargo.toml">Rust dependencies</a>, and <a href="../../../ui/flutter_rust_bridge.yaml">bridge configuration</a>.</li>
+    <li><a href="../../../ui/lib/screens/targets/explorer/target_explorer_page.dart">Target Explorer page</a>, <a href="../../../ui/lib/screens/targets/explorer/explorer_model.dart">model</a>, and <a href="../../../ui/lib/screens/targets/explorer/explorer_tables.dart">tables</a>.</li>
+    <li><a href="../../../ui/lib/services/targets_service.dart">Target preview/create service</a> and <a href="../active/arxml_target_import_ui_plan.md">existing target-centric ARXML UI plan</a>.</li>
+  </ul>
+  <h3>Primary dependency references</h3>
+  <ul>
+    <li><a href="https://docs.rs/autosar-data/latest/autosar_data/">autosar-data documentation</a> — native AUTOSAR model, source loading, paths, and references.</li>
+    <li><a href="https://docs.rs/autosar-data-abstraction/latest/autosar_data_abstraction/">autosar-data-abstraction documentation</a> — optional higher-level views and stated coverage limits.</li>
+    <li><a href="https://docs.rs/can-dbc/latest/can_dbc/">can-dbc documentation</a> — alternative grammar if the existing DBC parser proves insufficient.</li>
+    <li><a href="https://pub.dev/packages/flutter_rust_bridge">flutter_rust_bridge documentation</a> — existing integration technology. Keep the project's 2.11.1 pin unless a demonstrated need requires a separate upgrade.</li>
+  </ul>
+  <div class="callout"><strong>Approved direction:</strong> Option B. This artifact remains the design reference; the linked feature specification states the implemented local-viewer scope and its remaining migration boundaries. Optional target conversion and full flattened ARXML parity are not claimed complete.</div>
+</section>
+<footer>IoTSploit · ARXML &amp; DBC Explorer · Proposal, not an implementation status report. Embedded diagrams and wireframe are design artifacts. External dependency links are references; the document renders offline.</footer>
+</main>
+</div>
+<script>
+  const themeButton = document.getElementById('theme');
+  themeButton.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    themeButton.textContent = dark ? 'Light mode' : 'Dark mode';
+    themeButton.setAttribute('aria-pressed', String(dark));
+  });
+  document.getElementById('print').addEventListener('click', () => {
+    document.querySelectorAll('details').forEach(item => { item.dataset.wasOpen = String(item.open); item.open = true; });
+    window.print();
+  });
+  window.addEventListener('afterprint', () => {
+    document.querySelectorAll('details[data-was-open]').forEach(item => { item.open = item.dataset.wasOpen === 'true'; delete item.dataset.wasOpen; });
+  });
+</script>
+</body>
+</html>

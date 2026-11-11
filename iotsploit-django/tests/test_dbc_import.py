@@ -67,6 +67,21 @@ def facet_of(target, component_id):
 # ── parsing ───────────────────────────────────────────────────────────
 
 
+def test_value_labels_keep_standard_and_extended_frame_identity_separate():
+    contents = parse_dbc('''BU_: ECU
+BO_ 291 Standard: 8 ECU
+ SG_ State : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 2147483939 Extended: 8 ECU
+ SG_ State : 0|8@1+ (1,0) [0|255] "" ECU
+VAL_ 291 State 1 "Standard";
+VAL_ 2147483939 State 1 "Extended";
+''')
+
+    standard, extended = contents.nodes[0].messages
+    assert standard.signals[0].choices == {1: "Standard"}
+    assert extended.signals[0].choices == {1: "Extended"}
+
+
 def test_nodes_come_back_in_declaration_order():
     """Also proves nothing else on a line beginning with a keyword is mistaken
     for a node: BA_DEF_ and friends would show up here if they were."""

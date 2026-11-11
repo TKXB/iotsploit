@@ -1,5 +1,10 @@
 # Importing an AUTOSAR ARXML target
 
+To inspect a file without creating a target, use **Toolkit → Network
+Descriptions**. That independent desktop viewer reads ARXML and DBC locally in
+Rust. See [local network descriptions](network-descriptions.md) for coverage
+and limits. The target-creation workflows below remain available.
+
 IoTSploit can convert an AUTOSAR ARXML communication description into a
 reviewable vehicle target. The converter uses `cantools` for CAN frames and
 signals and reads the limited AUTOSAR topology that `cantools` does not expose:

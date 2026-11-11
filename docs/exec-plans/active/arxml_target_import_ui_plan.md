@@ -19,6 +19,21 @@ This plan does not authorize implementation by itself. Move it to `active/`
 when work starts and record deviations here rather than silently changing the
 contracts or merge rules.
 
+### Coordination with the local Rust viewer (2026-11-11)
+
+The approved [Rust + Flutter proposal](network-description-rust-flutter-proposal.html)
+adds independent local DBC/ARXML source browsing in Toolkit. Finish and ship
+this plan's existing upload → preview → create release only after its original
+outstanding production measurements and manual rig gates pass. Its scope is
+frozen; do not build additional upload-dialog features for the successor.
+
+The local viewer does not yet replace target creation. Proposal Phase 4 will
+explicitly replace `arxml_import_dialog.dart`'s upload/parse stages with local
+document conversion after validation, and covers new-target DBC conversion as
+well. Reuse the existing create endpoint/review boundary. Keep the preview HTTP
+contract and Python CLI consumers until each is migrated; no endpoint removal,
+merge scope change or completion of this active plan is implied by the viewer.
+
 ## Objective
 
 Let a Flutter operator select an AUTOSAR ARXML file, parse its topology, CAN
