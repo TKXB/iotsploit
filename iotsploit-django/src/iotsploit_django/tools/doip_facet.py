@@ -1,12 +1,7 @@
-"""The DoIP facet, shipped beside the code that consumes it.
+"""Django-side lookup helpers for the DoIP facet.
 
-Core deliberately registers no protocol facets, so this lives with DoIP_Mgr
-rather than in iotsploit-core. Adding SOME/IP or CAN means another module like
-this one, not a core release.
-
-The addresses it replaces were class constants on DoIP_Mgr, which meant adding
-a vehicle was a code edit. With a facet configured on the ECU component, it is
-a target edit.
+``DoipFacet`` itself lives in ``iotsploit_protocols.doip.facet`` beside the
+client that consumes it; it is re-exported here for existing callers.
 """
 
 from __future__ import annotations
@@ -14,42 +9,11 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from pydantic import Field
-
-from iotsploit_core.domain.facet import Facet, register_facet
+from iotsploit_protocols.doip.facet import FACET_KEY, HEX, HEX_UNIQUE, DoipFacet
 
 logger = logging.getLogger(__name__)
 
-FACET_KEY = "doip"
-
-# Stored as an int, written and read by humans as hex. An editor that only knew
-# the JSON type would make you type 4113 for an address every document in the
-# field calls 0x1011. The facet that knows the convention declares it; core
-# stays ignorant of what any protocol's numbers mean.
-HEX = {"format": "hex"}
-
-# Same idea for uniqueness. A logical address identifies one ECU, so two of
-# them on one address is a fault worth showing; a CAN facet's bus_id is a
-# reference to something shared and every component on a segment repeats it.
-# Nothing in JSON Schema tells those apart, and a view that guessed from the
-# field name would flag correct configuration as broken.
-HEX_UNIQUE = {"format": "hex", "unique": True}
-
-
-@register_facet(FACET_KEY)
-class DoipFacet(Facet):
-    """DoIP/UDS addressing for one ECU.
-
-    ``logical_address`` is an int on purpose: it is the join key to the
-    reference catalog, and "0x1011", "1011" and 4113 must not be three
-    different keys. Secrets are deliberately absent -- PINs stay in
-    ClassifiedInfo/Env_Mgr rather than being copied into a JSON column.
-    """
-
-    logical_address: int = Field(json_schema_extra=HEX_UNIQUE)
-    tester_address: int = Field(default=0x0E80, json_schema_extra=HEX)
-    host: Optional[str] = None
-    port: int = 13400
+__all__ = ["FACET_KEY", "HEX", "HEX_UNIQUE", "DoipFacet", "doip_facet_for", "logical_address_for"]
 
 
 def doip_facet_for(ecu: str) -> Optional[DoipFacet]:
