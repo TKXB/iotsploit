@@ -273,7 +273,7 @@ class IoTFuzzerManager:
             # Start background campaign task
             self._start_campaign_task(campaign_id)
             
-            logger.info(f"Campaign {campaign_id} scheduled with {len(test_cases_data)} test cases from {len(test_group_ids)} groups")
+            logger.info(f"Campaign {campaign_id} scheduled with {len(test_cases_data)} test cases from {len(test_group_ids or [])} groups")
             return campaign_id
             
         except Exception as e:
