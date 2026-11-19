@@ -24,6 +24,7 @@ from iotsploit_core.domain.observation import (
     ObservationRecord,
     ObservationScope,
     ScanStatus,
+    ScanSummary,
     StartedScan,
 )
 from iotsploit_django.adapters.django.observation_models import (
@@ -214,16 +215,139 @@ class ObservationRepository:
         *,
         component_id: Optional[str] = None,
         source: Optional[str] = None,
+        include_samples: bool = False,
     ) -> List[ObservationRecord]:
-        """Latest successful complete snapshot per comparable scope.
+        """Latest successful state per comparable scope.
 
-        Returns records rather than a flattened dict: if two sources report the
-        same subject, both stay visible with their provenance intact. Resolving
-        that conflict is a presentation decision, not a silent last-writer-wins.
+        By default only ``is_complete=True`` snapshots define current state.
+        When ``include_samples=True``, newer succeeded ``is_complete=False``
+        sample scans (e.g. timed CAN captures) are merged additively on top of
+        the latest complete snapshot without ever clearing baseline facts.
         """
+        records, _ = self.current_with_scans(
+            target_id,
+            component_id=component_id,
+            source=source,
+            include_samples=include_samples,
+        )
+        return records
+
+    def current_with_scans(
+        self,
+        target_id: str,
+        *,
+        component_id: Optional[str] = None,
+        source: Optional[str] = None,
+        include_samples: bool = False,
+    ) -> tuple[List[ObservationRecord], List[ScanSummary]]:
+        """Return ``(observations, active_scans)`` for ``target_id``."""
         session = self._session_factory()
         try:
-            return self._current_records(session, self._current_scan_ids(target_id, component_id, source))
+            query = (
+                session.query(ScanRunDBModel)
+                .filter(
+                    ScanRunDBModel.target_id == target_id,
+                    ScanRunDBModel.status == ScanStatus.SUCCEEDED.value,
+                )
+                .order_by(ScanRunDBModel.completed_at.desc(), ScanRunDBModel.scan_id.desc())
+            )
+            if not include_samples:
+                query = query.filter(ScanRunDBModel.is_complete.is_(True))
+            if component_id is not None:
+                query = query.filter(ScanRunDBModel.component_id == component_id)
+            if source is not None:
+                query = query.filter(ScanRunDBModel.source == source)
+
+            # Ordered newest-first. For each comparable scope we keep:
+            # - the newest complete snapshot (stops further history walk), plus
+            # - any newer sample scans (is_complete=False) to merge additively.
+            baseline_by_scope: dict[tuple, ScanRunDBModel] = {}
+            samples_by_scope: dict[tuple, list[ScanRunDBModel]] = {}
+            for scan in query.all():
+                key = tuple(getattr(scan, field) for field in COMPARABLE_SCOPE_FIELDS)
+                if key in baseline_by_scope:
+                    continue
+                if scan.is_complete:
+                    baseline_by_scope[key] = scan
+                elif include_samples:
+                    samples_by_scope.setdefault(key, []).append(scan)
+
+            active_scans: dict[str, ScanRunDBModel] = {}
+            scope_keys = list(dict.fromkeys([*baseline_by_scope.keys(), *samples_by_scope.keys()]))
+            summaries: list[ScanSummary] = []
+
+            for key in scope_keys:
+                baseline = baseline_by_scope.get(key)
+                samples = samples_by_scope.get(key, [])
+                if baseline is not None:
+                    active_scans[baseline.scan_id] = baseline
+                for sample in samples:
+                    active_scans[sample.scan_id] = sample
+                # Report the newest scan for this scope in scan summaries.
+                head = samples[0] if samples else baseline
+                if head is not None:
+                    summaries.append(
+                        ScanSummary(
+                            scan_id=head.scan_id,
+                            source=head.source,
+                            scope_key=head.scope_key,
+                            component_id=head.component_id,
+                            is_complete=bool(head.is_complete),
+                            facts_count=int(head.facts_count or 0),
+                            completed_at=head.completed_at,
+                        )
+                    )
+
+            if not active_scans:
+                return [], summaries
+
+            rows = (
+                session.query(ObservationDBModel)
+                .filter(ObservationDBModel.scan_id.in_(list(active_scans)))
+                .order_by(
+                    ObservationDBModel.protocol,
+                    ObservationDBModel.subject_kind,
+                    ObservationDBModel.subject_id,
+                    ObservationDBModel.observed_property,
+                )
+                .all()
+            )
+            rows_by_scan: dict[str, list[ObservationDBModel]] = {}
+            for row in rows:
+                rows_by_scan.setdefault(row.scan_id, []).append(row)
+
+            merged: list[ObservationRecord] = []
+            for key in scope_keys:
+                baseline = baseline_by_scope.get(key)
+                samples = samples_by_scope.get(key, [])
+                # Merge oldest -> newest so newer sample measurements refresh
+                # matching facts without clearing baseline facts.
+                ordered_scans: list[ScanRunDBModel] = []
+                if baseline is not None:
+                    ordered_scans.append(baseline)
+                ordered_scans.extend(reversed(samples))
+
+                by_fact_key: dict[tuple, ObservationRecord] = {}
+                for scan in ordered_scans:
+                    for row in rows_by_scan.get(scan.scan_id, ()):
+                        fact_key = (
+                            row.protocol,
+                            row.subject_kind,
+                            row.subject_id,
+                            row.observed_property,
+                        )
+                        by_fact_key[fact_key] = self._to_record(row, scan)
+                merged.extend(by_fact_key.values())
+
+            merged.sort(
+                key=lambda r: (
+                    r.protocol,
+                    r.subject_kind,
+                    r.subject_id or "",
+                    r.observed_property,
+                )
+            )
+            return merged, summaries
         finally:
             session.close()
 
@@ -294,6 +418,7 @@ class ObservationRepository:
             observed_property=row.observed_property,
             value=row.value,
             observed_at=row.observed_at,
+            is_complete=bool(scan.is_complete),
         )
 
 

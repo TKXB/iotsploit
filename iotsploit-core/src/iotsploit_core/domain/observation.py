@@ -115,6 +115,18 @@ class StartedScan(BaseModel):
     scope: ObservationScope
 
 
+class ScanSummary(BaseModel):
+    """Metadata for one active scan run contributing to current observations."""
+
+    scan_id: str
+    source: str
+    scope_key: str
+    component_id: Optional[str] = None
+    is_complete: bool = True
+    facts_count: int = 0
+    completed_at: Optional[datetime] = None
+
+
 class ObservationRecord(BaseModel):
     """A stored fact together with the provenance of the scan that produced it."""
 
@@ -130,6 +142,7 @@ class ObservationRecord(BaseModel):
     observed_property: str
     value: JsonValue
     observed_at: datetime
+    is_complete: bool = True
 
     @property
     def display_key(self) -> str:

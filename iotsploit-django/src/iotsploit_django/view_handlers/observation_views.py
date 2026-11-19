@@ -20,6 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 from pydantic import ValidationError
 
 from iotsploit_core.domain.observation import Fact, ObservationRecord
+from iotsploit_core.domain.observation_reconcile import reconcile_observations
 
 logger = logging.getLogger(__name__)
 
@@ -71,14 +72,16 @@ def get_current_observations(request):
 
     protocol = request.GET.get('protocol')
     subject_kind = request.GET.get('subject_kind')
+    include_samples = request.GET.get('include_samples', 'false').strip().lower() in ('1', 'true', 'yes')
 
     try:
         from iotsploit_django.adapters.django.observation_repository import ObservationRepository
 
-        records = ObservationRepository().current(
+        records, scans = ObservationRepository().current_with_scans(
             target_id,
             component_id=request.GET.get('component_id'),
             source=request.GET.get('source'),
+            include_samples=include_samples,
         )
         if protocol:
             records = [r for r in records if r.protocol == protocol]
@@ -88,29 +91,50 @@ def get_current_observations(request):
         logger.error(f"Error reading observations for {target_id}: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-    return JsonResponse(_current_observations_payload(target_id, records))
+    return JsonResponse(_current_observations_payload(target_id, records, scans))
 
 
-def _current_observations_payload(target_id: str, records: list[ObservationRecord]) -> dict:
+def _current_observations_payload(
+    target_id: str,
+    records: list[ObservationRecord],
+    scans=(),
+) -> dict:
+    target = None
+    try:
+        from iotsploit_django.adapters.django.target_models import TargetManager
+
+        target = TargetManager.get_instance().get_target(target_id)
+    except Exception as exc:
+        logger.debug(f"Could not load target {target_id} for observation reconciliation: {exc}")
+
+    reconciled, serialized_scans = reconcile_observations(target, records, scans)
+
     return {
         'status': 'success',
         'target_id': target_id,
+        'scans': serialized_scans,
         'observations': [
             {
-                'fact_id': record.fact_id,
-                'component_id': record.component_id,
-                'source': record.source,
-                'scope_key': record.scope_key,
-                'protocol': record.protocol,
-                'subject_kind': record.subject_kind,
-                'subject_id': record.subject_id,
-                'observed_property': record.observed_property,
-                'value': record.value,
-                'display_key': record.display_key,
-                'scan_id': record.scan_id,
-                'observed_at': record.observed_at.isoformat() if record.observed_at else None,
+                'fact_id': item.record.fact_id,
+                'component_id': item.record.component_id,
+                'resolved_component_id': item.resolved_component_id,
+                'attribution': item.attribution,
+                'documentation': item.documentation,
+                'bus_id': item.bus_id,
+                'host_key': item.host_key,
+                'is_complete': item.record.is_complete,
+                'source': item.record.source,
+                'scope_key': item.record.scope_key,
+                'protocol': item.record.protocol,
+                'subject_kind': item.record.subject_kind,
+                'subject_id': item.record.subject_id,
+                'observed_property': item.record.observed_property,
+                'value': item.record.value,
+                'display_key': item.record.display_key,
+                'scan_id': item.record.scan_id,
+                'observed_at': item.record.observed_at.isoformat() if item.record.observed_at else None,
             }
-            for record in records
+            for item in reconciled
         ],
     }
 

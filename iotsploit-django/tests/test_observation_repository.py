@@ -95,6 +95,20 @@ def test_incomplete_scan_does_not_define_current_state(repo):
     assert [r.subject_id for r in repo.current(TARGET)] == ["198.18.34.1"]
 
 
+def test_sample_scan_merges_additively_and_marks_is_complete_false(repo):
+    """Timed sample scans (e.g. CAN live capture) stay visible without clearing baselines."""
+    record_scan(repo, [host_fact("198.18.34.1")], is_complete=True)
+    record_scan(repo, [host_fact("198.18.34.2")], is_complete=False)
+
+    records, scans = repo.current_with_scans(TARGET, include_samples=True)
+    by_ip = {r.subject_id: r for r in records}
+    assert set(by_ip) == {"198.18.34.1", "198.18.34.2"}
+    assert by_ip["198.18.34.1"].is_complete is True
+    assert by_ip["198.18.34.2"].is_complete is False
+    assert len(scans) == 1
+    assert scans[0].is_complete is False
+
+
 def test_scopes_do_not_overwrite_each_other(repo):
     """A fast scan finishing after a full scan must not erase the full scan's findings."""
     record_scan(repo, [host_fact("198.18.34.1")], scope_key="tcam_ap_forward:full")
