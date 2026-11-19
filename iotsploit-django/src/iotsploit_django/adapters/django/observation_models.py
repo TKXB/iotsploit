@@ -3,7 +3,7 @@
 Two tables, deliberately:
 
 - ``scan_runs``   -- one row per plugin scan scope, written *before* execution.
-- ``observations`` -- append-only facts belonging to a scan.
+- ``observations`` -- facts belonging to a scan.
 
 A facts-only table could not represent a successful scan that found nothing, which
 is exactly how "no internal IPs are exposed" must be recorded.
@@ -45,6 +45,7 @@ class ScanRunDBModel(Base):
     scope_key = Column(String, nullable=False)
     status = Column(String, nullable=False)
     is_complete = Column(Boolean, default=False, nullable=False)
+    # Number of facts originally recorded by this scan.
     facts_count = Column(Integer, default=0, nullable=False)
     started_at = Column(DateTime, nullable=False)
     completed_at = Column(DateTime, nullable=True)

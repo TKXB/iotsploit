@@ -118,6 +118,7 @@ class StartedScan(BaseModel):
 class ObservationRecord(BaseModel):
     """A stored fact together with the provenance of the scan that produced it."""
 
+    fact_id: str
     scan_id: str
     target_id: str
     component_id: Optional[str]

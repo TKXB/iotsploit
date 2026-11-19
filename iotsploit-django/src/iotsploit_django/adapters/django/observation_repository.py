@@ -5,9 +5,9 @@ history and listing are not here yet -- see docs/target_data_model_plan.md,
 "Phase 1 minimal". The first diff is computed by hand against ``current()`` so the
 model is validated against real hardware before more query surface is built.
 
-Facts are never updated in place. A new scan appends a new row; ``current()``
-derives the present view by selecting the latest successful complete scan per
-comparable scope.
+A new scan appends facts; ``current()`` derives the present view from the
+latest successful complete scan per comparable scope. Deletion removes
+explicitly selected facts while retaining the scan that recorded them.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import uuid
 from datetime import datetime
 from typing import Iterable, List, Optional
 
+from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
 from iotsploit_core.domain.observation import (
@@ -222,51 +223,66 @@ class ObservationRepository:
         """
         session = self._session_factory()
         try:
-            query = (
-                session.query(ScanRunDBModel)
-                .filter(
-                    ScanRunDBModel.target_id == target_id,
-                    ScanRunDBModel.status == ScanStatus.SUCCEEDED.value,
-                    ScanRunDBModel.is_complete.is_(True),
-                )
-                .order_by(ScanRunDBModel.completed_at.desc(), ScanRunDBModel.scan_id.desc())
-            )
-            if component_id is not None:
-                query = query.filter(ScanRunDBModel.component_id == component_id)
-            if source is not None:
-                query = query.filter(ScanRunDBModel.source == source)
-
-            # Ordered newest-first, so the first scan seen for a scope is its
-            # current one. Small result sets; a window function can replace this
-            # if scan counts ever make it matter.
-            latest: dict[tuple, ScanRunDBModel] = {}
-            for scan in query.all():
-                key = tuple(getattr(scan, field) for field in COMPARABLE_SCOPE_FIELDS)
-                latest.setdefault(key, scan)
-
-            if not latest:
-                return []
-
-            scans = {scan.scan_id: scan for scan in latest.values()}
-            rows = (
-                session.query(ObservationDBModel)
-                .filter(ObservationDBModel.scan_id.in_(list(scans)))
-                .order_by(
-                    ObservationDBModel.protocol,
-                    ObservationDBModel.subject_kind,
-                    ObservationDBModel.subject_id,
-                    ObservationDBModel.observed_property,
-                )
-                .all()
-            )
-
-            return [self._to_record(row, scans[row.scan_id]) for row in rows]
+            return self._current_records(session, self._current_scan_ids(target_id, component_id, source))
         finally:
             session.close()
+
+    def delete_current_facts(
+        self, target_id: str, facts: list[tuple[str, int]]
+    ) -> tuple[int, List[ObservationRecord]]:
+        """Delete confirmed facts from current scans and return the updated view."""
+        current_ids = self._current_scan_ids(target_id)
+        with self._session_factory.begin() as session:
+            deleted = 0
+            # Two parameters per identity, below SQLite's legacy bind limit.
+            for offset in range(0, len(facts), 400):
+                result = session.execute(
+                    delete(ObservationDBModel).where(
+                        ObservationDBModel.scan_id.in_(current_ids),
+                        tuple_(ObservationDBModel.scan_id, ObservationDBModel.id).in_(facts[offset : offset + 400]),
+                    )
+                )
+                deleted += result.rowcount
+            return deleted, self._current_records(session, current_ids)
+
+    @staticmethod
+    def _current_scan_ids(target_id: str, component_id=None, source=None):
+        ranked = select(
+            ScanRunDBModel.scan_id,
+            func.row_number().over(
+                partition_by=[getattr(ScanRunDBModel, field) for field in COMPARABLE_SCOPE_FIELDS],
+                order_by=(ScanRunDBModel.completed_at.desc(), ScanRunDBModel.scan_id.desc()),
+            ).label("position"),
+        ).where(
+            ScanRunDBModel.target_id == target_id,
+            ScanRunDBModel.status == ScanStatus.SUCCEEDED.value,
+            ScanRunDBModel.is_complete.is_(True),
+        )
+        if component_id is not None:
+            ranked = ranked.where(ScanRunDBModel.component_id == component_id)
+        if source is not None:
+            ranked = ranked.where(ScanRunDBModel.source == source)
+        ranked = ranked.subquery()
+        return select(ranked.c.scan_id).where(ranked.c.position == 1)
+
+    def _current_records(self, session, scan_ids) -> List[ObservationRecord]:
+        rows = session.execute(
+            select(ObservationDBModel, ScanRunDBModel)
+            .join(ScanRunDBModel, ScanRunDBModel.scan_id == ObservationDBModel.scan_id)
+            .where(ObservationDBModel.scan_id.in_(scan_ids))
+            .order_by(
+                ObservationDBModel.protocol,
+                ObservationDBModel.subject_kind,
+                ObservationDBModel.subject_id,
+                ObservationDBModel.observed_property,
+            )
+        )
+        return [self._to_record(row, scan) for row, scan in rows]
 
     @staticmethod
     def _to_record(row: ObservationDBModel, scan: ScanRunDBModel) -> ObservationRecord:
         return ObservationRecord(
+            fact_id=f"{row.scan_id}:{row.id}",
             scan_id=row.scan_id,
             target_id=scan.target_id,
             component_id=scan.component_id,

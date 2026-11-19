@@ -22,12 +22,17 @@ from django.test import RequestFactory  # noqa: E402
 import iotsploit_django.adapters.django.observation_repository as repo_module  # noqa: E402
 from iotsploit_core.domain.observation import Fact, ObservationScope  # noqa: E402
 from iotsploit_django.adapters.django.observation_models import (  # noqa: E402
+    ObservationDBModel,
+    ScanRunDBModel,
     enable_sqlite_foreign_keys,
     initialize_observation_schema,
 )
 from iotsploit_django.adapters.django.observation_repository import ObservationRepository  # noqa: E402
 from iotsploit_django.adapters.sqlalchemy.database import create_sqlalchemy_db  # noqa: E402
-from iotsploit_django.view_handlers.observation_views import get_current_observations  # noqa: E402
+from iotsploit_django.view_handlers.observation_views import (  # noqa: E402
+    delete_observation_facts,
+    get_current_observations,
+)
 
 pytestmark = pytest.mark.contract
 
@@ -113,3 +118,73 @@ def test_a_fact_carries_its_provenance(seeded):
 def test_the_response_is_json_serializable(seeded):
     """observed_at is a datetime; JsonResponse would raise if it leaked through."""
     json.dumps(fetch()[1])
+
+
+def delete_facts(fact_ids, target_id=TARGET):
+    request = RequestFactory().post(
+        "/api/delete_observation_facts/",
+        data=json.dumps({"target_id": target_id, "fact_ids": fact_ids}),
+        content_type="application/json",
+    )
+    response = delete_observation_facts(request)
+    return response.status_code, json.loads(response.content)
+
+
+def complete_scan(repo, source, target_id=TARGET):
+    scan_id = repo.start_scan(
+        target_id=target_id,
+        source=source,
+        scope_key="can:powertrain",
+    )
+    repo.complete_scan(
+        scan_id,
+        [Fact(protocol="can", subject_kind="message", subject_id="120", observed_property="seen", value=True)],
+    )
+    return scan_id
+
+
+def test_delete_is_scoped_to_the_confirmed_fact_and_target(repo):
+    first = complete_scan(repo, "capture_a")
+    other = complete_scan(repo, "capture_b")
+    outside = complete_scan(repo, "capture_a", "other_target")
+    selected = next(record["fact_id"] for record in fetch()[1]["observations"] if record["scan_id"] == first)
+    foreign = fetch("other_target")[1]["observations"][0]["fact_id"]
+
+    status, body = delete_facts([selected, foreign])
+
+    assert status == 200
+    assert body["deleted"] == 1
+    assert [record["scan_id"] for record in body["observations"]] == [other]
+    assert [record["scan_id"] for record in fetch("other_target")[1]["observations"]] == [outside]
+    assert delete_facts([selected])[1]["deleted"] == 0
+
+
+def test_clear_retains_empty_current_scans_so_historical_facts_stay_hidden(repo):
+    historical = complete_scan(repo, "capture_a")
+    current = complete_scan(repo, "capture_a")
+    complete_scan(repo, "capture_b")
+    ids = [record["fact_id"] for record in fetch()[1]["observations"]]
+
+    status, body = delete_facts(ids)
+
+    assert status == 200
+    assert body["deleted"] == 2
+    assert body["observations"] == fetch()[1]["observations"] == []
+    with repo._session_factory() as session:
+        assert session.get(ScanRunDBModel, current) is not None
+        assert session.query(ObservationDBModel).filter_by(scan_id=historical).count() == 1
+
+
+def test_clear_preserves_a_scan_completed_during_confirmation(repo):
+    superseded = complete_scan(repo, "capture_a")
+    complete_scan(repo, "capture_b")
+    ids = [record["fact_id"] for record in fetch()[1]["observations"]]
+    new_scan = complete_scan(repo, "capture_a")
+
+    status, body = delete_facts(ids)
+
+    assert status == 200
+    assert body["deleted"] == 1
+    assert [record["scan_id"] for record in body["observations"]] == [new_scan]
+    with repo._session_factory() as session:
+        assert session.query(ObservationDBModel).filter_by(scan_id=superseded).count() == 1

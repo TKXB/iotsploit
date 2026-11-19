@@ -19,7 +19,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from pydantic import ValidationError
 
-from iotsploit_core.domain.observation import Fact
+from iotsploit_core.domain.observation import Fact, ObservationRecord
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +88,16 @@ def get_current_observations(request):
         logger.error(f"Error reading observations for {target_id}: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-    return JsonResponse({
+    return JsonResponse(_current_observations_payload(target_id, records))
+
+
+def _current_observations_payload(target_id: str, records: list[ObservationRecord]) -> dict:
+    return {
         'status': 'success',
         'target_id': target_id,
         'observations': [
             {
+                'fact_id': record.fact_id,
                 'component_id': record.component_id,
                 'source': record.source,
                 'scope_key': record.scope_key,
@@ -107,7 +112,48 @@ def get_current_observations(request):
             }
             for record in records
         ],
-    })
+    }
+
+
+_FACT_ID = re.compile(r"([0-9a-f]{32}):([1-9][0-9]{0,18})")
+
+
+@csrf_exempt
+def delete_observation_facts(request):
+    """POST a target ID and the fact IDs the user confirmed for deletion."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+
+    if not isinstance(data, dict):
+        return JsonResponse({'error': 'Body must be a JSON object'}, status=400)
+    target_id = data.get('target_id')
+    fact_ids = data.get('fact_ids')
+    if not isinstance(target_id, str) or not target_id.strip():
+        return JsonResponse({'error': 'target_id is required'}, status=400)
+    if not isinstance(fact_ids, list) or not fact_ids:
+        return JsonResponse({'error': 'fact_ids must be a non-empty list'}, status=400)
+
+    facts = []
+    for fact_id in fact_ids:
+        match = _FACT_ID.fullmatch(fact_id) if isinstance(fact_id, str) else None
+        if match is None or int(match[2]) > 2**63 - 1:
+            return JsonResponse({'error': 'Invalid fact ID'}, status=400)
+        facts.append((match[1], int(match[2])))
+
+    try:
+        from iotsploit_django.adapters.django.observation_repository import ObservationRepository
+
+        deleted, records = ObservationRepository().delete_current_facts(target_id, facts)
+    except Exception:
+        logger.exception("Error deleting observation facts for %s", target_id)
+        return JsonResponse({'error': 'Could not delete observation facts'}, status=500)
+
+    return JsonResponse({**_current_observations_payload(target_id, records), 'deleted': deleted})
 
 
 @csrf_exempt
